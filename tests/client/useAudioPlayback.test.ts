@@ -30,11 +30,11 @@ function buildMockGainNode() {
 function buildMockCompressorNode() {
   return {
     ...buildMockAudioNode(),
-    threshold: { value: -24 },
-    knee: { value: 30 },
-    ratio: { value: 12 },
-    attack: { value: 0.003 },
-    release: { value: 0.25 },
+    threshold: { value: -10 },
+    knee: { value: 40 },
+    ratio: { value: 4 },
+    attack: { value: 0.008 },
+    release: { value: 0.1 },
   };
 }
 
@@ -328,6 +328,30 @@ describe('useAudioPlayback', () => {
       expect(mockContext.createAnalyser).toHaveBeenCalledTimes(1);
       expect(mockContext.createGain).toHaveBeenCalledTimes(1);
       expect(mockContext.createDynamicsCompressor).toHaveBeenCalledTimes(1);
+    });
+
+    it('initializes DynamicsCompressorNode with fine-tuned parameters', async () => {
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+
+      const pcm16 = new Int16Array([1000]);
+      const b64 = Buffer.from(pcm16.buffer).toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+
+      const compressor = mockContext._compressorNode;
+      // threshold=-10 dBFS: sits above AGC steady-state (~-16 dBFS), engages only on transients
+      expect(compressor.threshold.value).toBe(-10);
+      // knee=40 dB: wide soft-knee for a gradual, transparent onset
+      expect(compressor.knee.value).toBe(40);
+      // ratio=4:1: gentle limiting (not brick-wall); AGC already normalises level
+      expect(compressor.ratio.value).toBe(4);
+      // attack=8 ms: lets natural transients through before clamping
+      expect(compressor.attack.value).toBeCloseTo(0.008, 4);
+      // release=100 ms: recovers fast enough to avoid pumping between words
+      expect(compressor.release.value).toBeCloseTo(0.1, 4);
     });
 
     it('connects audio graph in order: analyser → compressor → gain → destination', async () => {

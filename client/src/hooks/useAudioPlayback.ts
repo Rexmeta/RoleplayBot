@@ -168,7 +168,7 @@ export function useAudioPlayback(
         analyserNodeRef.current.smoothingTimeConstant = 0.8;
 
         // Compressor acts as a peak safety-net AFTER AGC pre-conditions the signal
-        // to ~-14 dBFS RMS (AGC_TARGET_RMS = 0.2). Settings rationale:
+        // to ~-16 dBFS RMS (AGC_TARGET_RMS = 0.15). Settings rationale:
         //   threshold=-10: sits above the AGC steady-state so the compressor only
         //     engages on genuine transients/peaks, not on every chunk of speech.
         //   ratio=4: gentle limiting; AGC already handles normalisation, so we
