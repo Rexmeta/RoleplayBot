@@ -400,13 +400,13 @@ describe('useAudioPlayback', () => {
       expect(anyNonZero).toBe(true);
     });
 
-    it('AGC math scales non-silent chunks toward target RMS 0.2', () => {
-      const AGC_TARGET_RMS = 0.2;
+    it('AGC math scales non-silent chunks toward target RMS 0.15', () => {
+      const AGC_TARGET_RMS = 0.15;
       const AGC_SILENCE_THRESHOLD = 0.01;
-      const AGC_ATTACK_COEFF = 0.1;
-      const AGC_RELEASE_COEFF = 0.02;
+      const AGC_ATTACK_COEFF = 0.05;
+      const AGC_RELEASE_COEFF = 0.015;
       const AGC_MIN_GAIN = 0.5;
-      const AGC_MAX_GAIN = 8.0;
+      const AGC_MAX_GAIN = 4.0;
 
       const pcm16Values = [16384, -16384];
       const pcm16 = new Int16Array(pcm16Values);
@@ -440,12 +440,12 @@ describe('useAudioPlayback', () => {
     });
 
     it('skips AGC scaling for near-silent chunks to prevent noise amplification', () => {
-      const AGC_TARGET_RMS = 0.2;
+      const AGC_TARGET_RMS = 0.15;
       const AGC_SILENCE_THRESHOLD = 0.01;
-      const AGC_ATTACK_COEFF = 0.1;
-      const AGC_RELEASE_COEFF = 0.02;
+      const AGC_ATTACK_COEFF = 0.05;
+      const AGC_RELEASE_COEFF = 0.015;
       const AGC_MIN_GAIN = 0.5;
-      const AGC_MAX_GAIN = 8.0;
+      const AGC_MAX_GAIN = 4.0;
 
       const silentFloat32 = new Float32Array([0.001, -0.001, 0.0005]);
       const original = new Float32Array(silentFloat32);

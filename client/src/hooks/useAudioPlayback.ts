@@ -2,12 +2,33 @@ import { useState, useRef, useCallback } from 'react';
 
 const DEFAULT_GAIN = 1.0;
 
-const AGC_TARGET_RMS = 0.2;
+// AGC_TARGET_RMS: desired output RMS level.
+// Gemini Live PCM16 voices typically arrive at 0.05–0.15 RMS.
+// 0.15 keeps the signal comfortably audible while staying clear of the
+// downstream compressor's soft-knee onset (~0.063 linear / −24 dBFS),
+// reducing the "squashed" sound that 0.2 could produce.
+const AGC_TARGET_RMS = 0.15;
+
 const AGC_SILENCE_THRESHOLD = 0.01;
-const AGC_ATTACK_COEFF = 0.1;
-const AGC_RELEASE_COEFF = 0.02;
+
+// AGC_ATTACK_COEFF: how quickly the running-RMS estimate climbs when the
+// signal gets louder.  0.05 (≈5 % blend per chunk) is noticeably slower than
+// the original 0.1 and prevents audible inter-chunk gain pumping on sudden
+// loud passages.
+const AGC_ATTACK_COEFF = 0.05;
+
+// AGC_RELEASE_COEFF: how quickly the estimate falls when the signal quietens.
+// 0.015 gives a slightly more gradual recovery than 0.02, avoiding the
+// "breathing" artefact heard on brief inter-word pauses.
+const AGC_RELEASE_COEFF = 0.015;
+
+// AGC_MIN_GAIN / AGC_MAX_GAIN: hard clamps on the computed gain factor.
+// Min 0.5 (−6 dB): allows modest attenuation of unexpectedly loud audio.
+// Max 4.0 (+12 dB): sufficient for quiet AI voices while limiting how much
+// background noise gets amplified; the original 8.0 (+18 dB) was excessive
+// for Gemini's consistently-normalised output.
 const AGC_MIN_GAIN = 0.5;
-const AGC_MAX_GAIN = 8.0;
+const AGC_MAX_GAIN = 4.0;
 
 interface UseAudioPlaybackReturn {
   playbackContextRef: React.MutableRefObject<AudioContext | null>;
