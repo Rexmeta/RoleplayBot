@@ -115,10 +115,6 @@ const PATH_ALLOWLIST: string[] = [
   // /api/admin/categories/:id and /api/admin/categories/:categoryId/translations/:locale.
   "/api/admin/categories/",
 
-  // /api/v1/agent/docs is the Swagger UI mount point, registered via
-  // `app.use('/api/v1/agent/docs', ...swaggerUi.serve, swaggerUi.setup(...))`.
-  // The static-analysis extractor only handles .get/.post/.patch etc., not .use().
-  "/api/v1/agent/docs",
 ];
 
 // ---------------------------------------------------------------------------
@@ -132,6 +128,7 @@ const PATH_ALLOWLIST: string[] = [
  *   (app|router).METHOD("path")   — string literal argument
  *   (app|router).METHOD('path')
  *   (app|router).METHOD(`path`)   — template literal (static part only)
+ *   (app|router).use("path", ...) — middleware mount points (path only, no METHOD)
  *
  * @param content      Raw file text.
  * @param mountPrefix  When the file uses relative paths, the Express mount
@@ -139,23 +136,32 @@ const PATH_ALLOWLIST: string[] = [
  */
 function extractServerRoutes(content: string, mountPrefix = ""): string[] {
   const paths: string[] = [];
-  // Match the HTTP-verb call and the first string argument.
-  // We deliberately avoid multiline look-aheads to keep the regex simple and
-  // handle the common single-line forms; multi-line route definitions are
-  // caught by the companion regex below.
+
+  const addPath = (rawPath: string) => {
+    const fullPath = mountPrefix
+      ? mountPrefix + (rawPath === "/" ? "" : rawPath.startsWith("/") ? rawPath : `/${rawPath}`)
+      : rawPath;
+    if (fullPath.startsWith("/api/")) {
+      paths.push(fullPath);
+    }
+  };
+
+  // Match HTTP-verb calls and the first string argument.
   const routeRe =
     /(?:app|router)\s*\.\s*(?:get|post|put|patch|delete)\s*\(\s*(['"`])([^'"`\r\n]+)\1/g;
 
   let m: RegExpExecArray | null;
   while ((m = routeRe.exec(content)) !== null) {
-    const rawPath = m[2].trim();
-    const fullPath = mountPrefix
-      ? mountPrefix + (rawPath === "/" ? "" : rawPath.startsWith("/") ? rawPath : `/${rawPath}`)
-      : rawPath;
+    addPath(m[2].trim());
+  }
 
-    if (fullPath.startsWith("/api/")) {
-      paths.push(fullPath);
-    }
+  // Match app.use('/path', ...) mount points — captures the first string
+  // argument only when it looks like a path (starts with '/').
+  const useRe =
+    /(?:app|router)\s*\.\s*use\s*\(\s*(['"`])(\/[^'"`\r\n]*)\1/g;
+
+  while ((m = useRe.exec(content)) !== null) {
+    addPath(m[2].trim());
   }
 
   return paths;
