@@ -1,5 +1,5 @@
 /**
- * Guard against wrong API endpoint strings in client code.
+ * Guard against wrong API endpoint strings in client and server code.
  *
  * Background
  * ----------
@@ -10,9 +10,15 @@
  * How it works
  * ------------
  * Each entry in FORBIDDEN_PATTERNS describes one known-bad URL pattern. For
- * every entry the scanner checks every line of every client .ts/.tsx file. A
- * match causes the test to fail with a human-readable message pointing at the
- * offending file and line, and explaining the correct alternative.
+ * every entry the scanner checks every line of every .ts/.tsx file in each
+ * scanned directory. A match causes the test to fail with a human-readable
+ * message pointing at the offending file and line, and explaining the correct
+ * alternative.
+ *
+ * Scanned directories
+ * -------------------
+ * - client/src  — React frontend code
+ * - server/     — Express backend routes, services, and middleware
  *
  * Adding new patterns
  * -------------------
@@ -123,45 +129,62 @@ function collectSourceFiles(dir: string): string[] {
   return results;
 }
 
+/**
+ * Scan all files in the given list for a forbidden pattern.
+ * Returns an array of human-readable violation strings.
+ */
+function scanFiles(files: string[], pattern: RegExp): string[] {
+  const violations: string[] = [];
+  for (const filePath of files) {
+    const content = readFileSync(filePath, "utf8");
+    const lines = content.split("\n");
+    lines.forEach((line, idx) => {
+      pattern.lastIndex = 0;
+      if (pattern.test(line)) {
+        const relativePath = filePath.replace(process.cwd() + "/", "");
+        violations.push(`${relativePath}:${idx + 1}  →  ${line.trim()}`);
+      }
+    });
+  }
+  return violations;
+}
+
+// ---------------------------------------------------------------------------
+// Directories to scan
+// ---------------------------------------------------------------------------
+
+const SCAN_DIRS: Array<{ label: string; path: string }> = [
+  { label: "client", path: join(process.cwd(), "client", "src") },
+  { label: "server", path: join(process.cwd(), "server") },
+];
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("Forbidden API endpoint guard", () => {
-  const clientDir = join(process.cwd(), "client", "src");
-  const sourceFiles = collectSourceFiles(clientDir);
+for (const { label, path: dir } of SCAN_DIRS) {
+  describe(`Forbidden API endpoint guard — ${label}`, () => {
+    const sourceFiles = collectSourceFiles(dir);
 
-  it("should have found client source files to scan", () => {
-    expect(sourceFiles.length).toBeGreaterThan(0);
-  });
-
-  for (const { description, pattern, hint } of FORBIDDEN_PATTERNS) {
-    it(`no client file references the ${description}`, () => {
-      const violations: string[] = [];
-
-      for (const filePath of sourceFiles) {
-        const content = readFileSync(filePath, "utf8");
-        const lines = content.split("\n");
-
-        lines.forEach((line, idx) => {
-          pattern.lastIndex = 0;
-          if (pattern.test(line)) {
-            const relativePath = filePath.replace(process.cwd() + "/", "");
-            violations.push(`${relativePath}:${idx + 1}  →  ${line.trim()}`);
-          }
-        });
-      }
-
-      if (violations.length > 0) {
-        const message = [
-          "",
-          `Found forbidden endpoint pattern — ${hint}`,
-          "",
-          ...violations.map((v) => `  ${v}`),
-          "",
-        ].join("\n");
-        expect.fail(message);
-      }
+    it(`should have found ${label} source files to scan`, () => {
+      expect(sourceFiles.length).toBeGreaterThan(0);
     });
-  }
-});
+
+    for (const { description, pattern, hint } of FORBIDDEN_PATTERNS) {
+      it(`no ${label} file references the ${description}`, () => {
+        const violations = scanFiles(sourceFiles, pattern);
+
+        if (violations.length > 0) {
+          const message = [
+            "",
+            `Found forbidden endpoint pattern — ${hint}`,
+            "",
+            ...violations.map((v) => `  ${v}`),
+            "",
+          ].join("\n");
+          expect.fail(message);
+        }
+      });
+    }
+  });
+}
