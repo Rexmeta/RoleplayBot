@@ -5,6 +5,11 @@ import { useRealtimeVoice } from '../../client/src/hooks/useRealtimeVoice';
 import { resolvePersonaAfterSwitch } from '../../client/src/components/chat/resolvePersonaAfterSwitch';
 import type { ScenarioPersona } from '../../client/src/lib/scenario-system';
 
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useQueryClient: () => ({ invalidateQueries: vi.fn().mockResolvedValue(undefined) }),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers: minimal mocks required by useRealtimeVoice
 // ---------------------------------------------------------------------------

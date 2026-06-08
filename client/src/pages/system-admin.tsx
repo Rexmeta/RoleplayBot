@@ -621,6 +621,17 @@ export default function SystemAdminPage() {
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
+  const VOICE_AUDIO_DEFAULTS = {
+    agc_target_rms: 0.15,
+    agc_min_gain: 0.5,
+    agc_max_gain: 4.0,
+    agc_attack_coeff: 0.05,
+    agc_release_coeff: 0.015,
+  };
+
+  const [voiceAudioSettings, setVoiceAudioSettings] = useState<Record<string, number>>(VOICE_AUDIO_DEFAULTS);
+  const [hasVoiceAudioChanges, setHasVoiceAudioChanges] = useState(false);
+
   const { data: users = [], isLoading: usersLoading } = useQuery<UserData[]>({
     queryKey: ["/api/system-admin/users"],
   });
@@ -864,7 +875,52 @@ export default function SystemAdminPage() {
       setFeatureModels(newFeatureModels);
     }
     setHasSettingsChanges(false);
+
+    // Initialize voice audio settings from saved settings
+    const newVoiceAudio: Record<string, number> = { ...VOICE_AUDIO_DEFAULTS };
+    let voiceChanged = false;
+    for (const key of Object.keys(VOICE_AUDIO_DEFAULTS)) {
+      const saved = systemSettings.find(s => s.category === "voice_audio" && s.key === key);
+      if (saved) {
+        const parsed = parseFloat(saved.value);
+        if (!isNaN(parsed)) {
+          newVoiceAudio[key] = parsed;
+          voiceChanged = true;
+        }
+      }
+    }
+    if (voiceChanged) {
+      setVoiceAudioSettings(newVoiceAudio);
+    }
+    setHasVoiceAudioChanges(false);
   }, [systemSettings]);
+
+  const handleVoiceAudioChange = (key: string, value: number) => {
+    setVoiceAudioSettings(prev => ({ ...prev, [key]: value }));
+    setHasVoiceAudioChanges(true);
+  };
+
+  const handleSaveVoiceAudio = () => {
+    const VOICE_AUDIO_DESCRIPTIONS: Record<string, string> = {
+      agc_target_rms: 'Target RMS level for automatic gain control',
+      agc_min_gain: 'Minimum gain clamp for AGC',
+      agc_max_gain: 'Maximum gain clamp for AGC',
+      agc_attack_coeff: 'AGC attack coefficient — how quickly gain rises',
+      agc_release_coeff: 'AGC release coefficient — how quickly gain falls',
+    };
+    const settings = Object.entries(voiceAudioSettings).map(([key, value]) => ({
+      category: 'voice_audio',
+      key,
+      value: String(value),
+      description: VOICE_AUDIO_DESCRIPTIONS[key] ?? '',
+    }));
+    saveSettingsMutation.mutate(settings, {
+      onSuccess: () => {
+        setHasVoiceAudioChanges(false);
+        queryClient.invalidateQueries({ queryKey: ['/api/settings/voice-audio'] });
+      },
+    });
+  };
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -1492,6 +1548,185 @@ export default function SystemAdminPage() {
                       <p className="text-sm text-amber-800">
                         {t('systemAdmin.settings.apiKeySecurityNote')}
                       </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Voice Audio (AGC)
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Automatic Gain Control settings applied to AI voice output during real-time voice sessions. Changes take effect at the start of the next session.
+                </p>
+              </CardHeader>
+              <CardContent>
+                {settingsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Target RMS Level</label>
+                        <p className="text-xs text-muted-foreground">Desired output loudness level (0.01 – 1.0). Default: 0.15</p>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="0.01"
+                            max="1.0"
+                            step="0.01"
+                            value={voiceAudioSettings['agc_target_rms'] ?? 0.15}
+                            onChange={e => handleVoiceAudioChange('agc_target_rms', parseFloat(e.target.value))}
+                            className="flex-1 accent-blue-600"
+                          />
+                          <Input
+                            type="number"
+                            min="0.01"
+                            max="1.0"
+                            step="0.01"
+                            value={voiceAudioSettings['agc_target_rms'] ?? 0.15}
+                            onChange={e => handleVoiceAudioChange('agc_target_rms', parseFloat(e.target.value))}
+                            className="w-20 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Minimum Gain</label>
+                        <p className="text-xs text-muted-foreground">Lowest gain multiplier allowed (0.1 – 2.0). Default: 0.5 (−6 dB)</p>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="0.1"
+                            max="2.0"
+                            step="0.05"
+                            value={voiceAudioSettings['agc_min_gain'] ?? 0.5}
+                            onChange={e => handleVoiceAudioChange('agc_min_gain', parseFloat(e.target.value))}
+                            className="flex-1 accent-blue-600"
+                          />
+                          <Input
+                            type="number"
+                            min="0.1"
+                            max="2.0"
+                            step="0.05"
+                            value={voiceAudioSettings['agc_min_gain'] ?? 0.5}
+                            onChange={e => handleVoiceAudioChange('agc_min_gain', parseFloat(e.target.value))}
+                            className="w-20 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Maximum Gain</label>
+                        <p className="text-xs text-muted-foreground">Highest gain multiplier allowed (1.0 – 10.0). Default: 4.0 (+12 dB)</p>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="1.0"
+                            max="10.0"
+                            step="0.25"
+                            value={voiceAudioSettings['agc_max_gain'] ?? 4.0}
+                            onChange={e => handleVoiceAudioChange('agc_max_gain', parseFloat(e.target.value))}
+                            className="flex-1 accent-blue-600"
+                          />
+                          <Input
+                            type="number"
+                            min="1.0"
+                            max="10.0"
+                            step="0.25"
+                            value={voiceAudioSettings['agc_max_gain'] ?? 4.0}
+                            onChange={e => handleVoiceAudioChange('agc_max_gain', parseFloat(e.target.value))}
+                            className="w-20 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Attack Coefficient</label>
+                        <p className="text-xs text-muted-foreground">How quickly gain rises on loud passages (0.005 – 0.5). Default: 0.05</p>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="0.005"
+                            max="0.5"
+                            step="0.005"
+                            value={voiceAudioSettings['agc_attack_coeff'] ?? 0.05}
+                            onChange={e => handleVoiceAudioChange('agc_attack_coeff', parseFloat(e.target.value))}
+                            className="flex-1 accent-blue-600"
+                          />
+                          <Input
+                            type="number"
+                            min="0.005"
+                            max="0.5"
+                            step="0.005"
+                            value={voiceAudioSettings['agc_attack_coeff'] ?? 0.05}
+                            onChange={e => handleVoiceAudioChange('agc_attack_coeff', parseFloat(e.target.value))}
+                            className="w-20 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Release Coefficient</label>
+                        <p className="text-xs text-muted-foreground">How quickly gain falls on quiet passages (0.001 – 0.2). Default: 0.015</p>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="0.001"
+                            max="0.2"
+                            step="0.001"
+                            value={voiceAudioSettings['agc_release_coeff'] ?? 0.015}
+                            onChange={e => handleVoiceAudioChange('agc_release_coeff', parseFloat(e.target.value))}
+                            className="flex-1 accent-blue-600"
+                          />
+                          <Input
+                            type="number"
+                            min="0.001"
+                            max="0.2"
+                            step="0.001"
+                            value={voiceAudioSettings['agc_release_coeff'] ?? 0.015}
+                            onChange={e => handleVoiceAudioChange('agc_release_coeff', parseFloat(e.target.value))}
+                            className="w-20 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-4 border-t">
+                      <Button
+                        onClick={handleSaveVoiceAudio}
+                        disabled={!hasVoiceAudioChanges || saveSettingsMutation.isPending}
+                      >
+                        {saveSettingsMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving…
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Voice Audio Settings
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setVoiceAudioSettings({ ...VOICE_AUDIO_DEFAULTS });
+                          setHasVoiceAudioChanges(true);
+                        }}
+                      >
+                        Reset to Defaults
+                      </Button>
+                      {hasVoiceAudioChanges && (
+                        <span className="text-sm text-amber-600">Unsaved changes</span>
+                      )}
                     </div>
                   </div>
                 )}

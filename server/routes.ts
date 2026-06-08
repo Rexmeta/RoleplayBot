@@ -60,6 +60,36 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
 
+  // Voice audio AGC settings (readable by any authenticated user, seeded on first access)
+  const VOICE_AUDIO_DEFAULTS = [
+    { key: 'agc_target_rms', value: '0.15', description: 'Target RMS level for automatic gain control (default 0.15)' },
+    { key: 'agc_min_gain', value: '0.5', description: 'Minimum gain clamp for AGC (default 0.5, i.e. −6 dB)' },
+    { key: 'agc_max_gain', value: '4.0', description: 'Maximum gain clamp for AGC (default 4.0, i.e. +12 dB)' },
+    { key: 'agc_attack_coeff', value: '0.05', description: 'AGC attack coefficient — how quickly gain rises (default 0.05)' },
+    { key: 'agc_release_coeff', value: '0.015', description: 'AGC release coefficient — how quickly gain falls (default 0.015)' },
+  ];
+
+  app.get('/api/settings/voice-audio', isAuthenticated, async (_req, res) => {
+    try {
+      let rows = await storage.getSystemSettingsByCategory('voice_audio');
+      if (rows.length === 0) {
+        for (const d of VOICE_AUDIO_DEFAULTS) {
+          await storage.upsertSystemSetting({ category: 'voice_audio', ...d });
+        }
+        rows = await storage.getSystemSettingsByCategory('voice_audio');
+      }
+      const out: Record<string, number> = {};
+      for (const d of VOICE_AUDIO_DEFAULTS) {
+        const row = rows.find(r => r.key === d.key);
+        out[d.key] = parseFloat(row?.value ?? d.value);
+      }
+      res.json(out);
+    } catch (err) {
+      console.error('[voice-audio settings]', err);
+      res.status(500).json({ error: 'Failed to fetch voice audio settings' });
+    }
+  });
+
   // Health check
   app.get('/api/health', (req, res) => {
     const memoryUsage = process.memoryUsage();

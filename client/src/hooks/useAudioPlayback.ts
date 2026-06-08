@@ -1,34 +1,29 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 const DEFAULT_GAIN = 1.0;
 
-// AGC_TARGET_RMS: desired output RMS level.
-// Gemini Live PCM16 voices typically arrive at 0.05–0.15 RMS.
-// 0.15 keeps the signal comfortably audible while staying clear of the
-// downstream compressor's soft-knee onset (~0.063 linear / −24 dBFS),
-// reducing the "squashed" sound that 0.2 could produce.
 const AGC_TARGET_RMS = 0.15;
-
 const AGC_SILENCE_THRESHOLD = 0.01;
-
-// AGC_ATTACK_COEFF: how quickly the running-RMS estimate climbs when the
-// signal gets louder.  0.05 (≈5 % blend per chunk) is noticeably slower than
-// the original 0.1 and prevents audible inter-chunk gain pumping on sudden
-// loud passages.
 const AGC_ATTACK_COEFF = 0.05;
-
-// AGC_RELEASE_COEFF: how quickly the estimate falls when the signal quietens.
-// 0.015 gives a slightly more gradual recovery than 0.02, avoiding the
-// "breathing" artefact heard on brief inter-word pauses.
 const AGC_RELEASE_COEFF = 0.015;
-
-// AGC_MIN_GAIN / AGC_MAX_GAIN: hard clamps on the computed gain factor.
-// Min 0.5 (−6 dB): allows modest attenuation of unexpectedly loud audio.
-// Max 4.0 (+12 dB): sufficient for quiet AI voices while limiting how much
-// background noise gets amplified; the original 8.0 (+18 dB) was excessive
-// for Gemini's consistently-normalised output.
 const AGC_MIN_GAIN = 0.5;
 const AGC_MAX_GAIN = 4.0;
+
+export interface AgcConfig {
+  targetRms: number;
+  minGain: number;
+  maxGain: number;
+  attackCoeff: number;
+  releaseCoeff: number;
+}
+
+const DEFAULT_AGC_CONFIG: AgcConfig = {
+  targetRms: AGC_TARGET_RMS,
+  minGain: AGC_MIN_GAIN,
+  maxGain: AGC_MAX_GAIN,
+  attackCoeff: AGC_ATTACK_COEFF,
+  releaseCoeff: AGC_RELEASE_COEFF,
+};
 
 interface UseAudioPlaybackReturn {
   playbackContextRef: React.MutableRefObject<AudioContext | null>;
@@ -47,7 +42,8 @@ interface UseAudioPlaybackReturn {
 }
 
 export function useAudioPlayback(
-  isInterruptedRef: React.MutableRefObject<boolean>
+  isInterruptedRef: React.MutableRefObject<boolean>,
+  agcConfig?: Partial<AgcConfig>
 ): UseAudioPlaybackReturn {
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [audioAmplitude, setAudioAmplitude] = useState(0);
@@ -61,6 +57,19 @@ export function useAudioPlayback(
   const amplitudeAnimationRef = useRef<number | null>(null);
   const isAISpeakingRef = useRef<boolean>(false);
   const agcRmsRef = useRef<number>(AGC_TARGET_RMS);
+
+  const agcConfigRef = useRef<AgcConfig>({ ...DEFAULT_AGC_CONFIG, ...agcConfig });
+
+  useEffect(() => {
+    agcConfigRef.current = { ...DEFAULT_AGC_CONFIG, ...agcConfig };
+    agcRmsRef.current = agcConfigRef.current.targetRms;
+  }, [
+    agcConfig?.targetRms,
+    agcConfig?.minGain,
+    agcConfig?.maxGain,
+    agcConfig?.attackCoeff,
+    agcConfig?.releaseCoeff,
+  ]);
 
   const startAmplitudeAnalysis = useCallback(() => {
     if (amplitudeAnimationRef.current) return;
@@ -137,7 +146,7 @@ export function useAudioPlayback(
     }
 
     nextPlayTimeRef.current = 0;
-    agcRmsRef.current = AGC_TARGET_RMS;
+    agcRmsRef.current = agcConfigRef.current.targetRms;
     setIsAISpeaking(false);
     isAISpeakingRef.current = false;
   }, [isInterruptedRef]);
@@ -214,13 +223,15 @@ export function useAudioPlayback(
       }
       const chunkRms = Math.sqrt(sumSq / float32.length);
 
+      const cfg = agcConfigRef.current;
+
       if (chunkRms >= AGC_SILENCE_THRESHOLD) {
-        const coeff = chunkRms > agcRmsRef.current ? AGC_ATTACK_COEFF : AGC_RELEASE_COEFF;
+        const coeff = chunkRms > agcRmsRef.current ? cfg.attackCoeff : cfg.releaseCoeff;
         agcRmsRef.current = agcRmsRef.current * (1 - coeff) + chunkRms * coeff;
       }
 
       if (agcRmsRef.current >= AGC_SILENCE_THRESHOLD) {
-        const agcGain = Math.min(AGC_MAX_GAIN, Math.max(AGC_MIN_GAIN, AGC_TARGET_RMS / agcRmsRef.current));
+        const agcGain = Math.min(cfg.maxGain, Math.max(cfg.minGain, cfg.targetRms / agcRmsRef.current));
         for (let i = 0; i < float32.length; i++) {
           float32[i] = Math.max(-1.0, Math.min(1.0, float32[i] * agcGain));
         }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAudioPlayback } from './useAudioPlayback';
+import { useQuery } from '@tanstack/react-query';
+import { useAudioPlayback, type AgcConfig } from './useAudioPlayback';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
 
 const NOISE_FLOOR_DURATION_MS = 1500;
@@ -178,6 +179,19 @@ export function useRealtimeVoice({
   const vadSensitivityRef = useRef<number>(vadSensitivity);
   useEffect(() => { vadSensitivityRef.current = vadSensitivity; }, [vadSensitivity]);
 
+  const { data: voiceAudioSettingsRaw } = useQuery<Record<string, number>>({
+    queryKey: ['/api/settings/voice-audio'],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const agcConfig: Partial<AgcConfig> | undefined = voiceAudioSettingsRaw ? {
+    targetRms: voiceAudioSettingsRaw['agc_target_rms'],
+    minGain: voiceAudioSettingsRaw['agc_min_gain'],
+    maxGain: voiceAudioSettingsRaw['agc_max_gain'],
+    attackCoeff: voiceAudioSettingsRaw['agc_attack_coeff'],
+    releaseCoeff: voiceAudioSettingsRaw['agc_release_coeff'],
+  } : undefined;
+
   const hasConversationStartedRef = useRef<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
   const captureContextRef = useRef<AudioContext | null>(null);
@@ -257,7 +271,7 @@ export function useRealtimeVoice({
     stopAmplitudeAnalysis,
     analyserNodeRef,
     gainNodeRef,
-  } = useAudioPlayback(isInterruptedRef);
+  } = useAudioPlayback(isInterruptedRef, agcConfig);
 
   const {
     vadProcessorRef,
