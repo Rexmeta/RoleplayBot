@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearch } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationCategoryTree } from "@/components/admin/OrganizationCategoryTree";
 import { ScenarioManager } from "@/components/admin/ScenarioManager";
@@ -10,6 +9,7 @@ import { DifficultySettingsTab } from "@/components/admin/DifficultySettingsTab"
 import { EvaluationCriteriaManager } from "@/components/admin/EvaluationCriteriaManager";
 import { ScenarioOverrideManager } from "@/components/admin/ScenarioOverrideManager";
 import { AppHeader } from "@/components/AppHeader";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function AdminManagement() {
   const { t } = useTranslation();
@@ -18,7 +18,7 @@ export default function AdminManagement() {
   const [activeTab, setActiveTab] = useState(urlTab || "manage-scenarios");
   const [personaCreateTrigger, setPersonaCreateTrigger] = useState(0);
 
-  const { data: currentUser } = useQuery<any>({ queryKey: ["/api/user"] });
+  const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === "admin";
 
   return (
