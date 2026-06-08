@@ -16,10 +16,15 @@
  *
  * Adding server-side route files
  * --------------------------------
- * • If a new router uses ABSOLUTE paths (already begins with /api/), add its
+ * A test automatically detects any .ts file added to server/routes/ that is
+ * not yet registered here, so you will get a clear failure message rather than
+ * silent missing coverage.  When you add a new route file, do ONE of:
+ * • If the router uses ABSOLUTE paths (already begins with /api/), add its
  *   file path to SERVER_FILES_ABSOLUTE.
- * • If a new router uses RELATIVE paths and is mounted at a prefix, add an
+ * • If the router uses RELATIVE paths and is mounted at a prefix, add an
  *   entry to SERVER_FILES_RELATIVE with the correct mount prefix.
+ * • If the file is a shared helper (no router.get/post/…), add its filename
+ *   to ROUTE_DIR_NON_ROUTE_FILES.
  *
  * Allowlisting legitimate false-positives
  * -----------------------------------------
@@ -29,7 +34,7 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
-import { join, extname } from "path";
+import { join, extname, basename } from "path";
 
 // ---------------------------------------------------------------------------
 // Route source configuration
@@ -81,6 +86,16 @@ const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
   { file: "server/routes/userPersonaImage.ts", prefix: "/api/user-personas" },
   { file: "server/routes/media.ts",            prefix: "/api/media" },
 ];
+
+/**
+ * Files inside `server/routes/` that are NOT route-registration files (e.g.
+ * shared helpers/utilities).  They are excluded from the coverage check below.
+ * Add a file here — with a short comment — if it lives in server/routes/ but
+ * does not call router.get/post/… directly.
+ */
+const ROUTE_DIR_NON_ROUTE_FILES = new Set<string>([
+  "routerHelpers.ts", // shared middleware helpers, not a router mount
+]);
 
 // ---------------------------------------------------------------------------
 // Allowlist
@@ -314,6 +329,47 @@ function isCovered(normalizedPath: string, canonical: Set<string>): boolean {
 describe("Stale API route detector", () => {
   const canonicalRoutes = buildCanonicalRoutes();
   const clientFiles = collectSourceFiles(join(CWD, "client", "src"));
+
+  // ── Route-file coverage guard ─────────────────────────────────────────────
+
+  it("all server/routes/*.ts files are registered in SERVER_FILES_ABSOLUTE or SERVER_FILES_RELATIVE", () => {
+    const routeDir = join(CWD, "server", "routes");
+
+    // Build a set of filenames (basename only) that are already registered.
+    const registeredFiles = new Set<string>([
+      ...SERVER_FILES_ABSOLUTE
+        .filter((f) => f.startsWith("server/routes/"))
+        .map((f) => basename(f)),
+      ...SERVER_FILES_RELATIVE
+        .map(({ file }) => basename(file)),
+    ]);
+
+    // Discover every .ts file directly inside server/routes/ (non-recursive —
+    // sub-directories are intentionally out of scope for this guard).
+    const discovered = readdirSync(routeDir).filter(
+      (name) =>
+        extname(name) === ".ts" && !ROUTE_DIR_NON_ROUTE_FILES.has(name)
+    );
+
+    const unregistered = discovered.filter((name) => !registeredFiles.has(name));
+
+    if (unregistered.length > 0) {
+      const message = [
+        "",
+        `${unregistered.length} file(s) in server/routes/ are not registered in staleApiRoutes.test.ts:`,
+        ...unregistered.map((f) => `  server/routes/${f}`),
+        "",
+        "How to fix — choose ONE of the following for each unregistered file:",
+        "  • If the router uses ABSOLUTE paths (already includes /api/), add the",
+        "    file path to SERVER_FILES_ABSOLUTE in tests/server/staleApiRoutes.test.ts.",
+        "  • If the router uses RELATIVE paths and is mounted at a prefix, add an",
+        "    entry to SERVER_FILES_RELATIVE with the correct mount prefix.",
+        "  • If the file is a shared helper (not a router mount), add its filename",
+        "    to ROUTE_DIR_NON_ROUTE_FILES in tests/server/staleApiRoutes.test.ts.",
+      ].join("\n");
+      expect.fail(message);
+    }
+  });
 
   // ── Sanity checks ──────────────────────────────────────────────────────────
 
