@@ -1070,18 +1070,20 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
 
-      expect(sendToClient).toHaveBeenCalledTimes(1);
-      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.interrupted' });
+      expect(sendToClient).toHaveBeenCalledTimes(2);
+      expect(sendToClient).toHaveBeenNthCalledWith(1, session, { type: 'response.interrupted' });
+      expect(sendToClient).toHaveBeenNthCalledWith(2, session, expect.objectContaining({ type: 'response.ready' }));
     });
 
-    it('ignores duplicate cancel when isInterrupted is already true', () => {
+    it('sends response.ready re-sync on duplicate cancel when isInterrupted is already true', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeSession({ geminiSession, isInterrupted: true, cancelledTurnSeq: 2 });
+      const session = makeSession({ geminiSession, isInterrupted: true, cancelledTurnSeq: 2, turnSeq: 3 });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
 
-      expect(sendToClient).not.toHaveBeenCalled();
+      expect(sendToClient).toHaveBeenCalledTimes(1);
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.ready', turnSeq: 3 });
     });
   });
 

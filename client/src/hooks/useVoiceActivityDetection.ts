@@ -9,7 +9,7 @@ const NOISE_DRIFT_DETECT_MS = 5000;
 interface SetupVADParams {
   audioContext: AudioContext;
   source: MediaStreamAudioSourceNode;
-  playbackContextRef: React.MutableRefObject<AudioContext | null>;
+  isActuallyPlayingRef: React.MutableRefObject<boolean>;
   wsRef: React.MutableRefObject<WebSocket | null>;
   isRecordingRef: React.MutableRefObject<boolean>;
   expectedTurnSeqRef: React.MutableRefObject<number>;
@@ -54,7 +54,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
   const setupVAD = useCallback(({
     audioContext,
     source,
-    playbackContextRef,
+    isActuallyPlayingRef,
     wsRef,
     isRecordingRef,
     expectedTurnSeqRef,
@@ -90,7 +90,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
       const activeThreshold = entryThresholdRef.current;
       const inactiveThreshold = exitThresholdRef.current;
 
-      const isPlaybackRunning = playbackContextRef.current?.state === 'running';
+      const isPlaybackRunning = isActuallyPlayingRef.current;
 
       if (Math.random() < 0.05) {
         console.log(`🔊 RAW-VAD: RMS=${rms.toFixed(4)}, entry=${activeThreshold.toFixed(4)}, exit=${inactiveThreshold.toFixed(4)}, voiceActive=${isVoiceActiveRef.current}, playbackRunning=${isPlaybackRunning}`);

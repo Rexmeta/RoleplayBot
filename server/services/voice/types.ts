@@ -77,4 +77,5 @@ export interface RealtimeSession {
   awaitingPersonaSwitch?: boolean;
   simulationHarness?: import('@shared/schema/scenarios').SimulationHarness | null;
   terminationHandled?: boolean;
+  evaluationInProgress?: boolean;
 }

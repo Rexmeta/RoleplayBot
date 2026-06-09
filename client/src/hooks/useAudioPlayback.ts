@@ -33,6 +33,7 @@ interface UseAudioPlaybackReturn {
   gainNodeRef: React.MutableRefObject<GainNode | null>;
   isAISpeaking: boolean;
   isAISpeakingRef: React.MutableRefObject<boolean>;
+  isActuallyPlayingRef: React.MutableRefObject<boolean>;
   audioAmplitude: number;
   setIsAISpeaking: React.Dispatch<React.SetStateAction<boolean>>;
   stopPlayback: () => void;
@@ -56,6 +57,7 @@ export function useAudioPlayback(
   const compressorNodeRef = useRef<DynamicsCompressorNode | null>(null);
   const amplitudeAnimationRef = useRef<number | null>(null);
   const isAISpeakingRef = useRef<boolean>(false);
+  const isActuallyPlayingRef = useRef<boolean>(false);
   const agcRmsRef = useRef<number>(AGC_TARGET_RMS);
 
   const agcConfigRef = useRef<AgcConfig>({ ...DEFAULT_AGC_CONFIG, ...agcConfig });
@@ -123,6 +125,7 @@ export function useAudioPlayback(
     console.log('🔇 Stopping current AI audio playback (barge-in)');
 
     isInterruptedRef.current = true;
+    isActuallyPlayingRef.current = false;
 
     for (const source of scheduledSourcesRef.current) {
       try {
@@ -169,6 +172,10 @@ export function useAudioPlayback(
       if (audioContext.state === 'suspended') {
         console.log('🔊 Resuming suspended AudioContext for playback');
         await audioContext.resume();
+      }
+
+      if (!isActuallyPlayingRef.current) {
+        isActuallyPlayingRef.current = true;
       }
 
       if (!analyserNodeRef.current) {
@@ -274,6 +281,7 @@ export function useAudioPlayback(
     gainNodeRef,
     isAISpeaking,
     isAISpeakingRef,
+    isActuallyPlayingRef,
     audioAmplitude,
     setIsAISpeaking,
     stopPlayback,

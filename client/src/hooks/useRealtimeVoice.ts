@@ -264,6 +264,7 @@ export function useRealtimeVoice({
     scheduledSourcesRef,
     isAISpeaking,
     isAISpeakingRef,
+    isActuallyPlayingRef,
     audioAmplitude,
     setIsAISpeaking,
     stopPlayback,
@@ -574,6 +575,7 @@ export function useRealtimeVoice({
             case 'response.done':
               setIsAISpeaking(false);
               isAISpeakingRef.current = false;
+              isActuallyPlayingRef.current = false;
               setGreetingFailed(false);
               audioResponseStartTimeRef.current = null;
               totalScheduledAudioDurationRef.current = 0;
@@ -592,7 +594,7 @@ export function useRealtimeVoice({
               setIsBargeInActive(false);
               serverVoiceDetectedTimeRef.current = null;
               if (data.turnSeq !== undefined) {
-                expectedTurnSeqRef.current = data.turnSeq - 1;
+                expectedTurnSeqRef.current = data.turnSeq;
               }
               if (playbackContextRef.current?.state === 'suspended') {
                 playbackContextRef.current.resume().catch(() => {});
@@ -888,7 +890,7 @@ export function useRealtimeVoice({
       return;
     }
 
-    if (isAISpeaking) {
+    if (isAISpeaking && !bargeInTriggeredRef.current) {
       console.log('🎤 User starting to speak - interrupting AI (barge-in)');
       stopCurrentPlayback();
       bargeInTriggeredRef.current = true;
@@ -944,7 +946,7 @@ export function useRealtimeVoice({
       setupVAD({
         audioContext,
         source,
-        playbackContextRef,
+        isActuallyPlayingRef,
         wsRef,
         isRecordingRef,
         expectedTurnSeqRef,

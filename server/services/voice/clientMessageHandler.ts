@@ -278,7 +278,8 @@ export function handleClientMessage(
 
     case 'response.cancel':
       if (session.isInterrupted) {
-        console.log(`⚡ Barge-in already active (cancelledTurn=${session.cancelledTurnSeq}), ignoring duplicate cancel`);
+        console.log(`⚡ Duplicate barge-in cancel — re-syncing client with turnSeq=${session.turnSeq}`);
+        sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
         break;
       }
 
@@ -303,6 +304,7 @@ export function handleClientMessage(
       session.currentTranscript = '';
 
       sendToClient(session, { type: 'response.interrupted' });
+      sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
       break;
 
     case 'ping':

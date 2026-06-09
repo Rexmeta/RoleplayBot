@@ -735,6 +735,10 @@ export function handleGeminiMessage(
           const turnIndex = session.userTurnsCompleted - 1;
           const aiText = session.recentMessages.filter(m => m.role === 'ai').slice(-1)[0]?.text ?? '';
 
+          if (session.evaluationInProgress) {
+            console.warn(`[geminiMessageHandler] Skipping evaluation for turn ${session.userTurnsCompleted} — previous evaluation still in progress (personaRunId=${personaRunId})`);
+          } else {
+          session.evaluationInProgress = true;
           setImmediate(async () => {
             try {
               let state = getSessionState(personaRunId);
@@ -861,8 +865,11 @@ export function handleGeminiMessage(
                 version: fallbackState.version,
                 timestamp: new Date().toISOString(),
               });
+            } finally {
+              session.evaluationInProgress = false;
             }
           });
+          }
         }
       }
 

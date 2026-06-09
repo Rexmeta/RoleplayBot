@@ -98,14 +98,14 @@ describe('useVoiceActivityDetection', () => {
       const wsRef = { current: makeWs() as any };
       const isRecordingRef = { current: true };
       const expectedTurnSeqRef = { current: 0 };
-      const playbackContextRef = { current: null };
+      const isActuallyPlayingRef = { current: false };
       const stopPlayback = vi.fn();
 
       act(() => {
         result.current.setupVAD({
           audioContext: ctx as unknown as AudioContext,
           source: source as unknown as MediaStreamAudioSourceNode,
-          playbackContextRef: playbackContextRef as any,
+          isActuallyPlayingRef,
           wsRef,
           isRecordingRef,
           expectedTurnSeqRef,
@@ -124,14 +124,14 @@ describe('useVoiceActivityDetection', () => {
       const wsRef = { current: makeWs() as any };
       const isRecordingRef = { current: true };
       const expectedTurnSeqRef = { current: 0 };
-      const playbackContextRef = { current: null };
+      const isActuallyPlayingRef = { current: false };
       const stopPlayback = vi.fn();
 
       act(() => {
         result.current.setupVAD({
           audioContext: ctx as unknown as AudioContext,
           source: source as unknown as MediaStreamAudioSourceNode,
-          playbackContextRef: playbackContextRef as any,
+          isActuallyPlayingRef,
           wsRef,
           isRecordingRef,
           expectedTurnSeqRef,
@@ -181,14 +181,14 @@ describe('useVoiceActivityDetection', () => {
       const wsRef = { current: makeWs(overrides.wsReadyState ?? WebSocket.OPEN) as any };
       const isRecordingRef = overrides.isRecordingRef ?? { current: true };
       const expectedTurnSeqRef = { current: 0 };
-      const playbackContextRef = { current: { state: 'running' } as unknown as AudioContext };
+      const isActuallyPlayingRef = { current: true };
       const stopPlayback = vi.fn();
 
       act(() => {
         result.current.setupVAD({
           audioContext: ctx as unknown as AudioContext,
           source: source as unknown as MediaStreamAudioSourceNode,
-          playbackContextRef: playbackContextRef as any,
+          isActuallyPlayingRef,
           wsRef,
           isRecordingRef,
           expectedTurnSeqRef,
@@ -258,15 +258,14 @@ describe('useVoiceActivityDetection', () => {
       const wsRef = { current: makeWs() as any };
       const isRecordingRef = { current: true };
       const expectedTurnSeqRef = { current: 2 };
-      const playbackContext = { state: 'running' } as unknown as AudioContext;
-      const playbackContextRef = { current: playbackContext };
+      const isActuallyPlayingRef = { current: true };
       const stopPlayback = vi.fn();
 
       act(() => {
         result.current.setupVAD({
           audioContext: ctx as unknown as AudioContext,
           source: source as unknown as MediaStreamAudioSourceNode,
-          playbackContextRef: playbackContextRef as any,
+          isActuallyPlayingRef,
           wsRef,
           isRecordingRef,
           expectedTurnSeqRef,
@@ -398,14 +397,14 @@ describe('useVoiceActivityDetection', () => {
       const wsRef = { current: makeWs() as any };
       const isRecordingRef = { current: true };
       const expectedTurnSeqRef = { current: 0 };
-      const playbackContextRef = { current: { state: 'suspended' } as unknown as AudioContext };
+      const isActuallyPlayingRef = { current: false };
       const stopPlayback = vi.fn();
 
       act(() => {
         result.current.setupVAD({
           audioContext: ctx as unknown as AudioContext,
           source: source as unknown as MediaStreamAudioSourceNode,
-          playbackContextRef: playbackContextRef as any,
+          isActuallyPlayingRef,
           wsRef,
           isRecordingRef,
           expectedTurnSeqRef,
@@ -430,17 +429,16 @@ describe('useVoiceActivityDetection', () => {
       const wsRef = { current: makeWs() as any };
       const isRecordingRef = { current: true };
       const expectedTurnSeqRef = { current: 2 };
-      const playbackContext = { state: 'running' as string } as unknown as AudioContext;
-      const playbackContextRef = { current: playbackContext };
+      const isActuallyPlayingRef = { current: true };
       const stopPlayback = vi.fn(() => {
-        (playbackContextRef.current as any).state = 'suspended';
+        isActuallyPlayingRef.current = false;
       });
 
       act(() => {
         result.current.setupVAD({
           audioContext: ctx as unknown as AudioContext,
           source: source as unknown as MediaStreamAudioSourceNode,
-          playbackContextRef: playbackContextRef as any,
+          isActuallyPlayingRef,
           wsRef,
           isRecordingRef,
           expectedTurnSeqRef,
@@ -482,14 +480,14 @@ describe('useVoiceActivityDetection', () => {
       const wsRef = { current: closedWs as any };
       const isRecordingRef = { current: true };
       const expectedTurnSeqRef = { current: 0 };
-      const playbackContextRef = { current: { state: 'running' } as unknown as AudioContext };
+      const isActuallyPlayingRef = { current: true };
       const stopPlayback = vi.fn();
 
       act(() => {
         result.current.setupVAD({
           audioContext: ctx as unknown as AudioContext,
           source: source as unknown as MediaStreamAudioSourceNode,
-          playbackContextRef: playbackContextRef as any,
+          isActuallyPlayingRef,
           wsRef,
           isRecordingRef,
           expectedTurnSeqRef,
