@@ -1,5 +1,5 @@
 import { useState, Fragment } from "react";
-import { getDefaultSourceLocale } from "@/lib/localeUtils";
+import { useDefaultSourceLocale } from "@/lib/localeUtils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
@@ -253,6 +253,7 @@ export function EvaluationCriteriaManager() {
   const isAdmin = user?.role === 'admin';
   const isOperator = user?.role === 'operator';
   const { toast } = useToast();
+  const defaultSourceLocale = useDefaultSourceLocale();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDimensionDialogOpen, setIsDimensionDialogOpen] = useState(false);
@@ -376,7 +377,7 @@ export function EvaluationCriteriaManager() {
 
   const autoTranslateMutation = useMutation({
     mutationFn: async (criteriaSetId: string) => {
-      const response = await apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/auto-translate`, { sourceLocale: getDefaultSourceLocale() });
+      const response = await apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/auto-translate`, { sourceLocale: defaultSourceLocale });
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -407,7 +408,7 @@ export function EvaluationCriteriaManager() {
       for (let i = 0; i < criteriaSetIds.length; i++) {
         const id = criteriaSetIds[i];
         try {
-          const result = await apiRequest('POST', `/api/admin/evaluation-criteria/${id}/auto-translate`, { sourceLocale: getDefaultSourceLocale() });
+          const result = await apiRequest('POST', `/api/admin/evaluation-criteria/${id}/auto-translate`, { sourceLocale: defaultSourceLocale });
           results.push({ id, success: true, result });
         } catch (error) {
           results.push({ id, success: false, error });

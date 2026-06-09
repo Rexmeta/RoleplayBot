@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { getDefaultSourceLocale } from '@/lib/localeUtils';
+import { useDefaultSourceLocale } from '@/lib/localeUtils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,11 +35,20 @@ export function TranslationDashboard() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [isGeneratingAll, setIsGeneratingAll] = useState<string | null>(null);
-  const [sourceLocale, setSourceLocale] = useState<string>(getDefaultSourceLocale());
+  const [sourceLocale, setSourceLocale] = useState<string>('ko');
+  const localeInitialized = useRef(false);
+  const defaultSourceLocale = useDefaultSourceLocale();
 
   const { data: languages = [], isLoading: languagesLoading } = useQuery<SupportedLanguage[]>({
     queryKey: ['/api/languages'],
   });
+
+  useEffect(() => {
+    if (!localeInitialized.current && languages.length > 0) {
+      localeInitialized.current = true;
+      setSourceLocale(defaultSourceLocale);
+    }
+  }, [defaultSourceLocale, languages.length]);
 
   const { data: status, isLoading: statusLoading, refetch } = useQuery<TranslationStatus>({
     queryKey: ['/api/admin/translation-status'],
