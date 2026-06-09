@@ -1,20 +1,36 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { isOperatorOrAdmin, isSystemAdmin } from "../middleware/authMiddleware";
-import { GoogleGenAI } from "@google/genai";
 import { asyncHandler, createHttpError } from "./routerHelpers";
-import { TRANSLATION_MODEL_DEFAULT } from "../constants/aiModels";
 import { validateEvaluationCriteriaSet, validateEvaluationDimension, calculateRubricQualityScore } from "../services/evaluationEngine";
 import { RUBRIC_TEMPLATES } from "../data/rubricTemplates";
-import { generateFeedback } from "../services/aiServiceFactory";
+import { generateFeedback, getAIServiceForFeature } from "../services/aiServiceFactory";
 
-async function getTranslationModel(): Promise<string> {
-  try {
-    const setting = await storage.getSystemSetting('ai', 'model_translation');
-    return setting?.value || TRANSLATION_MODEL_DEFAULT;
-  } catch {
-    return TRANSLATION_MODEL_DEFAULT;
+function classifyTranslationError(error: unknown): { isFatal: boolean; userMessage: string } {
+  const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  if (
+    msg.includes('429') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('quota') ||
+    msg.includes('rate limit') ||
+    msg.includes('too many requests') ||
+    msg.includes('insufficient_quota') ||
+    msg.includes('credit')
+  ) {
+    return { isFatal: true, userMessage: 'AI API 할당량이 소진되었습니다. 잠시 후 다시 시도하거나 API 크레딧을 충전하세요.' };
   }
+  if (
+    msg.includes('401') ||
+    msg.includes('403') ||
+    msg.includes('unauthenticated') ||
+    msg.includes('invalid api key') ||
+    msg.includes('api_key') ||
+    msg.includes('authentication') ||
+    msg.includes('permission denied')
+  ) {
+    return { isFatal: true, userMessage: 'AI API 인증에 실패했습니다. 시스템 어드민에서 API 키 설정을 확인하세요.' };
+  }
+  return { isFatal: false, userMessage: (error instanceof Error ? error.message : String(error)) };
 }
 
 async function createForkOfApprovedSet(
@@ -446,10 +462,9 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
         });
       }
 
-      const translateApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-      if (translateApiKey) {
-        const translateGenAI = new GoogleGenAI({ apiKey: translateApiKey });
-        (async () => {
+      (async () => {
+        try {
+          const aiService = await getAIServiceForFeature('translation');
           for (const targetLocale of targetLocales) {
             try {
               const setPrompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} evaluation criteria set into ${languageNames[targetLocale] || targetLocale}. 
@@ -462,12 +477,7 @@ Description: ${criteriaSet.description || ''}
 
 Return JSON: {"name": "translated name", "description": "translated description"}`;
 
-              const translationModel = await getTranslationModel();
-              const setResult = await translateGenAI.models.generateContent({
-                model: translationModel,
-                contents: setPrompt,
-              });
-              const setResponse = setResult.text || '';
+              const setResponse = await aiService.generateText(setPrompt);
               const setJsonMatch = setResponse.match(/\{[\s\S]*\}/);
               if (setJsonMatch) {
                 const setTranslation = JSON.parse(setJsonMatch[0]);
@@ -504,11 +514,7 @@ Return JSON: {
   "scoringRubric": [{"score": 1, "label": "label", "description": "description"}, ...]
 }`;
 
-                const dimResult = await translateGenAI.models.generateContent({
-                  model: translationModel,
-                  contents: dimPrompt,
-                });
-                const dimResponse = dimResult.text || '';
+                const dimResponse = await aiService.generateText(dimPrompt);
                 const dimJsonMatch = dimResponse.match(/\{[\s\S]*\}/);
                 if (dimJsonMatch) {
                   const dimTranslation = JSON.parse(dimJsonMatch[0]);
@@ -527,11 +533,14 @@ Return JSON: {
               }
             } catch (e) {
               console.error(`Failed to auto-translate criteria set ${criteriaSet.id} to ${targetLocale}:`, e);
+              if (classifyTranslationError(e).isFatal) break;
             }
           }
           console.log(`✅ Auto-translation completed for criteria set: ${criteriaSet.name}`);
-        })();
-      }
+        } catch (e) {
+          console.error(`Failed to get AI service for translation:`, e);
+        }
+      })();
     }
 
     res.json({ ...criteriaSet, dimensions: createdDimensions });
@@ -1115,14 +1124,12 @@ Return JSON: {
       });
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw createHttpError(500, "API 키가 설정되지 않았습니다");
-    }
-    const translationModel = await getTranslationModel();
-    const genAI = new GoogleGenAI({ apiKey });
+    const aiService = await getAIServiceForFeature('translation');
+    let fatalError: string | undefined;
 
     for (const targetLocale of targetLocales) {
+      if (fatalError) break;
+
       const setPrompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} evaluation criteria set into ${languageNames[targetLocale] || targetLocale}. 
 This is for a workplace communication training system. Maintain professional tone.
 Return ONLY valid JSON.
@@ -1134,11 +1141,7 @@ Description: ${criteriaSet.description || ''}
 Return JSON: {"name": "translated name", "description": "translated description"}`;
 
       try {
-        const setResult = await genAI.models.generateContent({
-          model: translationModel,
-          contents: setPrompt,
-        });
-        const setResponse = setResult.text || '';
+        const setResponse = await aiService.generateText(setPrompt);
         const setJsonMatch = setResponse.match(/\{[\s\S]*\}/);
         if (setJsonMatch) {
           const setTranslation = JSON.parse(setJsonMatch[0]);
@@ -1156,10 +1159,13 @@ Return JSON: {"name": "translated name", "description": "translated description"
         }
       } catch (e) {
         console.error(`Failed to translate criteria set ${id} to ${targetLocale}:`, e);
-        failedLocales.push({ locale: targetLocale, reason: (e as Error).message || String(e) });
+        const classified = classifyTranslationError(e);
+        failedLocales.push({ locale: targetLocale, reason: classified.userMessage });
+        if (classified.isFatal) { fatalError = classified.userMessage; break; }
       }
 
       for (const dim of criteriaSet.dimensions || []) {
+        if (fatalError) break;
         const rubricText = dim.scoringRubric?.map((r: any) =>
           `Score ${r.score} (${r.label}): ${r.description}`
         ).join('\n') || '';
@@ -1181,11 +1187,7 @@ Return JSON: {
 }`;
 
         try {
-          const dimResult = await genAI.models.generateContent({
-            model: translationModel,
-            contents: dimPrompt,
-          });
-          const dimResponse = dimResult.text || '';
+          const dimResponse = await aiService.generateText(dimPrompt);
           const dimJsonMatch = dimResponse.match(/\{[\s\S]*\}/);
           if (dimJsonMatch) {
             const dimTranslation = JSON.parse(dimJsonMatch[0]);
@@ -1204,6 +1206,8 @@ Return JSON: {
           }
         } catch (e) {
           console.error(`Failed to translate dimension ${dim.id} to ${targetLocale}:`, e);
+          const classified = classifyTranslationError(e);
+          if (classified.isFatal) { fatalError = classified.userMessage; break; }
         }
       }
     }
@@ -1214,6 +1218,7 @@ Return JSON: {
       translatedCount,
       targetLocales,
       failedLocales,
+      ...(fatalError ? { fatalError } : {}),
     });
   }));
 

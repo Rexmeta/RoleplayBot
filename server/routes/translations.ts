@@ -2,17 +2,38 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { fileManager } from "../services/fileManager";
-import { GoogleGenAI } from "@google/genai";
 import { asyncHandler, createHttpError } from "./routerHelpers";
-import { TRANSLATION_MODEL_DEFAULT } from "../constants/aiModels";
+import { getAIServiceForFeature } from "../services/aiServiceFactory";
 
-async function getTranslationModel(): Promise<string> {
-  try {
-    const setting = await storage.getSystemSetting('ai', 'model_translation');
-    return setting?.value || TRANSLATION_MODEL_DEFAULT;
-  } catch {
-    return TRANSLATION_MODEL_DEFAULT;
+/**
+ * 번역 오류를 분류하여 치명적 오류(크레딧 소진, 인증 실패) 여부를 판별합니다.
+ * 치명적 오류는 루프를 즉시 중단해야 하는 오류입니다.
+ */
+function classifyTranslationError(error: unknown): { isFatal: boolean; userMessage: string } {
+  const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  if (
+    msg.includes('429') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('quota') ||
+    msg.includes('rate limit') ||
+    msg.includes('too many requests') ||
+    msg.includes('insufficient_quota') ||
+    msg.includes('credit')
+  ) {
+    return { isFatal: true, userMessage: 'AI API 할당량이 소진되었습니다. 잠시 후 다시 시도하거나 API 크레딧을 충전하세요.' };
   }
+  if (
+    msg.includes('401') ||
+    msg.includes('403') ||
+    msg.includes('unauthenticated') ||
+    msg.includes('invalid api key') ||
+    msg.includes('api_key') ||
+    msg.includes('authentication') ||
+    msg.includes('permission denied')
+  ) {
+    return { isFatal: true, userMessage: 'AI API 인증에 실패했습니다. 시스템 어드민에서 API 키 설정을 확인하세요.' };
+  }
+  return { isFatal: false, userMessage: (error instanceof Error ? error.message : String(error)) };
 }
 
 export default function createTranslationsRouter(isAuthenticated: any) {
@@ -291,19 +312,12 @@ Return ONLY valid JSON in this exact format:
   "successCriteriaFailure": "translated failure criteria"${personaContextsJsonFormat}
 }`;
 
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw createHttpError(500, "API 키가 설정되지 않았습니다");
-    }
-
-    const translationModel = await getTranslationModel();
-    const genAI = new GoogleGenAI({ apiKey });
-    const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
-    const response = result.text ?? '';
+    const aiService = await getAIServiceForFeature('translation');
+    const rawResponse = await aiService.generateText(prompt);
 
     let translation;
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         translation = JSON.parse(jsonMatch[0]);
       } else {
@@ -343,6 +357,7 @@ Return ONLY valid JSON in this exact format:
 
     let translatedCount = 0;
     const failedLocales: { locale: string; reason: string }[] = [];
+    let fatalError: string | undefined;
 
     const playerRoleObj = (scenario as any).context?.playerRole;
     const playerRoleStr = typeof playerRoleObj === 'object'
@@ -381,7 +396,17 @@ Return ONLY valid JSON in this exact format:
       isReviewed: true,
     });
 
+    let aiService;
+    try {
+      aiService = await getAIServiceForFeature('translation');
+    } catch (e) {
+      const classified = classifyTranslationError(e);
+      return res.json({ success: true, translatedCount: 0, targetLocales, failedLocales: [], fatalError: classified.userMessage });
+    }
+
     for (const targetLocale of targetLocales) {
+      if (fatalError) break;
+
       const personaContextsPrompt = personaContexts.length > 0
         ? `\nPersona Contexts (translate position, department, role, stance, goal, tradeoff for each persona):\n${JSON.stringify(personaContexts, null, 2)}`
         : '';
@@ -433,14 +458,9 @@ Return ONLY valid JSON:
 }`;
 
       try {
-        const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error("API Key not found");
-        const translationModel = await getTranslationModel();
-        const genAI = new GoogleGenAI({ apiKey });
-        const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
-        const response = result.text ?? '';
+        const rawResponse = await aiService.generateText(prompt);
 
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const translation = JSON.parse(jsonMatch[0]);
           await storage.upsertScenarioTranslation({
@@ -467,7 +487,13 @@ Return ONLY valid JSON:
         }
       } catch (e) {
         console.error(`Failed to translate scenario ${scenarioId} to ${targetLocale}:`, e);
-        failedLocales.push({ locale: targetLocale, reason: (e as Error).message || String(e) });
+        const classified = classifyTranslationError(e);
+        if (classified.isFatal) {
+          fatalError = classified.userMessage;
+          failedLocales.push({ locale: targetLocale, reason: classified.userMessage });
+        } else {
+          failedLocales.push({ locale: targetLocale, reason: classified.userMessage });
+        }
       }
     }
 
@@ -477,6 +503,7 @@ Return ONLY valid JSON:
       translatedCount,
       targetLocales,
       failedLocales,
+      ...(fatalError ? { fatalError } : {}),
     });
   }));
 
@@ -584,13 +611,9 @@ Description: ${sourceDesc}
 
 Return JSON: {"name": "translated name", "personalityDescription": "translated description"}`;
 
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("API Key not found");
-    const translationModel = await getTranslationModel();
-    const genAI = new GoogleGenAI({ apiKey });
-    const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
-    const response = result.text ?? '';
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    const aiService = await getAIServiceForFeature('translation');
+    const rawResponse = await aiService.generateText(prompt);
+    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
 
     if (jsonMatch) {
       const translation = JSON.parse(jsonMatch[0]);
@@ -681,10 +704,19 @@ Return JSON: {"name": "translated name", "personalityDescription": "translated d
     };
 
     let count = 0;
+    let fatalError: string | undefined;
+    let aiService;
+    try {
+      aiService = await getAIServiceForFeature('translation');
+    } catch (e) {
+      const classified = classifyTranslationError(e);
+      return res.json({ success: true, count: 0, fatalError: classified.userMessage });
+    }
 
     if (contentType === 'scenarios') {
       const scenarios = await storage.getAllScenarios();
       for (const scenario of scenarios) {
+        if (fatalError) break;
         const existing = await storage.getScenarioTranslation(String(scenario.id), targetLocale);
         if (!existing) {
           let sourceTitle = scenario.title;
@@ -707,14 +739,8 @@ Description: ${sourceDesc}
 Return JSON: {"title": "translated title", "description": "translated description"}`;
 
           try {
-            const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-            if (!apiKey) throw new Error("API Key not found");
-            const translationModel = await getTranslationModel();
-            const genAI = new GoogleGenAI({ apiKey });
-            const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
-            const response = result.text ?? '';
-
-            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            const rawResponse = await aiService.generateText(prompt);
+            const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const translation = JSON.parse(jsonMatch[0]);
               await storage.upsertScenarioTranslation({
@@ -730,12 +756,15 @@ Return JSON: {"title": "translated title", "description": "translated descriptio
             }
           } catch (e) {
             console.error(`Failed to translate scenario ${scenario.id}:`, e);
+            const classified = classifyTranslationError(e);
+            if (classified.isFatal) { fatalError = classified.userMessage; break; }
           }
         }
       }
     } else if (contentType === 'personas') {
       const personas = await fileManager.getAllPersonas();
       for (const persona of personas) {
+        if (fatalError) break;
         const existing = await storage.getPersonaTranslation(persona.id, targetLocale);
         if (!existing) {
           const personaData = persona as any;
@@ -764,14 +793,8 @@ Source: Name: ${sourceName}, Description: ${sourceDesc}
 Return JSON: {"name": "type name", "personalityDescription": "description"}`;
 
           try {
-            const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-            if (!apiKey) throw new Error("API Key not found");
-            const translationModel = await getTranslationModel();
-            const genAI = new GoogleGenAI({ apiKey });
-            const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
-            const response = result.text ?? '';
-
-            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            const rawResponse = await aiService.generateText(prompt);
+            const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const translation = JSON.parse(jsonMatch[0]);
               await storage.upsertPersonaTranslation({
@@ -787,12 +810,15 @@ Return JSON: {"name": "type name", "personalityDescription": "description"}`;
             }
           } catch (e) {
             console.error(`Failed to translate persona ${persona.id}:`, e);
+            const classified = classifyTranslationError(e);
+            if (classified.isFatal) { fatalError = classified.userMessage; break; }
           }
         }
       }
     } else if (contentType === 'categories') {
       const categories = await storage.getAllCategories();
       for (const category of categories) {
+        if (fatalError) break;
         const existing = await storage.getCategoryTranslation(String(category.id), targetLocale);
         if (!existing) {
           let sourceName = category.name;
@@ -813,14 +839,8 @@ Source: Name: ${sourceName}, Description: ${sourceDesc}
 Return JSON: {"name": "translated name", "description": "translated description"}`;
 
           try {
-            const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-            if (!apiKey) throw new Error("API Key not found");
-            const translationModel = await getTranslationModel();
-            const genAI = new GoogleGenAI({ apiKey });
-            const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
-            const response = result.text ?? '';
-
-            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            const rawResponse = await aiService.generateText(prompt);
+            const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const translation = JSON.parse(jsonMatch[0]);
               await storage.upsertCategoryTranslation({
@@ -836,12 +856,14 @@ Return JSON: {"name": "translated name", "description": "translated description"
             }
           } catch (e) {
             console.error(`Failed to translate category ${category.id}:`, e);
+            const classified = classifyTranslationError(e);
+            if (classified.isFatal) { fatalError = classified.userMessage; break; }
           }
         }
       }
     }
 
-    res.json({ success: true, count });
+    res.json({ success: true, count, ...(fatalError ? { fatalError } : {}) });
   }));
 
   router.get("/api/admin/translation-status", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {

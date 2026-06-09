@@ -56,10 +56,18 @@ export function TranslationDashboard() {
       const data = await res.json();
       
       if (data.success) {
-        toast({
-          title: t('admin.translationDashboard.batchComplete'),
-          description: t('admin.translationDashboard.batchCompleteDesc', { count: data.count }),
-        });
+        if (data.fatalError) {
+          toast({
+            title: t('admin.translationDashboard.batchFailed'),
+            description: data.fatalError,
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: t('admin.translationDashboard.batchComplete'),
+            description: t('admin.translationDashboard.batchCompleteDesc', { count: data.count }),
+          });
+        }
         refetch();
         queryClient.invalidateQueries({ queryKey: ['/api/scenarios'] });
         queryClient.invalidateQueries({ queryKey: ['/api/personas'] });

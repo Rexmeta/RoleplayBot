@@ -271,7 +271,7 @@ describe('POST /api/admin/scenarios/:id/auto-translate', () => {
     }
   });
 
-  it('silently reports 0 translations when GOOGLE_API_KEY is missing', async () => {
+  it('returns success with fatalError when GOOGLE_API_KEY is missing', async () => {
     delete process.env.GOOGLE_API_KEY;
     delete process.env.GEMINI_API_KEY;
 
@@ -279,9 +279,11 @@ describe('POST /api/admin/scenarios/:id/auto-translate', () => {
       .post(`/api/admin/scenarios/${SCENARIO_ID}/auto-translate`)
       .send({ sourceLocale: 'ko' });
 
-    // Per-locale errors are swallowed; the endpoint returns success with count 0
+    // Factory detects missing API key as a fatal credential error — returns 200 with fatalError
     expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
     expect(res.body.translatedCount).toBe(0);
+    expect(res.body.fatalError).toBeTruthy();
   });
 });
 

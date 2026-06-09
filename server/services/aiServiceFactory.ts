@@ -9,13 +9,14 @@ import type { ScenarioPersona, SupportedLanguage } from "./aiService";
 export type { ScenarioPersona, SupportedLanguage, StrategyReflectionEvaluation, RoleplayScenario, EvaluationCriteriaWithDimensions };
 
 // 기능별 설정 키 매핑
-export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario';
+export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario' | 'translation';
 
 const FEATURE_SETTING_KEYS: Record<AIFeature, string> = {
   conversation: 'model_conversation',
   feedback: 'model_feedback',
   strategy: 'model_strategy',
   scenario: 'model_scenario',
+  translation: 'model_translation',
 };
 
 // 기능별 환경변수 키 매핑
@@ -24,6 +25,7 @@ const FEATURE_ENV_KEYS: Record<AIFeature, string> = {
   feedback: 'AI_MODEL_FEEDBACK',
   strategy: 'AI_MODEL_STRATEGY',
   scenario: 'AI_MODEL_SCENARIO',
+  translation: 'AI_MODEL_TRANSLATION',
 };
 
 /**

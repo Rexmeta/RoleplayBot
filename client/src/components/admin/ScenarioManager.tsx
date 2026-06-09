@@ -712,6 +712,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios', currentLang] });
+      if (data.fatalError) {
+        toast({
+          title: t('admin.evaluationCriteria.translationFailed'),
+          description: data.fatalError,
+          variant: "destructive",
+        });
+        return;
+      }
       const failed: { locale: string; reason: string }[] = data.failedLocales || [];
       if (failed.length > 0) {
         const failedList = failed.map((f) => `${f.locale}: ${f.reason}`).join('\n');

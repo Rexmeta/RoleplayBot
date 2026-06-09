@@ -139,6 +139,9 @@ export interface AIServiceInterface {
   // 전략 회고 평가 (선택적 — 지원하지 않는 Provider는 구현하지 않아도 됨)
   generateStrategyEvaluation?(input: StrategyEvaluationInput): Promise<StrategyReflectionEvaluation>;
 
+  // 단순 텍스트 생성 (번역 등 단순 프롬프트용)
+  generateText(prompt: string): Promise<string>;
+
   // 모델 동적 변경 지원 (선택적)
   getModel?(): string;
   setModel?(model: string): void;

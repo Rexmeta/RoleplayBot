@@ -750,4 +750,14 @@ JSON 형식으로 응답:
       ]
     };
   }
+
+  async generateText(prompt: string): Promise<string> {
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 4096,
+      temperature: 0.3,
+    });
+    return response.choices[0]?.message?.content ?? '';
+  }
 }

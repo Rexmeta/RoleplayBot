@@ -1116,4 +1116,9 @@ JSON 형식으로 응답:
     
     return { rating, feedback };
   }
+
+  async generateText(prompt: string): Promise<string> {
+    const response = await this.generateResponse('', [], { id: 'text', name: 'text', role: 'text', personality: '', responseStyle: '', goals: [], background: '' }, prompt, 'ko', undefined);
+    return response.content;
+  }
 }
