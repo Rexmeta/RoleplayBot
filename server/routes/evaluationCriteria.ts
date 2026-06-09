@@ -1068,6 +1068,7 @@ Return JSON: {
     };
 
     let translatedCount = 0;
+    const failedLocales: { locale: string; reason: string }[] = [];
 
     await storage.upsertEvaluationCriteriaSetTranslation({
       criteriaSetId: id,
@@ -1134,6 +1135,7 @@ Return JSON: {"name": "translated name", "description": "translated description"
         }
       } catch (e) {
         console.error(`Failed to translate criteria set ${id} to ${targetLocale}:`, e);
+        failedLocales.push({ locale: targetLocale, reason: (e as Error).message || String(e) });
       }
 
       for (const dim of criteriaSet.dimensions || []) {
@@ -1189,7 +1191,8 @@ Return JSON: {
       success: true,
       message: `${translatedCount}개 항목이 번역되었습니다`,
       translatedCount,
-      targetLocales
+      targetLocales,
+      failedLocales,
     });
   }));
 

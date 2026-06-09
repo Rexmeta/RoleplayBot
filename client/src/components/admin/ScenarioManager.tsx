@@ -685,14 +685,24 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const autoTranslateMutation = useMutation({
     mutationFn: async (scenarioId: string) => {
-      return apiRequest('POST', `/api/admin/scenarios/${scenarioId}/auto-translate`, { sourceLocale: 'ko' });
+      const response = await apiRequest('POST', `/api/admin/scenarios/${scenarioId}/auto-translate`, { sourceLocale: 'ko' });
+      return response.json();
     },
-    onSuccess: async (response: any) => {
-      const data = await response.json();
-      toast({ 
-        title: t('admin.evaluationCriteria.translationSuccess'), 
-        description: data.message 
-      });
+    onSuccess: (data: any) => {
+      const failed: { locale: string; reason: string }[] = data.failedLocales || [];
+      if (failed.length > 0) {
+        const failedList = failed.map((f) => `${f.locale}: ${f.reason}`).join('\n');
+        toast({
+          title: t('admin.evaluationCriteria.translationPartialFailure'),
+          description: `${data.message}\n${t('admin.evaluationCriteria.translationFailedLocales')}: ${failedList}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ 
+          title: t('admin.evaluationCriteria.translationSuccess'), 
+          description: data.message 
+        });
+      }
     },
     onError: (error: any) => {
       toast({ 

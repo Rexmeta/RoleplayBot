@@ -1028,6 +1028,8 @@
       "autoTranslateDescription": "创建时自动翻译为所有支持的语言（韩/英/日/中）",
       "translationSuccess": "翻译完成",
       "translationFailed": "翻译失败",
+      "translationPartialFailure": "部分语言翻译失败",
+      "translationFailedLocales": "失败的语言",
       "triggerAutoTranslate": "执行自动翻译"
     }
   },

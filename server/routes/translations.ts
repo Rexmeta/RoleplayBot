@@ -327,6 +327,7 @@ Return ONLY valid JSON in this exact format:
     };
 
     let translatedCount = 0;
+    const failedLocales: { locale: string; reason: string }[] = [];
 
     const playerRoleObj = (scenario as any).context?.playerRole;
     const playerRoleStr = typeof playerRoleObj === 'object'
@@ -450,6 +451,7 @@ Return ONLY valid JSON:
         }
       } catch (e) {
         console.error(`Failed to translate scenario ${scenarioId} to ${targetLocale}:`, e);
+        failedLocales.push({ locale: targetLocale, reason: (e as Error).message || String(e) });
       }
     }
 
@@ -457,7 +459,8 @@ Return ONLY valid JSON:
       success: true,
       message: `${translatedCount}개 언어로 번역 완료`,
       translatedCount,
-      targetLocales
+      targetLocales,
+      failedLocales,
     });
   }));
 

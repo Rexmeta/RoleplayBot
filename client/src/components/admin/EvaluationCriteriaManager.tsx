@@ -375,12 +375,22 @@ export function EvaluationCriteriaManager() {
 
   const autoTranslateMutation = useMutation({
     mutationFn: async (criteriaSetId: string) => {
-      return apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/auto-translate`, { sourceLocale: 'ko' });
+      const response = await apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/auto-translate`, { sourceLocale: 'ko' });
+      return response.json();
     },
     onSuccess: (data: any) => {
-      // Invalidate query to refresh with translated content
       queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
-      toast({ title: t('admin.evaluationCriteria.translationSuccess'), description: data.message });
+      const failed: { locale: string; reason: string }[] = data.failedLocales || [];
+      if (failed.length > 0) {
+        const failedList = failed.map((f) => `${f.locale}: ${f.reason}`).join('\n');
+        toast({
+          title: t('admin.evaluationCriteria.translationPartialFailure'),
+          description: `${data.message}\n${t('admin.evaluationCriteria.translationFailedLocales')}: ${failedList}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: t('admin.evaluationCriteria.translationSuccess'), description: data.message });
+      }
     },
     onError: (error: any) => {
       toast({ title: t('admin.evaluationCriteria.translationFailed'), description: error.message, variant: "destructive" });

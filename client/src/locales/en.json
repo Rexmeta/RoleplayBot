@@ -1028,6 +1028,8 @@
       "autoTranslateDescription": "Automatically translate to all supported languages on creation (KO/EN/JA/ZH)",
       "translationSuccess": "Translation Complete",
       "translationFailed": "Translation Failed",
+      "translationPartialFailure": "Some languages failed to translate",
+      "translationFailedLocales": "Failed locales",
       "triggerAutoTranslate": "Run Auto-Translation",
       "translateAll": "Translate All Sets",
       "batchTranslateComplete": "Batch Translation Complete",

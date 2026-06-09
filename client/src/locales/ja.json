@@ -1028,6 +1028,8 @@
       "autoTranslateDescription": "作成時にすべての対応言語に自動翻訳します（韓/英/日/中）",
       "translationSuccess": "翻訳完了",
       "translationFailed": "翻訳失敗",
+      "translationPartialFailure": "一部の言語の翻訳に失敗しました",
+      "translationFailedLocales": "失敗した言語",
       "triggerAutoTranslate": "自動翻訳を実行"
     }
   },
