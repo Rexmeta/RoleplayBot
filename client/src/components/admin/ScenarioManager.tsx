@@ -21,7 +21,7 @@ import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, ter
 import type { TrackedMetricKey, ReportSectionKey } from '@shared/schema/scenarios';
 import type { EvaluationHarness, TerminationRules, TerminationConditionGroup } from '@shared/schema/scenarios';
 import { toMediaUrl } from '@/lib/mediaUrl';
-import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder } from 'lucide-react';
+import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { ScenarioVersionHistory } from './ScenarioVersionHistory';
@@ -258,6 +258,108 @@ function TerminationRulesPreview({ json }: { json: string }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+const CHECK_TO_SECTION: Record<number, string> = {
+  1: 'section-personas',
+  2: 'section-personas',
+  3: 'section-turns',
+  4: 'section-success-criteria',
+  5: 'section-evaluation',
+  6: 'section-persona-switch',
+  7: 'section-simulation-harness',
+  8: 'section-player-constraints',
+  9: 'section-flow-graph',
+  10: 'section-source-locale',
+};
+
+interface ValidationIssue {
+  check: number;
+  key: string;
+  severity: string;
+  message: string;
+}
+
+interface QualityValidation {
+  score: number;
+  issues: ValidationIssue[];
+  hasFatalErrors: boolean;
+}
+
+function SectionIssueIcon({ sectionId, issuesBySectionId }: { sectionId: string; issuesBySectionId: Map<string, string> }) {
+  const severity = issuesBySectionId.get(sectionId);
+  if (!severity) return null;
+  if (severity === 'error') return <XCircle className="inline h-3.5 w-3.5 text-red-500 ml-1 flex-shrink-0" />;
+  if (severity === 'warning') return <AlertTriangle className="inline h-3.5 w-3.5 text-amber-500 ml-1 flex-shrink-0" />;
+  return <Info className="inline h-3.5 w-3.5 text-blue-400 ml-1 flex-shrink-0" />;
+}
+
+function ScenarioQualityPanel({ validation }: { validation?: QualityValidation }) {
+  if (!validation) return null;
+
+  const { score, issues } = validation;
+
+  const scrollToSection = (sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const severityIcon = (severity: string) => {
+    if (severity === 'error') return <XCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5" />;
+    if (severity === 'warning') return <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />;
+    return <Info className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />;
+  };
+
+  if (issues.length === 0) {
+    return (
+      <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+        <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+        <span className="text-sm font-semibold text-green-700">품질 통과</span>
+        <span className="text-xs text-green-600 ml-1">— 점수: {score}/100</span>
+      </div>
+    );
+  }
+
+  const panelColor =
+    score >= 80 ? 'bg-green-50 border-green-200' :
+    score >= 60 ? 'bg-amber-50 border-amber-200' :
+                  'bg-red-50 border-red-200';
+  const scoreColor =
+    score >= 80 ? 'text-green-700' :
+    score >= 60 ? 'text-amber-700' :
+                  'text-red-700';
+
+  return (
+    <div className={`border rounded-lg p-4 space-y-2.5 ${panelColor}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className={`h-4 w-4 flex-shrink-0 ${scoreColor}`} />
+          <span className={`text-sm font-semibold ${scoreColor}`}>품질 점수: {score}/100</span>
+        </div>
+        <span className="text-xs text-slate-500">{issues.length}개 항목 미충족</span>
+      </div>
+      <div className="space-y-1.5">
+        {issues.map((issue) => {
+          const sectionId = CHECK_TO_SECTION[issue.check];
+          return (
+            <div key={`${issue.check}-${issue.key}`} className="flex items-start gap-2 bg-white/80 rounded-md px-3 py-2">
+              {severityIcon(issue.severity)}
+              <span className="text-xs text-slate-700 flex-1 leading-relaxed">{issue.message}</span>
+              {sectionId && (
+                <button
+                  type="button"
+                  onClick={() => scrollToSection(sectionId)}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 whitespace-nowrap ml-2 flex-shrink-0"
+                >
+                  바로가기 →
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -528,6 +630,24 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   });
   const validationMap = useMemo(() => validationData ?? {}, [validationData]);
 
+  // 편집 중인 시나리오의 이슈를 섹션 ID 기준으로 집계 (SectionIssueIcon 용)
+  const issuesBySectionId = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!editingScenario) return map;
+    const validation = validationMap[String(editingScenario.id)];
+    if (!validation) return map;
+    const SEVERITY_RANK: Record<string, number> = { error: 2, warning: 1, info: 0 };
+    for (const issue of validation.issues) {
+      const sectionId = CHECK_TO_SECTION[issue.check];
+      if (!sectionId) continue;
+      const existing = map.get(sectionId);
+      if (!existing || (SEVERITY_RANK[issue.severity] ?? -1) > (SEVERITY_RANK[existing] ?? -1)) {
+        map.set(sectionId, issue.severity);
+      }
+    }
+    return map;
+  }, [validationMap, editingScenario]);
+
   // 시나리오 내 이미 선택된 페르소나 ID 목록
   const selectedPersonaIds = useMemo(() => {
     return formData.personas.map(p => p.id).filter(id => id);
@@ -655,6 +775,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios/validate'] });
       setEditingScenario(null);
       resetForm();
       setIsCreateOpen(false);
@@ -1689,6 +1810,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
               </DialogHeader>
             
             <form onSubmit={handleSubmit} className="space-y-6 pt-6">
+              {/* 품질 패널 — 편집 모드에서만 표시 */}
+              {editingScenario && (
+                <ScenarioQualityPanel validation={validationMap[String(editingScenario.id)]} />
+              )}
+
               {/* 기본 정보 */}
               <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
                 <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('common.basicInfo', 'Basic Info')}</h3>
@@ -2145,7 +2271,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     const turnsRecWidth = `${((rec.turnsMax - rec.turnsMin) / 30) * 100}%`;
                     return (
                     <TooltipProvider>
-                    <div className="border border-slate-200 rounded-lg p-4 space-y-5 bg-slate-50">
+                    <div id="section-turns" className="border border-slate-200 rounded-lg p-4 space-y-5 bg-slate-50">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-slate-500" />
@@ -2353,7 +2479,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3 border-t pt-3 mt-3">
+                  <div id="section-source-locale" className="flex items-center gap-3 border-t pt-3 mt-3">
                     {!editingScenario ? (
                       <>
                         <Switch
@@ -2562,8 +2688,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
               </div>
 
               {/* 목표 및 성공 기준 */}
-              <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('admin.scenarioManager.form.objectivesAndCriteria', 'Objectives & Success Criteria')}</h3>
+              <div id="section-success-criteria" className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200 flex items-center">{t('admin.scenarioManager.form.objectivesAndCriteria', 'Objectives & Success Criteria')}<SectionIssueIcon sectionId="section-success-criteria" issuesBySectionId={issuesBySectionId} /></h3>
                 
                 <div>
                   <Label htmlFor="objectiveType" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.objectiveType')}</Label>
@@ -2680,8 +2806,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
               </div>
 
               {/* 역량 및 페르소나 */}
-              <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('admin.scenarioManager.form.competenciesAndPersonas')}</h3>
+              <div id="section-personas" className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200 flex items-center">{t('admin.scenarioManager.form.competenciesAndPersonas')}<SectionIssueIcon sectionId="section-personas" issuesBySectionId={issuesBySectionId} /></h3>
                 
                 <div>
                   <Label htmlFor="skills" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.skills')} ({t('admin.scenarioManager.form.separatedByComma', 'comma-separated')})</Label>
@@ -3093,10 +3219,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
               </div>
 
               {/* Simulation Policy: simulationHarness structured editor */}
-              <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-4">
+              <div id="section-simulation-harness" className="border border-slate-200 rounded-lg p-4 bg-white space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold text-slate-800 text-sm mb-0.5">시뮬레이션 정책 (선택사항)</h3>
+                    <h3 className="font-semibold text-slate-800 text-sm mb-0.5 flex items-center">시뮬레이션 정책 (선택사항)<SectionIssueIcon sectionId="section-simulation-harness" issuesBySectionId={issuesBySectionId} /></h3>
                     <p className="text-xs text-slate-500">시나리오별 감정 모델, 도구 호출 상한, 허용 이벤트를 설정합니다. 비활성화하면 전역 기본값이 적용됩니다.</p>
                   </div>
                   <div className="flex items-center gap-2 ml-4 shrink-0">
@@ -3494,10 +3620,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   <p className="text-xs text-slate-500 mb-3">flowGraph와 personaSwitchRules를 JSON으로 입력하면 서버가 단계 전환과 페르소나 전환을 자동 제어합니다. 비워두면 기존 동작을 유지합니다.</p>
                 </div>
 
-                <div>
+                <div id="section-flow-graph">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
                     flowGraph
                     <span className="text-xs text-slate-400 font-normal">(대화 단계 전환 상태 머신)</span>
+                    <SectionIssueIcon sectionId="section-flow-graph" issuesBySectionId={issuesBySectionId} />
                   </Label>
                   <p className="text-xs text-slate-400 mb-1">예: {`{"stages":[{"id":"intro","goal":"목표","exitConditions":[{"type":"turn_count","operator":"gte","value":3}],"nextStage":"conflict"}]}`}</p>
                   <Textarea
@@ -3513,10 +3640,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   {flowGraphError && <p className="text-xs text-red-500 mt-1">{flowGraphError}</p>}
                 </div>
 
-                <div>
+                <div id="section-persona-switch">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
                     personaSwitchRules
                     <span className="text-xs text-slate-400 font-normal">(페르소나 자동 전환 규칙)</span>
+                    <SectionIssueIcon sectionId="section-persona-switch" issuesBySectionId={issuesBySectionId} />
                   </Label>
                   <p className="text-xs text-slate-400 mb-1">예: {`{"rules":[{"id":"r1","targetPersonaIndex":1,"conditions":[{"metric":"npcEmotions.anger","operator":"gte","value":70}],"reason":"화남","lockAfterSwitch":true}]}`}</p>
                   <Textarea
@@ -3532,10 +3660,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   {personaSwitchRulesError && <p className="text-xs text-red-500 mt-1">{personaSwitchRulesError}</p>}
                 </div>
 
-                <div>
+                <div id="section-evaluation">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
                     evaluationHarness
                     <span className="text-xs text-slate-400 font-normal">(점수 기준 가중치 및 신호 재정의)</span>
+                    <SectionIssueIcon sectionId="section-evaluation" issuesBySectionId={issuesBySectionId} />
                   </Label>
                   <p className="text-xs text-slate-400 mb-1">예: {`{"dimensions":[{"key":"clarity","weight":2}],"passingRule":{"minAverageScore":60}}`}</p>
                   <EvaluationHarnessPreview json={evaluationHarnessJson} />
@@ -3572,10 +3701,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   {terminationRulesError && <p className="text-xs text-red-500 mt-1">{terminationRulesError}</p>}
                 </div>
 
-                <div>
+                <div id="section-player-constraints">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
                     playerConstraints
                     <span className="text-xs text-slate-400 font-normal">(플레이어 행동 제약)</span>
+                    <SectionIssueIcon sectionId="section-player-constraints" issuesBySectionId={issuesBySectionId} />
                   </Label>
                   <p className="text-xs text-slate-400 mb-1">예: {`{"forbiddenPhrases":["욕설","협박"],"requiredEtiquette":["경어 사용"],"turnTimeLimit":60}`}</p>
                   <Textarea
