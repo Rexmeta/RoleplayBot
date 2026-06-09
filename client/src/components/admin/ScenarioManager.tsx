@@ -385,6 +385,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const [isGeneratingEvaluationHarness, setIsGeneratingEvaluationHarness] = useState(false);
   const [isGeneratingPlayerConstraints, setIsGeneratingPlayerConstraints] = useState(false);
+  const [isGeneratingNpcBehaviorHarness, setIsGeneratingNpcBehaviorHarness] = useState<Record<number, boolean>>({});
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [isUploadingDefaultVideo, setIsUploadingDefaultVideo] = useState(false);
@@ -1319,6 +1320,40 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       toast({ title: 'AI 생성 실패', description: error.message || '오류가 발생했습니다.', variant: 'destructive' });
     } finally {
       setIsGeneratingPlayerConstraints(false);
+    }
+  };
+
+  const handleGenerateNpcBehaviorHarness = async (index: number) => {
+    if (!canGenerateAI) return;
+    const persona = formData.personas[index];
+    setIsGeneratingNpcBehaviorHarness(prev => ({ ...prev, [index]: true }));
+    try {
+      const response = await apiRequest('POST', '/api/admin/generate-npc-behavior-harness', {
+        title: formData.title,
+        description: formData.description,
+        situation: formData.context.situation,
+        persona: {
+          name: persona.name,
+          stance: persona.stance,
+          goal: persona.goal,
+          tradeoff: persona.tradeoff,
+        },
+      });
+      const data = await response.json();
+      if (!data.success || !data.npcBehaviorHarness) throw new Error('AI 응답이 올바르지 않습니다');
+
+      if (persona.npcBehaviorHarness) {
+        const confirmed = window.confirm('이미 입력된 NPC Behavior Harness가 있습니다. AI가 생성한 내용으로 덮어쓰시겠습니까?');
+        if (!confirmed) return;
+      }
+      const newPersonas = [...formData.personas];
+      newPersonas[index] = { ...persona, npcBehaviorHarness: data.npcBehaviorHarness };
+      setFormData(prev => ({ ...prev, personas: newPersonas }));
+      toast({ title: 'AI 생성 완료', description: `${persona.name || `페르소나 ${index + 1}`}의 NPC Behavior Harness가 채워졌습니다.` });
+    } catch (error: any) {
+      toast({ title: 'AI 생성 실패', description: error.message || '오류가 발생했습니다.', variant: 'destructive' });
+    } finally {
+      setIsGeneratingNpcBehaviorHarness(prev => ({ ...prev, [index]: false }));
     }
   };
 
@@ -3190,9 +3225,26 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             />
                           </div>
                           <div className="mt-2">
-                            <Label htmlFor={`persona-npcbehaviorharness-${index}`} className="text-sm font-medium text-slate-700">
-                              NPC Behavior Harness <span className="text-xs text-slate-400 font-normal">(JSON, 선택사항)</span>
-                            </Label>
+                            <div className="flex items-center justify-between mb-1">
+                              <Label htmlFor={`persona-npcbehaviorharness-${index}`} className="text-sm font-medium text-slate-700">
+                                NPC Behavior Harness <span className="text-xs text-slate-400 font-normal">(JSON, 선택사항)</span>
+                              </Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs gap-1.5"
+                                disabled={!canGenerateAI || !!isGeneratingNpcBehaviorHarness[index]}
+                                onClick={() => handleGenerateNpcBehaviorHarness(index)}
+                              >
+                                {isGeneratingNpcBehaviorHarness[index] ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                                )}
+                                AI 생성
+                              </Button>
+                            </div>
                             <Textarea
                               id={`persona-npcbehaviorharness-${index}`}
                               value={persona.npcBehaviorHarness ? JSON.stringify(persona.npcBehaviorHarness, null, 2) : ''}
@@ -3205,7 +3257,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                 newPersonas[index] = { ...persona, npcBehaviorHarness: parsed };
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
-                              placeholder={'{\n  "emotionVolatility": 0.8,\n  "resistanceLevel": "high",\n  "allowedEmotionRange": ["angry", "frustrated"]\n}'}
+                              placeholder={'{\n  "negotiationBounds": { "minTrustToYield": 60, "maxAngerBeforeWalkout": 80 },\n  "trustTriggers": [{ "keyword": "사과", "trustDelta": 10 }],\n  "escalationTriggers": [{ "keyword": "거짓말", "angerDelta": 15 }]\n}'}
                               rows={4}
                               className="bg-white font-mono text-xs"
                             />

@@ -748,6 +748,124 @@ ${contextStr}
   return result.data;
 }
 
+export interface NpcBehaviorHarnessGenerationContext {
+  title?: string;
+  description?: string;
+  situation?: string;
+  persona: {
+    name?: string;
+    stance?: string;
+    goal?: string;
+    tradeoff?: string;
+  };
+}
+
+export async function generateNpcBehaviorHarnessWithAI(
+  context: NpcBehaviorHarnessGenerationContext
+): Promise<import('@shared/schema/scenarios').NpcBehaviorHarness> {
+  const { npcBehaviorHarnessSchema } = await import('@shared/schema/scenarios');
+
+  const contextStr = [
+    context.title ? `시나리오 제목: ${context.title}` : '',
+    context.description ? `설명: ${context.description}` : '',
+    context.situation ? `상황: ${context.situation}` : '',
+    context.persona.name ? `페르소나 이름: ${context.persona.name}` : '',
+    context.persona.stance ? `입장(stance): ${context.persona.stance}` : '',
+    context.persona.goal ? `목표(goal): ${context.persona.goal}` : '',
+    context.persona.tradeoff ? `협상 가능 항목(tradeoff): ${context.persona.tradeoff}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const prompt = `당신은 기업 교육용 롤플레이 시나리오의 NPC 행동 제어(npcBehaviorHarness)를 설계하는 전문가입니다.
+
+아래 시나리오와 페르소나 정보를 바탕으로 해당 NPC에 최적화된 npcBehaviorHarness JSON을 생성해주세요.
+
+## 시나리오 및 페르소나 정보
+${contextStr}
+
+## npcBehaviorHarness 구조 설명
+- negotiationBounds: NPC의 협상 경계값
+  - minTrustToYield: NPC가 양보하기 위한 최소 신뢰도 (0~100). 신뢰도가 이 값 이상일 때 NPC가 양보합니다.
+  - maxAngerBeforeWalkout: NPC가 대화를 종료하는 최대 분노 수치 (0~100). 분노가 이 값을 초과하면 자리를 뜹니다.
+  - maxPatienceTurns: NPC가 진전 없이 기다리는 최대 턴 수 (양의 정수).
+- trustTriggers: 신뢰도를 변화시키는 트리거 배열 (2~5개 권장)
+  - keyword: 트리거가 되는 키워드 또는 행동 패턴 (한국어)
+  - trustDelta: 신뢰도 변화량 (양수=신뢰도 증가, 음수=감소, -20~+20 범위)
+  - angerDelta: 분노 변화량 (양수=분노 증가, 음수=감소, -20~+20 범위)
+  - description: 이 트리거가 발동되는 상황 설명
+- escalationTriggers: 갈등을 고조시키는 트리거 배열 (1~3개 권장)
+  - keyword: 트리거가 되는 키워드 또는 행동 패턴 (한국어)
+  - trustDelta: 신뢰도 변화량 (음수 권장)
+  - angerDelta: 분노 변화량 (양수 권장)
+  - description: 이 트리거가 발동되는 상황 설명
+
+페르소나의 stance와 goal을 반영하여 현실적이고 교육적으로 유의미한 NPC 행동 제어를 설계해주세요.`;
+
+  let configuredModel = await getModelForFeature('scenario');
+  if (!configuredModel.startsWith('gemini-')) {
+    configuredModel = 'gemini-2.5-flash';
+  }
+
+  const response = await ai.models.generateContent({
+    model: configuredModel,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "object",
+        properties: {
+          negotiationBounds: {
+            type: "object",
+            properties: {
+              minTrustToYield: { type: "number" },
+              maxAngerBeforeWalkout: { type: "number" },
+              maxPatienceTurns: { type: "number" },
+            },
+          },
+          trustTriggers: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                keyword: { type: "string" },
+                trustDelta: { type: "number" },
+                angerDelta: { type: "number" },
+                description: { type: "string" },
+              },
+              required: ["keyword"],
+            },
+          },
+          escalationTriggers: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                keyword: { type: "string" },
+                trustDelta: { type: "number" },
+                angerDelta: { type: "number" },
+                description: { type: "string" },
+              },
+              required: ["keyword"],
+            },
+          },
+        },
+      },
+    },
+    contents: prompt,
+  });
+
+  const rawJson = extractText(response);
+  if (!rawJson) throw new Error("AI 응답을 받을 수 없습니다");
+
+  const cleanJson = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const parsed = JSON.parse(cleanJson);
+
+  const result = npcBehaviorHarnessSchema.safeParse(parsed);
+  if (!result.success) {
+    console.error('[generateNpcBehaviorHarnessWithAI] Zod validation failed:', result.error.errors);
+    throw new Error(`AI가 반환한 npcBehaviorHarness 형식이 잘못되었습니다: ${result.error.errors[0]?.message}`);
+  }
+  return result.data;
+}
+
 export async function enhanceScenarioWithAI(
   existingScenario: ComplexScenario,
   enhancementType: 'improve' | 'expand' | 'simplify'

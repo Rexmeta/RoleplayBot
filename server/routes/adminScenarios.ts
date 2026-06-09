@@ -2,7 +2,7 @@ import { Router } from "express";
 import express from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
-import { generateScenarioWithAI, enhanceScenarioWithAI, fillScenarioFieldsWithAI, generateEvaluationHarnessWithAI, generatePlayerConstraintsWithAI } from "../services/aiScenarioGenerator";
+import { generateScenarioWithAI, enhanceScenarioWithAI, fillScenarioFieldsWithAI, generateEvaluationHarnessWithAI, generatePlayerConstraintsWithAI, generateNpcBehaviorHarnessWithAI } from "../services/aiScenarioGenerator";
 import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus, getDefaultVideoPrompt } from "../services/gemini-video-generator";
 import { generateImagePrompt } from "./imageGeneration";
 import {
@@ -113,6 +113,18 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     }
     const result = await generatePlayerConstraintsWithAI({ title, description, objectives, situation, playerRole });
     res.json({ success: true, playerConstraints: result });
+  }));
+
+  router.post("/api/admin/generate-npc-behavior-harness", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { title, description, situation, persona } = req.body;
+    if (!title && !description) {
+      throw createHttpError(400, "시나리오 제목 또는 설명이 필요합니다");
+    }
+    if (!persona || typeof persona !== 'object') {
+      throw createHttpError(400, "페르소나 정보가 필요합니다");
+    }
+    const result = await generateNpcBehaviorHarnessWithAI({ title, description, situation, persona });
+    res.json({ success: true, npcBehaviorHarness: result });
   }));
 
   router.post("/api/admin/fill-scenario-fields", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
