@@ -573,8 +573,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const liveValidation = useMemo((): QualityValidation | null => {
     if (!editingScenario) return null;
 
-    let parsedEvalHarness: any = null;
-    try { parsedEvalHarness = evaluationHarnessJson ? JSON.parse(evaluationHarnessJson) : null; } catch {}
+    const parsedEvalHarness: any = evaluationHarnessValue ?? null;
 
     let parsedPlayerConstraints: any = null;
     try { parsedPlayerConstraints = playerConstraintsJson ? JSON.parse(playerConstraintsJson) : null; } catch {}
@@ -611,7 +610,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     editingScenario,
     formData.personas, formData.title, formData.targetTurns, formData.minValidTurns,
     formData.successCriteria, formData.objectives,
-    evaluationHarnessJson, playerConstraintsJson,
+    evaluationHarnessValue, playerConstraintsJson,
     flowGraphValue, personaSwitchRulesValue,
     harnessEffective, harnessEnabled,
     availablePersonas,
