@@ -531,6 +531,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   });
   const statsMap = useMemo(() => new Map(scenarioStats.map(s => [s.scenarioId, s] as const)), [scenarioStats]);
 
+  // 활성 지원 언어 목록 조회 (번역 상태 배지용)
+  const { data: activeLanguages = [] } = useQuery<{ code: string; name: string; nativeName: string; isDefault: boolean }[]>({
+    queryKey: ['/api/languages'],
+  });
+
   // 시나리오 품질 검증 결과 조회
   const { data: validationData } = useQuery<Record<string, { score: number; issues: { check: number; key: string; severity: string; message: string }[]; hasFatalErrors: boolean }>>({
     queryKey: ['/api/admin/scenarios/validate'],
@@ -3937,6 +3942,49 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         </>
                       )}
                     </div>
+                    {/* 번역 상태 뱃지 */}
+                    {(() => {
+                      const translationLocales: Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }> = (scenario as any)._translationLocales || [];
+                      const sourceLocale: string = (scenario as any)._sourceLocale || 'ko';
+                      const targetLangs = activeLanguages.filter(l => l.code !== sourceLocale);
+                      if (targetLangs.length === 0) return null;
+                      return (
+                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                          <Languages className="w-3 h-3 text-slate-400 shrink-0" />
+                          {targetLangs.map(lang => {
+                            const entry = translationLocales.find(t => t.locale === lang.code && !t.isOriginal);
+                            let icon: string;
+                            let colorClass: string;
+                            let tooltip: string;
+                            if (!entry) {
+                              icon = '–';
+                              colorClass = 'text-slate-400 bg-slate-50 border-slate-200';
+                              tooltip = `${lang.name}: 번역 없음`;
+                            } else if (entry.isMachineTranslated && !entry.isReviewed) {
+                              icon = '⚠';
+                              colorClass = 'text-amber-600 bg-amber-50 border-amber-200';
+                              tooltip = `${lang.name}: AI 번역 (검토 대기)`;
+                            } else {
+                              icon = '✓';
+                              colorClass = 'text-green-600 bg-green-50 border-green-200';
+                              tooltip = `${lang.name}: 번역 완료${entry.isReviewed ? ' (검토됨)' : ''}`;
+                            }
+                            return (
+                              <TooltipProvider key={lang.code}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className={`inline-flex items-center gap-0.5 text-xs font-mono border rounded px-1 py-0 leading-5 cursor-default select-none ${colorClass}`}>
+                                      {lang.code.toUpperCase()} {icon}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom">{tooltip}</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                   
                   <div className="flex items-center gap-1">

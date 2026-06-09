@@ -180,42 +180,57 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     }
 
     if (lang) {
-      const translatedScenarios = await Promise.all(
-        filteredScenarios.map(async (scenario: any) => {
-          try {
-            const translation = await storage.getScenarioTranslationWithFallback(scenario.id, lang);
-            if (translation) {
-              const isOriginal = translation.isOriginal || translation.locale === scenario.sourceLocale;
-              return {
-                ...scenario,
-                title: translation.title || scenario.title,
-                description: translation.description || scenario.description,
-                context: {
-                  ...scenario.context,
-                  situation: translation.situation || scenario.context?.situation,
-                  timeline: translation.timeline || scenario.context?.timeline,
-                  stakes: translation.stakes || scenario.context?.stakes,
-                },
-                objectives: translation.objectives || scenario.objectives,
-                successCriteria: {
-                  optimal: translation.successCriteriaOptimal || scenario.successCriteria?.optimal,
-                  good: translation.successCriteriaGood || scenario.successCriteria?.good,
-                  acceptable: translation.successCriteriaAcceptable || scenario.successCriteria?.acceptable,
-                  failure: translation.successCriteriaFailure || scenario.successCriteria?.failure,
-                },
-                _translated: !isOriginal,
-                _translationLocale: translation.locale,
-                _sourceLocale: scenario.sourceLocale || 'ko',
-              };
+      const [translatedScenarios, allLocaleRows] = await Promise.all([
+        Promise.all(
+          filteredScenarios.map(async (scenario: any) => {
+            try {
+              const translation = await storage.getScenarioTranslationWithFallback(scenario.id, lang);
+              if (translation) {
+                const isOriginal = translation.isOriginal || translation.locale === scenario.sourceLocale;
+                return {
+                  ...scenario,
+                  title: translation.title || scenario.title,
+                  description: translation.description || scenario.description,
+                  context: {
+                    ...scenario.context,
+                    situation: translation.situation || scenario.context?.situation,
+                    timeline: translation.timeline || scenario.context?.timeline,
+                    stakes: translation.stakes || scenario.context?.stakes,
+                  },
+                  objectives: translation.objectives || scenario.objectives,
+                  successCriteria: {
+                    optimal: translation.successCriteriaOptimal || scenario.successCriteria?.optimal,
+                    good: translation.successCriteriaGood || scenario.successCriteria?.good,
+                    acceptable: translation.successCriteriaAcceptable || scenario.successCriteria?.acceptable,
+                    failure: translation.successCriteriaFailure || scenario.successCriteria?.failure,
+                  },
+                  _translated: !isOriginal,
+                  _translationLocale: translation.locale,
+                  _sourceLocale: scenario.sourceLocale || 'ko',
+                };
+              }
+              return { ...scenario, _sourceLocale: scenario.sourceLocale || 'ko' };
+            } catch (err) {
+              console.error(`[Admin Scenarios API] Translation fetch error for ${scenario.id}:`, err);
+              return scenario;
             }
-            return { ...scenario, _sourceLocale: scenario.sourceLocale || 'ko' };
-          } catch (err) {
-            console.error(`[Admin Scenarios API] Translation fetch error for ${scenario.id}:`, err);
-            return scenario;
-          }
-        })
-      );
-      const transformedScenarios = await transformScenariosMedia(translatedScenarios);
+          })
+        ),
+        storage.getAllScenarioTranslationLocales(),
+      ]);
+
+      const localeMap = new Map<string, Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>>();
+      for (const row of allLocaleRows) {
+        if (!localeMap.has(row.scenarioId)) localeMap.set(row.scenarioId, []);
+        localeMap.get(row.scenarioId)!.push({ locale: row.locale, isMachineTranslated: row.isMachineTranslated, isReviewed: row.isReviewed, isOriginal: row.isOriginal });
+      }
+
+      const scenariosWithSummary = translatedScenarios.map((s: any) => ({
+        ...s,
+        _translationLocales: localeMap.get(s.id) || [],
+      }));
+
+      const transformedScenarios = await transformScenariosMedia(scenariosWithSummary);
       return res.json(transformedScenarios);
     }
 

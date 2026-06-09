@@ -13,6 +13,7 @@ export interface ITranslationsStorage {
   getScenarioTranslation(scenarioId: string, locale: string): Promise<ScenarioTranslation | undefined>;
   getScenarioTranslations(scenarioId: string): Promise<ScenarioTranslation[]>;
   getAllScenarioTranslations(locale: string): Promise<ScenarioTranslation[]>;
+  getAllScenarioTranslationLocales(): Promise<Array<{ scenarioId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>>;
   getOriginalScenarioTranslation(scenarioId: string): Promise<ScenarioTranslation | undefined>;
   getScenarioTranslationWithFallback(scenarioId: string, locale: string): Promise<ScenarioTranslation | undefined>;
   upsertScenarioTranslation(translation: InsertScenarioTranslation): Promise<ScenarioTranslation>;
@@ -84,6 +85,18 @@ export function TranslationsMixin<TBase extends Constructor>(Base: TBase) {
 
     async getAllScenarioTranslations(locale: string): Promise<ScenarioTranslation[]> {
       return await db.select().from(scenarioTranslations).where(eq(scenarioTranslations.locale, locale));
+    }
+
+    async getAllScenarioTranslationLocales(): Promise<Array<{ scenarioId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>> {
+      return await db
+        .select({
+          scenarioId: scenarioTranslations.scenarioId,
+          locale: scenarioTranslations.locale,
+          isMachineTranslated: scenarioTranslations.isMachineTranslated,
+          isReviewed: scenarioTranslations.isReviewed,
+          isOriginal: scenarioTranslations.isOriginal,
+        })
+        .from(scenarioTranslations);
     }
 
     async getOriginalScenarioTranslation(scenarioId: string): Promise<ScenarioTranslation | undefined> {
@@ -235,6 +248,7 @@ export class MemTranslationsStorage implements ITranslationsStorage {
   async getScenarioTranslation(_: string, __: string): Promise<ScenarioTranslation | undefined> { return undefined; }
   async getScenarioTranslations(_: string): Promise<ScenarioTranslation[]> { return []; }
   async getAllScenarioTranslations(_: string): Promise<ScenarioTranslation[]> { return []; }
+  async getAllScenarioTranslationLocales(): Promise<Array<{ scenarioId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>> { return []; }
   async getOriginalScenarioTranslation(_: string): Promise<ScenarioTranslation | undefined> { return undefined; }
   async getScenarioTranslationWithFallback(_: string, __: string): Promise<ScenarioTranslation | undefined> { return undefined; }
   async upsertScenarioTranslation(_: InsertScenarioTranslation): Promise<ScenarioTranslation> { throw new Error("Not implemented"); }
