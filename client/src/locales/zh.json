@@ -1447,6 +1447,10 @@
       "video": {
         "name": "介绍视频生成",
         "description": "场景介绍视频的AI生成"
+      },
+      "translation": {
+        "name": "翻译",
+        "description": "用于自动翻译和评估标准翻译的AI模型"
       }
     },
     "models": {

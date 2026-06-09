@@ -1447,6 +1447,10 @@
       "video": {
         "name": "イントロビデオ生成",
         "description": "シナリオイントロビデオのAI生成"
+      },
+      "translation": {
+        "name": "翻訳",
+        "description": "自動翻訳および評価基準翻訳に使用するAIモデル"
       }
     },
     "models": {

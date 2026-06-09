@@ -4,6 +4,16 @@ import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { fileManager } from "../services/fileManager";
 import { GoogleGenAI } from "@google/genai";
 import { asyncHandler, createHttpError } from "./routerHelpers";
+import { TRANSLATION_MODEL_DEFAULT } from "../constants/aiModels";
+
+async function getTranslationModel(): Promise<string> {
+  try {
+    const setting = await storage.getSystemSetting('ai', 'model_translation');
+    return setting?.value || TRANSLATION_MODEL_DEFAULT;
+  } catch {
+    return TRANSLATION_MODEL_DEFAULT;
+  }
+}
 
 export default function createTranslationsRouter(isAuthenticated: any) {
   const router = Router();
@@ -286,8 +296,9 @@ Return ONLY valid JSON in this exact format:
       throw createHttpError(500, "API 키가 설정되지 않았습니다");
     }
 
+    const translationModel = await getTranslationModel();
     const genAI = new GoogleGenAI({ apiKey });
-    const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+    const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
     const response = result.text ?? '';
 
     let translation;
@@ -424,8 +435,9 @@ Return ONLY valid JSON:
       try {
         const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
         if (!apiKey) throw new Error("API Key not found");
+        const translationModel = await getTranslationModel();
         const genAI = new GoogleGenAI({ apiKey });
-        const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+        const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
         const response = result.text ?? '';
 
         const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -574,8 +586,9 @@ Return JSON: {"name": "translated name", "personalityDescription": "translated d
 
     const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("API Key not found");
+    const translationModel = await getTranslationModel();
     const genAI = new GoogleGenAI({ apiKey });
-    const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+    const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
     const response = result.text ?? '';
     const jsonMatch = response.match(/\{[\s\S]*\}/);
 
@@ -696,8 +709,9 @@ Return JSON: {"title": "translated title", "description": "translated descriptio
           try {
             const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error("API Key not found");
+            const translationModel = await getTranslationModel();
             const genAI = new GoogleGenAI({ apiKey });
-            const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+            const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
             const response = result.text ?? '';
 
             const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -752,8 +766,9 @@ Return JSON: {"name": "type name", "personalityDescription": "description"}`;
           try {
             const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error("API Key not found");
+            const translationModel = await getTranslationModel();
             const genAI = new GoogleGenAI({ apiKey });
-            const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+            const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
             const response = result.text ?? '';
 
             const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -800,8 +815,9 @@ Return JSON: {"name": "translated name", "description": "translated description"
           try {
             const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error("API Key not found");
+            const translationModel = await getTranslationModel();
             const genAI = new GoogleGenAI({ apiKey });
-            const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+            const result = await genAI.models.generateContent({ model: translationModel, contents: prompt });
             const response = result.text ?? '';
 
             const jsonMatch = response.match(/\{[\s\S]*\}/);

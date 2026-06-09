@@ -1478,6 +1478,10 @@
       "video": {
         "name": "인트로 비디오 생성",
         "description": "시나리오 인트로 비디오 AI 생성"
+      },
+      "translation": {
+        "name": "번역",
+        "description": "자동 번역 및 평가기준 번역에 사용하는 AI 모델"
       }
     },
     "models": {

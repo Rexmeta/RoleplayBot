@@ -325,6 +325,13 @@ const FEATURE_MODEL_INFO = [
     supportedProviders: ["Google"]
   },
   {
+    id: "translation",
+    settingKey: "model_translation",
+    defaultModel: "gemini-2.5-flash",
+    configurable: true,
+    supportedProviders: ["Google"]
+  },
+  {
     id: "image",
     fixedModelKey: "geminiFlashImage",
     configurable: false
@@ -618,6 +625,7 @@ export default function SystemAdminPage() {
     model_scenario: "gemini-2.5-flash",
     model_realtime: "gemini-3.1-flash-live-preview",
     model_emotion: "gemini-2.5-flash",
+    model_translation: "gemini-2.5-flash",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 

@@ -3,9 +3,19 @@ import { storage } from "../storage";
 import { isOperatorOrAdmin, isSystemAdmin } from "../middleware/authMiddleware";
 import { GoogleGenAI } from "@google/genai";
 import { asyncHandler, createHttpError } from "./routerHelpers";
+import { TRANSLATION_MODEL_DEFAULT } from "../constants/aiModels";
 import { validateEvaluationCriteriaSet, validateEvaluationDimension, calculateRubricQualityScore } from "../services/evaluationEngine";
 import { RUBRIC_TEMPLATES } from "../data/rubricTemplates";
 import { generateFeedback } from "../services/aiServiceFactory";
+
+async function getTranslationModel(): Promise<string> {
+  try {
+    const setting = await storage.getSystemSetting('ai', 'model_translation');
+    return setting?.value || TRANSLATION_MODEL_DEFAULT;
+  } catch {
+    return TRANSLATION_MODEL_DEFAULT;
+  }
+}
 
 async function createForkOfApprovedSet(
   existingId: string,
@@ -452,8 +462,9 @@ Description: ${criteriaSet.description || ''}
 
 Return JSON: {"name": "translated name", "description": "translated description"}`;
 
+              const translationModel = await getTranslationModel();
               const setResult = await translateGenAI.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: translationModel,
                 contents: setPrompt,
               });
               const setResponse = setResult.text || '';
@@ -494,7 +505,7 @@ Return JSON: {
 }`;
 
                 const dimResult = await translateGenAI.models.generateContent({
-                  model: 'gemini-2.5-flash',
+                  model: translationModel,
                   contents: dimPrompt,
                 });
                 const dimResponse = dimResult.text || '';
@@ -1108,6 +1119,7 @@ Return JSON: {
     if (!apiKey) {
       throw createHttpError(500, "API 키가 설정되지 않았습니다");
     }
+    const translationModel = await getTranslationModel();
     const genAI = new GoogleGenAI({ apiKey });
 
     for (const targetLocale of targetLocales) {
@@ -1123,7 +1135,7 @@ Return JSON: {"name": "translated name", "description": "translated description"
 
       try {
         const setResult = await genAI.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: translationModel,
           contents: setPrompt,
         });
         const setResponse = setResult.text || '';
@@ -1170,7 +1182,7 @@ Return JSON: {
 
         try {
           const dimResult = await genAI.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: translationModel,
             contents: dimPrompt,
           });
           const dimResponse = dimResult.text || '';

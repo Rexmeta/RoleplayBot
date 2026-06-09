@@ -1451,6 +1451,10 @@
       "video": {
         "name": "Intro Video Generation",
         "description": "AI generation of scenario intro videos"
+      },
+      "translation": {
+        "name": "Translation",
+        "description": "AI model for auto-translate and evaluation criteria translation"
       }
     },
     "models": {

@@ -4,6 +4,7 @@ import WebSocket, { WebSocketServer } from "ws";
 import { storage } from "./storage";
 import { UNLIMITED_QUOTA } from "@shared/schema";
 import { createSampleData } from "./sampleData";
+import { TRANSLATION_MODEL_DEFAULT } from "./constants/aiModels";
 import imageGenerationRoutes from "./routes/imageGeneration.js";
 import userPersonaImageRoutes from "./routes/userPersonaImage.js";
 import mediaRoutes from "./routes/media.js";
@@ -41,6 +42,21 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
+
+  // Seed model_translation setting if not present
+  try {
+    const existing = await storage.getSystemSetting('ai', 'model_translation');
+    if (!existing) {
+      await storage.upsertSystemSetting({
+        category: 'ai',
+        key: 'model_translation',
+        value: TRANSLATION_MODEL_DEFAULT,
+        description: 'AI model used for translation (auto-translate and evaluation criteria translation)',
+      });
+    }
+  } catch (err) {
+    console.error('[seed] Failed to seed model_translation setting:', err);
+  }
 
   // Public: current default intro video URL (authenticated users only)
   app.get('/api/media/default-intro-video', isAuthenticated, async (req, res) => {
