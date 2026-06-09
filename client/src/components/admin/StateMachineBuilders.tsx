@@ -10,8 +10,9 @@ import { Plus, Trash2, ChevronDown, ChevronUp, Code2, ArrowUp, ArrowDown } from 
 import type {
   FlowGraph, PersonaSwitchRules, TerminationRules,
   FlowStage, ExitCondition, SwitchRule, SwitchCondition, TerminationConditionGroup,
+  EvaluationHarness, EvaluationDimensionKey,
 } from '@shared/schema/scenarios';
-import { flowGraphSchema, personaSwitchRulesSchema, terminationRulesSchema } from '@shared/schema/scenarios';
+import { flowGraphSchema, personaSwitchRulesSchema, terminationRulesSchema, evaluationHarnessSchema } from '@shared/schema/scenarios';
 
 const OPERATORS = ['gte', 'lte', 'gt', 'lt', 'eq'] as const;
 const OPERATOR_LABELS: Record<string, string> = { gte: '≥', lte: '≤', gt: '>', lt: '<', eq: '=' };
@@ -1062,6 +1063,345 @@ export function PersonaSwitchRulesBuilder({ defaultValue, onChange, personaCount
       </Button>
 
       <RawJsonPanel value={rowsToPersonaSwitchRules(rules)} onImport={handleImport} />
+    </div>
+  );
+}
+
+// ─── EvaluationHarnessBuilder ─────────────────────────────────────────────────
+
+const EVAL_DIMENSION_KEYS: EvaluationDimensionKey[] = ['clarity', 'empathy', 'logic', 'ownership', 'actionPlan'];
+const EVAL_DIMENSION_LABELS: Record<EvaluationDimensionKey, string> = {
+  clarity: '명확성 (Clarity)',
+  empathy: '공감 (Empathy)',
+  logic: '논리 (Logic)',
+  ownership: '책임감 (Ownership)',
+  actionPlan: '행동계획 (Action Plan)',
+};
+
+interface EvalDimRow {
+  _id: string;
+  key: EvaluationDimensionKey;
+  weight: string;
+  scenarioSpecificDefinition: string;
+  positiveSignals: string;
+  negativeSignals: string;
+  expanded: boolean;
+}
+
+interface RequiredDimRow {
+  _id: string;
+  key: EvaluationDimensionKey;
+  minScore: string;
+}
+
+interface EvalHarnessForm {
+  dimensions: EvalDimRow[];
+  passingRuleEnabled: boolean;
+  minAverageScore: string;
+  requiredDimensions: RequiredDimRow[];
+}
+
+function evalHarnessToForm(eh: EvaluationHarness | null): EvalHarnessForm {
+  return {
+    dimensions: (eh?.dimensions ?? []).map(d => ({
+      _id: uid(),
+      key: d.key,
+      weight: String(d.weight),
+      scenarioSpecificDefinition: d.scenarioSpecificDefinition ?? '',
+      positiveSignals: (d.positiveSignals ?? []).join('\n'),
+      negativeSignals: (d.negativeSignals ?? []).join('\n'),
+      expanded: !!(d.scenarioSpecificDefinition || (d.positiveSignals?.length ?? 0) > 0 || (d.negativeSignals?.length ?? 0) > 0),
+    })),
+    passingRuleEnabled: !!eh?.passingRule,
+    minAverageScore: String(eh?.passingRule?.minAverageScore ?? 60),
+    requiredDimensions: (eh?.passingRule?.requiredDimensions ?? []).map(rd => ({
+      _id: uid(),
+      key: rd.key,
+      minScore: String(rd.minScore),
+    })),
+  };
+}
+
+function formToEvalHarness(form: EvalHarnessForm): EvaluationHarness | null {
+  const dimensions = form.dimensions.map(d => {
+    const dim: EvaluationHarness['dimensions'] extends (infer T)[] | undefined ? T : never = {
+      key: d.key,
+      weight: parseFloat(d.weight) || 0,
+    };
+    if (d.scenarioSpecificDefinition.trim()) {
+      (dim as any).scenarioSpecificDefinition = d.scenarioSpecificDefinition.trim();
+    }
+    const pos = d.positiveSignals.split('\n').map(s => s.trim()).filter(Boolean);
+    if (pos.length > 0) (dim as any).positiveSignals = pos;
+    const neg = d.negativeSignals.split('\n').map(s => s.trim()).filter(Boolean);
+    if (neg.length > 0) (dim as any).negativeSignals = neg;
+    return dim as any;
+  });
+
+  const passingRule = form.passingRuleEnabled ? (() => {
+    const pr: any = { minAverageScore: parseFloat(form.minAverageScore) || 0 };
+    const rds = form.requiredDimensions
+      .filter(rd => rd.key)
+      .map(rd => ({ key: rd.key, minScore: parseFloat(rd.minScore) || 0 }));
+    if (rds.length > 0) pr.requiredDimensions = rds;
+    return pr;
+  })() : undefined;
+
+  if (dimensions.length === 0 && !passingRule) return null;
+  const result: EvaluationHarness = {};
+  if (dimensions.length > 0) result.dimensions = dimensions;
+  if (passingRule) result.passingRule = passingRule;
+  return result;
+}
+
+function newDimRow(): EvalDimRow {
+  return { _id: uid(), key: 'clarity', weight: '1', scenarioSpecificDefinition: '', positiveSignals: '', negativeSignals: '', expanded: false };
+}
+
+function newRequiredDimRow(): RequiredDimRow {
+  return { _id: uid(), key: 'clarity', minScore: '60' };
+}
+
+interface EvaluationHarnessBuilderProps {
+  defaultValue: EvaluationHarness | null;
+  onChange: (value: EvaluationHarness | null) => void;
+}
+
+export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationHarnessBuilderProps) {
+  const [form, setForm] = useState<EvalHarnessForm>(() => evalHarnessToForm(defaultValue));
+
+  function update(next: EvalHarnessForm) {
+    setForm(next);
+    onChange(formToEvalHarness(next));
+  }
+
+  function updateDim(idx: number, patch: Partial<EvalDimRow>) {
+    const next: EvalHarnessForm = { ...form, dimensions: form.dimensions.map((d, i) => i === idx ? { ...d, ...patch } : d) };
+    update(next);
+  }
+
+  function addDim() {
+    update({ ...form, dimensions: [...form.dimensions, newDimRow()] });
+  }
+
+  function removeDim(idx: number) {
+    update({ ...form, dimensions: form.dimensions.filter((_, i) => i !== idx) });
+  }
+
+  function moveDim(idx: number, dir: -1 | 1) {
+    const next = [...form.dimensions];
+    const target = idx + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[idx], next[target]] = [next[target], next[idx]];
+    update({ ...form, dimensions: next });
+  }
+
+  function updatePassingRule(patch: Partial<Pick<EvalHarnessForm, 'passingRuleEnabled' | 'minAverageScore'>>) {
+    update({ ...form, ...patch });
+  }
+
+  function updateReqDim(idx: number, patch: Partial<RequiredDimRow>) {
+    const next = form.requiredDimensions.map((rd, i) => i === idx ? { ...rd, ...patch } : rd);
+    update({ ...form, requiredDimensions: next });
+  }
+
+  function addReqDim() {
+    update({ ...form, requiredDimensions: [...form.requiredDimensions, newRequiredDimRow()] });
+  }
+
+  function removeReqDim(idx: number) {
+    update({ ...form, requiredDimensions: form.requiredDimensions.filter((_, i) => i !== idx) });
+  }
+
+  function handleImport(raw: unknown) {
+    if (raw === null || raw === undefined) {
+      update(evalHarnessToForm(null));
+      return;
+    }
+    const result = evaluationHarnessSchema.safeParse(raw);
+    if (result.success) {
+      update(evalHarnessToForm(result.data));
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Dimensions */}
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold text-slate-600 block">평가 차원 (Dimensions)</Label>
+        {form.dimensions.length === 0 && (
+          <p className="text-xs text-slate-400 italic">평가 차원 없음 — 아래 버튼으로 추가하세요.</p>
+        )}
+        {form.dimensions.map((dim, di) => (
+          <div key={dim._id} className="border border-slate-200 rounded-lg bg-slate-50 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-slate-600">차원 {di + 1}</span>
+              <div className="flex items-center gap-1">
+                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveDim(di, -1)} disabled={di === 0} title="위로">
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveDim(di, 1)} disabled={di === form.dimensions.length - 1} title="아래로">
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => removeDim(di)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs text-slate-600 mb-0.5 block">항목 (Key)</Label>
+                <Select value={dim.key} onValueChange={v => updateDim(di, { key: v as EvaluationDimensionKey })}>
+                  <SelectTrigger className="h-7 text-xs bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EVAL_DIMENSION_KEYS.map(k => (
+                      <SelectItem key={k} value={k}>{EVAL_DIMENSION_LABELS[k]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-600 mb-0.5 block">가중치 (Weight, 0–10)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={dim.weight}
+                  onChange={e => updateDim(di, { weight: e.target.value })}
+                  className="h-7 text-xs bg-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1"
+                onClick={() => updateDim(di, { expanded: !dim.expanded })}
+              >
+                {dim.expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                {dim.expanded ? '상세 숨기기' : '상세 신호 · 정의 편집'}
+              </button>
+
+              {dim.expanded && (
+                <div className="mt-2 space-y-2 pl-2 border-l-2 border-slate-200">
+                  <div>
+                    <Label className="text-xs text-slate-600 mb-0.5 block">시나리오별 정의 (선택)</Label>
+                    <Input
+                      value={dim.scenarioSpecificDefinition}
+                      onChange={e => updateDim(di, { scenarioSpecificDefinition: e.target.value })}
+                      placeholder="이 시나리오에서의 구체적 정의..."
+                      className="h-7 text-xs bg-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-slate-600 mb-0.5 block">긍정 신호 (한 줄에 하나)</Label>
+                      <Textarea
+                        value={dim.positiveSignals}
+                        onChange={e => updateDim(di, { positiveSignals: e.target.value })}
+                        placeholder={"고객의 감정을 인정한다\n해결책을 제안한다"}
+                        rows={3}
+                        className="text-xs bg-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-600 mb-0.5 block">부정 신호 (한 줄에 하나)</Label>
+                      <Textarea
+                        value={dim.negativeSignals}
+                        onChange={e => updateDim(di, { negativeSignals: e.target.value })}
+                        placeholder={"고객을 무시한다\n책임을 회피한다"}
+                        rows={3}
+                        className="text-xs bg-white font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" className="text-xs" onClick={addDim}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> 차원 추가
+        </Button>
+      </div>
+
+      {/* Passing Rule */}
+      <div className="border border-slate-200 rounded-lg bg-slate-50 p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={form.passingRuleEnabled}
+            onCheckedChange={v => updatePassingRule({ passingRuleEnabled: v })}
+            id="passing-rule-toggle"
+          />
+          <Label htmlFor="passing-rule-toggle" className="text-xs font-semibold text-slate-600 cursor-pointer">
+            통과 기준 (Passing Rule) 설정
+          </Label>
+        </div>
+
+        {form.passingRuleEnabled && (
+          <div className="space-y-2 pl-2 border-l-2 border-slate-200">
+            <div>
+              <Label className="text-xs text-slate-600 mb-0.5 block">최소 평균 점수 (0–100)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={form.minAverageScore}
+                onChange={e => updatePassingRule({ minAverageScore: e.target.value })}
+                className="h-7 text-xs bg-white w-28"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs text-slate-600">필수 통과 차원 (선택)</Label>
+                <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-slate-500" onClick={addReqDim}>
+                  <Plus className="h-3 w-3 mr-1" /> 추가
+                </Button>
+              </div>
+              {form.requiredDimensions.length === 0 && (
+                <p className="text-xs text-slate-400 italic">없음 (전체 평균만 적용)</p>
+              )}
+              <div className="space-y-1.5">
+                {form.requiredDimensions.map((rd, ri) => (
+                  <div key={rd._id} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-2 py-1.5">
+                    <Select value={rd.key} onValueChange={v => updateReqDim(ri, { key: v as EvaluationDimensionKey })}>
+                      <SelectTrigger className="h-6 text-xs w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EVAL_DIMENSION_KEYS.map(k => (
+                          <SelectItem key={k} value={k}>{EVAL_DIMENSION_LABELS[k]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs text-slate-500">최소</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={rd.minScore}
+                      onChange={e => updateReqDim(ri, { minScore: e.target.value })}
+                      className="h-6 text-xs w-16 bg-white"
+                    />
+                    <span className="text-xs text-slate-400">점</span>
+                    <button type="button" onClick={() => removeReqDim(ri)} className="ml-auto text-red-400 hover:text-red-600">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <RawJsonPanel value={formToEvalHarness(form)} onImport={handleImport} />
     </div>
   );
 }

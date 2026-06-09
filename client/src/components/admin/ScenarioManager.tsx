@@ -21,7 +21,7 @@ import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, ter
 import type { TrackedMetricKey, ReportSectionKey, EvaluationHarness, TerminationRules, TerminationConditionGroup, FlowGraph, PersonaSwitchRules } from '@shared/schema/scenarios';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
-import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder } from './StateMachineBuilders';
+import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder, EvaluationHarnessBuilder } from './StateMachineBuilders';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { ScenarioVersionHistory } from './ScenarioVersionHistory';
@@ -151,82 +151,6 @@ function ConditionGroupSummary({ group, label }: { group: TerminationConditionGr
   );
 }
 
-function EvaluationHarnessPreview({ json }: { json: string }) {
-  if (!json.trim()) return null;
-  let parsed: EvaluationHarness;
-  try {
-    const raw = JSON.parse(json);
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    parsed = raw as EvaluationHarness;
-  } catch { return null; }
-  const hasDimensions = parsed.dimensions && parsed.dimensions.length > 0;
-  const hasPassingRule = parsed.passingRule != null;
-  if (!hasDimensions && !hasPassingRule) return null;
-  return (
-    <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 space-y-2 mb-2">
-      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Preview</p>
-      {hasDimensions && (
-        <div>
-          <p className="text-xs text-slate-500 mb-1">Dimension weights</p>
-          <div className="flex flex-wrap gap-1.5">
-            {parsed.dimensions!.map((d) => (
-              <span key={d.key} className="inline-flex items-center gap-1 rounded bg-white border border-blue-200 px-2 py-0.5 text-xs">
-                <span className="font-medium text-slate-700">{DIMENSION_LABELS[d.key] ?? d.key}</span>
-                <span className="text-blue-600 font-bold">×{d.weight}</span>
-              </span>
-            ))}
-          </div>
-          {parsed.dimensions!.some(d => d.scenarioSpecificDefinition) && (
-            <div className="mt-1.5 space-y-1">
-              {parsed.dimensions!.filter(d => d.scenarioSpecificDefinition).map(d => (
-                <p key={d.key} className="text-xs text-slate-500 italic">
-                  <span className="font-medium not-italic text-slate-600">{DIMENSION_LABELS[d.key] ?? d.key}:</span>{' '}
-                  {d.scenarioSpecificDefinition}
-                </p>
-              ))}
-            </div>
-          )}
-          {parsed.dimensions!.some(d => (d.positiveSignals?.length ?? 0) + (d.negativeSignals?.length ?? 0) > 0) && (
-            <div className="mt-2 space-y-1.5">
-              <p className="text-xs text-slate-500">Custom signals</p>
-              {parsed.dimensions!.filter(d => (d.positiveSignals?.length ?? 0) + (d.negativeSignals?.length ?? 0) > 0).map(d => (
-                <div key={d.key} className="space-y-0.5">
-                  <p className="text-xs font-medium text-slate-600">{DIMENSION_LABELS[d.key] ?? d.key}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {d.positiveSignals?.map((s, i) => (
-                      <span key={`pos-${i}`} className="inline-flex items-center gap-0.5 rounded bg-green-50 border border-green-200 px-1.5 py-0 text-xs text-green-700">
-                        <span>+</span>{s}
-                      </span>
-                    ))}
-                    {d.negativeSignals?.map((s, i) => (
-                      <span key={`neg-${i}`} className="inline-flex items-center gap-0.5 rounded bg-red-50 border border-red-200 px-1.5 py-0 text-xs text-red-700">
-                        <span>−</span>{s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      {hasPassingRule && (
-        <div>
-          <p className="text-xs text-slate-500 mb-1">Passing rule</p>
-          <div className="flex flex-wrap gap-1.5">
-            <Badge variant="outline" className="text-xs">Min avg ≥ {parsed.passingRule!.minAverageScore}</Badge>
-            {parsed.passingRule!.requiredDimensions?.map(rd => (
-              <Badge key={rd.key} variant="outline" className="text-xs">
-                {DIMENSION_LABELS[rd.key] ?? rd.key} ≥ {rd.minScore}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 const CHECK_TO_SECTION: Record<number, string> = {
   1: 'section-personas',
@@ -340,13 +264,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [personaSwitchRulesValue, setPersonaSwitchRulesValue] = useState<PersonaSwitchRules | null>(null);
   const [terminationRulesValue, setTerminationRulesValue] = useState<TerminationRules | null>(null);
   const [builderKey, setBuilderKey] = useState(0);
-  const [evaluationHarnessJson, setEvaluationHarnessJson] = useState('');
+  const [evaluationHarnessValue, setEvaluationHarnessValue] = useState<EvaluationHarness | null>(null);
   const [playerConstraintsJson, setPlayerConstraintsJson] = useState('');
   const [difficultyProfileJson, setDifficultyProfileJson] = useState('');
   const [analyticsTrackedMetrics, setAnalyticsTrackedMetrics] = useState<string[]>([]);
   const [analyticsReportSections, setAnalyticsReportSections] = useState<string[]>([]);
   const [analyticsBenchmarkGroup, setAnalyticsBenchmarkGroup] = useState('');
-  const [evaluationHarnessError, setEvaluationHarnessError] = useState('');
   // Structured simulation harness state
   const [harnessEnabled, setHarnessEnabled] = useState(false);
   const [harnessEmotionModel, setHarnessEmotionModel] = useState('anger,trust,confusion,interest');
@@ -875,7 +798,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setPersonaSwitchRulesValue(null);
     setTerminationRulesValue(null);
     setBuilderKey(k => k + 1);
-    setEvaluationHarnessJson('');
+    setEvaluationHarnessValue(null);
     setHarnessEnabled(false);
     setHarnessEmotionModel('anger,trust,confusion,interest');
     setHarnessMaxCallsPerTurn('2');
@@ -888,7 +811,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setHarnessShowRaw(false);
     setHarnessRawJson('');
     setHarnessRawJsonError('');
-    setEvaluationHarnessError('');
     setAnalyticsTrackedMetrics([]);
     setAnalyticsReportSections([]);
     setAnalyticsBenchmarkGroup('');
@@ -961,7 +883,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     const existingPSR = (originalScenario as any).personaSwitchRules;
     setPersonaSwitchRulesValue(existingPSR ?? null);
     const existingEH = (originalScenario as any).evaluationHarness;
-    setEvaluationHarnessJson(existingEH ? JSON.stringify(existingEH, null, 2) : '');
+    setEvaluationHarnessValue(existingEH ?? null);
     const existingTR = (originalScenario as any).terminationRules;
     setTerminationRulesValue(existingTR ?? null);
     setBuilderKey(k => k + 1);
@@ -999,7 +921,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setAnalyticsTrackedMetrics(existingAS?.trackedMetrics ?? []);
     setAnalyticsReportSections(existingAS?.reportSections ?? []);
     setAnalyticsBenchmarkGroup(existingAS?.benchmarkGroup ?? '');
-    setEvaluationHarnessError('');
     setPlayerConstraintsError('');
     setDifficultyProfileError('');
     setIsCreateOpen(true);
@@ -1063,24 +984,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
 
     let parsedEH: any = null;
-    if (evaluationHarnessJson.trim()) {
-      let raw: any;
-      try {
-        raw = JSON.parse(evaluationHarnessJson);
-      } catch {
-        setEvaluationHarnessError('evaluationHarness JSON이 유효하지 않습니다. 형식을 확인하세요.');
-        toast({ title: 'evaluationHarness JSON 오류', description: 'evaluationHarness JSON을 확인하세요.', variant: 'destructive' });
-        return null;
-      }
-      const result = evaluationHarnessSchema.safeParse(raw);
+    if (evaluationHarnessValue) {
+      const result = evaluationHarnessSchema.safeParse(evaluationHarnessValue);
       if (!result.success) {
         const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
-        setEvaluationHarnessError(`evaluationHarness 구조 오류: ${msg}`);
         toast({ title: 'evaluationHarness 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
       parsedEH = result.data;
-      setEvaluationHarnessError('');
     }
 
     let parsedTR: any = terminationRulesValue ?? null;
@@ -3602,26 +3513,18 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   />
                 </div>
 
-                {/* evaluationHarness — kept as JSON editor (not in task scope for visual builder) */}
+                {/* evaluationHarness — visual builder */}
                 <div id="section-evaluation">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
                     evaluationHarness
                     <span className="text-xs text-slate-400 font-normal">(점수 기준 가중치 및 신호 재정의)</span>
                     <SectionIssueIcon sectionId="section-evaluation" issuesBySectionId={issuesBySectionId} />
                   </Label>
-                  <p className="text-xs text-slate-400 mb-1">예: {`{"dimensions":[{"key":"clarity","weight":2}],"passingRule":{"minAverageScore":60}}`}</p>
-                  <EvaluationHarnessPreview json={evaluationHarnessJson} />
-                  <Textarea
-                    value={evaluationHarnessJson}
-                    onChange={(e) => {
-                      setEvaluationHarnessJson(e.target.value);
-                      setEvaluationHarnessError('');
-                    }}
-                    placeholder={'{\n  "dimensions": [\n    {\n      "key": "clarity",\n      "weight": 2,\n      "scenarioSpecificDefinition": "..."\n    }\n  ],\n  "passingRule": {\n    "minAverageScore": 60\n  }\n}'}
-                    rows={6}
-                    className={`bg-white font-mono text-xs ${evaluationHarnessError ? 'border-red-400' : ''}`}
+                  <EvaluationHarnessBuilder
+                    key={`eh-${builderKey}`}
+                    defaultValue={evaluationHarnessValue}
+                    onChange={setEvaluationHarnessValue}
                   />
-                  {evaluationHarnessError && <p className="text-xs text-red-500 mt-1">{evaluationHarnessError}</p>}
                 </div>
 
                 <div id="section-player-constraints">
