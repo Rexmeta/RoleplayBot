@@ -6,6 +6,12 @@ vi.mock('../../server/services/voice/emotionAnalyzer', () => ({
   analyzeEmotion: vi.fn().mockResolvedValue({ emotion: '중립', emotionReason: '기본값' }),
 }));
 
+vi.mock('../../server/services/simulation/evaluateUserResponse', () => ({
+  evaluateUserResponse: vi.fn().mockResolvedValue({ skipped: true }),
+}));
+
+import { evaluateUserResponse } from '../../server/services/simulation/evaluateUserResponse';
+
 function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession {
   return {
     id: 'test-session',
@@ -1691,6 +1697,89 @@ describe('handleGeminiMessage', () => {
         session,
         expect.objectContaining({ type: 'persona.switch_pending_cleared' })
       );
+    });
+  });
+
+  describe('evaluation concurrency guard (evaluationInProgress flag)', () => {
+    beforeEach(() => {
+      vi.mocked(evaluateUserResponse).mockClear();
+      vi.mocked(evaluateUserResponse).mockResolvedValue({ skipped: true } as any);
+    });
+
+    it('does not call evaluateUserResponse when evaluationInProgress is already true', async () => {
+      session.hasReceivedFirstAIResponse = true;
+      session.userTranscriptBuffer = '안녕하세요, 잘 부탁드립니다.';
+      session.evaluationInProgress = true;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      await vi.runAllTimersAsync();
+
+      // The setImmediate evaluation block was skipped entirely — evaluateUserResponse
+      // is never invoked and the finally { evaluationInProgress = false } never runs.
+      expect(vi.mocked(evaluateUserResponse)).not.toHaveBeenCalled();
+      expect(session.evaluationInProgress).toBe(true);
+    });
+
+    it('calls evaluateUserResponse exactly once and resets evaluationInProgress to false on normal completion', async () => {
+      session.hasReceivedFirstAIResponse = true;
+      session.userTranscriptBuffer = '잘 부탁드립니다.';
+      session.evaluationInProgress = false;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(vi.mocked(evaluateUserResponse)).toHaveBeenCalledTimes(1);
+      expect(session.evaluationInProgress).toBe(false);
+    });
+
+    it('calls evaluateUserResponse exactly once when a second turnComplete fires while the first evaluation is in flight', async () => {
+      session.hasReceivedFirstAIResponse = true;
+      session.userTranscriptBuffer = '첫 번째 발화입니다.';
+      session.evaluationInProgress = false;
+
+      // First turnComplete: sets evaluationInProgress=true and schedules setImmediate
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      // Evaluation is now in progress (setImmediate not yet flushed by fake timers)
+      expect(session.evaluationInProgress).toBe(true);
+
+      // Second turnComplete arrives while the first setImmediate is still pending.
+      // The concurrency guard must detect evaluationInProgress=true and skip the block.
+      session.userTranscriptBuffer = '두 번째 발화입니다.';
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      await vi.runAllTimersAsync();
+
+      // Only one evaluation job was ever launched — the second turnComplete was blocked.
+      expect(vi.mocked(evaluateUserResponse)).toHaveBeenCalledTimes(1);
+      // evaluationInProgress resets to false after the single evaluation completes.
+      expect(session.evaluationInProgress).toBe(false);
     });
   });
 });

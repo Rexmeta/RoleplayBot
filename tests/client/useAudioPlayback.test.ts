@@ -514,4 +514,110 @@ describe('useAudioPlayback', () => {
       expect(result.current.audioAmplitude).toBe(0);
     });
   });
+
+  describe('isActuallyPlayingRef lifecycle', () => {
+    it('starts as false before any audio has been played', () => {
+      const { result } = renderAudioPlayback();
+      expect(result.current.isActuallyPlayingRef.current).toBe(false);
+    });
+
+    it('is true after playAudioDelta receives a valid chunk', async () => {
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+
+      const pcm16 = new Int16Array([1000, -1000]);
+      const b64 = Buffer.from(pcm16.buffer).toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+
+      expect(result.current.isActuallyPlayingRef.current).toBe(true);
+    });
+
+    it('is false after stopPlayback (barge-in)', async () => {
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+
+      const pcm16 = new Int16Array([1000, -1000]);
+      const b64 = Buffer.from(pcm16.buffer).toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+
+      expect(result.current.isActuallyPlayingRef.current).toBe(true);
+
+      await act(async () => {
+        result.current.stopPlayback();
+      });
+
+      expect(result.current.isActuallyPlayingRef.current).toBe(false);
+    });
+
+    it('remains false if playAudioDelta is called while isInterrupted is true', async () => {
+      const { result, isInterruptedRef } = renderAudioPlayback();
+      isInterruptedRef.current = true;
+
+      const b64 = Buffer.from('silenced').toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+
+      expect(result.current.isActuallyPlayingRef.current).toBe(false);
+    });
+
+    it('is set to false by the response.done handler (orchestrator sets ref directly)', async () => {
+      // In useRealtimeVoice, the response.done WebSocket message handler sets
+      // isActuallyPlayingRef.current = false directly without calling stopPlayback.
+      // This test verifies the ref is mutable externally, which is the contract
+      // the orchestration layer depends on.
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+
+      const pcm16 = new Int16Array([1000, -1000]);
+      const b64 = Buffer.from(pcm16.buffer).toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+      expect(result.current.isActuallyPlayingRef.current).toBe(true);
+
+      // Simulate response.done: orchestrator sets the ref to false directly
+      act(() => {
+        result.current.isActuallyPlayingRef.current = false;
+      });
+
+      expect(result.current.isActuallyPlayingRef.current).toBe(false);
+    });
+
+    it('is true → false → true across a barge-in / resume cycle', async () => {
+      const { result, isInterruptedRef } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+
+      const pcm16 = new Int16Array([500, -500]);
+      const b64 = Buffer.from(pcm16.buffer).toString('base64');
+
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+      expect(result.current.isActuallyPlayingRef.current).toBe(true);
+
+      await act(async () => {
+        result.current.stopPlayback();
+      });
+      expect(result.current.isActuallyPlayingRef.current).toBe(false);
+
+      // Simulate response.ready clearing the barge-in flag and AudioContext resuming
+      isInterruptedRef.current = false;
+      await act(async () => {
+        await mockContext.resume();
+      });
+      await act(async () => {
+        await result.current.playAudioDelta(b64);
+      });
+      expect(result.current.isActuallyPlayingRef.current).toBe(true);
+    });
+  });
 });

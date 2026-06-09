@@ -1085,6 +1085,28 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       expect(sendToClient).toHaveBeenCalledTimes(1);
       expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.ready', turnSeq: 3 });
     });
+
+    it('response.ready on first cancel carries the correct turnSeq value', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession, isInterrupted: false, turnSeq: 7 });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      const readyCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'response.ready');
+      expect(readyCalls).toHaveLength(1);
+      expect(readyCalls[0][1]).toEqual({ type: 'response.ready', turnSeq: 7 });
+    });
+
+    it('cancelledTurnSeq is set to the session turnSeq at the time of the first cancel', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession, isInterrupted: false, turnSeq: 4 });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(session.cancelledTurnSeq).toBe(4);
+    });
   });
 
   describe('switch-case: ping', () => {
