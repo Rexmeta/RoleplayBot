@@ -101,6 +101,16 @@ function createMessageHandler(
 
       case 'response.audio_transcript.delta': {
         if (msg.delta) {
+          // Provisional barge-in guard: if new AI transcript arrives while the session is
+          // still marked as interrupted (race condition where the new response beats the
+          // response.cancelled event), clear the interrupted state immediately and resync
+          // the client's expectedTurnSeq — mirrors Gemini handler's outputTranscription guard.
+          if (session.isInterrupted) {
+            console.log(`[OpenAI Realtime] New transcript arrived while interrupted — clearing barge-in state, sending response.ready (turnSeq=${session.turnSeq})`);
+            session.isInterrupted = false;
+            session.cancelledTurnSeq = -1;
+            sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
+          }
           aiTranscriptBuffer += msg.delta;
           session.currentTranscript += msg.delta;
           if (!session.hasReceivedFirstTranscriptDelta) {
@@ -238,6 +248,10 @@ function createMessageHandler(
           session.isInterrupted = false;
           session.cancelledTurnSeq = -1;
         }
+
+        // evaluationInProgress guard: not needed here because the OpenAI adapter does not
+        // call evaluateUserResponse (evaluation is Gemini-handler-only). No concurrency
+        // risk exists on the OpenAI path.
 
         sendToClient(session, {
           type: 'response.ready',
