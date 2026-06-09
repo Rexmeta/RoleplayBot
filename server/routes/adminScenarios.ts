@@ -2,7 +2,7 @@ import { Router } from "express";
 import express from "express";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
-import { generateScenarioWithAI, enhanceScenarioWithAI, fillScenarioFieldsWithAI } from "../services/aiScenarioGenerator";
+import { generateScenarioWithAI, enhanceScenarioWithAI, fillScenarioFieldsWithAI, generateEvaluationHarnessWithAI, generatePlayerConstraintsWithAI } from "../services/aiScenarioGenerator";
 import { generateIntroVideo, deleteIntroVideo, getVideoGenerationStatus, getDefaultVideoPrompt } from "../services/gemini-video-generator";
 import { generateImagePrompt } from "./imageGeneration";
 import {
@@ -95,6 +95,24 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
       scenario: scenarioWithPersonas,
       personas: result.personas
     });
+  }));
+
+  router.post("/api/admin/generate-evaluation-harness", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { title, description, objectives, situation, playerRole } = req.body;
+    if (!title && !description) {
+      throw createHttpError(400, "시나리오 제목 또는 설명이 필요합니다");
+    }
+    const result = await generateEvaluationHarnessWithAI({ title, description, objectives, situation, playerRole });
+    res.json({ success: true, evaluationHarness: result });
+  }));
+
+  router.post("/api/admin/generate-player-constraints", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { title, description, objectives, situation, playerRole } = req.body;
+    if (!title && !description) {
+      throw createHttpError(400, "시나리오 제목 또는 설명이 필요합니다");
+    }
+    const result = await generatePlayerConstraintsWithAI({ title, description, objectives, situation, playerRole });
+    res.json({ success: true, playerConstraints: result });
   }));
 
   router.post("/api/admin/fill-scenario-fields", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {

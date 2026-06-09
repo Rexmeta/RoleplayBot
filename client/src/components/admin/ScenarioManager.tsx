@@ -383,6 +383,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     return warnings;
   }, [harnessEffective]);
 
+  const [isGeneratingEvaluationHarness, setIsGeneratingEvaluationHarness] = useState(false);
+  const [isGeneratingPlayerConstraints, setIsGeneratingPlayerConstraints] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [isUploadingDefaultVideo, setIsUploadingDefaultVideo] = useState(false);
@@ -1252,6 +1254,63 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       });
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+
+  const canGenerateAI = !!(formData.title || formData.description);
+
+  const handleGenerateEvaluationHarness = async () => {
+    if (!canGenerateAI) return;
+    setIsGeneratingEvaluationHarness(true);
+    try {
+      const response = await apiRequest('POST', '/api/admin/generate-evaluation-harness', {
+        title: formData.title,
+        description: formData.description,
+        objectives: formData.objectives,
+        situation: formData.context.situation,
+        playerRole: formData.context.playerRole,
+      });
+      const data = await response.json();
+      if (!data.success || !data.evaluationHarness) throw new Error('AI 응답이 올바르지 않습니다');
+
+      if (evaluationHarnessValue !== null) {
+        const confirmed = window.confirm('이미 입력된 평가 기준이 있습니다. AI가 생성한 내용으로 덮어쓰시겠습니까?');
+        if (!confirmed) return;
+      }
+      setEvaluationHarnessValue(data.evaluationHarness);
+      setBuilderKey(k => k + 1);
+      toast({ title: 'AI 생성 완료', description: '평가 기준(evaluationHarness)이 채워졌습니다.' });
+    } catch (error: any) {
+      toast({ title: 'AI 생성 실패', description: error.message || '오류가 발생했습니다.', variant: 'destructive' });
+    } finally {
+      setIsGeneratingEvaluationHarness(false);
+    }
+  };
+
+  const handleGeneratePlayerConstraints = async () => {
+    if (!canGenerateAI) return;
+    setIsGeneratingPlayerConstraints(true);
+    try {
+      const response = await apiRequest('POST', '/api/admin/generate-player-constraints', {
+        title: formData.title,
+        description: formData.description,
+        objectives: formData.objectives,
+        situation: formData.context.situation,
+        playerRole: formData.context.playerRole,
+      });
+      const data = await response.json();
+      if (!data.success || !data.playerConstraints) throw new Error('AI 응답이 올바르지 않습니다');
+
+      if (playerConstraintsValue !== null) {
+        const confirmed = window.confirm('이미 입력된 플레이어 제약이 있습니다. AI가 생성한 내용으로 덮어쓰시겠습니까?');
+        if (!confirmed) return;
+      }
+      setPlayerConstraintsValue(data.playerConstraints);
+      toast({ title: 'AI 생성 완료', description: '플레이어 제약(playerConstraints)이 채워졌습니다.' });
+    } catch (error: any) {
+      toast({ title: 'AI 생성 실패', description: error.message || '오류가 발생했습니다.', variant: 'destructive' });
+    } finally {
+      setIsGeneratingPlayerConstraints(false);
     }
   };
 
@@ -3603,11 +3662,41 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
                 {/* evaluationHarness — visual builder */}
                 <div id="section-evaluation">
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                    evaluationHarness
-                    <span className="text-xs text-slate-400 font-normal">(점수 기준 가중치 및 신호 재정의)</span>
-                    <SectionIssueIcon sectionId="section-evaluation" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
-                  </Label>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      evaluationHarness
+                      <span className="text-xs text-slate-400 font-normal">(점수 기준 가중치 및 신호 재정의)</span>
+                      <SectionIssueIcon sectionId="section-evaluation" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1.5"
+                              disabled={!canGenerateAI || isGeneratingEvaluationHarness}
+                              onClick={handleGenerateEvaluationHarness}
+                            >
+                              {isGeneratingEvaluationHarness ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                              )}
+                              AI 생성
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {!canGenerateAI && (
+                          <TooltipContent side="left" className="text-xs">
+                            시나리오 제목 또는 설명을 먼저 입력해주세요
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <EvaluationHarnessBuilder
                     key={`eh-${builderKey}`}
                     defaultValue={evaluationHarnessValue}
@@ -3616,10 +3705,40 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 </div>
 
                 <div id="section-player-constraints">
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1 mb-2">
-                    플레이어 행동 제약 (playerConstraints)
-                    <SectionIssueIcon sectionId="section-player-constraints" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
-                  </Label>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      플레이어 행동 제약 (playerConstraints)
+                      <SectionIssueIcon sectionId="section-player-constraints" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1.5"
+                              disabled={!canGenerateAI || isGeneratingPlayerConstraints}
+                              onClick={handleGeneratePlayerConstraints}
+                            >
+                              {isGeneratingPlayerConstraints ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                              )}
+                              AI 생성
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {!canGenerateAI && (
+                          <TooltipContent side="left" className="text-xs">
+                            시나리오 제목 또는 설명을 먼저 입력해주세요
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <PlayerConstraintsBuilder
                     value={playerConstraintsValue}
                     onChange={setPlayerConstraintsValue}

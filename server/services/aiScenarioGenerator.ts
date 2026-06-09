@@ -562,6 +562,192 @@ export async function fillScenarioFieldsWithAI(idea: string): Promise<{
   return JSON.parse(cleanJson);
 }
 
+export interface ScenarioContextForGeneration {
+  title?: string;
+  description?: string;
+  objectives?: string[];
+  situation?: string;
+  playerRole?: {
+    position?: string;
+    department?: string;
+    experience?: string;
+    responsibility?: string;
+  };
+}
+
+export async function generateEvaluationHarnessWithAI(
+  context: ScenarioContextForGeneration
+): Promise<import('@shared/schema/scenarios').EvaluationHarness> {
+  const { evaluationHarnessSchema } = await import('@shared/schema/scenarios');
+
+  const contextStr = [
+    context.title ? `제목: ${context.title}` : '',
+    context.description ? `설명: ${context.description}` : '',
+    context.situation ? `상황: ${context.situation}` : '',
+    context.objectives?.length ? `목표:\n${context.objectives.map((o, i) => `  ${i + 1}. ${o}`).join('\n')}` : '',
+    context.playerRole ? `플레이어 역할: ${context.playerRole.position ?? ''} / ${context.playerRole.department ?? ''} (${context.playerRole.experience ?? ''})` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const prompt = `당신은 기업 교육용 롤플레이 시나리오의 평가 기준(evaluationHarness)을 설계하는 전문가입니다.
+
+아래 시나리오 내용을 바탕으로 해당 시나리오에 최적화된 evaluationHarness JSON을 생성해주세요.
+
+## 시나리오 내용
+${contextStr}
+
+## evaluationHarness 구조 설명
+- dimensions: 평가 차원 배열. 각 항목은 아래 필드를 가집니다.
+  - key: 'clarity' | 'empathy' | 'logic' | 'ownership' | 'actionPlan' 중 하나
+  - weight: 이 차원의 가중치 (0~10, 소수점 가능). 모든 차원 weight 합이 5 이상이어야 합니다.
+  - scenarioSpecificDefinition: 이 시나리오에 맞춘 구체적 평가 기준 설명 (1~3문장)
+  - positiveSignals: 높은 점수를 받는 행동/표현 예시 (2~5개)
+  - negativeSignals: 낮은 점수를 받는 행동/표현 예시 (2~5개)
+- passingRule: 통과 기준
+  - minAverageScore: 평균 최소 점수 (0~100)
+  - requiredDimensions: 특정 차원에서 최소 점수를 요구하는 경우 (선택)
+
+## 평가 차원 설명
+- clarity (명확성): 의사 전달이 명확하고 이해하기 쉬운가
+- empathy (공감): 상대방의 감정·입장을 이해하고 배려하는가
+- logic (논리): 논거가 체계적이고 설득력 있는가
+- ownership (책임감): 문제에 대한 책임을 인정하고 주도적으로 대응하는가
+- actionPlan (실행계획): 구체적이고 실현 가능한 해결책을 제시하는가
+
+이 시나리오의 목표와 상황에 맞게 각 차원의 weight를 조정하고, scenarioSpecificDefinition과 신호들을 시나리오 맥락에 맞게 작성해주세요.`;
+
+  let configuredModel = await getModelForFeature('scenario');
+  if (!configuredModel.startsWith('gemini-')) {
+    configuredModel = 'gemini-2.5-flash';
+  }
+
+  const response = await ai.models.generateContent({
+    model: configuredModel,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "object",
+        properties: {
+          dimensions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                weight: { type: "number" },
+                scenarioSpecificDefinition: { type: "string" },
+                positiveSignals: { type: "array", items: { type: "string" } },
+                negativeSignals: { type: "array", items: { type: "string" } },
+              },
+              required: ["key", "weight"],
+            }
+          },
+          passingRule: {
+            type: "object",
+            properties: {
+              minAverageScore: { type: "number" },
+              requiredDimensions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    key: { type: "string" },
+                    minScore: { type: "number" },
+                  },
+                  required: ["key", "minScore"],
+                }
+              }
+            },
+            required: ["minAverageScore"],
+          }
+        },
+        required: ["dimensions", "passingRule"],
+      }
+    },
+    contents: prompt,
+  });
+
+  const rawJson = extractText(response);
+  if (!rawJson) throw new Error("AI 응답을 받을 수 없습니다");
+
+  const cleanJson = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const parsed = JSON.parse(cleanJson);
+
+  const result = evaluationHarnessSchema.safeParse(parsed);
+  if (!result.success) {
+    console.error('[generateEvaluationHarnessWithAI] Zod validation failed:', result.error.errors);
+    throw new Error(`AI가 반환한 evaluationHarness 형식이 잘못되었습니다: ${result.error.errors[0]?.message}`);
+  }
+  return result.data;
+}
+
+export async function generatePlayerConstraintsWithAI(
+  context: ScenarioContextForGeneration
+): Promise<import('@shared/schema/scenarios').PlayerConstraints> {
+  const { playerConstraintsSchema } = await import('@shared/schema/scenarios');
+
+  const contextStr = [
+    context.title ? `제목: ${context.title}` : '',
+    context.description ? `설명: ${context.description}` : '',
+    context.situation ? `상황: ${context.situation}` : '',
+    context.objectives?.length ? `목표:\n${context.objectives.map((o, i) => `  ${i + 1}. ${o}`).join('\n')}` : '',
+    context.playerRole ? `플레이어 역할: ${context.playerRole.position ?? ''} / ${context.playerRole.department ?? ''} (${context.playerRole.experience ?? ''})` : '',
+    context.playerRole?.responsibility ? `책임: ${context.playerRole.responsibility}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const prompt = `당신은 기업 교육용 롤플레이 시나리오의 플레이어 행동 제약(playerConstraints)을 설계하는 전문가입니다.
+
+아래 시나리오 내용과 플레이어 역할을 바탕으로 현실적이고 교육적으로 유의미한 playerConstraints JSON을 생성해주세요.
+
+## 시나리오 내용
+${contextStr}
+
+## playerConstraints 구조 설명
+- authorityLevel: 플레이어 역할의 권한 범위 (예: "팀장급 — 예산 승인 권한 없음, 담당자로서 협상 가능")
+- canOffer: 플레이어가 상대방에게 제안·제공할 수 있는 항목 (2~5개)
+- cannotOffer: 플레이어가 제안해서는 안 되는 항목 (2~4개)
+- requiredBehaviors: 플레이어가 반드시 수행해야 하는 행동 (2~4개)
+- forbiddenBehaviors: 플레이어가 해서는 안 되는 행동 (2~4개)
+
+시나리오 맥락에서 플레이어의 직책과 권한에 맞는 현실적인 제약을 설계해주세요.`;
+
+  let configuredModel = await getModelForFeature('scenario');
+  if (!configuredModel.startsWith('gemini-')) {
+    configuredModel = 'gemini-2.5-flash';
+  }
+
+  const response = await ai.models.generateContent({
+    model: configuredModel,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "object",
+        properties: {
+          authorityLevel: { type: "string" },
+          canOffer: { type: "array", items: { type: "string" } },
+          cannotOffer: { type: "array", items: { type: "string" } },
+          requiredBehaviors: { type: "array", items: { type: "string" } },
+          forbiddenBehaviors: { type: "array", items: { type: "string" } },
+        },
+        required: ["authorityLevel", "canOffer", "cannotOffer", "requiredBehaviors", "forbiddenBehaviors"],
+      }
+    },
+    contents: prompt,
+  });
+
+  const rawJson = extractText(response);
+  if (!rawJson) throw new Error("AI 응답을 받을 수 없습니다");
+
+  const cleanJson = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const parsed = JSON.parse(cleanJson);
+
+  const result = playerConstraintsSchema.safeParse(parsed);
+  if (!result.success) {
+    console.error('[generatePlayerConstraintsWithAI] Zod validation failed:', result.error.errors);
+    throw new Error(`AI가 반환한 playerConstraints 형식이 잘못되었습니다: ${result.error.errors[0]?.message}`);
+  }
+  return result.data;
+}
+
 export async function enhanceScenarioWithAI(
   existingScenario: ComplexScenario,
   enhancementType: 'improve' | 'expand' | 'simplify'
