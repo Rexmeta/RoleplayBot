@@ -1571,10 +1571,14 @@
         "pricing": "입력 $0.35/1M, 출력 $1.50/1M 토큰"
       },
       "geminiFlashImage": {
-        "label": "Gemini 2.5 Flash Image"
+        "label": "Gemini 2.5 Flash Image",
+        "description": "Gemini 이미지 생성 전용 모델 (추천)",
+        "pricing": "이미지 생성 전용 (유료 API 키 필요)"
       },
       "geminiVeo31": {
-        "label": "Gemini Veo 3.1"
+        "label": "Gemini Veo 3.1",
+        "description": "고품질 영상 생성 모델 (추천)",
+        "pricing": "영상 생성 전용 (Veo 접근 권한 필요)"
       }
     }
   }

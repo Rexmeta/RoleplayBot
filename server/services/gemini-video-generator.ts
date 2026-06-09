@@ -5,6 +5,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { trackVideoUsage } from './aiUsageTracker';
 import { mediaStorage } from './mediaStorage';
+import { getModelForFeature } from './aiServiceFactory';
 
 const execAsync = promisify(exec);
 
@@ -62,8 +63,10 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     console.log(`🎬 Gemini Veo 비디오 생성 요청: ${request.scenarioTitle}`);
     console.log(`프롬프트: ${videoPrompt}`);
 
+    const videoModel = await getModelForFeature('video');
+
     const operation = await genAI.models.generateVideos({
-      model: "veo-3.1-generate-preview",
+      model: videoModel,
       prompt: videoPrompt,
     });
 
@@ -171,7 +174,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
 
     // AI 사용량 추적 (비디오 생성은 토큰이 아닌 건당 비용)
     trackVideoUsage({
-      model: 'veo-3.1-generate-preview',
+      model: videoModel,
       provider: 'gemini',
       metadata: { 
         scenarioId: request.scenarioId, 
@@ -185,7 +188,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
       videoUrl: localVideoPath,
       prompt: videoPrompt,
       metadata: {
-        model: "veo-3.1-generate-preview",
+        model: videoModel,
         provider: "gemini",
         durationSeconds: VIDEO_CONFIG.maxDurationSeconds,
         savedLocally: true

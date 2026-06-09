@@ -281,6 +281,24 @@ const GEMINI_LIVE_MODELS = [
   },
 ];
 
+const IMAGE_MODELS = [
+  {
+    value: "gemini-2.5-flash-image",
+    modelKey: "geminiFlashImage",
+    provider: "Google",
+    recommended: true,
+  },
+];
+
+const VIDEO_MODELS = [
+  {
+    value: "veo-3.1-generate-preview",
+    modelKey: "geminiVeo31",
+    provider: "Google",
+    recommended: true,
+  },
+];
+
 const FEATURE_MODEL_INFO = [
   {
     id: "conversation",
@@ -333,14 +351,18 @@ const FEATURE_MODEL_INFO = [
   },
   {
     id: "image",
-    fixedModelKey: "geminiFlashImage",
-    configurable: false
+    settingKey: "model_image",
+    defaultModel: "gemini-2.5-flash-image",
+    configurable: true,
+    supportedProviders: ["Google"]
   },
   {
     id: "video",
-    fixedModelKey: "geminiVeo31",
-    configurable: false
-  }
+    settingKey: "model_video",
+    defaultModel: "veo-3.1-generate-preview",
+    configurable: true,
+    supportedProviders: ["Google"]
+  },
 ];
 
 interface ApiKeyStatus {
@@ -626,6 +648,8 @@ export default function SystemAdminPage() {
     model_realtime: "gemini-3.1-flash-live-preview",
     model_emotion: "gemini-2.5-flash",
     model_translation: "gemini-2.5-flash",
+    model_image: "gemini-2.5-flash-image",
+    model_video: "veo-3.1-generate-preview",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
@@ -1352,12 +1376,13 @@ export default function SystemAdminPage() {
                             {item.configurable && 'settingKey' in item ? (
                               <Badge variant="outline" className="text-blue-600 border-blue-200">
                                 {(() => {
-                                  const selectedModel = AI_MODELS.find(m => m.value === featureModels[item.settingKey!]);
-                                  return selectedModel ? t(`systemAdmin.models.${selectedModel.modelKey}.label`) : item.defaultModel;
+                                  const allModels = [...AI_MODELS, ...GEMINI_LIVE_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS];
+                                  const selectedModel = allModels.find(m => m.value === featureModels[item.settingKey!]);
+                                  return selectedModel ? t(`systemAdmin.models.${selectedModel.modelKey}.label`) : (item as any).defaultModel;
                                 })()}
                               </Badge>
                             ) : (
-                              <span className="text-sm text-gray-600">{t(`systemAdmin.models.${item.fixedModelKey}.label`)}</span>
+                              <span className="text-sm text-gray-600">{t(`systemAdmin.models.${(item as any).fixedModelKey}.label`)}</span>
                             )}
                           </TableCell>
                           <TableCell className="text-center">
@@ -1391,7 +1416,7 @@ export default function SystemAdminPage() {
                   <div className="space-y-6">
                     {FEATURE_MODEL_INFO.filter(f => f.configurable && 'settingKey' in f).map((feature) => {
                       const supportedProviders: string[] = 'supportedProviders' in feature && feature.supportedProviders ? feature.supportedProviders : [];
-                      const modelsToShow = feature.id === 'realtime' ? GEMINI_LIVE_MODELS : AI_MODELS;
+                      const modelsToShow = feature.id === 'realtime' ? GEMINI_LIVE_MODELS : feature.id === 'image' ? IMAGE_MODELS : feature.id === 'video' ? VIDEO_MODELS : AI_MODELS;
                       
                       return (
                       <div key={feature.id} className="space-y-3">
@@ -1462,20 +1487,22 @@ export default function SystemAdminPage() {
                     );
                   })}
                     
-                    <div className="pt-4 border-t">
-                      <h4 className="font-medium text-sm text-muted-foreground mb-2">{t('systemAdmin.settings.fixedModels')}</h4>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {FEATURE_MODEL_INFO.filter(f => !f.configurable).map((feature) => (
-                          <div key={feature.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div>
-                              <p className="font-medium text-sm">{t(`systemAdmin.features.${feature.id}.name`)}</p>
-                              <p className="text-xs text-muted-foreground">{t(`systemAdmin.features.${feature.id}.description`)}</p>
+                    {FEATURE_MODEL_INFO.filter(f => !f.configurable).length > 0 && (
+                      <div className="pt-4 border-t">
+                        <h4 className="font-medium text-sm text-muted-foreground mb-2">{t('systemAdmin.settings.fixedModels')}</h4>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          {FEATURE_MODEL_INFO.filter(f => !f.configurable).map((feature) => (
+                            <div key={feature.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div>
+                                <p className="font-medium text-sm">{t(`systemAdmin.features.${feature.id}.name`)}</p>
+                                <p className="text-xs text-muted-foreground">{t(`systemAdmin.features.${feature.id}.description`)}</p>
+                              </div>
+                              <Badge variant="outline" className="text-gray-600">{t(`systemAdmin.models.${(feature as any).fixedModelKey}.label`)}</Badge>
                             </div>
-                            <Badge variant="outline" className="text-gray-600">{t(`systemAdmin.models.${feature.fixedModelKey}.label`)}</Badge>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     
                     <div className="flex items-center gap-4 pt-4 border-t">
                       <Button

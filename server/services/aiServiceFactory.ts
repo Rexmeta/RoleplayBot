@@ -9,7 +9,7 @@ import type { ScenarioPersona, SupportedLanguage } from "./aiService";
 export type { ScenarioPersona, SupportedLanguage, StrategyReflectionEvaluation, RoleplayScenario, EvaluationCriteriaWithDimensions };
 
 // 기능별 설정 키 매핑
-export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario' | 'translation';
+export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario' | 'translation' | 'emotion' | 'image' | 'video';
 
 const FEATURE_SETTING_KEYS: Record<AIFeature, string> = {
   conversation: 'model_conversation',
@@ -17,6 +17,9 @@ const FEATURE_SETTING_KEYS: Record<AIFeature, string> = {
   strategy: 'model_strategy',
   scenario: 'model_scenario',
   translation: 'model_translation',
+  emotion: 'model_emotion',
+  image: 'model_image',
+  video: 'model_video',
 };
 
 // 기능별 환경변수 키 매핑
@@ -26,6 +29,14 @@ const FEATURE_ENV_KEYS: Record<AIFeature, string> = {
   strategy: 'AI_MODEL_STRATEGY',
   scenario: 'AI_MODEL_SCENARIO',
   translation: 'AI_MODEL_TRANSLATION',
+  emotion: 'AI_MODEL_EMOTION',
+  image: 'AI_MODEL_IMAGE',
+  video: 'AI_MODEL_VIDEO',
+};
+
+const FEATURE_DEFAULTS: Partial<Record<AIFeature, string>> = {
+  image: 'gemini-2.5-flash-image',
+  video: 'veo-3.1-generate-preview',
 };
 
 /**
@@ -95,8 +106,8 @@ export async function getModelForFeature(feature: AIFeature): Promise<string> {
     console.error(`Failed to get model for feature ${feature}:`, error);
   }
 
-  // 4. 기본값
-  return 'gemini-2.5-flash';
+  // 4. 기능별 기본값 또는 공통 기본값
+  return FEATURE_DEFAULTS[feature] ?? 'gemini-2.5-flash';
 }
 
 /**

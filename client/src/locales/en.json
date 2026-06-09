@@ -1544,10 +1544,14 @@
         "pricing": "Input $0.35/1M, Output $1.50/1M tokens"
       },
       "geminiFlashImage": {
-        "label": "Gemini 2.5 Flash Image"
+        "label": "Gemini 2.5 Flash Image",
+        "description": "Dedicated Gemini image generation model (recommended)",
+        "pricing": "Image generation only (paid API key required)"
       },
       "geminiVeo31": {
-        "label": "Gemini Veo 3.1"
+        "label": "Gemini Veo 3.1",
+        "description": "High-quality video generation model (recommended)",
+        "pricing": "Video generation only (Veo access required)"
       }
     }
   }

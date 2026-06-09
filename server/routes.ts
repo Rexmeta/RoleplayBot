@@ -58,6 +58,23 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     console.error('[seed] Failed to seed model_translation setting:', err);
   }
 
+  // Seed model_emotion, model_image, model_video settings if not present
+  const aiModelSeeds = [
+    { key: 'model_emotion', value: 'gemini-2.5-flash', description: 'AI model used for real-time emotion analysis' },
+    { key: 'model_image', value: 'gemini-2.5-flash-image', description: 'AI model used for image generation (personas, scenarios)' },
+    { key: 'model_video', value: 'veo-3.1-generate-preview', description: 'AI model used for intro video generation' },
+  ];
+  for (const seed of aiModelSeeds) {
+    try {
+      const existing = await storage.getSystemSetting('ai', seed.key);
+      if (!existing) {
+        await storage.upsertSystemSetting({ category: 'ai', ...seed });
+      }
+    } catch (err) {
+      console.error(`[seed] Failed to seed ${seed.key} setting:`, err);
+    }
+  }
+
   // Public: current default intro video URL (authenticated users only)
   app.get('/api/media/default-intro-video', isAuthenticated, async (req, res) => {
     try {

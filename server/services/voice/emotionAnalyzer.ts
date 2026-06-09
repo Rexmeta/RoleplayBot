@@ -1,25 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { LangCode } from './prompts/languageInstructions';
-import { storage } from '../../storage';
-
-let cachedEmotionModel: string | null = null;
-let emotionModelCacheExpiry = 0;
-
-async function getEmotionModel(): Promise<string> {
-  const now = Date.now();
-  if (cachedEmotionModel && now < emotionModelCacheExpiry) {
-    return cachedEmotionModel;
-  }
-  try {
-    const setting = await storage.getSystemSetting('ai', 'model_emotion');
-    const model = setting?.value || 'gemini-2.5-flash';
-    cachedEmotionModel = model;
-    emotionModelCacheExpiry = now + 5 * 60 * 1000; // 5분 캐시
-    return model;
-  } catch {
-    return cachedEmotionModel || 'gemini-2.5-flash';
-  }
-}
+import { getModelForFeature } from '../aiServiceFactory';
 
 function getEmotionConfig(lang: LangCode) {
   const emotionsByLang = {
@@ -303,7 +284,7 @@ ${promptConfig.chooseFrom}
 
 ${promptConfig.replyFormat}`;
 
-    const emotionModel = await getEmotionModel();
+    const emotionModel = await getModelForFeature('emotion');
     const result = await genAI.models.generateContent({
       model: emotionModel,
       contents: prompt,

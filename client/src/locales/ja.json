@@ -1540,10 +1540,14 @@
         "pricing": "入力 $0.35/100万、出力 $1.50/100万トークン"
       },
       "geminiFlashImage": {
-        "label": "Gemini 2.5 Flash Image"
+        "label": "Gemini 2.5 Flash Image",
+        "description": "Gemini専用画像生成モデル（推奨）",
+        "pricing": "画像生成専用（有料APIキー必要）"
       },
       "geminiVeo31": {
-        "label": "Gemini Veo 3.1"
+        "label": "Gemini Veo 3.1",
+        "description": "高品質動画生成モデル（推奨）",
+        "pricing": "動画生成専用（Veoアクセス権限必要）"
       }
     }
   }

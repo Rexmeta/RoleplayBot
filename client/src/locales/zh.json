@@ -1540,10 +1540,14 @@
         "pricing": "输入 $0.35/百万，输出 $1.50/百万令牌"
       },
       "geminiFlashImage": {
-        "label": "Gemini 2.5 Flash Image"
+        "label": "Gemini 2.5 Flash Image",
+        "description": "Gemini专用图像生成模型（推荐）",
+        "pricing": "仅限图像生成（需要付费API密钥）"
       },
       "geminiVeo31": {
-        "label": "Gemini Veo 3.1"
+        "label": "Gemini Veo 3.1",
+        "description": "高质量视频生成模型（推荐）",
+        "pricing": "仅限视频生成（需要Veo访问权限）"
       }
     }
   }
