@@ -243,6 +243,22 @@ export function PersonaTranslationEditor({
     return parts.join('\n');
   };
 
+  const getStatusBadge = (lang: SupportedLanguage) => {
+    const translation = translationData[lang.code];
+    const hasTranslation = !!translation?.name;
+    const isReviewed = translation?.isReviewed;
+    const isMachine = translation?.isMachineTranslated && !isReviewed;
+    if (!hasTranslation) {
+      return <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-slate-400 border-slate-300">누락</Badge>;
+    } else if (isReviewed) {
+      return <Badge className="text-[10px] px-1 py-0 h-4 bg-green-100 text-green-700 border-green-200 border">번역됨</Badge>;
+    } else if (isMachine) {
+      return <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-100 text-amber-700 border-amber-200 border">기계번역</Badge>;
+    } else {
+      return <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-blue-600 border-blue-300">수동</Badge>;
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -252,31 +268,49 @@ export function PersonaTranslationEditor({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4 flex-wrap">
+        {/* Status overview panel */}
+        <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+          <p className="text-xs font-medium text-muted-foreground mb-2">{t('admin.personaTranslationEditor.statusOverview', '번역 현황')}</p>
+          <div className="flex flex-wrap gap-2">
             {nonDefaultLanguages.map((lang) => {
               const translation = translationData[lang.code];
               const hasTranslation = !!translation?.name;
               const isReviewed = translation?.isReviewed;
               const isMachine = translation?.isMachineTranslated && !isReviewed;
-
               return (
-                <TabsTrigger
+                <button
                   key={lang.code}
-                  value={lang.code}
-                  className="flex items-center gap-2"
+                  onClick={() => setActiveTab(lang.code)}
+                  className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border bg-background hover:bg-muted transition-colors"
                 >
-                  {lang.nativeName}
-                  {hasTranslation && (
-                    isReviewed ? (
-                      <CheckCircle className="h-3 w-3 text-green-500" />
-                    ) : isMachine ? (
-                      <AlertCircle className="h-3 w-3 text-amber-500" />
-                    ) : null
+                  <span className="font-medium">{lang.nativeName}</span>
+                  {!hasTranslation ? (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-slate-400 border-slate-300">누락</Badge>
+                  ) : isReviewed ? (
+                    <Badge className="text-[10px] px-1 py-0 h-4 bg-green-100 text-green-700 border-green-200 border">번역됨</Badge>
+                  ) : isMachine ? (
+                    <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-100 text-amber-700 border-amber-200 border">기계번역</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-blue-600 border-blue-300">수동</Badge>
                   )}
-                </TabsTrigger>
+                </button>
               );
             })}
+          </div>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4 flex-wrap">
+            {nonDefaultLanguages.map((lang) => (
+              <TabsTrigger
+                key={lang.code}
+                value={lang.code}
+                className="flex items-center gap-1.5"
+              >
+                {lang.nativeName}
+                {getStatusBadge(lang)}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           {nonDefaultLanguages.map((lang) => {
