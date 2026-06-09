@@ -4,7 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -299,6 +299,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [evaluationHarnessValue, setEvaluationHarnessValue] = useState<EvaluationHarness | null>(null);
   const [playerConstraintsValue, setPlayerConstraintsValue] = useState<PlayerConstraints | null>(null);
   const [difficultyProfileValue, setDifficultyProfileValue] = useState<DifficultyProfile | null>(null);
+  const [aiPreviewOpen, setAiPreviewOpen] = useState(false);
+  const [aiPreviewType, setAiPreviewType] = useState<'evaluationHarness' | 'playerConstraints' | null>(null);
+  const [aiPreviewData, setAiPreviewData] = useState<EvaluationHarness | PlayerConstraints | null>(null);
   const [analyticsTrackedMetrics, setAnalyticsTrackedMetrics] = useState<string[]>([]);
   const [analyticsReportSections, setAnalyticsReportSections] = useState<string[]>([]);
   const [analyticsBenchmarkGroup, setAnalyticsBenchmarkGroup] = useState('');
@@ -1281,14 +1284,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       });
       const data = await response.json();
       if (!data.success || !data.evaluationHarness) throw new Error('AI 응답이 올바르지 않습니다');
-
-      if (evaluationHarnessValue !== null) {
-        const confirmed = window.confirm('이미 입력된 평가 기준이 있습니다. AI가 생성한 내용으로 덮어쓰시겠습니까?');
-        if (!confirmed) return;
-      }
-      setEvaluationHarnessValue(data.evaluationHarness);
-      setBuilderKey(k => k + 1);
-      toast({ title: 'AI 생성 완료', description: '평가 기준(evaluationHarness)이 채워졌습니다.' });
+      setAiPreviewData(data.evaluationHarness);
+      setAiPreviewType('evaluationHarness');
+      setAiPreviewOpen(true);
     } catch (error: any) {
       toast({ title: 'AI 생성 실패', description: error.message || '오류가 발생했습니다.', variant: 'destructive' });
     } finally {
@@ -1309,13 +1307,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       });
       const data = await response.json();
       if (!data.success || !data.playerConstraints) throw new Error('AI 응답이 올바르지 않습니다');
-
-      if (playerConstraintsValue !== null) {
-        const confirmed = window.confirm('이미 입력된 플레이어 제약이 있습니다. AI가 생성한 내용으로 덮어쓰시겠습니까?');
-        if (!confirmed) return;
-      }
-      setPlayerConstraintsValue(data.playerConstraints);
-      toast({ title: 'AI 생성 완료', description: '플레이어 제약(playerConstraints)이 채워졌습니다.' });
+      setAiPreviewData(data.playerConstraints);
+      setAiPreviewType('playerConstraints');
+      setAiPreviewOpen(true);
     } catch (error: any) {
       toast({ title: 'AI 생성 실패', description: error.message || '오류가 발생했습니다.', variant: 'destructive' });
     } finally {
@@ -1355,6 +1349,21 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     } finally {
       setIsGeneratingNpcBehaviorHarness(prev => ({ ...prev, [index]: false }));
     }
+  };
+
+  const handleApplyAiPreview = () => {
+    if (!aiPreviewData || !aiPreviewType) return;
+    if (aiPreviewType === 'evaluationHarness') {
+      setEvaluationHarnessValue(aiPreviewData as EvaluationHarness);
+      setBuilderKey(k => k + 1);
+      toast({ title: 'AI 생성 완료', description: '평가 기준(evaluationHarness)이 채워졌습니다.' });
+    } else {
+      setPlayerConstraintsValue(aiPreviewData as PlayerConstraints);
+      toast({ title: 'AI 생성 완료', description: '플레이어 제약(playerConstraints)이 채워졌습니다.' });
+    }
+    setAiPreviewOpen(false);
+    setAiPreviewData(null);
+    setAiPreviewType(null);
   };
 
   const handleGenerateVideo = async () => {
@@ -4576,6 +4585,47 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={aiPreviewOpen} onOpenChange={(open) => {
+        if (!open) {
+          setAiPreviewOpen(false);
+          setAiPreviewData(null);
+          setAiPreviewType(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              {aiPreviewType === 'evaluationHarness' ? 'AI 생성 결과 — 평가 기준 (evaluationHarness)' : 'AI 생성 결과 — 플레이어 제약 (playerConstraints)'}
+            </DialogTitle>
+            <DialogDescription>
+              아래 내용을 확인한 후 적용하거나 취소할 수 있습니다. 적용하면 현재 입력된 내용이 대체됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto rounded-md border bg-muted/40 p-4 min-h-0">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all text-foreground">
+              {aiPreviewData ? JSON.stringify(aiPreviewData, null, 2) : ''}
+            </pre>
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setAiPreviewOpen(false);
+                setAiPreviewData(null);
+                setAiPreviewType(null);
+              }}
+            >
+              취소
+            </Button>
+            <Button type="button" onClick={handleApplyAiPreview}>
+              적용
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
