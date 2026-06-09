@@ -368,6 +368,66 @@ describe('handleGeminiClose', () => {
     });
   });
 
+  describe('barge-in state cleared after reconnect', () => {
+    it('resets isInterrupted and cancelledTurnSeq when reconnect succeeds during a barge-in', async () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 3;
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'session.reconnected' })
+      );
+    });
+
+    it('clears barge-in flags even when recentMessages is populated', async () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 7;
+      session.recentMessages = [
+        { role: 'user', text: '잠깐만요' },
+        { role: 'ai', text: '네, 말씀하세요' },
+      ];
+
+      const mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+      connectToGemini.mockImplementation(async (sess: RealtimeSession) => {
+        sess.geminiSession = mockGeminiSession;
+      });
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(session.isInterrupted).toBe(false);
+      expect(session.cancelledTurnSeq).toBe(-1);
+      // Context recovery message should still be sent
+      expect(mockGeminiSession.sendClientContent).toHaveBeenCalled();
+      const [callArg] = mockGeminiSession.sendClientContent.mock.calls[0];
+      expect(callArg.turns[0].parts[0].text).toContain('잠깐만요');
+    });
+  });
+
   describe('already reconnecting', () => {
     it('does not start a new reconnect attempt if isReconnecting is true', () => {
       session.isReconnecting = true;
