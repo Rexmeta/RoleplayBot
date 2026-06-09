@@ -50,7 +50,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
   if (!apiKey) {
     return {
       success: false,
-      error: 'GOOGLE_API_KEY 또는 GEMINI_API_KEY가 설정되지 않았습니다.'
+      error: 'GEMINI_API_KEY 또는 GOOGLE_API_KEY가 설정되지 않았습니다.'
     };
   }
 
