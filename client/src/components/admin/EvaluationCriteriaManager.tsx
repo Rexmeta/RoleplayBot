@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
@@ -2217,31 +2217,31 @@ function CriteriaSetDetail({
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" strokeWidth="3" />
                     <circle
                       cx="18" cy="18" r="15.9" fill="none"
-                      stroke={qualityScore.total >= 80 ? '#22c55e' : qualityScore.total >= 60 ? '#f59e0b' : '#ef4444'}
+                      stroke={qualityScore.totalScore >= 80 ? '#22c55e' : qualityScore.totalScore >= 60 ? '#f59e0b' : '#ef4444'}
                       strokeWidth="3"
-                      strokeDasharray={`${(qualityScore.total / 100) * 100} 100`}
+                      strokeDasharray={`${(qualityScore.totalScore / 100) * 100} 100`}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div className="absolute text-center">
-                    <span className={`text-2xl font-bold ${qualityScore.total >= 80 ? 'text-green-600' : qualityScore.total >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
-                      {qualityScore.total}
+                    <span className={`text-2xl font-bold ${qualityScore.totalScore >= 80 ? 'text-green-600' : qualityScore.totalScore >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
+                      {qualityScore.totalScore}
                     </span>
                   </div>
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-semibold text-base">루브릭 품질 점수</span>
-                    {qualityScore.total >= 80 ? (
+                    {qualityScore.totalScore >= 80 ? (
                       <Badge className="bg-green-100 text-green-700 text-xs">승인 가능</Badge>
                     ) : (
                       <Badge className="bg-amber-100 text-amber-700 text-xs">개선 필요 (80점 이상 필요)</Badge>
                     )}
                   </div>
                   <p className="text-sm text-slate-500 mb-3">
-                    {qualityScore.total >= 80
+                    {qualityScore.totalScore >= 80
                       ? '이 루브릭은 품질 기준을 충족합니다. 검토 요청을 진행할 수 있습니다.'
-                      : `승인을 위해 ${80 - qualityScore.total}점이 더 필요합니다. 아래 항목을 개선해 주세요.`}
+                      : `승인을 위해 ${80 - qualityScore.totalScore}점이 더 필요합니다. 아래 항목을 개선해 주세요.`}
                   </p>
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowQualityBreakdown(v => !v)}>
                     <Info className="h-3.5 w-3.5 mr-1" />
@@ -2269,31 +2269,50 @@ function CriteriaSetDetail({
                         { key: 'rubricStageCompleteness', label: '루브릭 단계 완성도', max: 20 },
                         { key: 'evaluationPromptQuality', label: '평가 프롬프트 품질', max: 15 },
                       ].map((item) => {
-                        const score = qualityScore.breakdown[item.key] ?? 0;
-                        const pct = (score / item.max) * 100;
+                        const entry = qualityScore.breakdown?.[item.key];
+                        const score = entry?.score ?? 0;
+                        const maxScore = entry?.maxScore ?? item.max;
+                        const issues: string[] = entry?.issues ?? [];
+                        const pct = maxScore > 0 ? (score / maxScore) * 100 : 0;
                         return (
-                          <tr key={item.key} className="border-b last:border-0">
-                            <td className="px-4 py-2.5 text-slate-700">{item.label}</td>
-                            <td className="px-4 py-2.5 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
-                                    style={{ width: `${pct}%` }}
-                                  />
+                          <Fragment key={item.key}>
+                            <tr className="border-b last:border-0">
+                              <td className="px-4 py-2.5 text-slate-700">{item.label}</td>
+                              <td className="px-4 py-2.5 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className={`font-medium w-6 text-right ${pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{score}</span>
                                 </div>
-                                <span className={`font-medium w-6 text-right ${pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{score}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5 text-right text-slate-400 text-xs">{item.max}</td>
-                          </tr>
+                              </td>
+                              <td className="px-4 py-2.5 text-right text-slate-400 text-xs">{maxScore}</td>
+                            </tr>
+                            {issues.length > 0 && (
+                              <tr className="border-b last:border-0 bg-red-50">
+                                <td colSpan={3} className="px-4 pb-2 pt-0">
+                                  <ul className="space-y-0.5">
+                                    {issues.map((issue, i) => (
+                                      <li key={i} className="text-xs text-red-600 flex items-start gap-1">
+                                        <span className="mt-0.5 shrink-0">•</span>
+                                        <span>{issue}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>
                     <tfoot className="bg-slate-50 border-t">
                       <tr>
                         <td className="px-4 py-2 font-semibold text-slate-700">합계</td>
-                        <td className="px-4 py-2 text-right font-bold text-slate-800">{qualityScore.total}</td>
+                        <td className="px-4 py-2 text-right font-bold text-slate-800">{qualityScore.totalScore}</td>
                         <td className="px-4 py-2 text-right text-slate-400 text-xs">100</td>
                       </tr>
                     </tfoot>
