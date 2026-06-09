@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { getDefaultSourceLocale } from '@/lib/localeUtils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +35,7 @@ export function TranslationDashboard() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [isGeneratingAll, setIsGeneratingAll] = useState<string | null>(null);
-  const [sourceLocale, setSourceLocale] = useState<string>('ko');
+  const [sourceLocale, setSourceLocale] = useState<string>(getDefaultSourceLocale());
 
   const { data: languages = [], isLoading: languagesLoading } = useQuery<SupportedLanguage[]>({
     queryKey: ['/api/languages'],

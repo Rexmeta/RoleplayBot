@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getDefaultSourceLocale } from '@/lib/localeUtils';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -93,7 +94,7 @@ export function ScenarioTranslationEditor({
   scenarioSkills = [],
   scenarioSuccessCriteria = {},
   scenarioPersonas = [],
-  sourceLocale = 'ko'
+  sourceLocale = getDefaultSourceLocale()
 }: ScenarioTranslationEditorProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('');

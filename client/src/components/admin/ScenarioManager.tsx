@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { getDefaultSourceLocale } from '@/lib/localeUtils';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -704,7 +705,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const autoTranslateMutation = useMutation({
     mutationFn: async (scenarioId: string) => {
-      const response = await apiRequest('POST', `/api/admin/scenarios/${scenarioId}/auto-translate`, { sourceLocale: 'ko' });
+      const response = await apiRequest('POST', `/api/admin/scenarios/${scenarioId}/auto-translate`, { sourceLocale: getDefaultSourceLocale() });
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -3912,7 +3913,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     {/* 번역 상태 뱃지 */}
                     {(() => {
                       const translationLocales: Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }> = (scenario as any)._translationLocales || [];
-                      const sourceLocale: string = (scenario as any)._sourceLocale || 'ko';
+                      const sourceLocale: string = (scenario as any)._sourceLocale || getDefaultSourceLocale();
                       const targetLangs = activeLanguages.filter(l => l.code !== sourceLocale);
                       if (targetLangs.length === 0) return null;
                       return (
@@ -4278,7 +4279,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 goal: p.goal || '',
                 tradeoff: p.tradeoff || '',
               }))}
-              sourceLocale={translatingScenario.sourceLocale || 'ko'}
+              sourceLocale={translatingScenario.sourceLocale || getDefaultSourceLocale()}
             />
           )}
         </DialogContent>

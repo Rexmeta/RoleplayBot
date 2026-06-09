@@ -1,4 +1,5 @@
 import { useState, Fragment } from "react";
+import { getDefaultSourceLocale } from "@/lib/localeUtils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
@@ -375,7 +376,7 @@ export function EvaluationCriteriaManager() {
 
   const autoTranslateMutation = useMutation({
     mutationFn: async (criteriaSetId: string) => {
-      const response = await apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/auto-translate`, { sourceLocale: 'ko' });
+      const response = await apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/auto-translate`, { sourceLocale: getDefaultSourceLocale() });
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -406,7 +407,7 @@ export function EvaluationCriteriaManager() {
       for (let i = 0; i < criteriaSetIds.length; i++) {
         const id = criteriaSetIds[i];
         try {
-          const result = await apiRequest('POST', `/api/admin/evaluation-criteria/${id}/auto-translate`, { sourceLocale: 'ko' });
+          const result = await apiRequest('POST', `/api/admin/evaluation-criteria/${id}/auto-translate`, { sourceLocale: getDefaultSourceLocale() });
           results.push({ id, success: true, result });
         } catch (error) {
           results.push({ id, success: false, error });
