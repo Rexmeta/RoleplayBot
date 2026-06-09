@@ -12,6 +12,9 @@
  * -----------------
  * POST /api/admin/scenarios/:id/auto-translate
  * POST /api/admin/scenarios/:id/generate-translation
+ * POST /api/admin/personas/:id/generate-translation
+ * POST /api/admin/generate-all-translations (contentType=personas)
+ * POST /api/admin/generate-all-translations (contentType=categories)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -25,6 +28,12 @@ const mockStorage = vi.hoisted(() => ({
   getActiveSupportedLanguages: vi.fn(),
   getScenarioTranslation: vi.fn().mockResolvedValue(null),
   upsertScenarioTranslation: vi.fn().mockResolvedValue({}),
+  getAllScenarios: vi.fn().mockResolvedValue([]),
+  getPersonaTranslation: vi.fn().mockResolvedValue(null),
+  upsertPersonaTranslation: vi.fn().mockResolvedValue({}),
+  getAllCategories: vi.fn().mockResolvedValue([]),
+  getCategoryTranslation: vi.fn().mockResolvedValue(null),
+  upsertCategoryTranslation: vi.fn().mockResolvedValue({}),
 }));
 
 const mockFileManager = vi.hoisted(() => ({
@@ -56,6 +65,7 @@ import createTranslationsRouter from '../../server/routes/translations';
 
 // ─── Test fixtures ────────────────────────────────────────────────────────────
 const SCENARIO_ID = 'scenario-test-1';
+const PERSONA_ID = 'persona-test-1';
 
 const MOCK_SCENARIO = {
   id: SCENARIO_ID,
@@ -94,6 +104,20 @@ const MOCK_SCENARIO = {
   ],
 };
 
+const MOCK_PERSONA = {
+  id: PERSONA_ID,
+  name: 'INTJ',
+  mbti: 'INTJ',
+  personality_traits: ['Strategic', 'Independent', 'Decisive'],
+  personalityDescription: 'A strategic thinker who values efficiency.',
+};
+
+const MOCK_CATEGORY = {
+  id: 1,
+  name: 'Conflict Resolution',
+  description: 'Scenarios involving workplace conflicts',
+};
+
 const ACTIVE_LANGUAGES = [
   { code: 'ko', name: 'Korean', nativeName: '한국어', isActive: true, isDefault: true },
   { code: 'en', name: 'English', nativeName: 'English', isActive: true, isDefault: false },
@@ -114,6 +138,22 @@ function makeTranslationJson(overrides: Record<string, any> = {}) {
     successCriteriaGood: 'Translated good',
     successCriteriaAcceptable: 'Translated acceptable',
     successCriteriaFailure: 'Translated failure',
+    ...overrides,
+  });
+}
+
+function makePersonaTranslationJson(overrides: Record<string, any> = {}) {
+  return JSON.stringify({
+    name: 'Translated INTJ',
+    personalityDescription: 'Translated personality description',
+    ...overrides,
+  });
+}
+
+function makeCategoryTranslationJson(overrides: Record<string, any> = {}) {
+  return JSON.stringify({
+    name: 'Translated Category',
+    description: 'Translated category description',
     ...overrides,
   });
 }
@@ -396,5 +436,324 @@ describe('POST /api/admin/scenarios/:id/generate-translation', () => {
     expect(res.status).toBe(200);
     expect(mockStorage.getScenarioTranslation).toHaveBeenCalledWith(SCENARIO_ID, 'en');
     expect(res.body.translation.title).toBe('Japanese Title');
+  });
+});
+
+// ─── Tests: personas/:id/generate-translation ────────────────────────────────
+
+describe('POST /api/admin/personas/:id/generate-translation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GOOGLE_API_KEY = 'test-api-key';
+    mockFileManager.getAllPersonas.mockResolvedValue([MOCK_PERSONA]);
+    mockStorage.getPersonaTranslation.mockResolvedValue(null);
+  });
+
+  it('returns 400 when targetLocale is missing', async () => {
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/generate-translation`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 when persona is not found', async () => {
+    mockFileManager.getAllPersonas.mockResolvedValue([]);
+    const res = await request(buildApp())
+      .post('/api/admin/personas/nonexistent/generate-translation')
+      .send({ targetLocale: 'en' });
+    expect(res.status).toBe(404);
+  });
+
+  it('calls GoogleGenAI.models.generateContent exactly once', async () => {
+    mockGenerateContent.mockResolvedValue({ text: makePersonaTranslationJson() });
+
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/generate-translation`)
+      .send({ targetLocale: 'en', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns success: true and translation object with name and personalityDescription', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: makePersonaTranslationJson({
+        name: 'INTJ EN',
+        personalityDescription: 'A strategic thinker in English.',
+      }),
+    });
+
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/generate-translation`)
+      .send({ targetLocale: 'en', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.translation).toBeDefined();
+    expect(res.body.translation.name).toBe('INTJ EN');
+    expect(res.body.translation.personalityDescription).toBe('A strategic thinker in English.');
+  });
+
+  it('returns 500 when AI returns non-JSON text', async () => {
+    mockGenerateContent.mockResolvedValue({ text: 'I cannot help with that.' });
+
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/generate-translation`)
+      .send({ targetLocale: 'en', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(500);
+  });
+
+  it('returns 500 when AI call throws', async () => {
+    mockGenerateContent.mockRejectedValue(new Error('Network error'));
+
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/generate-translation`)
+      .send({ targetLocale: 'en', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(500);
+  });
+
+  it('returns 500 when GOOGLE_API_KEY is missing', async () => {
+    delete process.env.GOOGLE_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/generate-translation`)
+      .send({ targetLocale: 'en', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(500);
+  });
+
+  it('fetches source translation from DB when sourceLocale is not ko', async () => {
+    const sourceTranslation = {
+      name: 'INTJ EN',
+      personalityDescription: 'English description of INTJ',
+    };
+    mockStorage.getPersonaTranslation.mockResolvedValue(sourceTranslation);
+    mockGenerateContent.mockResolvedValue({
+      text: makePersonaTranslationJson({ name: 'INTJ JA', personalityDescription: 'Japanese INTJ desc' }),
+    });
+
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/generate-translation`)
+      .send({ targetLocale: 'ja', sourceLocale: 'en' });
+
+    expect(res.status).toBe(200);
+    expect(mockStorage.getPersonaTranslation).toHaveBeenCalledWith(PERSONA_ID, 'en');
+    expect(res.body.translation.name).toBe('INTJ JA');
+  });
+
+  it('extracts JSON embedded in surrounding prose via regex', async () => {
+    const jsonPart = makePersonaTranslationJson({ name: 'Extracted INTJ' });
+    mockGenerateContent.mockResolvedValue({
+      text: `Here is the translation:\n${jsonPart}\nEnd.`,
+    });
+
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/generate-translation`)
+      .send({ targetLocale: 'en', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.translation.name).toBe('Extracted INTJ');
+  });
+});
+
+// ─── Tests: generate-all-translations (contentType=personas) ─────────────────
+
+describe('POST /api/admin/generate-all-translations (contentType=personas)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GOOGLE_API_KEY = 'test-api-key';
+    mockStorage.getActiveSupportedLanguages.mockResolvedValue(ACTIVE_LANGUAGES);
+    mockFileManager.getAllPersonas.mockResolvedValue([MOCK_PERSONA]);
+    mockStorage.getPersonaTranslation.mockResolvedValue(null);
+    mockStorage.upsertPersonaTranslation.mockResolvedValue({});
+  });
+
+  it('returns 400 when targetLocale is missing', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ contentType: 'personas' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when contentType is missing', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when sourceLocale equals targetLocale', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'ko', sourceLocale: 'ko', contentType: 'personas' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when targetLocale is not in supported languages', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'fr', contentType: 'personas', sourceLocale: 'ko' });
+    expect(res.status).toBe(400);
+  });
+
+  it('calls GoogleGenAI.models.generateContent for each persona without existing translation', async () => {
+    mockGenerateContent.mockResolvedValue({ text: makePersonaTranslationJson() });
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'personas', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns count matching the number of successful persona translations', async () => {
+    const personas = [
+      { id: 'p-1', name: 'INTJ', mbti: 'INTJ', personality_traits: ['Strategic'] },
+      { id: 'p-2', name: 'ENFP', mbti: 'ENFP', personality_traits: ['Creative'] },
+    ];
+    mockFileManager.getAllPersonas.mockResolvedValue(personas);
+    mockGenerateContent.mockResolvedValue({ text: makePersonaTranslationJson() });
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'personas', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.count).toBe(2);
+  });
+
+  it('skips personas that already have a translation', async () => {
+    mockStorage.getPersonaTranslation.mockResolvedValue({ name: 'Existing', personalityDescription: 'Exists' });
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'personas', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(0);
+    expect(mockGenerateContent).not.toHaveBeenCalled();
+  });
+
+  it('returns count 0 when AI call fails for all personas', async () => {
+    mockGenerateContent.mockRejectedValue(new Error('AI unavailable'));
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'personas', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.count).toBe(0);
+  });
+
+  it('upserts persona translation with isMachineTranslated: true', async () => {
+    mockGenerateContent.mockResolvedValue({ text: makePersonaTranslationJson() });
+
+    await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'personas', sourceLocale: 'ko' });
+
+    expect(mockStorage.upsertPersonaTranslation).toHaveBeenCalledTimes(1);
+    const upsertArg = mockStorage.upsertPersonaTranslation.mock.calls[0][0];
+    expect(upsertArg.isMachineTranslated).toBe(true);
+    expect(upsertArg.isReviewed).toBe(false);
+    expect(upsertArg.locale).toBe('en');
+    expect(upsertArg.personaId).toBe(MOCK_PERSONA.id);
+  });
+});
+
+// ─── Tests: generate-all-translations (contentType=categories) ───────────────
+
+describe('POST /api/admin/generate-all-translations (contentType=categories)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GOOGLE_API_KEY = 'test-api-key';
+    mockStorage.getActiveSupportedLanguages.mockResolvedValue(ACTIVE_LANGUAGES);
+    mockStorage.getAllCategories.mockResolvedValue([MOCK_CATEGORY]);
+    mockStorage.getCategoryTranslation.mockResolvedValue(null);
+    mockStorage.upsertCategoryTranslation.mockResolvedValue({});
+  });
+
+  it('calls GoogleGenAI.models.generateContent for each category without existing translation', async () => {
+    mockGenerateContent.mockResolvedValue({ text: makeCategoryTranslationJson() });
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'categories', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns count matching the number of successful category translations', async () => {
+    const categories = [
+      { id: 1, name: 'Conflict', description: 'Conflict scenarios' },
+      { id: 2, name: 'Leadership', description: 'Leadership scenarios' },
+    ];
+    mockStorage.getAllCategories.mockResolvedValue(categories);
+    mockGenerateContent.mockResolvedValue({ text: makeCategoryTranslationJson() });
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'categories', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.count).toBe(2);
+  });
+
+  it('skips categories that already have a translation', async () => {
+    mockStorage.getCategoryTranslation.mockResolvedValue({ name: 'Existing', description: 'Exists' });
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'categories', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(0);
+    expect(mockGenerateContent).not.toHaveBeenCalled();
+  });
+
+  it('returns count 0 when AI call fails for all categories', async () => {
+    mockGenerateContent.mockRejectedValue(new Error('AI unavailable'));
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'categories', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.count).toBe(0);
+  });
+
+  it('upserts category translation with isMachineTranslated: true', async () => {
+    mockGenerateContent.mockResolvedValue({ text: makeCategoryTranslationJson() });
+
+    await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'categories', sourceLocale: 'ko' });
+
+    expect(mockStorage.upsertCategoryTranslation).toHaveBeenCalledTimes(1);
+    const upsertArg = mockStorage.upsertCategoryTranslation.mock.calls[0][0];
+    expect(upsertArg.isMachineTranslated).toBe(true);
+    expect(upsertArg.isReviewed).toBe(false);
+    expect(upsertArg.locale).toBe('en');
+    expect(upsertArg.categoryId).toBe(String(MOCK_CATEGORY.id));
+  });
+
+  it('returns count 0 when AI returns non-JSON text', async () => {
+    mockGenerateContent.mockResolvedValue({ text: 'Not a JSON response' });
+
+    const res = await request(buildApp())
+      .post('/api/admin/generate-all-translations')
+      .send({ targetLocale: 'en', contentType: 'categories', sourceLocale: 'ko' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(0);
   });
 });
