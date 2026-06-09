@@ -60,7 +60,7 @@ function resample16kTo24k(inputBase64: string): string {
   return outputBuf.toString('base64');
 }
 
-function createMessageHandler(
+export function createMessageHandler(
   session: RealtimeSession,
   sendToClient: SendToClient
 ) {
@@ -85,6 +85,19 @@ function createMessageHandler(
 
       case 'response.audio.delta': {
         if (msg.delta) {
+          // Suppress audio when barge-in is active and this turn's audio has been cancelled.
+          // The client also gates on turnSeq, but dropping server-side avoids unnecessary
+          // network traffic and matches the Gemini handler's behaviour.
+          if (session.isInterrupted && session.turnSeq <= session.cancelledTurnSeq) {
+            break;
+          }
+          // If new audio arrives for a turn that has advanced past the cancelled turn,
+          // the race is resolved — clear the interrupted flag and resync the client.
+          if (session.isInterrupted && session.turnSeq > session.cancelledTurnSeq) {
+            session.isInterrupted = false;
+            session.cancelledTurnSeq = -1;
+            sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
+          }
           if (!session.hasReceivedFirstAIAudio) {
             session.hasReceivedFirstAIAudio = true;
             session.hasReceivedFirstAIResponse = true;
