@@ -718,6 +718,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           description: `${data.message}\n${t('admin.evaluationCriteria.translationFailedLocales')}: ${failedList}`,
           variant: "destructive",
         });
+      } else if (data.translatedCount === 0) {
+        toast({
+          title: t('admin.evaluationCriteria.translationFailed'),
+          description: "번역 대상 언어가 설정되지 않았습니다. 시스템 언어 설정을 확인하세요.",
+          variant: "destructive",
+        });
       } else {
         toast({ 
           title: t('admin.evaluationCriteria.translationSuccess'), 

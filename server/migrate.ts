@@ -790,6 +790,17 @@ CREATE INDEX IF NOT EXISTS "idx_user_bookmarks_user_id" ON "user_bookmarks" USIN
 CREATE INDEX IF NOT EXISTS "idx_user_bookmarks_scenario_id" ON "user_bookmarks" USING btree ("scenario_id");
 `;
 
+// 지원 언어 시딩 SQL
+const seedSupportedLanguagesSQL = `
+INSERT INTO "supported_languages" ("code", "name", "native_name", "is_active", "is_default", "display_order")
+VALUES
+  ('ko', 'Korean', '한국어', true, true, 0),
+  ('en', 'English', 'English', true, false, 1),
+  ('ja', 'Japanese', '日本語', true, false, 2),
+  ('zh', 'Chinese (Simplified)', '简体中文', true, false, 3)
+ON CONFLICT ("code") DO NOTHING;
+`;
+
 // 기본 평가 기준 세트 시딩 SQL
 const seedDefaultEvaluationCriteriaSQL = `
 -- 기본 평가 기준 세트 (없으면 생성)
@@ -1068,6 +1079,9 @@ export async function runMigrations(): Promise<void> {
 
       // Indexes 추가
       await queryWithTimeout(client, 'Indexes created/verified', indexesSQL);
+
+      // 지원 언어 시딩 (ko, en, ja, zh)
+      await queryWithTimeout(client, 'Supported languages seeded', seedSupportedLanguagesSQL);
 
       // 기본 평가 기준 시딩
       await queryWithTimeout(client, 'Default evaluation criteria seeded', seedDefaultEvaluationCriteriaSQL);

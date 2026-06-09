@@ -319,6 +319,10 @@ Return ONLY valid JSON in this exact format:
     const languages = await storage.getActiveSupportedLanguages();
     const targetLocales = languages.filter(l => l.code !== sourceLocale).map(l => l.code);
 
+    if (targetLocales.length === 0) {
+      throw createHttpError(400, "번역 가능한 대상 언어가 없습니다. 시스템 언어 설정을 확인하세요.");
+    }
+
     const languageNames: Record<string, string> = {
       'ko': 'Korean (한국어)',
       'en': 'English',
