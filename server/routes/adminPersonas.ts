@@ -9,8 +9,23 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
   const router = Router();
 
   router.get("/api/admin/personas", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
-    const personas = await fileManager.getAllMBTIPersonas();
-    const transformedPersonas = await transformPersonasMedia(personas);
+    const [personas, allLocaleRows] = await Promise.all([
+      fileManager.getAllMBTIPersonas(),
+      storage.getAllPersonaTranslationLocales(),
+    ]);
+
+    const localeMap = new Map<string, Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>>();
+    for (const row of allLocaleRows) {
+      if (!localeMap.has(row.personaId)) localeMap.set(row.personaId, []);
+      localeMap.get(row.personaId)!.push({ locale: row.locale, isMachineTranslated: row.isMachineTranslated, isReviewed: row.isReviewed, isOriginal: row.isOriginal });
+    }
+
+    const personasWithLocales = (personas as any[]).map(p => ({
+      ...p,
+      _translationLocales: localeMap.get(p.id) || [],
+    }));
+
+    const transformedPersonas = await transformPersonasMedia(personasWithLocales);
     res.json(transformedPersonas);
   }));
 

@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { MoreVertical, RefreshCw, Languages } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 import { toMediaUrl } from '@/lib/mediaUrl';
 
@@ -301,6 +302,11 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   const { data: personas = [], isLoading, error } = useQuery({
     queryKey: ['/api/admin/personas'],
     queryFn: () => fetch('/api/admin/personas').then(res => res.json())
+  });
+
+  // 활성 언어 목록 조회 (번역 상태 뱃지용)
+  const { data: activeLanguages = [] } = useQuery<{ code: string; name: string; nativeName: string; isDefault: boolean }[]>({
+    queryKey: ['/api/languages'],
   });
 
   // 시나리오 목록 조회 (페르소나 사용 현황 확인용)
@@ -1519,11 +1525,53 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       <span className="text-slate-700">{persona.id}</span>
                     </CardTitle>
                     <p className="text-sm text-slate-600 mb-2">{persona.communication_style}</p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline" className="bg-green-100 text-green-800">
                         {t('admin.personaManager.usedInScenarios', { count: scenarioUsage.length })}
                       </Badge>
                     </div>
+                    {/* 번역 상태 뱃지 */}
+                    {(() => {
+                      const translationLocales: Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }> = (persona as any)._translationLocales || [];
+                      const targetLangs = activeLanguages.filter(l => !l.isDefault);
+                      if (targetLangs.length === 0) return null;
+                      return (
+                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                          <Languages className="w-3 h-3 text-slate-400 shrink-0" />
+                          {targetLangs.map(lang => {
+                            const entry = translationLocales.find(t => t.locale === lang.code && !t.isOriginal);
+                            let icon: string;
+                            let colorClass: string;
+                            let tooltip: string;
+                            if (!entry) {
+                              icon = '–';
+                              colorClass = 'text-slate-400 bg-slate-50 border-slate-200';
+                              tooltip = `${lang.name}: 번역 없음`;
+                            } else if (entry.isMachineTranslated && !entry.isReviewed) {
+                              icon = '⚠';
+                              colorClass = 'text-amber-600 bg-amber-50 border-amber-200';
+                              tooltip = `${lang.name}: AI 번역 (검토 대기)`;
+                            } else {
+                              icon = '✓';
+                              colorClass = 'text-green-600 bg-green-50 border-green-200';
+                              tooltip = `${lang.name}: 번역 완료${entry.isReviewed ? ' (검토됨)' : ''}`;
+                            }
+                            return (
+                              <TooltipProvider key={lang.code}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className={`inline-flex items-center gap-0.5 text-xs font-mono border rounded px-1 py-0 leading-5 cursor-default select-none ${colorClass}`}>
+                                      {lang.code.toUpperCase()} {icon}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom">{tooltip}</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
