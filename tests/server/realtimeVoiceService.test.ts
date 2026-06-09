@@ -46,6 +46,11 @@ vi.mock('../../server/services/voice/sessionManager', () => ({
 }));
 
 const mockLiveConnect = vi.fn();
+const mockConnectOpenAIRealtime = vi.fn();
+
+vi.mock('../../server/services/voice/openaiRealtimeAdapter', () => ({
+  connectOpenAIRealtime: mockConnectOpenAIRealtime,
+}));
 
 vi.mock('@google/genai', () => ({
   GoogleGenAI: vi.fn(function () {
@@ -956,5 +961,225 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       // No greeting trigger (안녕하세요) ever sent
       expect(allTexts.every((t: string) => !t.includes('안녕하세요'))).toBe(true);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OpenAI reconnect integration — full round-trip
+// ---------------------------------------------------------------------------
+// These tests exercise the wiring between realtimeVoiceService.connectToOpenAI
+// → openaiReconnector.handleOpenAIClose → connectToOpenAI (retry) using mock
+// WebSocket pairs.  They complement the unit-level openaiReconnector tests by
+// verifying that the orchestrator layer correctly threads the callbacks so that
+// an unexpected OpenAI close triggers the full reconnect cycle end-to-end.
+// ---------------------------------------------------------------------------
+
+describe('OpenAI reconnect integration — full round-trip (unexpected close → reconnect cycle)', () => {
+  const SESSION_ID = 'openai-session-id';
+  const CONVERSATION_ID = 'openai-conv-id';
+  const SCENARIO_ID = 'scenario-1';
+  const PERSONA_ID = 'persona-1';
+  const USER_ID = 'user-1';
+
+  let RealtimeVoiceService: any;
+  let service: any;
+  let fakeWs: { readyState: number; send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> };
+  let capturedOnClose: ((event: { code: number; reason: string }) => void) | null;
+
+  function makeFakeAdapter() {
+    return {
+      sendRealtimeInput: vi.fn(),
+      sendClientContent: vi.fn(),
+      sendToolResponse: vi.fn(),
+      close: vi.fn(),
+    };
+  }
+
+  function parseSentMessages() {
+    return fakeWs.send.mock.calls.map((c: any[]) => JSON.parse(c[0]));
+  }
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+
+    // Use OpenAI-only environment (no Gemini key) so createSession routes to connectToOpenAI
+    process.env.OPENAI_API_KEY = 'test-openai-key';
+    delete process.env.GOOGLE_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    mockGetUser.mockResolvedValue({ name: '테스터' });
+    mockGetPersonaByMBTI.mockResolvedValue(null);
+    // Return an OpenAI realtime model so the service uses connectToOpenAI
+    mockGetSystemSetting.mockResolvedValue({ value: 'gpt-4o-realtime-preview' });
+    mockGetAllScenarios.mockResolvedValue([makeScenario()]);
+    mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+
+    capturedOnClose = null;
+
+    // Default mock: capture onClose callback and return a fake adapter
+    mockConnectOpenAIRealtime.mockImplementation(
+      (_model: any, _session: any, _sendToClient: any, onClose: any) => {
+        capturedOnClose = onClose;
+        return Promise.resolve(makeFakeAdapter());
+      }
+    );
+
+    fakeWs = { readyState: 1, send: vi.fn(), close: vi.fn() };
+
+    vi.resetModules();
+    const mod = await import('../../server/services/realtimeVoiceService');
+    RealtimeVoiceService = mod.RealtimeVoiceService;
+    service = new RealtimeVoiceService();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete process.env.OPENAI_API_KEY;
+    // Restore Gemini key so other test suites don't break
+    process.env.GOOGLE_API_KEY = 'test-api-key';
+    vi.clearAllMocks();
+  });
+
+  it('unexpected close triggers reconnect: client receives session.reconnecting then session.reconnected', async () => {
+    await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+    expect(capturedOnClose).not.toBeNull();
+
+    const session = (service as any).sessions.get(SESSION_ID);
+    expect(session).toBeDefined();
+
+    // Prepare second adapter for the reconnect call
+    mockConnectOpenAIRealtime.mockImplementationOnce(
+      (_model: any, _session: any, _sendToClient: any, onClose: any) => {
+        capturedOnClose = onClose;
+        return Promise.resolve(makeFakeAdapter());
+      }
+    );
+
+    // Trigger unexpected close (code 1006 = abnormal closure — not in FATAL_CLOSE_CODES)
+    capturedOnClose!({ code: 1006, reason: '' });
+
+    // Reconnector immediately sends session.reconnecting before the delay fires
+    const msgsAfterClose = parseSentMessages();
+    const reconnectingMsg = msgsAfterClose.find((m: any) => m.type === 'session.reconnecting');
+    expect(reconnectingMsg).toBeDefined();
+    expect(reconnectingMsg.attempt).toBe(1);
+    expect(reconnectingMsg.maxAttempts).toBe(5);
+
+    // Session state must reflect active reconnect
+    expect(session.isReconnecting).toBe(true);
+    expect(session.reconnectAttempts).toBe(1);
+
+    // Advance past attempt-1 delay (2^0 * 1000 = 1000 ms) and flush async work
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // session.reconnected must have been sent after successful reconnect
+    const msgsAfterReconnect = parseSentMessages();
+    const reconnectedMsg = msgsAfterReconnect.find((m: any) => m.type === 'session.reconnected');
+    expect(reconnectedMsg).toBeDefined();
+
+    // Session state must be reset to idle after successful reconnect
+    expect(session.isReconnecting).toBe(false);
+    expect(session.reconnectAttempts).toBe(0);
+  });
+
+  it('session stays in sessions map during the entire reconnect cycle', async () => {
+    await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+    mockConnectOpenAIRealtime.mockImplementationOnce(
+      (_model: any, _sess: any, _stc: any, onClose: any) => {
+        capturedOnClose = onClose;
+        return Promise.resolve(makeFakeAdapter());
+      }
+    );
+
+    capturedOnClose!({ code: 1006, reason: '' });
+
+    // Session must still be present while isReconnecting is true
+    expect((service as any).sessions.has(SESSION_ID)).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // Session must still be present after successful reconnect
+    expect((service as any).sessions.has(SESSION_ID)).toBe(true);
+  });
+
+  it('connectToOpenAI (connectOpenAIRealtime) is called exactly twice: initial + reconnect', async () => {
+    await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+    expect(mockConnectOpenAIRealtime).toHaveBeenCalledTimes(1);
+
+    mockConnectOpenAIRealtime.mockImplementationOnce(
+      (_model: any, _sess: any, _stc: any, onClose: any) => {
+        capturedOnClose = onClose;
+        return Promise.resolve(makeFakeAdapter());
+      }
+    );
+
+    capturedOnClose!({ code: 1006, reason: '' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(mockConnectOpenAIRealtime).toHaveBeenCalledTimes(2);
+  });
+
+  it('isReconnecting is false and reconnectAttempts is 0 before the first close', async () => {
+    await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+    const session = (service as any).sessions.get(SESSION_ID);
+    expect(session.isReconnecting).toBe(false);
+    expect(session.reconnectAttempts).toBe(0);
+  });
+
+  it('fatal close code does NOT trigger reconnect — sends error event and no session.reconnecting', async () => {
+    await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+    // Code 1008 (Policy Violation) is in FATAL_CLOSE_CODES
+    capturedOnClose!({ code: 1008, reason: 'Policy violation' });
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const msgs = parseSentMessages();
+    expect(msgs.some((m: any) => m.type === 'session.reconnecting')).toBe(false);
+    expect(msgs.some((m: any) => m.type === 'session.reconnected')).toBe(false);
+    // A non-recoverable error must have been sent to the client
+    const errorMsg = msgs.find((m: any) => m.type === 'error');
+    expect(errorMsg).toBeDefined();
+    expect(errorMsg.recoverable).toBe(false);
+    // Session must be cleaned up after a fatal error
+    expect((service as any).sessions.has(SESSION_ID)).toBe(false);
+  });
+
+  it('normal close (code 1000) does NOT trigger reconnect — sends session.terminated', async () => {
+    await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+    capturedOnClose!({ code: 1000, reason: 'Normal closure' });
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const msgs = parseSentMessages();
+    expect(msgs.some((m: any) => m.type === 'session.reconnecting')).toBe(false);
+    const terminated = msgs.find((m: any) => m.type === 'session.terminated');
+    expect(terminated).toBeDefined();
+  });
+
+  it('second connectToOpenAI call on reconnect uses the same session object', async () => {
+    await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
+
+    let reconnectSessionArg: any = null;
+    mockConnectOpenAIRealtime.mockImplementationOnce(
+      (_model: any, sess: any, _stc: any, onClose: any) => {
+        reconnectSessionArg = sess;
+        capturedOnClose = onClose;
+        return Promise.resolve(makeFakeAdapter());
+      }
+    );
+
+    const session = (service as any).sessions.get(SESSION_ID);
+    capturedOnClose!({ code: 1006, reason: '' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // The reconnect must reuse the existing session object (same reference)
+    expect(reconnectSessionArg).toBe(session);
   });
 });
