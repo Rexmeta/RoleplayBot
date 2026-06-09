@@ -1047,6 +1047,15 @@ Return JSON: {
     res.json({ success: true });
   }));
 
+  router.get("/api/admin/evaluation-criteria/:id/translations", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "평가 기준 세트를 찾을 수 없습니다");
+    await assertOperatorRubricAccess(existing, req.user);
+    const translations = await storage.getEvaluationCriteriaSetTranslations(id);
+    res.json(translations);
+  }));
+
   router.post("/api/admin/evaluation-criteria/:id/auto-translate", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
     const { id } = req.params;
     const { sourceLocale = 'ko' } = req.body;

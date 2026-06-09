@@ -16,7 +16,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, ChevronRight, Info } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, ChevronRight, Info, Bot } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -1717,7 +1717,7 @@ function CriteriaSetDetail({
   const [deleteConfirmDimId, setDeleteConfirmDimId] = useState<string | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dimensions' | 'quality' | 'dryrun'>('dimensions');
+  const [activeTab, setActiveTab] = useState<'dimensions' | 'quality' | 'dryrun' | 'translation'>('dimensions');
   const [dryRunMessages, setDryRunMessages] = useState(`[
   { "role": "user", "content": "안녕하세요. 이번 프로젝트 진행 상황을 보고드리려고 합니다." },
   { "role": "assistant", "content": "네, 말씀해 보세요." },
@@ -1740,6 +1740,19 @@ function CriteriaSetDetail({
       return res.json();
     },
     staleTime: 30000,
+  });
+
+  const { data: allLanguages = [] } = useQuery<any[]>({
+    queryKey: ['/api/languages'],
+  });
+
+  const { data: criteriaTranslations = [] } = useQuery<any[]>({
+    queryKey: ['/api/admin/evaluation-criteria', setId, 'translations'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/admin/evaluation-criteria/${setId}/translations`);
+      return res.json();
+    },
+    enabled: activeTab === 'translation',
   });
 
   const dryRunMutation = useMutation({
@@ -2084,6 +2097,10 @@ function CriteriaSetDetail({
             <FlaskConical className="h-3.5 w-3.5 mr-1.5" />
             드라이런 테스트
           </TabsTrigger>
+          <TabsTrigger value="translation" className="text-xs h-7 px-3">
+            <Languages className="h-3.5 w-3.5 mr-1.5" />
+            번역 현황
+          </TabsTrigger>
         </TabsList>
 
         {/* ── 차원 탭 ── */}
@@ -2340,6 +2357,64 @@ function CriteriaSetDetail({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── 번역 현황 탭 ── */}
+        <TabsContent value="translation" className="mt-3">
+          {allLanguages.length === 0 ? (
+            <div className="py-6 text-center text-slate-400 text-sm">지원 언어를 불러오는 중...</div>
+          ) : (
+            <div className="space-y-2">
+              {allLanguages.map((lang: any) => {
+                const tx = criteriaTranslations.find((t: any) => t.locale === lang.code);
+                const hasTranslation = !!tx?.name;
+                const isReviewed = tx?.isReviewed;
+                const isMachine = tx?.isMachineTranslated && !isReviewed;
+
+                let statusBadge;
+                if (!hasTranslation) {
+                  statusBadge = (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 text-slate-400 border-slate-300">
+                      누락
+                    </Badge>
+                  );
+                } else if (isReviewed) {
+                  statusBadge = (
+                    <Badge className="text-[10px] px-1.5 py-0 h-5 bg-green-100 text-green-700 border border-green-200">
+                      <CheckCircle className="h-2.5 w-2.5 mr-0.5" />
+                      번역됨
+                    </Badge>
+                  );
+                } else if (isMachine) {
+                  statusBadge = (
+                    <Badge className="text-[10px] px-1.5 py-0 h-5 bg-amber-100 text-amber-700 border border-amber-200">
+                      <Bot className="h-2.5 w-2.5 mr-0.5" />
+                      기계번역
+                    </Badge>
+                  );
+                } else {
+                  statusBadge = (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 text-blue-600 border-blue-300">
+                      수동
+                    </Badge>
+                  );
+                }
+
+                return (
+                  <div key={lang.code} className="flex items-center justify-between px-3 py-2 rounded-lg border bg-white text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-slate-400 w-7">{lang.code}</span>
+                      <span className="font-medium text-slate-700">{lang.nativeName}</span>
+                      {tx?.name && (
+                        <span className="text-xs text-slate-400 truncate max-w-[200px]">— {tx.name}</span>
+                      )}
+                    </div>
+                    {statusBadge}
+                  </div>
+                );
+              })}
             </div>
           )}
         </TabsContent>

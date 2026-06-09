@@ -390,15 +390,17 @@ export function ScenarioTranslationEditor({
                 <TabsTrigger
                   key={lang.code}
                   value={lang.code}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1.5"
                 >
                   {lang.nativeName}
-                  {hasTranslation && (
-                    isReviewed ? (
-                      <CheckCircle className="h-3 w-3 text-green-500" />
-                    ) : isMachine ? (
-                      <AlertCircle className="h-3 w-3 text-amber-500" />
-                    ) : null
+                  {!hasTranslation ? (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-slate-400 border-slate-300">누락</Badge>
+                  ) : isReviewed ? (
+                    <Badge className="text-[10px] px-1 py-0 h-4 bg-green-100 text-green-700 border-green-200 border">번역됨</Badge>
+                  ) : isMachine ? (
+                    <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-100 text-amber-700 border-amber-200 border">기계번역</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-blue-600 border-blue-300">수동</Badge>
                   )}
                 </TabsTrigger>
               );
