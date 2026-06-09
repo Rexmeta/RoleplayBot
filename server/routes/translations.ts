@@ -287,9 +287,8 @@ Return ONLY valid JSON in this exact format:
     }
 
     const genAI = new GoogleGenAI({ apiKey });
-    const model = (genAI as any).getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+    const response = result.text ?? '';
 
     let translation;
     try {
@@ -421,9 +420,8 @@ Return ONLY valid JSON:
         const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
         if (!apiKey) throw new Error("API Key not found");
         const genAI = new GoogleGenAI({ apiKey });
-        const model = (genAI as any).getGenerativeModel({ model: 'gemini-2.0-flash' });
-        const result = await model.generateContent(prompt);
-        const response = result.response.text();
+        const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+        const response = result.text ?? '';
 
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -570,9 +568,8 @@ Return JSON: {"name": "translated name", "personalityDescription": "translated d
     const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("API Key not found");
     const genAI = new GoogleGenAI({ apiKey });
-    const model = (genAI as any).getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+    const response = result.text ?? '';
     const jsonMatch = response.match(/\{[\s\S]*\}/);
 
     if (jsonMatch) {
@@ -693,9 +690,8 @@ Return JSON: {"title": "translated title", "description": "translated descriptio
             const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error("API Key not found");
             const genAI = new GoogleGenAI({ apiKey });
-            const model = (genAI as any).getGenerativeModel({ model: 'gemini-2.0-flash' });
-            const result = await model.generateContent(prompt);
-            const response = result.response.text();
+            const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+            const response = result.text ?? '';
 
             const jsonMatch = response.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
@@ -750,9 +746,8 @@ Return JSON: {"name": "type name", "personalityDescription": "description"}`;
             const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error("API Key not found");
             const genAI = new GoogleGenAI({ apiKey });
-            const model = (genAI as any).getGenerativeModel({ model: 'gemini-2.0-flash' });
-            const result = await model.generateContent(prompt);
-            const response = result.response.text();
+            const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+            const response = result.text ?? '';
 
             const jsonMatch = response.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
@@ -799,9 +794,8 @@ Return JSON: {"name": "translated name", "description": "translated description"
             const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error("API Key not found");
             const genAI = new GoogleGenAI({ apiKey });
-            const model = (genAI as any).getGenerativeModel({ model: 'gemini-2.0-flash' });
-            const result = await model.generateContent(prompt);
-            const response = result.response.text();
+            const result = await genAI.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt });
+            const response = result.text ?? '';
 
             const jsonMatch = response.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
