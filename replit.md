@@ -1,3 +1,8 @@
+> **Maintenance reminder** — when you add a new database table, schema module,
+> or major feature, update the relevant section(s) below.  A test in
+> `tests/readmeSyncCheck.test.ts` will fail in CI if any table name or schema
+> module file is missing from this file, so you'll be reminded automatically.
+
 # Overview
 
 This project is an AI-powered role-playing training system designed to enhance communication skills for new employees. It uses interactive conversations with AI personas across various workplace scenarios, offering 10-turn dialogues, real-time emotion analysis, and detailed AI-generated feedback. The system supports text, text-to-speech (TTS), and real-time voice conversation modes. The business vision is to provide a scalable and effective tool for professional development, leveraging AI for personalized communication coaching.
