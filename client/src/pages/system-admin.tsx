@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { REALTIME_MODELS } from "../../../shared/realtimeModels";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AppHeader } from "@/components/AppHeader";
@@ -254,39 +255,7 @@ const AI_MODELS = [
   },
 ];
 
-const GEMINI_LIVE_MODELS = [
-  {
-    value: "gemini-2.0-flash-live-001",
-    modelKey: "gemini20FlashLive001",
-    provider: "Google Live",
-    recommended: true
-  },
-  {
-    value: "gemini-2.5-flash-live-preview",
-    modelKey: "gemini25FlashLivePreview",
-    provider: "Google Live",
-    recommended: false
-  },
-  {
-    value: "gemini-3.1-flash-live-preview",
-    modelKey: "gemini31FlashLivePreview",
-    provider: "Google Live",
-    recommended: false,
-    description: "선불 크레딧 필요"
-  },
-  {
-    value: "gpt-4o-realtime-preview",
-    modelKey: "gptRealtimePreview",
-    provider: "OpenAI Realtime",
-    recommended: false,
-  },
-  {
-    value: "gpt-4o-mini-realtime-preview",
-    modelKey: "gptMiniRealtimePreview",
-    provider: "OpenAI Realtime",
-    recommended: false,
-  },
-];
+const GEMINI_LIVE_MODELS = REALTIME_MODELS;
 
 const IMAGE_MODELS = [
   {

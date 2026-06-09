@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
+import { VALID_REALTIME_MODEL_VALUES } from "../../shared/realtimeModels";
 
 export default function createSystemAdminRouter(isAuthenticated: any) {
   const router = Router();
@@ -296,6 +297,13 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
       throw createHttpError(400, "Category and key are required");
     }
 
+    if (key === 'model_realtime' && !VALID_REALTIME_MODEL_VALUES.has(String(value))) {
+      throw createHttpError(
+        400,
+        `Invalid realtime model: "${value}". Must be one of: ${[...VALID_REALTIME_MODEL_VALUES].join(', ')}`
+      );
+    }
+
     const user = req.user;
     const setting = await storage.upsertSystemSetting({
       category,
@@ -323,6 +331,13 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
 
       if (!category || !key) {
         continue;
+      }
+
+      if (key === 'model_realtime' && !VALID_REALTIME_MODEL_VALUES.has(String(value))) {
+        throw createHttpError(
+          400,
+          `Invalid realtime model: "${value}". Must be one of: ${[...VALID_REALTIME_MODEL_VALUES].join(', ')}`
+        );
       }
 
       const saved = await storage.upsertSystemSetting({
