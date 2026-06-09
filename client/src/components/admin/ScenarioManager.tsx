@@ -204,7 +204,7 @@ function ScenarioQualityPanel({ validation }: { validation?: QualityValidation }
 
   if (issues.length === 0) {
     return (
-      <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+      <div id="scenario-quality-panel" className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
         <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
         <span className="text-sm font-semibold text-green-700">품질 통과</span>
         <span className="text-xs text-green-600 ml-1">— 점수: {score}/100</span>
@@ -222,7 +222,7 @@ function ScenarioQualityPanel({ validation }: { validation?: QualityValidation }
                   'text-red-700';
 
   return (
-    <div className={`border rounded-lg p-4 space-y-2.5 ${panelColor}`}>
+    <div id="scenario-quality-panel" className={`border rounded-lg p-4 space-y-2.5 ${panelColor}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <AlertTriangle className={`h-4 w-4 flex-shrink-0 ${scoreColor}`} />
@@ -3701,15 +3701,26 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Badge
-                                className={`text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer border ${
-                                  validation.score >= 80
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(scenario);
+                                  setTimeout(() => {
+                                    const el = document.getElementById('scenario-quality-panel');
+                                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                  }, 150);
+                                }}
+                                className={`text-sm font-bold whitespace-nowrap shrink-0 cursor-pointer border px-2 py-0.5 gap-1 ${
+                                  validation.hasFatalErrors
+                                    ? 'bg-red-100 text-red-700 border-red-400'
+                                    : validation.score >= 80
                                     ? 'bg-green-50 text-green-700 border-green-300'
                                     : validation.score >= 60
                                     ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
                                     : 'bg-red-50 text-red-700 border-red-300'
                                 }`}
                               >
-                                품질 {validation.score}
+                                {validation.hasFatalErrors && <span className="mr-0.5">❌</span>}
+                                {validation.score}/100
                               </Badge>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className="max-w-xs p-3 space-y-1.5">
@@ -3732,6 +3743,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                   ))}
                                 </ul>
                               )}
+                              <p className="text-xs text-slate-400 pt-1">클릭하면 품질 패널로 이동합니다</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
