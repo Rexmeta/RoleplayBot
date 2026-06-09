@@ -12,9 +12,10 @@ interface TagInputProps {
   items: string[];
   onChange: (items: string[]) => void;
   placeholder?: string;
+  readOnly?: boolean;
 }
 
-function TagInput({ label, description, items, onChange, placeholder }: TagInputProps) {
+function TagInput({ label, description, items, onChange, placeholder, readOnly }: TagInputProps) {
   const [inputValue, setInputValue] = useState('');
 
   const addItem = () => {
@@ -42,41 +43,47 @@ function TagInput({ label, description, items, onChange, placeholder }: TagInput
         <Label className="text-sm font-medium text-slate-700">{label}</Label>
         <p className="text-xs text-slate-400 mt-0.5">{description}</p>
       </div>
-      <div className="flex gap-2">
-        <Input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder ?? '항목 입력 후 추가'}
-          className="bg-white text-sm h-8"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addItem}
-          className="h-8 px-2 shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-      {items.length > 0 && (
+      {!readOnly && (
+        <div className="flex gap-2">
+          <Input
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder ?? '항목 입력 후 추가'}
+            className="bg-white text-sm h-8"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addItem}
+            className="h-8 px-2 shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
+      {items.length > 0 ? (
         <div className="flex flex-wrap gap-1.5 mt-1">
           {items.map((item, i) => (
             <Badge key={i} variant="secondary" className="flex items-center gap-1 text-xs pr-1">
               {item}
-              <button
-                type="button"
-                onClick={() => removeItem(i)}
-                className="ml-0.5 rounded-full hover:bg-slate-300 p-0.5 transition-colors"
-                aria-label={`${item} 삭제`}
-              >
-                <X className="w-2.5 h-2.5" />
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => removeItem(i)}
+                  className="ml-0.5 rounded-full hover:bg-slate-300 p-0.5 transition-colors"
+                  aria-label={`${item} 삭제`}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              )}
             </Badge>
           ))}
         </div>
-      )}
+      ) : readOnly ? (
+        <p className="text-xs text-slate-400 italic">없음</p>
+      ) : null}
     </div>
   );
 }
@@ -84,9 +91,10 @@ function TagInput({ label, description, items, onChange, placeholder }: TagInput
 interface PlayerConstraintsBuilderProps {
   value: PlayerConstraints | null;
   onChange: (value: PlayerConstraints | null) => void;
+  readOnly?: boolean;
 }
 
-export function PlayerConstraintsBuilder({ value, onChange }: PlayerConstraintsBuilderProps) {
+export function PlayerConstraintsBuilder({ value, onChange, readOnly }: PlayerConstraintsBuilderProps) {
   const pc = value ?? {};
 
   const update = (patch: Partial<PlayerConstraints>) => {
@@ -107,12 +115,18 @@ export function PlayerConstraintsBuilder({ value, onChange }: PlayerConstraintsB
           <Label className="text-sm font-medium text-slate-700">권한 수준 (authorityLevel)</Label>
           <p className="text-xs text-slate-400 mt-0.5">플레이어가 맡은 역할의 권한 범위 (예: 팀장, 담당자, 고객)</p>
         </div>
-        <Input
-          value={pc.authorityLevel ?? ''}
-          onChange={(e) => update({ authorityLevel: e.target.value || undefined })}
-          placeholder="예: 팀장, 영업 담당자, 신입 직원"
-          className="bg-white text-sm h-8"
-        />
+        {readOnly ? (
+          <p className="text-sm text-slate-800 bg-white border border-slate-200 rounded px-2.5 py-1.5 min-h-[2rem]">
+            {pc.authorityLevel ?? <span className="text-slate-400 italic">없음</span>}
+          </p>
+        ) : (
+          <Input
+            value={pc.authorityLevel ?? ''}
+            onChange={(e) => update({ authorityLevel: e.target.value || undefined })}
+            placeholder="예: 팀장, 영업 담당자, 신입 직원"
+            className="bg-white text-sm h-8"
+          />
+        )}
       </div>
 
       <TagInput
@@ -121,6 +135,7 @@ export function PlayerConstraintsBuilder({ value, onChange }: PlayerConstraintsB
         items={pc.canOffer ?? []}
         onChange={(items) => update({ canOffer: items.length > 0 ? items : undefined })}
         placeholder="예: 할인 쿠폰, 무료 배송"
+        readOnly={readOnly}
       />
 
       <TagInput
@@ -129,6 +144,7 @@ export function PlayerConstraintsBuilder({ value, onChange }: PlayerConstraintsB
         items={pc.cannotOffer ?? []}
         onChange={(items) => update({ cannotOffer: items.length > 0 ? items : undefined })}
         placeholder="예: 환불, 추가 할인"
+        readOnly={readOnly}
       />
 
       <TagInput
@@ -137,6 +153,7 @@ export function PlayerConstraintsBuilder({ value, onChange }: PlayerConstraintsB
         items={pc.requiredBehaviors ?? []}
         onChange={(items) => update({ requiredBehaviors: items.length > 0 ? items : undefined })}
         placeholder="예: 경어 사용, 자기소개"
+        readOnly={readOnly}
       />
 
       <TagInput
@@ -145,6 +162,7 @@ export function PlayerConstraintsBuilder({ value, onChange }: PlayerConstraintsB
         items={pc.forbiddenBehaviors ?? []}
         onChange={(items) => update({ forbiddenBehaviors: items.length > 0 ? items : undefined })}
         placeholder="예: 욕설, 협박, 개인정보 요청"
+        readOnly={readOnly}
       />
     </div>
   );

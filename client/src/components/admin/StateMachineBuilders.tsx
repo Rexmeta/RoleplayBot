@@ -1165,9 +1165,10 @@ function newRequiredDimRow(): RequiredDimRow {
 interface EvaluationHarnessBuilderProps {
   defaultValue: EvaluationHarness | null;
   onChange: (value: EvaluationHarness | null) => void;
+  readOnly?: boolean;
 }
 
-export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationHarnessBuilderProps) {
+export function EvaluationHarnessBuilder({ defaultValue, onChange, readOnly }: EvaluationHarnessBuilderProps) {
   const [form, setForm] = useState<EvalHarnessForm>(() => evalHarnessToForm(defaultValue));
 
   function update(next: EvalHarnessForm) {
@@ -1230,38 +1231,44 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
       <div className="space-y-2">
         <Label className="text-xs font-semibold text-slate-600 block">평가 차원 (Dimensions)</Label>
         {form.dimensions.length === 0 && (
-          <p className="text-xs text-slate-400 italic">평가 차원 없음 — 아래 버튼으로 추가하세요.</p>
+          <p className="text-xs text-slate-400 italic">{readOnly ? '평가 차원 없음' : '평가 차원 없음 — 아래 버튼으로 추가하세요.'}</p>
         )}
         {form.dimensions.map((dim, di) => (
           <div key={dim._id} className="border border-slate-200 rounded-lg bg-slate-50 p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-slate-600">차원 {di + 1}</span>
-              <div className="flex items-center gap-1">
-                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveDim(di, -1)} disabled={di === 0} title="위로">
-                  <ArrowUp className="h-3 w-3" />
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveDim(di, 1)} disabled={di === form.dimensions.length - 1} title="아래로">
-                  <ArrowDown className="h-3 w-3" />
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => removeDim(di)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              {!readOnly && (
+                <div className="flex items-center gap-1">
+                  <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveDim(di, -1)} disabled={di === 0} title="위로">
+                    <ArrowUp className="h-3 w-3" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveDim(di, 1)} disabled={di === form.dimensions.length - 1} title="아래로">
+                    <ArrowDown className="h-3 w-3" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => removeDim(di)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-xs text-slate-600 mb-0.5 block">항목 (Key)</Label>
-                <Select value={dim.key} onValueChange={v => updateDim(di, { key: v as EvaluationDimensionKey })}>
-                  <SelectTrigger className="h-7 text-xs bg-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EVAL_DIMENSION_KEYS.map(k => (
-                      <SelectItem key={k} value={k}>{EVAL_DIMENSION_LABELS[k]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {readOnly ? (
+                  <p className="text-xs bg-white border border-slate-200 rounded px-2 py-1">{EVAL_DIMENSION_LABELS[dim.key as EvaluationDimensionKey] ?? dim.key}</p>
+                ) : (
+                  <Select value={dim.key} onValueChange={v => updateDim(di, { key: v as EvaluationDimensionKey })}>
+                    <SelectTrigger className="h-7 text-xs bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EVAL_DIMENSION_KEYS.map(k => (
+                        <SelectItem key={k} value={k}>{EVAL_DIMENSION_LABELS[k]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div>
                 <Label className="text-xs text-slate-600 mb-0.5 block">가중치 (Weight, 0–10)</Label>
@@ -1273,6 +1280,8 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
                   value={dim.weight}
                   onChange={e => updateDim(di, { weight: e.target.value })}
                   className="h-7 text-xs bg-white"
+                  readOnly={readOnly}
+                  disabled={readOnly}
                 />
               </div>
             </div>
@@ -1284,7 +1293,7 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
                 onClick={() => updateDim(di, { expanded: !dim.expanded })}
               >
                 {dim.expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                {dim.expanded ? '상세 숨기기' : '상세 신호 · 정의 편집'}
+                {dim.expanded ? '상세 숨기기' : '상세 신호 · 정의 보기'}
               </button>
 
               {dim.expanded && (
@@ -1296,6 +1305,8 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
                       onChange={e => updateDim(di, { scenarioSpecificDefinition: e.target.value })}
                       placeholder="이 시나리오에서의 구체적 정의..."
                       className="h-7 text-xs bg-white"
+                      readOnly={readOnly}
+                      disabled={readOnly}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -1307,6 +1318,8 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
                         placeholder={"고객의 감정을 인정한다\n해결책을 제안한다"}
                         rows={3}
                         className="text-xs bg-white font-mono"
+                        readOnly={readOnly}
+                        disabled={readOnly}
                       />
                     </div>
                     <div>
@@ -1317,6 +1330,8 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
                         placeholder={"고객을 무시한다\n책임을 회피한다"}
                         rows={3}
                         className="text-xs bg-white font-mono"
+                        readOnly={readOnly}
+                        disabled={readOnly}
                       />
                     </div>
                   </div>
@@ -1325,9 +1340,11 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
             </div>
           </div>
         ))}
-        <Button type="button" variant="outline" size="sm" className="text-xs" onClick={addDim}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> 차원 추가
-        </Button>
+        {!readOnly && (
+          <Button type="button" variant="outline" size="sm" className="text-xs" onClick={addDim}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> 차원 추가
+          </Button>
+        )}
       </div>
 
       {/* Passing Rule */}
@@ -1335,8 +1352,9 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
         <div className="flex items-center gap-2">
           <Switch
             checked={form.passingRuleEnabled}
-            onCheckedChange={v => updatePassingRule({ passingRuleEnabled: v })}
+            onCheckedChange={v => !readOnly && updatePassingRule({ passingRuleEnabled: v })}
             id="passing-rule-toggle"
+            disabled={readOnly}
           />
           <Label htmlFor="passing-rule-toggle" className="text-xs font-semibold text-slate-600 cursor-pointer">
             통과 기준 (Passing Rule) 설정
@@ -1354,15 +1372,19 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
                 value={form.minAverageScore}
                 onChange={e => updatePassingRule({ minAverageScore: e.target.value })}
                 className="h-7 text-xs bg-white w-28"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1">
                 <Label className="text-xs text-slate-600">필수 통과 차원 (선택)</Label>
-                <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-slate-500" onClick={addReqDim}>
-                  <Plus className="h-3 w-3 mr-1" /> 추가
-                </Button>
+                {!readOnly && (
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-slate-500" onClick={addReqDim}>
+                    <Plus className="h-3 w-3 mr-1" /> 추가
+                  </Button>
+                )}
               </div>
               {form.requiredDimensions.length === 0 && (
                 <p className="text-xs text-slate-400 italic">없음 (전체 평균만 적용)</p>
@@ -1370,16 +1392,20 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
               <div className="space-y-1.5">
                 {form.requiredDimensions.map((rd, ri) => (
                   <div key={rd._id} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-2 py-1.5">
-                    <Select value={rd.key} onValueChange={v => updateReqDim(ri, { key: v as EvaluationDimensionKey })}>
-                      <SelectTrigger className="h-6 text-xs w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EVAL_DIMENSION_KEYS.map(k => (
-                          <SelectItem key={k} value={k}>{EVAL_DIMENSION_LABELS[k]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {readOnly ? (
+                      <span className="text-xs w-40">{EVAL_DIMENSION_LABELS[rd.key as EvaluationDimensionKey] ?? rd.key}</span>
+                    ) : (
+                      <Select value={rd.key} onValueChange={v => updateReqDim(ri, { key: v as EvaluationDimensionKey })}>
+                        <SelectTrigger className="h-6 text-xs w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EVAL_DIMENSION_KEYS.map(k => (
+                            <SelectItem key={k} value={k}>{EVAL_DIMENSION_LABELS[k]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <span className="text-xs text-slate-500">최소</span>
                     <Input
                       type="number"
@@ -1388,11 +1414,15 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
                       value={rd.minScore}
                       onChange={e => updateReqDim(ri, { minScore: e.target.value })}
                       className="h-6 text-xs w-16 bg-white"
+                      readOnly={readOnly}
+                      disabled={readOnly}
                     />
                     <span className="text-xs text-slate-400">점</span>
-                    <button type="button" onClick={() => removeReqDim(ri)} className="ml-auto text-red-400 hover:text-red-600">
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    {!readOnly && (
+                      <button type="button" onClick={() => removeReqDim(ri)} className="ml-auto text-red-400 hover:text-red-600">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1401,7 +1431,7 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange }: EvaluationH
         )}
       </div>
 
-      <RawJsonPanel value={formToEvalHarness(form)} onImport={handleImport} />
+      {!readOnly && <RawJsonPanel value={formToEvalHarness(form)} onImport={handleImport} />}
     </div>
   );
 }

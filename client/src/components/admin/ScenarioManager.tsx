@@ -4606,10 +4606,22 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
               아래 내용을 확인한 후 적용하거나 취소할 수 있습니다. 적용하면 현재 입력된 내용이 대체됩니다.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto rounded-md border bg-muted/40 p-4 min-h-0">
-            <pre className="text-xs font-mono whitespace-pre-wrap break-all text-foreground">
-              {aiPreviewData ? JSON.stringify(aiPreviewData, null, 2) : ''}
-            </pre>
+          <div className="flex-1 overflow-auto p-1 min-h-0">
+            {aiPreviewData && aiPreviewType === 'evaluationHarness' && (
+              <EvaluationHarnessBuilder
+                key={JSON.stringify(aiPreviewData)}
+                defaultValue={aiPreviewData as EvaluationHarness}
+                onChange={() => {}}
+                readOnly
+              />
+            )}
+            {aiPreviewData && aiPreviewType === 'playerConstraints' && (
+              <PlayerConstraintsBuilder
+                value={aiPreviewData as PlayerConstraints}
+                onChange={() => {}}
+                readOnly
+              />
+            )}
           </div>
           <DialogFooter className="gap-2 pt-2">
             <Button
