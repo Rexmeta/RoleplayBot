@@ -1532,14 +1532,14 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                     </div>
                     {/* 번역 상태 뱃지 */}
                     {(() => {
-                      const translationLocales: Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }> = (persona as any)._translationLocales || [];
+                      const translationLocales: Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean }> = (persona as any)._translationLocales || [];
                       const targetLangs = activeLanguages.filter(l => !l.isDefault);
                       if (targetLangs.length === 0) return null;
                       return (
                         <div className="flex items-center gap-1 flex-wrap mt-1">
                           <Languages className="w-3 h-3 text-slate-400 shrink-0" />
                           {targetLangs.map(lang => {
-                            const entry = translationLocales.find(t => t.locale === lang.code && !t.isOriginal);
+                            const entry = translationLocales.find(t => t.locale === lang.code);
                             let icon: string;
                             let colorClass: string;
                             let tooltip: string;

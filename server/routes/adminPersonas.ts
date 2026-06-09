@@ -14,10 +14,10 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
       storage.getAllPersonaTranslationLocales(),
     ]);
 
-    const localeMap = new Map<string, Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>>();
+    const localeMap = new Map<string, Array<{ locale: string; isMachineTranslated: boolean; isReviewed: boolean }>>();
     for (const row of allLocaleRows) {
       if (!localeMap.has(row.personaId)) localeMap.set(row.personaId, []);
-      localeMap.get(row.personaId)!.push({ locale: row.locale, isMachineTranslated: row.isMachineTranslated, isReviewed: row.isReviewed, isOriginal: row.isOriginal });
+      localeMap.get(row.personaId)!.push({ locale: row.locale, isMachineTranslated: row.isMachineTranslated, isReviewed: row.isReviewed });
     }
 
     const personasWithLocales = (personas as any[]).map(p => ({

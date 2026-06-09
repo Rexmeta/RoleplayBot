@@ -23,7 +23,7 @@ export interface ITranslationsStorage {
   getPersonaTranslation(personaId: string, locale: string): Promise<PersonaTranslation | undefined>;
   getPersonaTranslations(personaId: string): Promise<PersonaTranslation[]>;
   getAllPersonaTranslations(locale: string): Promise<PersonaTranslation[]>;
-  getAllPersonaTranslationLocales(): Promise<Array<{ personaId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>>;
+  getAllPersonaTranslationLocales(): Promise<Array<{ personaId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean }>>;
   upsertPersonaTranslation(translation: InsertPersonaTranslation): Promise<PersonaTranslation>;
   deletePersonaTranslation(personaId: string, locale: string): Promise<void>;
   markPersonaTranslationReviewed(personaId: string, locale: string, reviewerId: string): Promise<PersonaTranslation>;
@@ -146,14 +146,13 @@ export function TranslationsMixin<TBase extends Constructor>(Base: TBase) {
       return await db.select().from(personaTranslations).where(eq(personaTranslations.locale, locale));
     }
 
-    async getAllPersonaTranslationLocales(): Promise<Array<{ personaId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>> {
+    async getAllPersonaTranslationLocales(): Promise<Array<{ personaId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean }>> {
       return await db
         .select({
           personaId: personaTranslations.personaId,
           locale: personaTranslations.locale,
           isMachineTranslated: personaTranslations.isMachineTranslated,
           isReviewed: personaTranslations.isReviewed,
-          isOriginal: personaTranslations.isOriginal,
         })
         .from(personaTranslations);
     }
@@ -270,7 +269,7 @@ export class MemTranslationsStorage implements ITranslationsStorage {
   async getPersonaTranslation(_: string, __: string): Promise<PersonaTranslation | undefined> { return undefined; }
   async getPersonaTranslations(_: string): Promise<PersonaTranslation[]> { return []; }
   async getAllPersonaTranslations(_: string): Promise<PersonaTranslation[]> { return []; }
-  async getAllPersonaTranslationLocales(): Promise<Array<{ personaId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean; isOriginal: boolean }>> { return []; }
+  async getAllPersonaTranslationLocales(): Promise<Array<{ personaId: string; locale: string; isMachineTranslated: boolean; isReviewed: boolean }>> { return []; }
   async upsertPersonaTranslation(_: InsertPersonaTranslation): Promise<PersonaTranslation> { throw new Error("Not implemented"); }
   async deletePersonaTranslation(_: string, __: string): Promise<void> {}
   async markPersonaTranslationReviewed(_: string, __: string, ___: string): Promise<PersonaTranslation> { throw new Error("Not implemented"); }
