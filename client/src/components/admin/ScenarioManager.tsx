@@ -18,10 +18,10 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
 import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema, simulationHarnessSchema, playerConstraintsSchema, difficultyProfileSchema, analyticsSpecSchema, TRACKED_METRICS, REPORT_SECTIONS } from '@shared/schema/scenarios';
-import type { TrackedMetricKey, ReportSectionKey } from '@shared/schema/scenarios';
-import type { EvaluationHarness, TerminationRules, TerminationConditionGroup } from '@shared/schema/scenarios';
+import type { TrackedMetricKey, ReportSectionKey, EvaluationHarness, TerminationRules, TerminationConditionGroup, FlowGraph, PersonaSwitchRules } from '@shared/schema/scenarios';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
+import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder } from './StateMachineBuilders';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { ScenarioVersionHistory } from './ScenarioVersionHistory';
@@ -227,40 +227,6 @@ function EvaluationHarnessPreview({ json }: { json: string }) {
   );
 }
 
-function TerminationRulesPreview({ json }: { json: string }) {
-  if (!json.trim()) return null;
-  let parsed: TerminationRules;
-  try {
-    const raw = JSON.parse(json);
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    parsed = raw as TerminationRules;
-  } catch { return null; }
-  const hasSuccess = parsed.success != null;
-  const hasFailure = parsed.failure != null;
-  const hasTimeout = parsed.timeout != null;
-  if (!hasSuccess && !hasFailure && !hasTimeout) return null;
-  return (
-    <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 space-y-2 mb-2">
-      <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Preview</p>
-      {hasSuccess && <ConditionGroupSummary group={parsed.success!} label="✓ Success when" />}
-      {hasFailure && <ConditionGroupSummary group={parsed.failure!} label="✗ Failure when" />}
-      {hasTimeout && (
-        <div className="flex flex-wrap gap-1.5">
-          {parsed.timeout!.maxTurns != null && (
-            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
-              ⏱ Max {parsed.timeout!.maxTurns} turns
-            </Badge>
-          )}
-          {parsed.timeout!.maxTimeSec != null && (
-            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
-              ⏱ Max {parsed.timeout!.maxTimeSec}s
-            </Badge>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const CHECK_TO_SECTION: Record<number, string> = {
   1: 'section-personas',
@@ -370,19 +336,17 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const currentLang = i18n.language;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
-  const [flowGraphJson, setFlowGraphJson] = useState('');
-  const [personaSwitchRulesJson, setPersonaSwitchRulesJson] = useState('');
-  const [flowGraphError, setFlowGraphError] = useState('');
-  const [personaSwitchRulesError, setPersonaSwitchRulesError] = useState('');
+  const [flowGraphValue, setFlowGraphValue] = useState<FlowGraph | null>(null);
+  const [personaSwitchRulesValue, setPersonaSwitchRulesValue] = useState<PersonaSwitchRules | null>(null);
+  const [terminationRulesValue, setTerminationRulesValue] = useState<TerminationRules | null>(null);
+  const [builderKey, setBuilderKey] = useState(0);
   const [evaluationHarnessJson, setEvaluationHarnessJson] = useState('');
-  const [terminationRulesJson, setTerminationRulesJson] = useState('');
   const [playerConstraintsJson, setPlayerConstraintsJson] = useState('');
   const [difficultyProfileJson, setDifficultyProfileJson] = useState('');
   const [analyticsTrackedMetrics, setAnalyticsTrackedMetrics] = useState<string[]>([]);
   const [analyticsReportSections, setAnalyticsReportSections] = useState<string[]>([]);
   const [analyticsBenchmarkGroup, setAnalyticsBenchmarkGroup] = useState('');
   const [evaluationHarnessError, setEvaluationHarnessError] = useState('');
-  const [terminationRulesError, setTerminationRulesError] = useState('');
   // Structured simulation harness state
   const [harnessEnabled, setHarnessEnabled] = useState(false);
   const [harnessEmotionModel, setHarnessEmotionModel] = useState('anger,trust,confusion,interest');
@@ -897,10 +861,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setVideoLoadFailed(false);
     setSelectedImageSignedUrl(null);
     setSelectedVideoSignedUrl(null);
-    setFlowGraphJson('');
-    setPersonaSwitchRulesJson('');
+    setFlowGraphValue(null);
+    setPersonaSwitchRulesValue(null);
+    setTerminationRulesValue(null);
+    setBuilderKey(k => k + 1);
     setEvaluationHarnessJson('');
-    setTerminationRulesJson('');
     setHarnessEnabled(false);
     setHarnessEmotionModel('anger,trust,confusion,interest');
     setHarnessMaxCallsPerTurn('2');
@@ -913,10 +878,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setHarnessShowRaw(false);
     setHarnessRawJson('');
     setHarnessRawJsonError('');
-    setFlowGraphError('');
-    setPersonaSwitchRulesError('');
     setEvaluationHarnessError('');
-    setTerminationRulesError('');
     setAnalyticsTrackedMetrics([]);
     setAnalyticsReportSections([]);
     setAnalyticsBenchmarkGroup('');
@@ -985,13 +947,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       recommendedFlow: originalScenario.recommendedFlow
     });
     const existingFlowGraph = (originalScenario as any).flowGraph;
-    setFlowGraphJson(existingFlowGraph ? JSON.stringify(existingFlowGraph, null, 2) : '');
+    setFlowGraphValue(existingFlowGraph ?? null);
     const existingPSR = (originalScenario as any).personaSwitchRules;
-    setPersonaSwitchRulesJson(existingPSR ? JSON.stringify(existingPSR, null, 2) : '');
+    setPersonaSwitchRulesValue(existingPSR ?? null);
     const existingEH = (originalScenario as any).evaluationHarness;
     setEvaluationHarnessJson(existingEH ? JSON.stringify(existingEH, null, 2) : '');
     const existingTR = (originalScenario as any).terminationRules;
-    setTerminationRulesJson(existingTR ? JSON.stringify(existingTR, null, 2) : '');
+    setTerminationRulesValue(existingTR ?? null);
+    setBuilderKey(k => k + 1);
     const existingHarness = (originalScenario as any).simulationHarness;
     if (existingHarness) {
       setHarnessEnabled(true);
@@ -1026,10 +989,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setAnalyticsTrackedMetrics(existingAS?.trackedMetrics ?? []);
     setAnalyticsReportSections(existingAS?.reportSections ?? []);
     setAnalyticsBenchmarkGroup(existingAS?.benchmarkGroup ?? '');
-    setFlowGraphError('');
-    setPersonaSwitchRulesError('');
     setEvaluationHarnessError('');
-    setTerminationRulesError('');
     setPlayerConstraintsError('');
     setDifficultyProfileError('');
     setIsCreateOpen(true);
@@ -1068,48 +1028,28 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   };
 
   const buildSubmitPayload = (): (typeof formData & { flowGraph: any; personaSwitchRules: any; evaluationHarness: any; terminationRules: any; simulationHarness: any }) | null => {
-    let parsedFlowGraph: any = null;
-    let parsedPSR: any = null;
+    let parsedFlowGraph: any = flowGraphValue ?? null;
+    let parsedPSR: any = personaSwitchRulesValue ?? null;
     let parsedHarness: any = null;
 
-    if (flowGraphJson.trim()) {
-      let raw: any;
-      try {
-        raw = JSON.parse(flowGraphJson);
-      } catch {
-        setFlowGraphError('flowGraph JSON이 유효하지 않습니다. 형식을 확인하세요.');
-        toast({ title: 'flowGraph JSON 오류', description: 'flowGraph JSON을 확인하세요.', variant: 'destructive' });
-        return null;
-      }
-      const result = flowGraphSchema.safeParse(raw);
+    if (parsedFlowGraph) {
+      const result = flowGraphSchema.safeParse(parsedFlowGraph);
       if (!result.success) {
         const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
-        setFlowGraphError(`flowGraph 구조 오류: ${msg}`);
         toast({ title: 'flowGraph 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
       parsedFlowGraph = result.data;
-      setFlowGraphError('');
     }
 
-    if (personaSwitchRulesJson.trim()) {
-      let raw: any;
-      try {
-        raw = JSON.parse(personaSwitchRulesJson);
-      } catch {
-        setPersonaSwitchRulesError('personaSwitchRules JSON이 유효하지 않습니다. 형식을 확인하세요.');
-        toast({ title: 'personaSwitchRules JSON 오류', description: 'personaSwitchRules JSON을 확인하세요.', variant: 'destructive' });
-        return null;
-      }
-      const result = personaSwitchRulesSchema.safeParse(raw);
+    if (parsedPSR) {
+      const result = personaSwitchRulesSchema.safeParse(parsedPSR);
       if (!result.success) {
         const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
-        setPersonaSwitchRulesError(`personaSwitchRules 구조 오류: ${msg}`);
         toast({ title: 'personaSwitchRules 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
       parsedPSR = result.data;
-      setPersonaSwitchRulesError('');
     }
 
     let parsedEH: any = null;
@@ -1133,25 +1073,15 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       setEvaluationHarnessError('');
     }
 
-    let parsedTR: any = null;
-    if (terminationRulesJson.trim()) {
-      let raw: any;
-      try {
-        raw = JSON.parse(terminationRulesJson);
-      } catch {
-        setTerminationRulesError('terminationRules JSON이 유효하지 않습니다. 형식을 확인하세요.');
-        toast({ title: 'terminationRules JSON 오류', description: 'terminationRules JSON을 확인하세요.', variant: 'destructive' });
-        return null;
-      }
-      const result = terminationRulesSchema.safeParse(raw);
+    let parsedTR: any = terminationRulesValue ?? null;
+    if (parsedTR) {
+      const result = terminationRulesSchema.safeParse(parsedTR);
       if (!result.success) {
         const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
-        setTerminationRulesError(`terminationRules 구조 오류: ${msg}`);
         toast({ title: 'terminationRules 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
       parsedTR = result.data;
-      setTerminationRulesError('');
     }
 
     if (harnessEnabled) {
@@ -3613,53 +3543,56 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 )}
               </div>
 
-              {/* State Machine: flowGraph & personaSwitchRules JSON editors */}
-              <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-4">
+              {/* State Machine: FlowGraph, PersonaSwitchRules, TerminationRules visual builders */}
+              <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-6">
                 <div>
                   <h3 className="font-semibold text-slate-800 text-sm mb-1">State Machine (선택사항)</h3>
-                  <p className="text-xs text-slate-500 mb-3">flowGraph와 personaSwitchRules를 JSON으로 입력하면 서버가 단계 전환과 페르소나 전환을 자동 제어합니다. 비워두면 기존 동작을 유지합니다.</p>
+                  <p className="text-xs text-slate-500">단계 전환, 페르소나 전환, 자동 종료 조건을 폼으로 설정합니다. 비워두면 기존 동작을 유지합니다.</p>
                 </div>
 
-                <div id="section-flow-graph">
+                {/* FlowGraph Builder */}
+                <div id="section-flow-graph" className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
                     flowGraph
                     <span className="text-xs text-slate-400 font-normal">(대화 단계 전환 상태 머신)</span>
                     <SectionIssueIcon sectionId="section-flow-graph" issuesBySectionId={issuesBySectionId} />
                   </Label>
-                  <p className="text-xs text-slate-400 mb-1">예: {`{"stages":[{"id":"intro","goal":"목표","exitConditions":[{"type":"turn_count","operator":"gte","value":3}],"nextStage":"conflict"}]}`}</p>
-                  <Textarea
-                    value={flowGraphJson}
-                    onChange={(e) => {
-                      setFlowGraphJson(e.target.value);
-                      setFlowGraphError('');
-                    }}
-                    placeholder={'{\n  "stages": [\n    {\n      "id": "intro",\n      "goal": "...",\n      "exitConditions": [...],\n      "nextStage": "conflict"\n    }\n  ]\n}'}
-                    rows={6}
-                    className={`bg-white font-mono text-xs ${flowGraphError ? 'border-red-400' : ''}`}
+                  <FlowGraphBuilder
+                    key={`fg-${builderKey}`}
+                    defaultValue={flowGraphValue}
+                    onChange={setFlowGraphValue}
                   />
-                  {flowGraphError && <p className="text-xs text-red-500 mt-1">{flowGraphError}</p>}
                 </div>
 
-                <div id="section-persona-switch">
+                {/* PersonaSwitchRules Builder */}
+                <div id="section-persona-switch" className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
                     personaSwitchRules
                     <span className="text-xs text-slate-400 font-normal">(페르소나 자동 전환 규칙)</span>
                     <SectionIssueIcon sectionId="section-persona-switch" issuesBySectionId={issuesBySectionId} />
                   </Label>
-                  <p className="text-xs text-slate-400 mb-1">예: {`{"rules":[{"id":"r1","targetPersonaIndex":1,"conditions":[{"metric":"npcEmotions.anger","operator":"gte","value":70}],"reason":"화남","lockAfterSwitch":true}]}`}</p>
-                  <Textarea
-                    value={personaSwitchRulesJson}
-                    onChange={(e) => {
-                      setPersonaSwitchRulesJson(e.target.value);
-                      setPersonaSwitchRulesError('');
-                    }}
-                    placeholder={'{\n  "rules": [\n    {\n      "id": "rule-1",\n      "targetPersonaIndex": 1,\n      "conditions": [\n        {"metric": "npcEmotions.anger", "operator": "gte", "value": 70}\n      ],\n      "reason": "Anger threshold reached",\n      "lockAfterSwitch": true\n    }\n  ]\n}'}
-                    rows={6}
-                    className={`bg-white font-mono text-xs ${personaSwitchRulesError ? 'border-red-400' : ''}`}
+                  <PersonaSwitchRulesBuilder
+                    key={`psr-${builderKey}`}
+                    defaultValue={personaSwitchRulesValue}
+                    onChange={setPersonaSwitchRulesValue}
+                    personaCount={Math.max(2, formData.personas.length)}
                   />
-                  {personaSwitchRulesError && <p className="text-xs text-red-500 mt-1">{personaSwitchRulesError}</p>}
                 </div>
 
+                {/* TerminationRules Builder */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                    terminationRules
+                    <span className="text-xs text-slate-400 font-normal">(자동 종료 조건)</span>
+                  </Label>
+                  <TerminationRulesBuilder
+                    key={`tr-${builderKey}`}
+                    defaultValue={terminationRulesValue}
+                    onChange={setTerminationRulesValue}
+                  />
+                </div>
+
+                {/* evaluationHarness — kept as JSON editor (not in task scope for visual builder) */}
                 <div id="section-evaluation">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
                     evaluationHarness
@@ -3679,26 +3612,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     className={`bg-white font-mono text-xs ${evaluationHarnessError ? 'border-red-400' : ''}`}
                   />
                   {evaluationHarnessError && <p className="text-xs text-red-500 mt-1">{evaluationHarnessError}</p>}
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                    terminationRules
-                    <span className="text-xs text-slate-400 font-normal">(자동 종료 조건)</span>
-                  </Label>
-                  <p className="text-xs text-slate-400 mb-1">예: {`{"success":{"npcEmotions":{"trust":{"operator":"gte","value":80}}},"timeout":{"maxTurns":10}}`}</p>
-                  <TerminationRulesPreview json={terminationRulesJson} />
-                  <Textarea
-                    value={terminationRulesJson}
-                    onChange={(e) => {
-                      setTerminationRulesJson(e.target.value);
-                      setTerminationRulesError('');
-                    }}
-                    placeholder={'{\n  "success": {\n    "npcEmotions": {"trust": {"operator": "gte", "value": 80}},\n    "logic": "all"\n  },\n  "failure": {\n    "consecutiveTurnsBelow": {"scoreThreshold": 30, "turns": 3}\n  },\n  "timeout": {"maxTurns": 10}\n}'}
-                    rows={7}
-                    className={`bg-white font-mono text-xs ${terminationRulesError ? 'border-red-400' : ''}`}
-                  />
-                  {terminationRulesError && <p className="text-xs text-red-500 mt-1">{terminationRulesError}</p>}
                 </div>
 
                 <div id="section-player-constraints">
