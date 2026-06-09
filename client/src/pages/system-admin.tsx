@@ -329,7 +329,7 @@ const FEATURE_MODEL_INFO = [
     settingKey: "model_translation",
     defaultModel: "gemini-2.5-flash",
     configurable: true,
-    supportedProviders: ["Google"]
+    supportedProviders: ["Google", "OpenAI"]
   },
   {
     id: "image",

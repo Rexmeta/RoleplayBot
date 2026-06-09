@@ -12,18 +12,29 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   maxDelayMs: 15000,
   retryableErrors: (error: any) => {
     const message = error?.message || error?.toString() || '';
+    const messageLower = message.toLowerCase();
     const status = error?.status || error?.statusCode || error?.httpCode || 0;
+
+    // Credit/billing exhaustion errors must never be retried — fail immediately
+    const isCreditExhaustion =
+      messageLower.includes('prepayment') ||
+      messageLower.includes('insufficient_quota') ||
+      messageLower.includes('billing') ||
+      (messageLower.includes('credit') && !messageLower.includes('rate limit')) ||
+      message.includes('RESOURCE_EXHAUSTED') ||
+      messageLower.includes('resource_exhausted');
+    if (isCreditExhaustion) return false;
 
     if (status === 429) return true;
     if (status === 503) return true;
     if (status === 500) return true;
 
-    if (message.includes('429') || message.includes('RESOURCE_EXHAUSTED')) return true;
+    if (message.includes('429')) return true;
     if (message.includes('503') || message.includes('overloaded')) return true;
     if (message.includes('500') || message.includes('INTERNAL')) return true;
-    if (message.includes('quota') || message.includes('rate limit') || message.includes('Rate limit')) return true;
+    if (messageLower.includes('quota') || messageLower.includes('rate limit')) return true;
     if (message.includes('ECONNRESET') || message.includes('ETIMEDOUT') || message.includes('ENOTFOUND')) return true;
-    if (message.includes('socket hang up') || message.includes('network')) return true;
+    if (messageLower.includes('socket hang up') || messageLower.includes('network')) return true;
 
     return false;
   },
