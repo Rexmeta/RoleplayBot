@@ -1498,10 +1498,20 @@
         "description": "Economical OpenAI model",
         "pricing": "Input $0.15/1M tokens, Output $0.60/1M tokens"
       },
+      "gemini20FlashLive001": {
+        "label": "Gemini 2.0 Flash Live 001",
+        "description": "Recommended stable model for real-time voice",
+        "pricing": "Input $0.10/1M, Output $0.40/1M tokens"
+      },
+      "gemini25FlashLivePreview": {
+        "label": "Gemini 2.5 Flash Live (Preview)",
+        "description": "Latest generation real-time voice model (preview)",
+        "pricing": "Input $0.35/1M, Output $1.50/1M tokens"
+      },
       "gemini31FlashLivePreview": {
         "label": "Gemini 3.1 Flash Live (Preview)",
-        "description": "Gemini 3.1 generation model for real-time voice",
-        "pricing": "Preview — pricing TBD"
+        "description": "Real-time voice model — requires prepaid credits",
+        "pricing": "Preview — prepaid credits required"
       },
       "geminiLive25Flash": {
         "label": "Gemini 2.5 Flash Live",

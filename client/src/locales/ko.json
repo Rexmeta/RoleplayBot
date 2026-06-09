@@ -1525,10 +1525,20 @@
         "description": "경제적인 OpenAI 모델",
         "pricing": "입력 $0.15/1M 토큰, 출력 $0.60/1M 토큰"
       },
+      "gemini20FlashLive001": {
+        "label": "Gemini 2.0 Flash Live 001",
+        "description": "권장 안정 실시간 음성 모델",
+        "pricing": "입력 $0.10/1M, 출력 $0.40/1M 토큰"
+      },
+      "gemini25FlashLivePreview": {
+        "label": "Gemini 2.5 Flash Live (Preview)",
+        "description": "최신 세대 실시간 음성 모델 (프리뷰)",
+        "pricing": "입력 $0.35/1M, 출력 $1.50/1M 토큰"
+      },
       "gemini31FlashLivePreview": {
         "label": "Gemini 3.1 Flash Live (Preview)",
-        "description": "실시간 음성용 3.1 세대 모델",
-        "pricing": "Preview — 가격 미정"
+        "description": "실시간 음성 모델 — 선불 크레딧 필요",
+        "pricing": "Preview — 선불 크레딧 필요"
       },
       "geminiLive25Flash": {
         "label": "Gemini 2.5 Flash Live",

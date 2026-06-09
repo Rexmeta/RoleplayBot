@@ -1494,10 +1494,20 @@
         "description": "経済的なOpenAIモデル",
         "pricing": "入力 $0.15/100万トークン、出力 $0.60/100万トークン"
       },
+      "gemini20FlashLive001": {
+        "label": "Gemini 2.0 Flash Live 001",
+        "description": "推奨の安定リアルタイム音声モデル",
+        "pricing": "入力 $0.10/100万、出力 $0.40/100万トークン"
+      },
+      "gemini25FlashLivePreview": {
+        "label": "Gemini 2.5 Flash Live (Preview)",
+        "description": "最新世代リアルタイム音声モデル（プレビュー）",
+        "pricing": "入力 $0.35/100万、出力 $1.50/100万トークン"
+      },
       "gemini31FlashLivePreview": {
         "label": "Gemini 3.1 Flash Live (Preview)",
-        "description": "リアルタイム音声向け3.1世代モデル",
-        "pricing": "Preview — 価格未定"
+        "description": "リアルタイム音声モデル — プリペイドクレジット必要",
+        "pricing": "Preview — プリペイドクレジット必要"
       },
       "geminiLive25Flash": {
         "label": "Gemini 2.5 Flash Live",

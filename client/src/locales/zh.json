@@ -1494,10 +1494,20 @@
         "description": "经济型OpenAI模型",
         "pricing": "输入 $0.15/百万令牌，输出 $0.60/百万令牌"
       },
+      "gemini20FlashLive001": {
+        "label": "Gemini 2.0 Flash Live 001",
+        "description": "推荐的稳定实时语音模型",
+        "pricing": "输入 $0.10/百万，输出 $0.40/百万令牌"
+      },
+      "gemini25FlashLivePreview": {
+        "label": "Gemini 2.5 Flash Live (Preview)",
+        "description": "最新一代实时语音模型（预览版）",
+        "pricing": "输入 $0.35/百万，输出 $1.50/百万令牌"
+      },
       "gemini31FlashLivePreview": {
         "label": "Gemini 3.1 Flash Live (Preview)",
-        "description": "实时语音用3.1代模型",
-        "pricing": "Preview — 价格待定"
+        "description": "实时语音模型 — 需要预付费积分",
+        "pricing": "Preview — 需要预付费积分"
       },
       "geminiLive25Flash": {
         "label": "Gemini 2.5 Flash Live",

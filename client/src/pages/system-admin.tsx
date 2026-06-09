@@ -256,16 +256,23 @@ const AI_MODELS = [
 
 const GEMINI_LIVE_MODELS = [
   {
-    value: "gemini-3.1-flash-live-preview",
-    modelKey: "gemini31FlashLivePreview",
+    value: "gemini-2.0-flash-live-001",
+    modelKey: "gemini20FlashLive001",
     provider: "Google Live",
     recommended: true
   },
   {
-    value: "gemini-live-2.5-flash",
-    modelKey: "geminiLive25Flash",
+    value: "gemini-2.5-flash-live-preview",
+    modelKey: "gemini25FlashLivePreview",
     provider: "Google Live",
     recommended: false
+  },
+  {
+    value: "gemini-3.1-flash-live-preview",
+    modelKey: "gemini31FlashLivePreview",
+    provider: "Google Live",
+    recommended: false,
+    description: "선불 크레딧 필요"
   },
   {
     value: "gpt-4o-realtime-preview",
@@ -331,7 +338,7 @@ const FEATURE_MODEL_INFO = [
   {
     id: "realtime",
     settingKey: "model_realtime",
-    defaultModel: "gemini-live-2.5-flash",
+    defaultModel: "gemini-2.0-flash-live-001",
     configurable: true,
     supportedProviders: ["Google Live", "OpenAI Realtime"]
   },
@@ -645,7 +652,7 @@ export default function SystemAdminPage() {
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
-    model_realtime: "gemini-3.1-flash-live-preview",
+    model_realtime: "gemini-2.0-flash-live-001",
     model_emotion: "gemini-2.5-flash",
     model_translation: "gemini-2.5-flash",
     model_image: "gemini-2.5-flash-image",
