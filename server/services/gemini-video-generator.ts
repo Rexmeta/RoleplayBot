@@ -19,7 +19,7 @@ const VIDEO_CONFIG = {
   webmAudioBitrate: '128k',
 };
 
-const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
 export interface VideoGenerationResult {
   success: boolean;

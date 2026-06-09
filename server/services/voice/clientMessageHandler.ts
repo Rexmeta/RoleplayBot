@@ -18,7 +18,7 @@ export async function summarizeOlderMessages(
   messages: Array<{ role: 'user' | 'ai'; content: string }>,
   userLanguage: string
 ): Promise<string> {
-  const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!geminiApiKey) {
     console.warn('⚠️ No Gemini API key for summarization, skipping');
     return messages.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n');

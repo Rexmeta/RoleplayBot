@@ -67,7 +67,7 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
 }
 
 async function runLLMEvaluation(input: EvaluationInput): Promise<TurnScore | null> {
-  const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!geminiApiKey) return null;
 
   const genAI = new GoogleGenAI({ apiKey: geminiApiKey });

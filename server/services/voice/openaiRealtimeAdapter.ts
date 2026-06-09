@@ -166,7 +166,7 @@ export function createMessageHandler(
           }
 
           // Async emotion analysis using Gemini (even when voice provider is OpenAI)
-          const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+          const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
           if (geminiApiKey) {
             const gai = new GoogleGenAI({ apiKey: geminiApiKey });
             analyzeEmotion(fullTranscript, session.userLanguage, gai)

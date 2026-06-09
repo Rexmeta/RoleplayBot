@@ -33,7 +33,7 @@ const EXPRESSION_DESCRIPTIONS: Record<string, string> = {
 };
 
 async function callGeminiImage(prompt: string, referenceBase64?: string, referenceMimeType?: string): Promise<string | null> {
-  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     console.error('No Gemini API key found');
     return null;

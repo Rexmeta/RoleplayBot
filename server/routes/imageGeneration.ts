@@ -21,7 +21,7 @@ const IMAGE_CONFIG = {
   }
 };
 
-const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 const genAI = new GoogleGenAI({ apiKey });
 
 const router = Router();
@@ -57,7 +57,7 @@ router.post('/generate-scenario-image', asyncHandler(async (req, res) => {
 
   let result: any;
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY });
     result = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
@@ -275,7 +275,7 @@ router.post('/generate-preview', asyncHandler(async (req, res) => {
 
   const simplePrompt = `A minimal, professional illustration representing "${escapeHtml(scenarioTitle)}", modern business style, clean composition, corporate colors, vector-like appearance`;
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY });
   const result = await ai.models.generateContent({
     model: "gemini-2.5-flash-image",
     contents: [{ role: 'user', parts: [{ text: simplePrompt }] }]
@@ -339,7 +339,7 @@ router.post('/generate-persona-base', asyncHandler(async (req, res) => {
 
   let result: any;
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY });
     result = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
@@ -634,7 +634,7 @@ router.post('/generate-persona-expressions', asyncHandler(async (req, res) => {
         emotion.description
       );
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY });
 
       const result = await ai.models.generateContent({
         model: "gemini-2.5-flash-image",
@@ -769,7 +769,7 @@ router.post('/generate-persona-single-expression', asyncHandler(async (req, res)
       imageStyle || ''
     );
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY });
     const result = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: [{ role: 'user', parts: [{ text: imagePrompt }] }]
@@ -852,7 +852,7 @@ router.post('/generate-persona-single-expression', asyncHandler(async (req, res)
     emotionInfo.description
   );
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY });
   const result = await ai.models.generateContent({
     model: "gemini-2.5-flash-image",
     contents: [{

@@ -11,7 +11,7 @@ const pool = new Pool({
 const db = drizzle(pool);
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 if (!apiKey) {
   console.error("No API key found");
   process.exit(1);

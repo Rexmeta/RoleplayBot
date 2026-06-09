@@ -70,7 +70,7 @@ export class RealtimeVoiceService {
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    const geminiApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const openaiApiKey = process.env.OPENAI_API_KEY;
 
     if (geminiApiKey) {
@@ -106,7 +106,7 @@ export class RealtimeVoiceService {
   }
 
   private getProviderAwareDefault(): string {
-    const hasGemini = !!(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
+    const hasGemini = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
     if (!hasGemini && process.env.OPENAI_API_KEY) {
       // OpenAI-only environment: default to gpt-4o-mini-realtime-preview
       return 'gpt-4o-mini-realtime-preview';
@@ -129,7 +129,7 @@ export class RealtimeVoiceService {
           console.warn(`⚠️ OpenAI Realtime model ${model} selected but OPENAI_API_KEY is not set — falling back to ${fallback}`);
           return fallback;
         }
-        const hasGemini = !!(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
+        const hasGemini = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
         if (!isOpenAIRealtimeModel(model) && !hasGemini) {
           console.warn(`⚠️ Gemini Realtime model ${model} selected but no Gemini key — falling back to ${fallback}`);
           return fallback;

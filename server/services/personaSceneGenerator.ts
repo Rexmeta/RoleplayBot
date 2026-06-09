@@ -23,7 +23,7 @@ export interface PersonaSceneGenerateRequest {
   personaDescription?: string;
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "" });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "" });
 
 function extractText(response: any): string {
   if (typeof response.text === "function") return response.text();
