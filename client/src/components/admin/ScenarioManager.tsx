@@ -18,7 +18,9 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
 import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema, simulationHarnessSchema, playerConstraintsSchema, difficultyProfileSchema, analyticsSpecSchema, TRACKED_METRICS, REPORT_SECTIONS } from '@shared/schema/scenarios';
-import type { TrackedMetricKey, ReportSectionKey, EvaluationHarness, TerminationRules, TerminationConditionGroup, FlowGraph, PersonaSwitchRules } from '@shared/schema/scenarios';
+import type { TrackedMetricKey, ReportSectionKey, EvaluationHarness, TerminationRules, TerminationConditionGroup, FlowGraph, PersonaSwitchRules, PlayerConstraints, DifficultyProfile } from '@shared/schema/scenarios';
+import { PlayerConstraintsBuilder } from './PlayerConstraintsBuilder';
+import { DifficultyProfileBuilder } from './DifficultyProfileBuilder';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
 import { validateScenario } from '@shared/scenarioValidator';
@@ -294,8 +296,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [terminationRulesValue, setTerminationRulesValue] = useState<TerminationRules | null>(null);
   const [builderKey, setBuilderKey] = useState(0);
   const [evaluationHarnessValue, setEvaluationHarnessValue] = useState<EvaluationHarness | null>(null);
-  const [playerConstraintsJson, setPlayerConstraintsJson] = useState('');
-  const [difficultyProfileJson, setDifficultyProfileJson] = useState('');
+  const [playerConstraintsValue, setPlayerConstraintsValue] = useState<PlayerConstraints | null>(null);
+  const [difficultyProfileValue, setDifficultyProfileValue] = useState<DifficultyProfile | null>(null);
   const [analyticsTrackedMetrics, setAnalyticsTrackedMetrics] = useState<string[]>([]);
   const [analyticsReportSections, setAnalyticsReportSections] = useState<string[]>([]);
   const [analyticsBenchmarkGroup, setAnalyticsBenchmarkGroup] = useState('');
@@ -313,8 +315,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [previewEmotionInput, setPreviewEmotionInput] = useState('');
   const [harnessRawJson, setHarnessRawJson] = useState('');
   const [harnessRawJsonError, setHarnessRawJsonError] = useState('');
-  const [playerConstraintsError, setPlayerConstraintsError] = useState('');
-  const [difficultyProfileError, setDifficultyProfileError] = useState('');
 
   const harnessEffective = useMemo(() => {
     if (!harnessEnabled) return null;
@@ -575,8 +575,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
     const parsedEvalHarness: any = evaluationHarnessValue ?? null;
 
-    let parsedPlayerConstraints: any = null;
-    try { parsedPlayerConstraints = playerConstraintsJson ? JSON.parse(playerConstraintsJson) : null; } catch {}
+    const parsedPlayerConstraints: any = playerConstraintsValue ?? null;
 
     let simulationHarnessForValidation: any = null;
     if (harnessEffective?.valid && harnessEnabled) {
@@ -610,7 +609,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     editingScenario,
     formData.personas, formData.title, formData.targetTurns, formData.minValidTurns,
     formData.successCriteria, formData.objectives,
-    evaluationHarnessValue, playerConstraintsJson,
+    evaluationHarnessValue, playerConstraintsValue,
     flowGraphValue, personaSwitchRulesValue,
     harnessEffective, harnessEnabled,
     availablePersonas,
@@ -918,6 +917,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setAnalyticsTrackedMetrics([]);
     setAnalyticsReportSections([]);
     setAnalyticsBenchmarkGroup('');
+    setPlayerConstraintsValue(null);
+    setDifficultyProfileValue(null);
   };
 
   const handleEdit = (scenario: ComplexScenario) => {
@@ -1018,15 +1019,13 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setHarnessRawJson('');
     setHarnessRawJsonError('');
     const existingPC = (originalScenario as any).playerConstraints;
-    setPlayerConstraintsJson(existingPC ? JSON.stringify(existingPC, null, 2) : '');
+    setPlayerConstraintsValue(existingPC ?? null);
     const existingDP = (originalScenario as any).difficultyProfile;
-    setDifficultyProfileJson(existingDP ? JSON.stringify(existingDP, null, 2) : '');
+    setDifficultyProfileValue(existingDP ?? null);
     const existingAS = (originalScenario as any).analyticsSpec;
     setAnalyticsTrackedMetrics(existingAS?.trackedMetrics ?? []);
     setAnalyticsReportSections(existingAS?.reportSections ?? []);
     setAnalyticsBenchmarkGroup(existingAS?.benchmarkGroup ?? '');
-    setPlayerConstraintsError('');
-    setDifficultyProfileError('');
     setIsCreateOpen(true);
   };
 
@@ -1151,45 +1150,25 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
 
     let parsedPC: any = null;
-    if (playerConstraintsJson.trim()) {
-      let raw: any;
-      try {
-        raw = JSON.parse(playerConstraintsJson);
-      } catch {
-        setPlayerConstraintsError('playerConstraints JSON이 유효하지 않습니다. 형식을 확인하세요.');
-        toast({ title: 'playerConstraints JSON 오류', description: 'playerConstraints JSON을 확인하세요.', variant: 'destructive' });
-        return null;
-      }
-      const result = playerConstraintsSchema.safeParse(raw);
+    if (playerConstraintsValue) {
+      const result = playerConstraintsSchema.safeParse(playerConstraintsValue);
       if (!result.success) {
         const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
-        setPlayerConstraintsError(`playerConstraints 구조 오류: ${msg}`);
         toast({ title: 'playerConstraints 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
       parsedPC = result.data;
-      setPlayerConstraintsError('');
     }
 
     let parsedDP: any = null;
-    if (difficultyProfileJson.trim()) {
-      let raw: any;
-      try {
-        raw = JSON.parse(difficultyProfileJson);
-      } catch {
-        setDifficultyProfileError('difficultyProfile JSON이 유효하지 않습니다. 형식을 확인하세요.');
-        toast({ title: 'difficultyProfile JSON 오류', description: 'difficultyProfile JSON을 확인하세요.', variant: 'destructive' });
-        return null;
-      }
-      const result = difficultyProfileSchema.safeParse(raw);
+    if (difficultyProfileValue) {
+      const result = difficultyProfileSchema.safeParse(difficultyProfileValue);
       if (!result.success) {
         const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
-        setDifficultyProfileError(`difficultyProfile 구조 오류: ${msg}`);
         toast({ title: 'difficultyProfile 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
       parsedDP = result.data;
-      setDifficultyProfileError('');
     }
 
     const analyticsSpec = (analyticsTrackedMetrics.length > 0 || analyticsReportSections.length > 0 || analyticsBenchmarkGroup.trim())
@@ -3636,42 +3615,24 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 </div>
 
                 <div id="section-player-constraints">
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                    playerConstraints
-                    <span className="text-xs text-slate-400 font-normal">(플레이어 행동 제약)</span>
+                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1 mb-2">
+                    플레이어 행동 제약 (playerConstraints)
                     <SectionIssueIcon sectionId="section-player-constraints" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
                   </Label>
-                  <p className="text-xs text-slate-400 mb-1">예: {`{"forbiddenPhrases":["욕설","협박"],"requiredEtiquette":["경어 사용"],"turnTimeLimit":60}`}</p>
-                  <Textarea
-                    value={playerConstraintsJson}
-                    onChange={(e) => {
-                      setPlayerConstraintsJson(e.target.value);
-                      setPlayerConstraintsError('');
-                    }}
-                    placeholder={'{\n  "forbiddenPhrases": ["욕설", "협박"],\n  "requiredEtiquette": ["경어 사용"],\n  "turnTimeLimit": 60\n}'}
-                    rows={5}
-                    className={`bg-white font-mono text-xs ${playerConstraintsError ? 'border-red-400' : ''}`}
+                  <PlayerConstraintsBuilder
+                    value={playerConstraintsValue}
+                    onChange={setPlayerConstraintsValue}
                   />
-                  {playerConstraintsError && <p className="text-xs text-red-500 mt-1">{playerConstraintsError}</p>}
                 </div>
 
                 <div>
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                    difficultyProfile
-                    <span className="text-xs text-slate-400 font-normal">(난이도 프로파일)</span>
+                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1 mb-2">
+                    난이도 프로파일 (difficultyProfile)
                   </Label>
-                  <p className="text-xs text-slate-400 mb-1">예: {`{"incidentProbabilityMultiplier":1.5,"npcResponseDelayMs":500,"scoreThresholds":{"pass":60,"excellent":85}}`}</p>
-                  <Textarea
-                    value={difficultyProfileJson}
-                    onChange={(e) => {
-                      setDifficultyProfileJson(e.target.value);
-                      setDifficultyProfileError('');
-                    }}
-                    placeholder={'{\n  "incidentProbabilityMultiplier": 1.0,\n  "npcResponseDelayMs": 0,\n  "scoreThresholds": {"pass": 60, "excellent": 85}\n}'}
-                    rows={5}
-                    className={`bg-white font-mono text-xs ${difficultyProfileError ? 'border-red-400' : ''}`}
+                  <DifficultyProfileBuilder
+                    value={difficultyProfileValue}
+                    onChange={setDifficultyProfileValue}
                   />
-                  {difficultyProfileError && <p className="text-xs text-red-500 mt-1">{difficultyProfileError}</p>}
                 </div>
               </div>
 
