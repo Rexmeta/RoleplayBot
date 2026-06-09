@@ -710,6 +710,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return response.json();
     },
     onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios', currentLang] });
       const failed: { locale: string; reason: string }[] = data.failedLocales || [];
       if (failed.length > 0) {
         const failedList = failed.map((f) => `${f.locale}: ${f.reason}`).join('\n');
