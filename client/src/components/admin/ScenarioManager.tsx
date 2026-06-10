@@ -393,6 +393,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [isGeneratingNpcBehaviorHarness, setIsGeneratingNpcBehaviorHarness] = useState<Record<number, boolean>>({});
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const isAnyGenerating =
+    isGeneratingImage ||
+    isGeneratingVideo ||
+    isGeneratingEvaluationHarness ||
+    isGeneratingPlayerConstraints ||
+    Object.values(isGeneratingNpcBehaviorHarness).some(Boolean);
   const [isUploadingDefaultVideo, setIsUploadingDefaultVideo] = useState(false);
   const defaultVideoInputRef = useRef<HTMLInputElement>(null);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
@@ -1923,22 +1929,35 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   </div>
                   
                   {/* 이미지 생성 버튼 */}
-                  <Button
-                    type="button"
-                    onClick={handleGenerateImage}
-                    disabled={isGeneratingImage || !formData.title}
-                    className="w-full"
-                    data-testid="button-generate-image"
-                  >
-                    {isGeneratingImage ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {t('admin.scenarioManager.form.generatingImage')}
-                      </>
-                    ) : (
-                      `🎨 ${t('admin.scenarioManager.form.generateImage')}`
-                    )}
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="w-full block">
+                          <Button
+                            type="button"
+                            onClick={handleGenerateImage}
+                            disabled={isGeneratingImage || !formData.title || isAnyGenerating}
+                            className="w-full"
+                            data-testid="button-generate-image"
+                          >
+                            {isGeneratingImage ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {t('admin.scenarioManager.form.generatingImage')}
+                              </>
+                            ) : (
+                              `🎨 ${t('admin.scenarioManager.form.generateImage')}`
+                            )}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {isAnyGenerating && !isGeneratingImage && (
+                        <TooltipContent side="top" className="text-xs">
+                          다른 AI 생성이 진행 중입니다
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                   
                   {/* 이미지 미리보기 */}
                   {formData.image && (
@@ -2176,10 +2195,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       </div>
 
                       {/* 비디오 생성 버튼 */}
+                      <TooltipProvider>
+                      <Tooltip>
+                      <TooltipTrigger asChild>
+                      <span className="w-full block">
                       <Button
                         type="button"
                         onClick={handleGenerateVideo}
-                        disabled={isGeneratingVideo || !editingScenario?.id}
+                        disabled={isGeneratingVideo || !editingScenario?.id || isAnyGenerating}
                         className="w-full"
                         variant={editingScenario?.id ? "default" : "secondary"}
                         data-testid="button-generate-video"
@@ -2195,6 +2218,15 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           t('admin.scenarioManager.form.videoAfterSave')
                         )}
                       </Button>
+                      </span>
+                      </TooltipTrigger>
+                      {isAnyGenerating && !isGeneratingVideo && (
+                        <TooltipContent side="top" className="text-xs">
+                          다른 AI 생성이 진행 중입니다
+                        </TooltipContent>
+                      )}
+                      </Tooltip>
+                      </TooltipProvider>
 
                       {/* 비디오 미리보기 */}
                       {isGeneratingVideo && (
@@ -3236,21 +3268,39 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               <Label htmlFor={`persona-npcbehaviorharness-${index}`} className="text-sm font-medium text-slate-700">
                                 NPC Behavior Harness <span className="text-xs text-slate-400 font-normal">(JSON, 선택사항)</span>
                               </Label>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-xs gap-1.5"
-                                disabled={!canGenerateAI || !!isGeneratingNpcBehaviorHarness[index]}
-                                onClick={() => handleGenerateNpcBehaviorHarness(index)}
-                              >
-                                {isGeneratingNpcBehaviorHarness[index] ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-                                )}
-                                AI 생성
-                              </Button>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs gap-1.5"
+                                        disabled={!canGenerateAI || !!isGeneratingNpcBehaviorHarness[index] || isAnyGenerating}
+                                        onClick={() => handleGenerateNpcBehaviorHarness(index)}
+                                      >
+                                        {isGeneratingNpcBehaviorHarness[index] ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                                        )}
+                                        AI 생성
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  {!canGenerateAI && (
+                                    <TooltipContent side="left" className="text-xs">
+                                      시나리오 제목 또는 설명을 먼저 입력해주세요
+                                    </TooltipContent>
+                                  )}
+                                  {canGenerateAI && isAnyGenerating && !isGeneratingNpcBehaviorHarness[index] && (
+                                    <TooltipContent side="left" className="text-xs">
+                                      다른 AI 생성이 진행 중입니다
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                              </TooltipProvider>
                             </div>
                             <Textarea
                               id={`persona-npcbehaviorharness-${index}`}
@@ -3744,7 +3794,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               variant="outline"
                               size="sm"
                               className="h-7 text-xs gap-1.5"
-                              disabled={!canGenerateAI || isGeneratingEvaluationHarness}
+                              disabled={!canGenerateAI || isGeneratingEvaluationHarness || isAnyGenerating}
                               onClick={handleGenerateEvaluationHarness}
                             >
                               {isGeneratingEvaluationHarness ? (
@@ -3759,6 +3809,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         {!canGenerateAI && (
                           <TooltipContent side="left" className="text-xs">
                             시나리오 제목 또는 설명을 먼저 입력해주세요
+                          </TooltipContent>
+                        )}
+                        {canGenerateAI && isAnyGenerating && !isGeneratingEvaluationHarness && (
+                          <TooltipContent side="left" className="text-xs">
+                            다른 AI 생성이 진행 중입니다
                           </TooltipContent>
                         )}
                       </Tooltip>
@@ -3786,7 +3841,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               variant="outline"
                               size="sm"
                               className="h-7 text-xs gap-1.5"
-                              disabled={!canGenerateAI || isGeneratingPlayerConstraints}
+                              disabled={!canGenerateAI || isGeneratingPlayerConstraints || isAnyGenerating}
                               onClick={handleGeneratePlayerConstraints}
                             >
                               {isGeneratingPlayerConstraints ? (
@@ -3801,6 +3856,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         {!canGenerateAI && (
                           <TooltipContent side="left" className="text-xs">
                             시나리오 제목 또는 설명을 먼저 입력해주세요
+                          </TooltipContent>
+                        )}
+                        {canGenerateAI && isAnyGenerating && !isGeneratingPlayerConstraints && (
+                          <TooltipContent side="left" className="text-xs">
+                            다른 AI 생성이 진행 중입니다
                           </TooltipContent>
                         )}
                       </Tooltip>
