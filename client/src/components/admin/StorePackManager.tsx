@@ -113,7 +113,7 @@ function PackFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit Pack" : "Create Pack"}</DialogTitle>
         </DialogHeader>
@@ -126,7 +126,7 @@ function PackFormDialog({
             <Label>Description</Label>
             <AutoResizeTextarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe this pack" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Price (USD)</Label>
               <Input type="number" min="0" step="0.01" value={form.priceUsd} onChange={e => setForm(f => ({ ...f, priceUsd: parseFloat(e.target.value) || 0 }))} />
@@ -195,7 +195,7 @@ function GrantEntitlementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Grant Entitlement</DialogTitle>
         </DialogHeader>
@@ -313,48 +313,50 @@ export function StorePackManager() {
           ) : packs.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No packs yet. Create one to get started.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Min Tier</TableHead>
-                  <TableHead>Content</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {packs.map(pack => (
-                  <TableRow key={pack.id}>
-                    <TableCell className="font-medium">{pack.name}</TableCell>
-                    <TableCell>{pack.priceUsd > 0 ? `$${pack.priceUsd.toFixed(2)}` : <Badge variant="secondary">Free</Badge>}</TableCell>
-                    <TableCell>{pack.planTierMinimum ? <Badge variant="outline">{pack.planTierMinimum}+</Badge> : "—"}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <BookOpen className="h-3 w-3" />{pack.scenarioCount}
-                        <Users className="h-3 w-3 ml-1" />{pack.personaCount}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {pack.isActive ? <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground max-w-[120px] truncate">{pack.id}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setEditingPack(pack)}>
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(pack.id)} className="text-destructive hover:text-destructive">
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Min Tier</TableHead>
+                    <TableHead>Content</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {packs.map(pack => (
+                    <TableRow key={pack.id}>
+                      <TableCell className="font-medium">{pack.name}</TableCell>
+                      <TableCell>{pack.priceUsd > 0 ? `$${pack.priceUsd.toFixed(2)}` : <Badge variant="secondary">Free</Badge>}</TableCell>
+                      <TableCell>{pack.planTierMinimum ? <Badge variant="outline">{pack.planTierMinimum}+</Badge> : "—"}</TableCell>
+                      <TableCell>
+                        <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <BookOpen className="h-3 w-3" />{pack.scenarioCount}
+                          <Users className="h-3 w-3 ml-1" />{pack.personaCount}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {pack.isActive ? <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground max-w-[120px] truncate">{pack.id}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setEditingPack(pack)}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(pack.id)} className="text-destructive hover:text-destructive">
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -372,32 +374,34 @@ export function StorePackManager() {
           ) : entitlements.length === 0 ? (
             <p className="text-center text-muted-foreground py-6">No entitlements yet.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pack</TableHead>
-                  <TableHead>Org ID</TableHead>
-                  <TableHead>Unlocked At</TableHead>
-                  <TableHead>Revenue</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {entitlements.map(e => (
-                  <TableRow key={e.id}>
-                    <TableCell className="font-medium">{e.pack?.name ?? e.packId}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{e.orgId}</TableCell>
-                    <TableCell className="text-sm">{format(new Date(e.unlockedAt), "PPP")}</TableCell>
-                    <TableCell className="text-sm">{e.pack?.priceUsd ? `$${e.pack.priceUsd.toFixed(2)}` : "—"}</TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => revokeMutation.mutate({ orgId: e.orgId, packId: e.packId })} className="text-destructive hover:text-destructive">
-                        Revoke
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pack</TableHead>
+                    <TableHead>Org ID</TableHead>
+                    <TableHead>Unlocked At</TableHead>
+                    <TableHead>Revenue</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {entitlements.map(e => (
+                    <TableRow key={e.id}>
+                      <TableCell className="font-medium">{e.pack?.name ?? e.packId}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{e.orgId}</TableCell>
+                      <TableCell className="text-sm">{format(new Date(e.unlockedAt), "PPP")}</TableCell>
+                      <TableCell className="text-sm">{e.pack?.priceUsd ? `$${e.pack.priceUsd.toFixed(2)}` : "—"}</TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="ghost" onClick={() => revokeMutation.mutate({ orgId: e.orgId, packId: e.packId })} className="text-destructive hover:text-destructive">
+                          Revoke
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -406,24 +410,26 @@ export function StorePackManager() {
         <Card>
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4" /> Revenue by Pack</CardTitle></CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pack</TableHead>
-                  <TableHead>Units Sold</TableHead>
-                  <TableHead>Revenue</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {revenue.byPack.map(row => (
-                  <TableRow key={row.packId}>
-                    <TableCell className="font-medium">{row.packName}</TableCell>
-                    <TableCell>{row.count}</TableCell>
-                    <TableCell>${row.revenueUsd.toFixed(2)}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pack</TableHead>
+                    <TableHead>Units Sold</TableHead>
+                    <TableHead>Revenue</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {revenue.byPack.map(row => (
+                    <TableRow key={row.packId}>
+                      <TableCell className="font-medium">{row.packName}</TableCell>
+                      <TableCell>{row.count}</TableCell>
+                      <TableCell>${row.revenueUsd.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}

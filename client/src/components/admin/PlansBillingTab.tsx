@@ -168,7 +168,7 @@ export function PlansBillingTab() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -212,7 +212,7 @@ export function PlansBillingTab() {
         {plansLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {plans.map(plan => (
               <PlanCard key={plan.id} plan={plan} onEdit={openEdit} />
             ))}
@@ -239,6 +239,7 @@ export function PlansBillingTab() {
           ) : subscriptions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No subscriptions yet</div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -315,12 +316,13 @@ export function PlansBillingTab() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={!!editingPlan} onOpenChange={open => !open && setEditingPlan(null)}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Plan: {editingPlan?.name}</DialogTitle>
             <DialogDescription>Update the token quota, price, and feature flags for this plan.</DialogDescription>
@@ -356,7 +358,7 @@ export function PlansBillingTab() {
       </Dialog>
 
       <Dialog open={!!assignDialog} onOpenChange={open => !open && setAssignDialog(null)}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reassign Plan</DialogTitle>
             <DialogDescription>
