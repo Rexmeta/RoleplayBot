@@ -480,7 +480,7 @@ function StorageSyncPanel() {
           )}
 
           {dryRunQuery.data && (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-2xl font-bold">{dryRunQuery.data.gcsTotal}</div>
@@ -2185,7 +2185,7 @@ export default function SystemAdminPage() {
       </div>
 
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
-        <DialogContent data-testid="dialog-edit-user">
+        <DialogContent data-testid="dialog-edit-user" className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('systemAdmin.dialogs.editUser.title')}</DialogTitle>
             <DialogDescription>
@@ -2387,7 +2387,7 @@ export default function SystemAdminPage() {
           setShowPassword(false);
         }
       }}>
-        <DialogContent data-testid="dialog-reset-password">
+        <DialogContent data-testid="dialog-reset-password" className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t('systemAdmin.dialogs.resetPassword.title')}</DialogTitle>
             <DialogDescription>

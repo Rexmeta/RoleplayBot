@@ -181,7 +181,7 @@ export function CategoryManager() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 justify-between">
         <div>
           <CardTitle className="flex items-center gap-2">
             <FolderTree className="w-5 h-5" />
@@ -216,10 +216,10 @@ export function CategoryManager() {
             {filteredCategories.map((category) => (
               <div
                 key={category.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
+                className="flex items-start justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors gap-2"
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{category.name}</span>
                     {category.company && category.organization && (
                       <Badge variant="outline" className="text-xs">
@@ -232,7 +232,7 @@ export function CategoryManager() {
                     <p className="text-sm text-muted-foreground mt-1">{category.description}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <Button variant="ghost" size="sm" onClick={() => openEditDialog(category)}>
                     <Pencil className="w-4 h-4" />
                   </Button>
@@ -249,7 +249,7 @@ export function CategoryManager() {
       </CardContent>
 
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t('admin.categoryManager.createDialog.title', '새 카테고리 생성')}</DialogTitle>
           </DialogHeader>
@@ -313,7 +313,7 @@ export function CategoryManager() {
       </Dialog>
 
       <Dialog open={!!editingCategory} onOpenChange={(open) => !open && setEditingCategory(null)}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t('admin.categoryManager.editDialog.title', '카테고리 수정')}</DialogTitle>
           </DialogHeader>
@@ -375,7 +375,7 @@ export function CategoryManager() {
       </Dialog>
 
       <AlertDialog open={!!deletingCategory} onOpenChange={(open) => !open && setDeletingCategory(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>{t('admin.categoryManager.deleteDialog.title', '카테고리 삭제')}</AlertDialogTitle>
             <AlertDialogDescription>

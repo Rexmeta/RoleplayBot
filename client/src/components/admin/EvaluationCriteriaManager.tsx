@@ -205,7 +205,7 @@ function RubricItemsEditor({
                 placeholder="이 점수대에서 관찰되는 구체적 행동 패턴 (예: 핵심 메시지를 명확히 전달하고 논리적 근거를 3가지 이상 제시함)"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="text-[11px] text-slate-500">긍정 지표 (쉼표 구분, 선택)</label>
                 <Input
@@ -828,7 +828,7 @@ export function EvaluationCriteriaManager() {
       )}
 
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>새 평가 기준 세트</DialogTitle>
             <DialogDescription>
@@ -918,14 +918,14 @@ export function EvaluationCriteriaManager() {
 
       {/* ── 템플릿 선택 다이얼로그 ── */}
       <Dialog open={isTemplateDialogOpen} onOpenChange={(open) => { setIsTemplateDialogOpen(open); if (!open) setSelectedTemplateId(null); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><LayoutTemplate className="h-5 w-5" />시나리오 유형별 루브릭 템플릿</DialogTitle>
             <DialogDescription>
               시나리오 유형에 맞는 템플릿을 선택하면 전문 루브릭 차원이 자동으로 포함된 초안이 생성됩니다.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto py-2">
             {rubricTemplates.map((tpl: any) => (
               <button
                 key={tpl.id}
@@ -965,7 +965,7 @@ export function EvaluationCriteriaManager() {
       </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>평가 기준 세트 수정</DialogTitle>
           </DialogHeader>
@@ -1053,7 +1053,7 @@ export function EvaluationCriteriaManager() {
       </Dialog>
 
       <Dialog open={isDimensionDialogOpen} onOpenChange={setIsDimensionDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedDimension ? "평가 차원 수정" : "새 평가 차원 추가"}</DialogTitle>
             <DialogDescription>
@@ -1061,7 +1061,7 @@ export function EvaluationCriteriaManager() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dim-key">키 (영문) *</Label>
                 <Input
@@ -1128,7 +1128,7 @@ export function EvaluationCriteriaManager() {
               />
               <p className="text-xs text-slate-500">모든 활성 차원의 가중치 합계가 100%가 되도록 설정하세요.</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dim-minScore">최소 점수 <span className="text-slate-400 font-normal text-xs">(1~10점 척도)</span></Label>
                 <Input
@@ -1181,7 +1181,7 @@ export function EvaluationCriteriaManager() {
               rubric={dimensionFormData.scoringRubric}
               onChange={(updated) => setDimensionFormData({ ...dimensionFormData, scoringRubric: updated })}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="dim-icon">아이콘</Label>
                 <Popover>
@@ -1303,7 +1303,7 @@ export function EvaluationCriteriaManager() {
 
       {/* 소유자 이관 다이얼로그 */}
       <Dialog open={isTransferDialogOpen} onOpenChange={(open) => { setIsTransferDialogOpen(open); if (!open) { setSetToTransfer(null); setTransferTargetOperatorId(''); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ArrowLeftRight className="h-5 w-5 text-violet-600" />
@@ -1370,7 +1370,7 @@ export function EvaluationCriteriaManager() {
 
       {/* 삭제 확인 다이얼로그 */}
       <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
               <AlertCircle className="h-5 w-5" />
@@ -1991,7 +1991,7 @@ function CriteriaSetDetail({
       )}
 
       <Dialog open={showVersionHistory} onOpenChange={(open) => { setShowVersionHistory(open); if (!open) setCompareVersionId(null); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="h-5 w-5" />

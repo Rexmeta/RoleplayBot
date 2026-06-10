@@ -148,14 +148,14 @@ export function TranslationDashboard() {
 
           return (
             <div key={lang.code} className="space-y-2 p-3 border rounded-lg">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{lang.nativeName}</span>
                   <Badge variant="outline" className="text-xs">
                     {langStatus.count}/{total}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {langStatus.reviewed > 0 && (
                     <Badge variant="outline" className="text-green-600 border-green-200">
                       <CheckCircle className="h-3 w-3 mr-1" />
@@ -201,7 +201,7 @@ export function TranslationDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <BarChart className="h-6 w-6" />
@@ -211,8 +211,8 @@ export function TranslationDashboard() {
             {t('admin.translationDashboard.description')}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">{t('admin.translationDashboard.sourceLanguage')}:</span>
             <Select value={sourceLocale} onValueChange={setSourceLocale}>
               <SelectTrigger className="w-[140px]">
