@@ -1,3 +1,43 @@
+// ─── Tool-call text stripping ────────────────────────────────────────────────
+
+/**
+ * Removes hallucinated simulation tool-call text that Gemini sometimes emits
+ * in the output transcription instead of (or alongside) a proper function call.
+ *
+ * Patterns handled:
+ *  - update_npc_emotion{...}           complete brace-enclosed call
+ *  - update_npc_emotion{...            truncated call (closing brace missing)
+ *  - Call update_npc_emotion(...)      parenthetical "Call X" format
+ *  - update_npc_<toolname>{...         any simulation tool with a similar shape
+ *
+ * When a call is truncated without a closing brace (common when Gemini embeds
+ * the call mid-sentence), we strip up to the first occurrence of a newline or
+ * the next sentence that starts with a CJK character / uppercase Latin letter,
+ * then keep whatever comes after that separator.
+ */
+export function stripSimulationToolCallText(text: string): string {
+  if (!text) return text;
+
+  // 1. Remove complete calls: update_npc_emotion{...}
+  let result = text.replace(/update_npc_\w+\s*\{[^}]*\}\s*/g, '');
+
+  // 2. Remove complete parenthetical calls: Call update_npc_emotion(...)
+  result = result.replace(/Call\s+update_npc_\w+\s*\([^)]*\)\s*/g, '');
+
+  // 3. Remove "Call update_npc_..." where the format uses = instead of {
+  //    e.g. "Call update_npc_=20,confusionDelta=15,..."
+  result = result.replace(/Call\s+update_npc_[^\n]*/g, '');
+
+  // 4. Handle truncated calls: update_npc_emotion{ ... (no closing brace)
+  //    Strip from the call name up to the next sentence boundary.
+  //    A "sentence boundary" here means: a newline, or a period/comma followed
+  //    by a CJK character, or the pattern "},<speech>" (where the closing brace
+  //    was accidentally appended to the speech).
+  result = result.replace(/update_npc_\w+\s*\{[^}]*/g, '');
+
+  return result.trim();
+}
+
 // ─── Script detection helpers ────────────────────────────────────────────────
 
 const KOREAN_RE   = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/;

@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { RealtimeSession } from './types';
-import { filterThinkingText, isThinkingText } from './textFilter';
+import { filterThinkingText, isThinkingText, stripSimulationToolCallText } from './textFilter';
 import { analyzeEmotion } from './emotionAnalyzer';
 import { GoogleGenAI } from '@google/genai';
 import { handleToolCall } from '../simulation/simulationToolHandler';
@@ -523,7 +523,7 @@ export function handleGeminiMessage(
           // outputTranscription is the authoritative transcription source;
           // using both would cause double-counting.
           if (!preferOutputTranscription) {
-            session.currentTranscript += part.text;
+            session.currentTranscript += stripSimulationToolCallText(part.text);
           }
           // Always send as delta to the client UI (for live streaming display),
           // but only when outputTranscription is not already handling it.
@@ -588,7 +588,7 @@ export function handleGeminiMessage(
       if (session.suppressAIUntilUserSpeaks) {
         console.log(`🔇 Suppressing outputTranscription (awaiting user speech after context injection): "${transcript.substring(0, 80)}"`);
         // Still accumulate so turnComplete can clear it cleanly, but do NOT forward to client
-        session.currentTranscript += transcript;
+        session.currentTranscript += stripSimulationToolCallText(transcript);
       } else {
         if (session.isInterrupted && transcript.length > 0) {
           console.log(`🔊 New AI response started - clearing barge-in flag immediately`);
@@ -611,10 +611,11 @@ export function handleGeminiMessage(
         // transcription to be silently dropped and never sent as
         // ai.transcription.done. modelTurn accumulation is now suppressed
         // when outputTranscription is present (see preferOutputTranscription).
-        session.currentTranscript += transcript;
+        session.currentTranscript += stripSimulationToolCallText(transcript);
         session.totalAiTranscriptLength += transcript.length;
 
-        const filteredTranscript = filterThinkingText(transcript, session.userLanguage, { strictMode: session.turnSeq === 0 });
+        const strippedTranscript = stripSimulationToolCallText(transcript);
+        const filteredTranscript = filterThinkingText(strippedTranscript, session.userLanguage, { strictMode: session.turnSeq === 0 });
         if (filteredTranscript) {
           sendToClient(session, { type: 'ai.transcription.delta', text: filteredTranscript });
         }

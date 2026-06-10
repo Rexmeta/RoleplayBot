@@ -963,6 +963,10 @@ export function useRealtimeVoice({
       processor.onaudioprocess = (e) => {
         if (!isRecordingRef.current) return;
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        // Suppress mic audio while AI is playing and barge-in hasn't fired yet.
+        // Without this, the speaker audio leaks into the microphone (echo) and
+        // Gemini transcribes it as random foreign languages.
+        if (isActuallyPlayingRef.current && !bargeInTriggeredRef.current) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
         const targetSampleRate = 16000;
