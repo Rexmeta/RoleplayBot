@@ -6,7 +6,8 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   // Gemini models (2025 pricing - unified thinking/non-thinking)
   'gemini-2.5-flash': { input: 0.30, output: 2.50 },
   'gemini-2.5-pro': { input: 1.25, output: 10.00 }, // ≤200K tokens
-  'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 }, // Gemini Live (legacy)
+  'gemini-2.0-flash-live-preview-04-09': { input: 0.35, output: 1.50 }, // Gemini Live 2.0 Flash (v1alpha)
+  'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 }, // Gemini Live (legacy alias)
   'gemini-live-2.5-flash': { input: 0.35, output: 1.50 }, // Gemini Live 2.5 Flash (v1alpha, fallback)
   'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 }, // Deprecated (historical records only)
   'gemini-3.1-flash-live-preview': { input: 0.35, output: 1.50 }, // Gemini 3.1 Flash Live (recommended)
@@ -209,6 +210,8 @@ export function getModelPricingKey(model: string): string {
   const modelMappings: Record<string, string> = {
     'gemini-2.5-flash': 'gemini-2.5-flash',
     'gemini-2.5-pro': 'gemini-2.5-pro',
+    'gemini-2.0-flash-live-preview-04-09': 'gemini-2.0-flash-live-preview-04-09',
+    'gemini-live-2.5-flash-preview': 'gemini-live-2.5-flash-preview',
     'gemini-2.0-flash-live-001': 'gemini-2.0-flash-live-001',
     'gpt-4o': 'gpt-4o',
     'gpt-4o-mini': 'gpt-4o-mini',

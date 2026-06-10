@@ -1,0 +1,1 @@
+- [Gemini Live valid models](gemini-live-models.md) — only `gemini-2.0-flash-live-preview-04-09` and `gemini-live-2.5-flash-preview` work for bidiGenerateContent v1alpha.

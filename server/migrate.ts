@@ -1327,13 +1327,12 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add multi-persona columns to persona_runs:', err);
       }
 
-      // Migrate deprecated/invalid realtime model names to gemini-2.0-flash-live-001.
-      // Covers old native-audio-preview names, the incorrectly named gemini-live-2.5-flash,
-      // and gemini-3.1-flash-live-preview which requires prepaid credits.
+      // Migrate deprecated/invalid realtime model names to gemini-2.0-flash-live-preview-04-09.
+      // This is the verified working model for the Gemini Live bidiGenerateContent API (v1alpha).
       try {
         await client.query(`
           UPDATE system_settings
-          SET value = 'gemini-2.0-flash-live-001', updated_at = now()
+          SET value = 'gemini-2.0-flash-live-preview-04-09', updated_at = now()
           WHERE category = 'ai'
             AND key = 'model_realtime'
             AND value IN (
@@ -1341,10 +1340,12 @@ export async function runMigrations(): Promise<void> {
               'gemini-2.5-flash-native-audio-preview-12-2025',
               'gemini-live-2.5-flash-preview',
               'gemini-live-2.5-flash',
-              'gemini-3.1-flash-live-preview'
+              'gemini-3.1-flash-live-preview',
+              'gemini-2.5-flash-live-preview',
+              'gemini-2.0-flash-live-001'
             )
         `);
-        console.log('✅ Realtime model setting migrated (deprecated models → gemini-2.0-flash-live-001)');
+        console.log('✅ Realtime model setting migrated (deprecated/invalid models → gemini-2.0-flash-live-preview-04-09)');
       } catch (err) {
         console.warn('⚠️ Failed to migrate deprecated realtime model setting:', err);
       }

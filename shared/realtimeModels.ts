@@ -8,23 +8,16 @@ export interface RealtimeModelInfo {
 
 export const REALTIME_MODELS: RealtimeModelInfo[] = [
   {
-    value: "gemini-2.0-flash-live-001",
-    modelKey: "gemini20FlashLive001",
+    value: "gemini-2.0-flash-live-preview-04-09",
+    modelKey: "gemini20FlashLivePreview",
     provider: "Google Live",
     recommended: true,
   },
   {
-    value: "gemini-2.5-flash-live-preview",
-    modelKey: "gemini25FlashLivePreview",
+    value: "gemini-live-2.5-flash-preview",
+    modelKey: "geminiLive25FlashPreview",
     provider: "Google Live",
     recommended: false,
-  },
-  {
-    value: "gemini-3.1-flash-live-preview",
-    modelKey: "gemini31FlashLivePreview",
-    provider: "Google Live",
-    recommended: false,
-    description: "선불 크레딧 필요",
   },
   {
     value: "gpt-4o-realtime-preview",

@@ -31,9 +31,9 @@ import { eq } from 'drizzle-orm';
 import { getOrCreateSessionContext } from './simulation/simulationEngine';
 import { createDefaultSimulationState } from './simulation/simulationTypes';
 
-const DEFAULT_REALTIME_MODEL = 'gemini-2.0-flash-live-001';
+const DEFAULT_REALTIME_MODEL = 'gemini-2.0-flash-live-preview-04-09';
 
-const VALID_GEMINI_REALTIME_MODELS = ['gemini-2.0-flash-live-001', 'gemini-2.5-flash-live-preview', 'gemini-3.1-flash-live-preview'];
+const VALID_GEMINI_REALTIME_MODELS = ['gemini-2.0-flash-live-preview-04-09', 'gemini-live-2.5-flash-preview'];
 const VALID_OPENAI_REALTIME_MODELS = ['gpt-4o-realtime-preview', 'gpt-4o-mini-realtime-preview'];
 
 function isOpenAIRealtimeModel(model: string): boolean {
