@@ -28,7 +28,7 @@ const genAI = new GoogleGenAI({ apiKey });
 const router = Router();
 
 router.post('/generate-scenario-image', asyncHandler(async (req, res) => {
-  const { scenarioId, scenarioTitle, description, theme, industry, customPrompt } = req.body;
+  const { scenarioId, scenarioTitle, description, theme, industry, situation, customPrompt } = req.body;
 
   if (!scenarioTitle) {
     throw createHttpError(400, '시나리오 제목이 필요합니다.');
@@ -52,7 +52,7 @@ router.post('/generate-scenario-image', asyncHandler(async (req, res) => {
     imagePrompt += `High quality corporate photography, natural lighting, sharp focus, professional setting, modern business environment. `;
     imagePrompt += `NO text, NO speech bubbles, NO captions, NO graphic overlays.`;
   } else {
-    imagePrompt = generateImagePrompt(scenarioTitle, description, theme, industry);
+    imagePrompt = generateImagePrompt(scenarioTitle, description, theme, industry, situation);
   }
 
   console.log(`🎨 Gemini 이미지 생성 요청: ${scenarioTitle}`);
@@ -162,36 +162,81 @@ router.post('/generate-scenario-image', asyncHandler(async (req, res) => {
   });
 }));
 
-function generateImagePrompt(title: string, description?: string, theme?: string, industry?: string): string {
-  let prompt = "";
-  let focusElement = "modern corporate office environment";
+function generateImagePrompt(title: string, description?: string, theme?: string, industry?: string, situation?: string): string {
+  const parts: string[] = [];
 
+  // 시나리오 내용을 바탕으로 장면 묘사 구성
+  const sceneParts: string[] = [];
+
+  // 업종별 기본 배경
+  const industryBackground: Record<string, string> = {
+    '제조업': 'industrial factory or manufacturing facility',
+    'IT': 'modern tech office with computers and screens',
+    '금융': 'professional banking or financial office',
+    '의료': 'hospital or medical facility',
+    '교육': 'educational institution or classroom setting',
+    '유통': 'retail or logistics warehouse environment',
+    '건설': 'construction site or engineering office',
+  };
+  const background = (industry && industryBackground[industry]) || 'modern corporate office environment';
+
+  // 제목에서 상황 유형 추론
+  let sceneType = 'professional business conversation between colleagues';
   if (title.includes('파업') || title.includes('노사')) {
-    focusElement = "business professionals in tense negotiation meeting";
-  } else if (title.includes('앱') || title.includes('개발')) {
-    focusElement = "modern tech office with developers at work";
+    sceneType = 'tense labor negotiation meeting between management and workers';
   } else if (title.includes('협상') || title.includes('갈등')) {
-    focusElement = "corporate meeting room with business professionals";
-  } else if (title.includes('제조') || title.includes('공장')) {
-    focusElement = "industrial factory floor with equipment";
-  } else if (title.includes('프로젝트') || title.includes('일정')) {
-    focusElement = "project team meeting around a table";
+    sceneType = 'business negotiation meeting with professionals at a conference table';
+  } else if (title.includes('위기') || title.includes('crisis') || title.includes('긴급')) {
+    sceneType = 'urgent crisis management meeting with concerned professionals';
+  } else if (title.includes('발표') || title.includes('프레젠테이션')) {
+    sceneType = 'business presentation in a meeting room';
+  } else if (title.includes('면담') || title.includes('상담')) {
+    sceneType = 'one-on-one professional consultation in an office';
+  } else if (title.includes('회의') || title.includes('미팅')) {
+    sceneType = 'corporate team meeting around a conference table';
+  } else if (title.includes('공장') || title.includes('생산') || title.includes('제조')) {
+    sceneType = 'factory floor or production line discussion';
+  } else if (title.includes('개발') || title.includes('앱') || title.includes('소프트웨어')) {
+    sceneType = 'software development team collaborating at workstations';
+  } else if (title.includes('고객') || title.includes('클라이언트')) {
+    sceneType = 'professional client meeting in a business setting';
+  } else if (title.includes('신입') || title.includes('직원') || title.includes('팀원')) {
+    sceneType = 'workplace mentoring or team interaction scene';
   }
 
-  if (industry === '제조업') {
-    focusElement = "industrial factory setting";
-  } else if (industry === 'IT') {
-    focusElement = "modern tech office space";
-  } else if (industry === '금융') {
-    focusElement = "professional banking office";
+  sceneParts.push(sceneType);
+  sceneParts.push(`in a ${background}`);
+
+  // description에서 핵심 맥락 추출하여 장면에 반영
+  if (description && description.trim()) {
+    const descLower = description.toLowerCase();
+    if (descLower.includes('supply') || description.includes('공급') || description.includes('납품')) {
+      sceneParts.push('with supply chain or logistics context visible');
+    } else if (description.includes('예산') || description.includes('비용') || descLower.includes('budget')) {
+      sceneParts.push('with financial documents or budget reports visible');
+    } else if (description.includes('팀') || description.includes('조직')) {
+      sceneParts.push('showing team dynamics and organizational setting');
+    }
   }
 
-  prompt = `Photorealistic documentary-style photograph of ${focusElement}. `;
-  prompt += "Professional corporate photography, natural lighting, real business setting, ";
-  prompt += "sharp focus, high quality, authentic workplace scene. ";
-  prompt += "NO text, NO speech bubbles, NO captions, NO graphic overlays.";
+  // situation에서 장면 분위기 추출
+  if (situation && situation.trim()) {
+    const sitLower = situation.toLowerCase();
+    if (sitLower.includes('긴장') || situation.includes('갈등') || situation.includes('어려운')) {
+      sceneParts.push('with a tense but professional atmosphere');
+    } else if (situation.includes('협력') || situation.includes('협업')) {
+      sceneParts.push('with a collaborative and focused atmosphere');
+    }
+  }
 
-  return prompt;
+  const sceneDescription = sceneParts.join(', ');
+
+  parts.push(`Photorealistic documentary-style photograph of ${sceneDescription}.`);
+  parts.push('Professional corporate photography, natural lighting, real business setting,');
+  parts.push('sharp focus, high quality, authentic workplace scene, cinematic composition.');
+  parts.push('NO text, NO speech bubbles, NO captions, NO graphic overlays, NO watermarks.');
+
+  return parts.join(' ');
 }
 
 async function saveImageToLocal(base64ImageUrl: string, scenarioTitle: string): Promise<string> {

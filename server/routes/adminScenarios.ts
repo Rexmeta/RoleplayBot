@@ -516,13 +516,13 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
   }));
 
   router.post("/api/admin/scenarios/default-image-prompt", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
-    const { scenarioTitle, description, theme, industry } = req.body;
+    const { scenarioTitle, description, theme, industry, situation } = req.body;
 
     if (!scenarioTitle) {
       throw createHttpError(400, "scenarioTitle is required");
     }
 
-    const prompt = generateImagePrompt(scenarioTitle, description, theme, industry);
+    const prompt = generateImagePrompt(scenarioTitle, description, theme, industry, situation);
     res.json({ success: true, prompt });
   }));
 

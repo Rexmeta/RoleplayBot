@@ -1239,6 +1239,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         scenarioId: editingScenario?.id || undefined,
         scenarioTitle: formData.title,
         description: formData.description,
+        industry: formData.industry,
+        situation: formData.context?.situation,
         customPrompt: formData.imagePrompt || undefined,
       });
       
@@ -1431,6 +1433,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         description: formData.description,
         theme: formData.theme,
         industry: formData.industry,
+        situation: formData.context?.situation,
       });
       
       const data = await response.json();
