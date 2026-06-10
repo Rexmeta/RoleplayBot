@@ -620,39 +620,30 @@ export function AgentKeyManager() {
               {t("agentKeys.empty", "등록된 API 키가 없습니다.")}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("agentKeys.col.prefix", "키 Prefix")}</TableHead>
-                    <TableHead>{t("agentKeys.col.name", "이름")}</TableHead>
-                    <TableHead>{t("agentKeys.col.environment", "환경")}</TableHead>
-                    <TableHead>{t("agentKeys.col.status", "상태")}</TableHead>
-                    <TableHead>{t("agentKeys.col.scopes", "권한")}</TableHead>
-                    <TableHead>{t("agentKeys.col.expiresAt", "만료일")}</TableHead>
-                    <TableHead>{t("agentKeys.col.lastUsedAt", "마지막 사용")}</TableHead>
-                    <TableHead className="text-right">{t("agentKeys.col.monthlyRequests", "월 요청")}</TableHead>
-                    <TableHead className="text-right">{t("agentKeys.col.monthlyTokens", "월 토큰")}</TableHead>
-                    <TableHead className="text-right">{t("agentKeys.col.tokenAccuracy", "실 토큰률")}</TableHead>
-                    <TableHead className="text-right">{t("agentKeys.col.actions", "액션")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {keys.map((key) => {
-                    const isRevoked = !!key.revokedAt;
-                    return (
-                      <TableRow key={key.id} className={isRevoked ? "opacity-60" : ""}>
-                        <TableCell className="font-mono text-xs">
-                          <span className={isRevoked ? "line-through text-muted-foreground" : ""}>
-                            {key.keyPrefix}…
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm font-medium">
-                          <span className={isRevoked ? "line-through text-muted-foreground" : ""}>
-                            {key.name}
-                          </span>
-                        </TableCell>
-                        <TableCell>
+            <>
+              {/* Mobile card layout (≤640px) */}
+              <div className="flex flex-col gap-3 sm:hidden">
+                {keys.map((key) => {
+                  const isRevoked = !!key.revokedAt;
+                  const realPct = key.monthlyRequestCount > 0
+                    ? Math.round(((key.monthlyRequestCount - key.monthlyEstimatedRequestCount) / key.monthlyRequestCount) * 100)
+                    : null;
+                  const accuracyColor = realPct === null ? "" : realPct < 50
+                    ? "text-red-600 border-red-300 bg-red-50 dark:bg-red-950"
+                    : realPct < 90
+                    ? "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950"
+                    : "text-green-600 border-green-300 bg-green-50 dark:bg-green-950";
+                  return (
+                    <div
+                      key={key.id}
+                      className={`rounded-lg border bg-card p-3 space-y-2 ${isRevoked ? "opacity-60" : ""}`}
+                    >
+                      {/* Row 1: name + status + environment */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className={`text-sm font-semibold ${isRevoked ? "line-through text-muted-foreground" : ""}`}>
+                          {key.name}
+                        </span>
+                        <div className="flex items-center gap-1.5">
                           <Badge
                             variant="outline"
                             className={
@@ -663,8 +654,6 @@ export function AgentKeyManager() {
                           >
                             {key.environment}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
                           {isRevoked ? (
                             <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 dark:bg-red-950">
                               <XCircle className="h-3 w-3 mr-1" />
@@ -676,111 +665,275 @@ export function AgentKeyManager() {
                               {t("agentKeys.status.active", "활성")}
                             </Badge>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1 max-w-[200px]">
-                            {(key.scopes ?? []).map((s) => (
-                              <Badge key={s} variant="secondary" className="text-xs px-1 py-0">
-                                {s}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        </div>
+                      </div>
+
+                      {/* Row 2: prefix */}
+                      <div className="font-mono text-xs text-muted-foreground">
+                        <span className={isRevoked ? "line-through" : ""}>{key.keyPrefix}…</span>
+                      </div>
+
+                      {/* Row 3: scopes */}
+                      {(key.scopes ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {(key.scopes ?? []).map((s) => (
+                            <Badge key={s} variant="secondary" className="text-xs px-1 py-0">
+                              {s}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Row 4: dates + stats */}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <div>
+                          <span className="font-medium text-foreground">{t("agentKeys.col.expiresAt", "만료일")}: </span>
                           {formatDate(key.expiresAt)}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground">{t("agentKeys.col.lastUsedAt", "마지막 사용")}: </span>
                           {formatDate(key.lastUsedAt)}
-                        </TableCell>
-                        <TableCell className="text-right text-sm font-mono">
-                          {key.monthlyRequestCount.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right text-sm font-mono">
-                          {key.monthlyTotalTokens.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {key.monthlyRequestCount > 0 ? (() => {
-                            const realPct = Math.round(
-                              ((key.monthlyRequestCount - key.monthlyEstimatedRequestCount) / key.monthlyRequestCount) * 100
-                            );
-                            const isLow = realPct < 50;
-                            const isMid = realPct < 90;
-                            return (
-                              <Badge
-                                variant="outline"
-                                title={t("agentKeys.tokenAccuracy.tooltip", "이번 달 실제 토큰 수가 기록된 요청 비율")}
-                                className={
-                                  isLow
-                                    ? "text-red-600 border-red-300 bg-red-50 dark:bg-red-950"
-                                    : isMid
-                                    ? "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950"
-                                    : "text-green-600 border-green-300 bg-green-50 dark:bg-green-950"
-                                }
-                              >
-                                {realPct}%
-                              </Badge>
-                            );
-                          })() : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground">{t("agentKeys.col.monthlyRequests", "월 요청")}: </span>
+                          <span className="font-mono">{key.monthlyRequestCount.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground">{t("agentKeys.col.monthlyTokens", "월 토큰")}: </span>
+                          <span className="font-mono">{key.monthlyTotalTokens.toLocaleString()}</span>
+                        </div>
+                        {realPct !== null && (
+                          <div className="col-span-2 flex items-center gap-1.5">
+                            <span className="font-medium text-foreground">{t("agentKeys.col.tokenAccuracy", "실 토큰률")}: </span>
+                            <Badge
+                              variant="outline"
+                              title={t("agentKeys.tokenAccuracy.tooltip", "이번 달 실제 토큰 수가 기록된 요청 비율")}
+                              className={accuracyColor}
+                            >
+                              {realPct}%
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Row 5: action buttons */}
+                      <div className="flex items-center gap-2 pt-1 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setUsageTarget(key)}
+                          title={t("agentKeys.action.viewUsage", "사용량 보기")}
+                        >
+                          <BarChart2 className="h-3.5 w-3.5" />
+                        </Button>
+                        {!isRevoked && (
+                          <>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setUsageTarget(key)}
-                              title={t("agentKeys.action.viewUsage", "사용량 보기")}
+                              onClick={() => openInApiExplorer()}
+                              title={t("agentKeys.action.openInExplorer", "API Explorer에서 열기")}
                             >
-                              <BarChart2 className="h-3.5 w-3.5" />
+                              <ExternalLink className="h-3.5 w-3.5" />
                             </Button>
-                            {!isRevoked && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openInApiExplorer()}
-                                  title={t("agentKeys.action.openInExplorer", "API Explorer에서 열기")}
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setScenarioTarget(key)}
-                                  title={t("agentKeys.action.editScenarios", "시나리오 접근 편집")}
-                                >
-                                  <List className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => { setWebhookTarget(key); setNewWebhookUrl(""); }}
-                                  title={t("agentKeys.action.manageWebhooks", "웹훅 구독 관리")}
-                                >
-                                  <Webhook className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => {
-                                    setRevokeTarget(key);
-                                    setRevokeReason("");
-                                  }}
-                                  title={t("agentKeys.action.revoke", "폐기")}
-                                >
-                                  <ShieldOff className="h-3.5 w-3.5" />
-                                </Button>
-                              </>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setScenarioTarget(key)}
+                              title={t("agentKeys.action.editScenarios", "시나리오 접근 편집")}
+                            >
+                              <List className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => { setWebhookTarget(key); setNewWebhookUrl(""); }}
+                              title={t("agentKeys.action.manageWebhooks", "웹훅 구독 관리")}
+                            >
+                              <Webhook className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                setRevokeTarget(key);
+                                setRevokeReason("");
+                              }}
+                              title={t("agentKeys.action.revoke", "폐기")}
+                            >
+                              <ShieldOff className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table layout (≥641px) */}
+              <div className="hidden sm:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("agentKeys.col.prefix", "키 Prefix")}</TableHead>
+                      <TableHead>{t("agentKeys.col.name", "이름")}</TableHead>
+                      <TableHead>{t("agentKeys.col.environment", "환경")}</TableHead>
+                      <TableHead>{t("agentKeys.col.status", "상태")}</TableHead>
+                      <TableHead>{t("agentKeys.col.scopes", "권한")}</TableHead>
+                      <TableHead>{t("agentKeys.col.expiresAt", "만료일")}</TableHead>
+                      <TableHead>{t("agentKeys.col.lastUsedAt", "마지막 사용")}</TableHead>
+                      <TableHead className="text-right">{t("agentKeys.col.monthlyRequests", "월 요청")}</TableHead>
+                      <TableHead className="text-right">{t("agentKeys.col.monthlyTokens", "월 토큰")}</TableHead>
+                      <TableHead className="text-right">{t("agentKeys.col.tokenAccuracy", "실 토큰률")}</TableHead>
+                      <TableHead className="text-right">{t("agentKeys.col.actions", "액션")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {keys.map((key) => {
+                      const isRevoked = !!key.revokedAt;
+                      return (
+                        <TableRow key={key.id} className={isRevoked ? "opacity-60" : ""}>
+                          <TableCell className="font-mono text-xs">
+                            <span className={isRevoked ? "line-through text-muted-foreground" : ""}>
+                              {key.keyPrefix}…
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm font-medium">
+                            <span className={isRevoked ? "line-through text-muted-foreground" : ""}>
+                              {key.name}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={
+                                key.environment === "live"
+                                  ? "text-blue-600 border-blue-300 bg-blue-50 dark:bg-blue-950"
+                                  : "text-slate-600 border-slate-300 bg-slate-50 dark:bg-slate-900"
+                              }
+                            >
+                              {key.environment}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {isRevoked ? (
+                              <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 dark:bg-red-950">
+                                <XCircle className="h-3 w-3 mr-1" />
+                                {t("agentKeys.status.revoked", "폐기됨")}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50 dark:bg-green-950">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                {t("agentKeys.status.active", "활성")}
+                              </Badge>
                             )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {(key.scopes ?? []).map((s) => (
+                                <Badge key={s} variant="secondary" className="text-xs px-1 py-0">
+                                  {s}
+                                </Badge>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {formatDate(key.expiresAt)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {formatDate(key.lastUsedAt)}
+                          </TableCell>
+                          <TableCell className="text-right text-sm font-mono">
+                            {key.monthlyRequestCount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-sm font-mono">
+                            {key.monthlyTotalTokens.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {key.monthlyRequestCount > 0 ? (() => {
+                              const realPct = Math.round(
+                                ((key.monthlyRequestCount - key.monthlyEstimatedRequestCount) / key.monthlyRequestCount) * 100
+                              );
+                              const isLow = realPct < 50;
+                              const isMid = realPct < 90;
+                              return (
+                                <Badge
+                                  variant="outline"
+                                  title={t("agentKeys.tokenAccuracy.tooltip", "이번 달 실제 토큰 수가 기록된 요청 비율")}
+                                  className={
+                                    isLow
+                                      ? "text-red-600 border-red-300 bg-red-50 dark:bg-red-950"
+                                      : isMid
+                                      ? "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950"
+                                      : "text-green-600 border-green-300 bg-green-50 dark:bg-green-950"
+                                  }
+                                >
+                                  {realPct}%
+                                </Badge>
+                              );
+                            })() : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setUsageTarget(key)}
+                                title={t("agentKeys.action.viewUsage", "사용량 보기")}
+                              >
+                                <BarChart2 className="h-3.5 w-3.5" />
+                              </Button>
+                              {!isRevoked && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openInApiExplorer()}
+                                    title={t("agentKeys.action.openInExplorer", "API Explorer에서 열기")}
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setScenarioTarget(key)}
+                                    title={t("agentKeys.action.editScenarios", "시나리오 접근 편집")}
+                                  >
+                                    <List className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => { setWebhookTarget(key); setNewWebhookUrl(""); }}
+                                    title={t("agentKeys.action.manageWebhooks", "웹훅 구독 관리")}
+                                  >
+                                    <Webhook className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => {
+                                      setRevokeTarget(key);
+                                      setRevokeReason("");
+                                    }}
+                                    title={t("agentKeys.action.revoke", "폐기")}
+                                  >
+                                    <ShieldOff className="h-3.5 w-3.5" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
