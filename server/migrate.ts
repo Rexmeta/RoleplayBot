@@ -1327,25 +1327,24 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add multi-persona columns to persona_runs:', err);
       }
 
-      // Migrate deprecated/invalid realtime model names to gemini-2.0-flash-live-preview-04-09.
-      // This is the verified working model for the Gemini Live bidiGenerateContent API (v1alpha).
+      // Migrate all deprecated/invalid realtime model names to gemini-live-2.5-flash-native-audio.
+      // This is the GA (production) model per Google Gemini Live API docs (June 2026).
+      // Uses v1beta for bidiGenerateContent. Preview models gemini-3.1-flash-live / gemini-3.5-live-translate use v1alpha.
       try {
         await client.query(`
           UPDATE system_settings
-          SET value = 'gemini-2.0-flash-live-preview-04-09', updated_at = now()
+          SET value = 'gemini-live-2.5-flash-native-audio', updated_at = now()
           WHERE category = 'ai'
             AND key = 'model_realtime'
-            AND value IN (
-              'gemini-2.5-flash-native-audio-preview-09-2025',
-              'gemini-2.5-flash-native-audio-preview-12-2025',
-              'gemini-live-2.5-flash-preview',
-              'gemini-live-2.5-flash',
-              'gemini-3.1-flash-live-preview',
-              'gemini-2.5-flash-live-preview',
-              'gemini-2.0-flash-live-001'
+            AND value NOT IN (
+              'gemini-live-2.5-flash-native-audio',
+              'gemini-3.1-flash-live',
+              'gemini-3.5-live-translate',
+              'gpt-4o-realtime-preview',
+              'gpt-4o-mini-realtime-preview'
             )
         `);
-        console.log('✅ Realtime model setting migrated (deprecated/invalid models → gemini-2.0-flash-live-preview-04-09)');
+        console.log('✅ Realtime model setting migrated (all deprecated models → gemini-live-2.5-flash-native-audio)');
       } catch (err) {
         console.warn('⚠️ Failed to migrate deprecated realtime model setting:', err);
       }

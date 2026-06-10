@@ -1,0 +1,48 @@
+구글 Gemini API 환경에서 **Live API(WebSocket 기반의 실시간 저지연 양방향 스트리밍)** 기술을 통해 사용할 수 있는 실시간 음성 및 멀티모달 모델 목록과 핵심 사양입니다.
+
+---
+
+## 1. 실시간(Live) 음성 모델 라인업
+
+구글은 실시간 양방향 오디오 대화 및 비디오 추론을 지원하기 위해 **`Live`** 혹은 **`native-audio`** 식별자가 포함된 전용 오디오 우선(Audio-to-Audio) 모델을 제공합니다.
+
+현재 프로덕션 및 프리뷰 환경에서 호출 가능한 모델 리스트는 다음과 같습니다.
+
+| 모델명 (Model ID) | 상태 | 주요 특징 및 최적화 용도 |
+| --- | --- | --- |
+| **`gemini-3.5-live-translate`** | **최신 프리뷰** | 차세대 실시간 통역 전용 모델. 사전 언어 지정 없이 **70개 이상의 다국어**를 자동 인식하며 화자의 감정, 억양, 속도를 유지한 채 실시간 음성 번역을 수행합니다. |
+| **`gemini-3.1-flash-live`** | **프리뷰** | 최신 대화형 음성 AI 앱에 최적화된 고성능 모델. 이전 세대 대비 추론 속도와 반응 지연 시간(Latency)이 크게 단축되었습니다. |
+| **`gemini-live-2.5-flash-native-audio`** | **GA (정식 출시)** | 엔터프라이즈 및 프로덕션 환경의 기본 워크호스 모델. 대화 도중 끼어들기(Barge-in) 기능 및 감정 표현을 이해하고 반영하는 **Affective Dialog**를 완벽하게 지원합니다. |
+
+> ⚠️ **과거 모델 지원 종료 안내:** 기존에 사용되던 `gemini-2.0-flash-exp`, `gemini-live-2.5-flash-preview-native-audio-09-2025` 등의 얼리 프리뷰 버전들은 현재 완전히 폐기(Shut down)되었으므로, 반드시 위 모델들로 마이그레이션하여 파이프라인을 구축하셔야 합니다.
+
+---
+
+## 2. 주요 기술 규격 (Technical Specs)
+
+실시간 음성 에이전트를 구축할 때 입력 및 출력 데이터 스트림은 아래 규격을 엄격히 준수해야 정상적인 WebSocket 통신이 가능합니다.
+
+* **컨텍스트 윈도우:** 최대 128K 입력 토큰 / 64K 출력 토큰 지원
+* **오디오 입력 포맷:** Raw 16-bit PCM 오디오 @ **16kHz**, Little-endian
+* **오디오 출력 포맷:** Raw 16-bit PCM 오디오 @ **24kHz**, Little-endian
+* **지원 기능:** 실시간 검색 Grounding, 함수 호출(Function Calling), 사용자 개입 감지(Barge-in), 오디오 실시간 텍스트화(Transcriptions)
+
+---
+
+## 3. 공식 문서 및 관련 링크
+
+공식 문서 및 SDK 구현 가이드라인 링크입니다.
+
+* **Google AI for Developers — Gemini Live API 개요**
+[ai.google.dev - Live API Overview](https://ai.google.dev/gemini-api/docs/live-api)
+* *전반적인 WebSocket 아키텍처(Server-to-Server vs Client-to-Server) 및 연동 파트너(LiveKit, Pipecat 등) 정보 가이드*
+
+
+* **Google AI for Developers — 최신 모델 가이드**
+[ai.google.dev - Available Models](https://ai.google.dev/gemini-api/docs/models)
+* *Gemini 3.5 및 3.1 라인업을 포함하여 현재 호출 가능한 모든 최신 API 모델 코드 일람*
+
+
+* **Google Cloud Vertex AI — Gemini 2.5 Flash Live API 엔터프라이즈 문서**
+[docs.cloud.google.com - Gemini 2.5 Flash Live API](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/2-5-flash-live-api)
+* *GA 등급 모델의 구체적인 토큰 한도, 동시 세션 제한(기본 1,000회), 보안 컨트롤 및 리전별 가용성 명세*

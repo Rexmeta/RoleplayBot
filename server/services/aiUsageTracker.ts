@@ -6,12 +6,16 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   // Gemini models (2025 pricing - unified thinking/non-thinking)
   'gemini-2.5-flash': { input: 0.30, output: 2.50 },
   'gemini-2.5-pro': { input: 1.25, output: 10.00 }, // ≤200K tokens
-  'gemini-2.0-flash-live-preview-04-09': { input: 0.35, output: 1.50 }, // Gemini Live 2.0 Flash (v1alpha)
-  'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 }, // Gemini Live (legacy alias)
-  'gemini-live-2.5-flash': { input: 0.35, output: 1.50 }, // Gemini Live 2.5 Flash (v1alpha, fallback)
-  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 }, // Deprecated (historical records only)
-  'gemini-3.1-flash-live-preview': { input: 0.35, output: 1.50 }, // Gemini 3.1 Flash Live (recommended)
-  'gemini-2.5-flash-native-audio-preview-09-2025': { input: 0.35, output: 1.50 }, // Deprecated (historical records only)
+  'gemini-live-2.5-flash-native-audio': { input: 0.35, output: 1.50 }, // GA Live (v1beta)
+  'gemini-3.1-flash-live': { input: 0.35, output: 1.50 },             // Preview Live (v1alpha)
+  'gemini-3.5-live-translate': { input: 0.35, output: 1.50 },         // Preview — translation (v1alpha)
+  // Legacy/deprecated — kept for historical usage log records only
+  'gemini-2.0-flash-live-preview-04-09': { input: 0.35, output: 1.50 },
+  'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 },
+  'gemini-live-2.5-flash': { input: 0.35, output: 1.50 },
+  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 },
+  'gemini-3.1-flash-live-preview': { input: 0.35, output: 1.50 },
+  'gemini-2.5-flash-native-audio-preview-09-2025': { input: 0.35, output: 1.50 },
   'gemini-2.5-flash-image-preview': { input: 0.30, output: 2.50 }, // Image generation
   'gemini-2.0-flash-preview-image-generation': { input: 0.30, output: 2.50 }, // Image generation (legacy)
   'veo-3.1-generate-preview': { input: 0.00, output: 0.00 }, // Veo video generation (per-video pricing, not per-token)

@@ -31,9 +31,13 @@ import { eq } from 'drizzle-orm';
 import { getOrCreateSessionContext } from './simulation/simulationEngine';
 import { createDefaultSimulationState } from './simulation/simulationTypes';
 
-const DEFAULT_REALTIME_MODEL = 'gemini-2.0-flash-live-preview-04-09';
+const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash-native-audio';
 
-const VALID_GEMINI_REALTIME_MODELS = ['gemini-2.0-flash-live-preview-04-09', 'gemini-live-2.5-flash-preview'];
+const VALID_GEMINI_REALTIME_MODELS = [
+  'gemini-live-2.5-flash-native-audio', // GA — v1beta
+  'gemini-3.1-flash-live',              // Preview — v1alpha
+  'gemini-3.5-live-translate',          // Preview — v1alpha (translation)
+];
 const VALID_OPENAI_REALTIME_MODELS = ['gpt-4o-realtime-preview', 'gpt-4o-mini-realtime-preview'];
 
 function isOpenAIRealtimeModel(model: string): boolean {
@@ -62,10 +66,12 @@ async function preloadRecentMessages(
   }
 }
 
-// All Gemini Live models use v1alpha for bidiGenerateContent (Live API).
-// v1beta does not support bidiGenerateContent for any current Live model.
-function geminiLiveApiVersion(_model: string): 'v1alpha' | 'v1beta' {
-  return 'v1alpha';
+// GA models use v1beta; preview/experimental models use v1alpha.
+// gemini-live-2.5-flash-native-audio is GA → v1beta
+// gemini-3.1-flash-live and gemini-3.5-live-translate are preview → v1alpha
+function geminiLiveApiVersion(model: string): 'v1alpha' | 'v1beta' {
+  const gaModels = ['gemini-live-2.5-flash-native-audio'];
+  return gaModels.includes(model) ? 'v1beta' : 'v1alpha';
 }
 
 export class RealtimeVoiceService {
