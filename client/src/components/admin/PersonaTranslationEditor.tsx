@@ -421,91 +421,91 @@ export function PersonaTranslationEditor({
                       </CollapsibleTrigger>
                       <CollapsibleContent className="border border-t-0 rounded-b p-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalPersonality')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px]">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] flex-1">
                               {(sourceData?.personality?.traits || personaTraits || []).join('\n') || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.personality')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
                             <Textarea
                               value={(translation.personalityTraits || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'personalityTraits', e.target.value)}
                               placeholder={`${t('admin.personaTranslationEditor.placeholder.trait')}1\n${t('admin.personaTranslationEditor.placeholder.trait')}2\n${t('admin.personaTranslationEditor.placeholder.trait')}3`}
-                              rows={3}
+                              className="flex-1 min-h-[60px]"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalCommunication')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap flex-1">
                               {sourceData?.personality?.communicationStyle || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.communication')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.communicationStyle || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'communicationStyle', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.communication')}...`}
-                              rows={2}
+                              className="flex-1 min-h-[60px]"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalMotivation')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap flex-1">
                               {sourceData?.personality?.motivation || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.motivationLabel')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.motivation || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'motivation', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.motivationLabel')}...`}
-                              rows={2}
+                              className="flex-1 min-h-[60px]"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalFears')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px]">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] flex-1">
                               {(sourceData?.personality?.fears || []).join('\n') || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.fearsLabel')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
                             <Textarea
                               value={(translation.fears || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'fears', e.target.value)}
                               placeholder={`${t('admin.personaTranslationEditor.placeholder.fear')}1\n${t('admin.personaTranslationEditor.placeholder.fear')}2`}
-                              rows={2}
+                              className="flex-1 min-h-[60px]"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalPersonalityDesc')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap flex-1">
                               {(sourceData?.personality?.traits || personaTraits || []).join(', ') || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.personalityDesc')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.personalityDescription || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'personalityDescription', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.personalityDesc')}...`}
-                              rows={2}
+                              className="flex-1 min-h-[60px]"
                             />
                           </div>
                         </div>
@@ -536,73 +536,73 @@ export function PersonaTranslationEditor({
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalExperience')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap flex-1">
                               {(typeof sourceData?.background === 'object' ? sourceData?.background?.previousExperience : '') || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.experience')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.previousExperience || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'previousExperience', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.experience')}...`}
-                              rows={2}
+                              className="flex-1 min-h-[60px]"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalProjects')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px]">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] flex-1">
                               {(typeof sourceData?.background === 'object' ? (sourceData?.background?.majorProjects || []).join('\n') : '') || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.projects')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
                             <Textarea
                               value={(translation.majorProjects || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'majorProjects', e.target.value)}
                               placeholder={`${t('admin.personaTranslationEditor.placeholder.project')}1\n${t('admin.personaTranslationEditor.placeholder.project')}2`}
-                              rows={2}
+                              className="flex-1 min-h-[60px]"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalExpertise')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[60px]">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[60px] flex-1">
                               {(typeof sourceData?.background === 'object' ? (sourceData?.background?.expertise || []).join('\n') : '') || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.expertise')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
                             <Textarea
                               value={(translation.expertise || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'expertise', e.target.value)}
                               placeholder={`${t('admin.personaTranslationEditor.placeholder.expertiseItem')}1\n${t('admin.personaTranslationEditor.placeholder.expertiseItem')}2`}
-                              rows={2}
+                              className="flex-1 min-h-[60px]"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label className="text-muted-foreground text-xs">{t('admin.personaTranslationEditor.label.originalBackground')}</Label>
-                            <div className="p-2 bg-muted rounded text-sm min-h-[80px] whitespace-pre-wrap">
+                            <div className="p-2 bg-muted rounded text-sm min-h-[80px] whitespace-pre-wrap flex-1">
                               {getSourceBackground() || '-'}
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.backgroundLabel')} ({lang.nativeName})</Label>
                             <Textarea
                               value={translation.background || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'background', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.backgroundLabel')}...`}
-                              rows={3}
+                              className="flex-1 min-h-[80px]"
                             />
                           </div>
                         </div>

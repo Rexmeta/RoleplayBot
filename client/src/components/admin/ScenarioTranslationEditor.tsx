@@ -641,17 +641,17 @@ export function ScenarioTranslationEditor({
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-muted-foreground text-xs">원본 설명 ({sourceLanguage?.nativeName})</Label>
-                          <div className="p-2 bg-muted rounded text-sm min-h-[80px] whitespace-pre-wrap">{origDescription}</div>
+                          <div className="p-2 bg-muted rounded text-sm min-h-[80px] whitespace-pre-wrap flex-1">{origDescription}</div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label>번역 설명 ({lang.name})</Label>
                           <Textarea
                             value={translation.description || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'description', e.target.value)}
                             placeholder={`${lang.nativeName} 설명 입력...`}
-                            rows={3}
+                            className="flex-1 min-h-[80px]"
                           />
                         </div>
                       </div>
@@ -663,19 +663,19 @@ export function ScenarioTranslationEditor({
                       <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">상황 설정 (Context)</h4>
                       
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-muted-foreground text-xs">원본 상황 설명</Label>
-                          <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap">
+                          <div className="p-2 bg-muted rounded text-sm min-h-[60px] whitespace-pre-wrap flex-1">
                             {origSituation || '(미설정)'}
                           </div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label>번역 상황 설명 ({lang.name})</Label>
                           <Textarea
                             value={translation.situation || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'situation', e.target.value)}
                             placeholder={`${lang.nativeName} 상황 설명...`}
-                            rows={2}
+                            className="flex-1 min-h-[60px]"
                           />
                         </div>
                       </div>
@@ -864,77 +864,73 @@ export function ScenarioTranslationEditor({
                       <h4 className="font-semibold text-sm text-slate-700 border-b pb-2">성공 기준 (Success Criteria)</h4>
                       
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-muted-foreground text-xs">원본 최적 (Optimal)</Label>
-                          <div className="p-2 bg-green-50 border border-green-200 rounded text-sm min-h-[40px]">
+                          <div className="p-2 bg-green-50 border border-green-200 rounded text-sm min-h-[40px] flex-1">
                             {scenarioSuccessCriteria?.optimal || '(미설정)'}
                           </div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-green-700">번역 최적 ({lang.name})</Label>
                           <Textarea
                             value={translation.successCriteriaOptimal || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'successCriteriaOptimal', e.target.value)}
                             placeholder={`${lang.nativeName} 최적 기준...`}
-                            rows={2}
-                            className="border-green-200 focus:border-green-400"
+                            className="flex-1 min-h-[40px] border-green-200 focus:border-green-400"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-muted-foreground text-xs">원본 양호 (Good)</Label>
-                          <div className="p-2 bg-blue-50 border border-blue-200 rounded text-sm min-h-[40px]">
+                          <div className="p-2 bg-blue-50 border border-blue-200 rounded text-sm min-h-[40px] flex-1">
                             {scenarioSuccessCriteria?.good || '(미설정)'}
                           </div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-blue-700">번역 양호 ({lang.name})</Label>
                           <Textarea
                             value={translation.successCriteriaGood || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'successCriteriaGood', e.target.value)}
                             placeholder={`${lang.nativeName} 양호 기준...`}
-                            rows={2}
-                            className="border-blue-200 focus:border-blue-400"
+                            className="flex-1 min-h-[40px] border-blue-200 focus:border-blue-400"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-muted-foreground text-xs">원본 수용가능 (Acceptable)</Label>
-                          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm min-h-[40px]">
+                          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm min-h-[40px] flex-1">
                             {scenarioSuccessCriteria?.acceptable || '(미설정)'}
                           </div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-yellow-700">번역 수용가능 ({lang.name})</Label>
                           <Textarea
                             value={translation.successCriteriaAcceptable || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'successCriteriaAcceptable', e.target.value)}
                             placeholder={`${lang.nativeName} 수용가능 기준...`}
-                            rows={2}
-                            className="border-yellow-200 focus:border-yellow-400"
+                            className="flex-1 min-h-[40px] border-yellow-200 focus:border-yellow-400"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-muted-foreground text-xs">원본 실패 (Failure)</Label>
-                          <div className="p-2 bg-red-50 border border-red-200 rounded text-sm min-h-[40px]">
+                          <div className="p-2 bg-red-50 border border-red-200 rounded text-sm min-h-[40px] flex-1">
                             {scenarioSuccessCriteria?.failure || '(미설정)'}
                           </div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                           <Label className="text-red-700">번역 실패 ({lang.name})</Label>
                           <Textarea
                             value={translation.successCriteriaFailure || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'successCriteriaFailure', e.target.value)}
                             placeholder={`${lang.nativeName} 실패 기준...`}
-                            rows={2}
-                            className="border-red-200 focus:border-red-400"
+                            className="flex-1 min-h-[40px] border-red-200 focus:border-red-400"
                           />
                         </div>
                       </div>
@@ -1009,49 +1005,49 @@ export function ScenarioTranslationEditor({
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1">
+                                  <div className="space-y-1 flex flex-col">
                                     <Label className="text-muted-foreground text-xs">원본 입장/태도</Label>
-                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap">{persona.stance || '-'}</div>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap flex-1">{persona.stance || '-'}</div>
                                   </div>
-                                  <div className="space-y-1">
+                                  <div className="space-y-1 flex flex-col">
                                     <Label className="text-xs">입장/태도 ({lang.nativeName})</Label>
                                     <Textarea
                                       value={ctx.stance || ''}
                                       onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'stance', e.target.value)}
                                       placeholder={`${lang.nativeName} 입장/태도...`}
-                                      rows={2}
+                                      className="flex-1 min-h-[40px]"
                                     />
                                   </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1">
+                                  <div className="space-y-1 flex flex-col">
                                     <Label className="text-muted-foreground text-xs">원본 목표</Label>
-                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap">{persona.goal || '-'}</div>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap flex-1">{persona.goal || '-'}</div>
                                   </div>
-                                  <div className="space-y-1">
+                                  <div className="space-y-1 flex flex-col">
                                     <Label className="text-xs">목표 ({lang.nativeName})</Label>
                                     <Textarea
                                       value={ctx.goal || ''}
                                       onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'goal', e.target.value)}
                                       placeholder={`${lang.nativeName} 목표...`}
-                                      rows={2}
+                                      className="flex-1 min-h-[40px]"
                                     />
                                   </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-1">
+                                  <div className="space-y-1 flex flex-col">
                                     <Label className="text-muted-foreground text-xs">원본 협상 가능 범위</Label>
-                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap">{persona.tradeoff || '-'}</div>
+                                    <div className="p-2 bg-white border rounded text-sm min-h-[40px] whitespace-pre-wrap flex-1">{persona.tradeoff || '-'}</div>
                                   </div>
-                                  <div className="space-y-1">
+                                  <div className="space-y-1 flex flex-col">
                                     <Label className="text-xs">협상 가능 범위 ({lang.nativeName})</Label>
                                     <Textarea
                                       value={ctx.tradeoff || ''}
                                       onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'tradeoff', e.target.value)}
                                       placeholder={`${lang.nativeName} 협상 가능 범위...`}
-                                      rows={2}
+                                      className="flex-1 min-h-[40px]"
                                     />
                                   </div>
                                 </div>
