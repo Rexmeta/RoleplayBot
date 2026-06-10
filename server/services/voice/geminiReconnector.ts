@@ -19,6 +19,10 @@ const FATAL_REASON_PATTERNS = [
   'permission_denied',
   'PERMISSION_DENIED',
   'billing',
+  'API key not valid',
+  'api key not valid',
+  'API_KEY_INVALID',
+  'invalid api key',
 ];
 
 function isFatalClose(event: any): boolean {
