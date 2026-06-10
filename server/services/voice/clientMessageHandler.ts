@@ -84,6 +84,10 @@ export function handleClientMessage(
     case 'input_audio_buffer.append': {
       const audioLength = message.audio ? message.audio.length : 0;
       console.log(`🎤 Received audio chunk: ${audioLength} bytes (base64)`);
+      if (session.suppressAIUntilUserSpeaks) {
+        session.suppressAIUntilUserSpeaks = false;
+        console.log('🔊 User started speaking — lifting suppressAIUntilUserSpeaks');
+      }
       const audioPayload = {
         audio: { data: message.audio, mimeType: 'audio/pcm;rate=16000' },
       };
@@ -214,6 +218,11 @@ export function handleClientMessage(
             // setting true would cause an immediate unsolicited AI response.
             const ctxPayload = { turns: [{ role: 'user', parts: [{ text: contextMessage }] }], turnComplete: false };
             pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: ctxPayload } });
+            // Suppress any unsolicited AI audio that Gemini may generate in response
+            // to this turnComplete:false context injection (Gemini sometimes ignores
+            // the false flag and speaks the context aloud, causing a duplicate audio).
+            session.suppressAIUntilUserSpeaks = true;
+            console.log('🔇 suppressAIUntilUserSpeaks=true (text-to-voice context injected)');
             geminiSessionRef.sendClientContent(ctxPayload);
           })().catch(err => console.error('❌ Failed to build/send text-to-voice context:', err));
         }

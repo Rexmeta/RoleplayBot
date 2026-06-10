@@ -78,4 +78,5 @@ export interface RealtimeSession {
   simulationHarness?: import('@shared/schema/scenarios').SimulationHarness | null;
   terminationHandled?: boolean;
   evaluationInProgress?: boolean;
+  suppressAIUntilUserSpeaks?: boolean;
 }

@@ -711,6 +711,10 @@ export class RealtimeVoiceService {
     }
     const ctxPayload = { turns: [{ role: 'user', parts: [{ text: reconnectText }] }], turnComplete: false };
     session.pendingMessages.push({ index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: ctxPayload } });
+    // Suppress any unsolicited Gemini audio triggered by this turnComplete:false
+    // context injection — Gemini sometimes speaks the context aloud despite the flag.
+    session.suppressAIUntilUserSpeaks = true;
+    console.log('🔇 suppressAIUntilUserSpeaks=true (reconnect context injected)');
     session.geminiSession.sendClientContent(ctxPayload);
   }
 

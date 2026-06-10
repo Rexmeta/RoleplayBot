@@ -538,6 +538,10 @@ export function handleGeminiMessage(
         }
 
         if (part.inlineData) {
+          if (session.suppressAIUntilUserSpeaks) {
+            console.log(`🔇 Suppressing inline audio (awaiting user speech after context injection)`);
+            continue;
+          }
           if (session.isInterrupted) {
             if (session.turnSeq > session.cancelledTurnSeq) {
               console.log(`🔄 Inline audio arrived for new turn (turnSeq=${session.turnSeq} > cancelledTurnSeq=${session.cancelledTurnSeq}) — clearing isInterrupted`);
@@ -581,33 +585,39 @@ export function handleGeminiMessage(
       const transcript = serverContent.outputTranscription.text || '';
       console.log(`🤖 AI transcript delta (raw): ${transcript}`);
 
-      if (session.isInterrupted && transcript.length > 0) {
-        console.log(`🔊 New AI response started - clearing barge-in flag immediately`);
-        session.isInterrupted = false;
-        session.cancelledTurnSeq = -1;
-        sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-      }
+      if (session.suppressAIUntilUserSpeaks) {
+        console.log(`🔇 Suppressing outputTranscription (awaiting user speech after context injection): "${transcript.substring(0, 80)}"`);
+        // Still accumulate so turnComplete can clear it cleanly, but do NOT forward to client
+        session.currentTranscript += transcript;
+      } else {
+        if (session.isInterrupted && transcript.length > 0) {
+          console.log(`🔊 New AI response started - clearing barge-in flag immediately`);
+          session.isInterrupted = false;
+          session.cancelledTurnSeq = -1;
+          sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
+        }
 
-      if (transcript.length > 0 && !session.hasReceivedFirstTranscriptDelta) {
-        session.hasReceivedFirstTranscriptDelta = true;
-        console.log(`✅ First transcript delta received`);
-      }
+        if (transcript.length > 0 && !session.hasReceivedFirstTranscriptDelta) {
+          session.hasReceivedFirstTranscriptDelta = true;
+          console.log(`✅ First transcript delta received`);
+        }
 
-      // Always accumulate outputTranscription: it is the authoritative
-      // transcription of what the AI actually spoke (produced by Gemini's
-      // outputAudioTranscription feature). Previously this was gated on
-      // `!serverContent.modelTurn` to avoid double-counting with
-      // modelTurn.parts[].text, but gemini-live-2.5-flash sends both fields
-      // in the same message for every non-greeting turn — causing the
-      // transcription to be silently dropped and never sent as
-      // ai.transcription.done. modelTurn accumulation is now suppressed
-      // when outputTranscription is present (see preferOutputTranscription).
-      session.currentTranscript += transcript;
-      session.totalAiTranscriptLength += transcript.length;
+        // Always accumulate outputTranscription: it is the authoritative
+        // transcription of what the AI actually spoke (produced by Gemini's
+        // outputAudioTranscription feature). Previously this was gated on
+        // `!serverContent.modelTurn` to avoid double-counting with
+        // modelTurn.parts[].text, but gemini-live-2.5-flash sends both fields
+        // in the same message for every non-greeting turn — causing the
+        // transcription to be silently dropped and never sent as
+        // ai.transcription.done. modelTurn accumulation is now suppressed
+        // when outputTranscription is present (see preferOutputTranscription).
+        session.currentTranscript += transcript;
+        session.totalAiTranscriptLength += transcript.length;
 
-      const filteredTranscript = filterThinkingText(transcript, session.userLanguage, { strictMode: session.turnSeq === 0 });
-      if (filteredTranscript) {
-        sendToClient(session, { type: 'ai.transcription.delta', text: filteredTranscript });
+        const filteredTranscript = filterThinkingText(transcript, session.userLanguage, { strictMode: session.turnSeq === 0 });
+        if (filteredTranscript) {
+          sendToClient(session, { type: 'ai.transcription.delta', text: filteredTranscript });
+        }
       }
     }
 
@@ -873,7 +883,13 @@ export function handleGeminiMessage(
         }
       }
 
-      if (session.currentTranscript) {
+      if (session.suppressAIUntilUserSpeaks) {
+        // Gemini generated an unsolicited turn after our turnComplete:false context
+        // injection (a known Gemini Live quirk). Discard transcript + audio silently.
+        console.log(`🔇 [turnComplete] Discarding suppressed AI turn (awaiting user speech) — transcript: "${session.currentTranscript.substring(0, 80)}"`);
+        session.currentTranscript = '';
+        // Keep suppressAIUntilUserSpeaks=true; it is cleared only when actual user audio arrives.
+      } else if (session.currentTranscript) {
         // turnSeq has already been incremented by the time we reach here, so
         // the first completed turn has turnSeq === 1.  Use <= 1 to keep strict
         // mode active for the first turn's accumulated transcript.
