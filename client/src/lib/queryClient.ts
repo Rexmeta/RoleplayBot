@@ -11,8 +11,66 @@ function handle401(): void {
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
+    const isHtml = text.trim().startsWith('<');
+    if (isHtml) {
+      throw new Error(`서버에 연결할 수 없습니다 (${res.status}). 잠시 후 다시 시도해주세요.`);
+    }
     throw new Error(`${res.status}: ${text}`);
   }
+}
+
+/**
+ * SSE 스트리밍 요청 — AI 생성처럼 오래 걸리는 작업에 사용.
+ * 서버는 5초마다 heartbeat를 보내 프록시 연결을 유지하고, 완료 시 결과를 전송한다.
+ */
+export async function streamApiRequest(
+  url: string,
+  data?: unknown
+): Promise<Record<string, any>> {
+  const token = localStorage.getItem("authToken");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
+  });
+
+  if (!response.ok || !response.body) {
+    const text = (await response.text()) || response.statusText;
+    const isHtml = text.trim().startsWith("<");
+    throw new Error(
+      isHtml
+        ? `서버에 연결할 수 없습니다 (${response.status}). 잠시 후 다시 시도해주세요.`
+        : `${response.status}: ${text}`
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      if (!raw) continue;
+      let payload: any;
+      try { payload = JSON.parse(raw); } catch { continue; }
+      if (payload.type === "heartbeat") continue;
+      if (payload.type === "error") throw new Error(payload.message || "AI 생성 실패");
+      if (payload.type === "result") return payload;
+    }
+  }
+  throw new Error("AI 생성 응답이 올바르지 않습니다");
 }
 
 export async function apiRequest(

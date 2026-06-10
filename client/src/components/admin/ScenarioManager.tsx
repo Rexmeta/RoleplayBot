@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest, queryClient } from '@/lib/queryClient';
+import { apiRequest, queryClient, streamApiRequest } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
 import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema, simulationHarnessSchema, playerConstraintsSchema, difficultyProfileSchema, analyticsSpecSchema, TRACKED_METRICS, REPORT_SECTIONS } from '@shared/schema/scenarios';
 import type { TrackedMetricKey, ReportSectionKey, EvaluationHarness, TerminationRules, TerminationConditionGroup, FlowGraph, PersonaSwitchRules, PlayerConstraints, DifficultyProfile } from '@shared/schema/scenarios';
@@ -1276,14 +1276,13 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     if (!canGenerateAI) return;
     setIsGeneratingEvaluationHarness(true);
     try {
-      const response = await apiRequest('POST', '/api/admin/generate-evaluation-harness', {
+      const data = await streamApiRequest('/api/admin/generate-evaluation-harness', {
         title: formData.title,
         description: formData.description,
         objectives: formData.objectives,
         situation: formData.context.situation,
         playerRole: formData.context.playerRole,
       });
-      const data = await response.json();
       if (!data.success || !data.evaluationHarness) throw new Error('AI 응답이 올바르지 않습니다');
       setAiPreviewData(data.evaluationHarness);
       setAiPreviewType('evaluationHarness');
@@ -1299,14 +1298,13 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     if (!canGenerateAI) return;
     setIsGeneratingPlayerConstraints(true);
     try {
-      const response = await apiRequest('POST', '/api/admin/generate-player-constraints', {
+      const data = await streamApiRequest('/api/admin/generate-player-constraints', {
         title: formData.title,
         description: formData.description,
         objectives: formData.objectives,
         situation: formData.context.situation,
         playerRole: formData.context.playerRole,
       });
-      const data = await response.json();
       if (!data.success || !data.playerConstraints) throw new Error('AI 응답이 올바르지 않습니다');
       setAiPreviewData(data.playerConstraints);
       setAiPreviewType('playerConstraints');
@@ -1323,7 +1321,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     const persona = formData.personas[index];
     setIsGeneratingNpcBehaviorHarness(prev => ({ ...prev, [index]: true }));
     try {
-      const response = await apiRequest('POST', '/api/admin/generate-npc-behavior-harness', {
+      const data = await streamApiRequest('/api/admin/generate-npc-behavior-harness', {
         title: formData.title,
         description: formData.description,
         situation: formData.context.situation,
@@ -1334,7 +1332,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           tradeoff: persona.tradeoff,
         },
       });
-      const data = await response.json();
       if (!data.success || !data.npcBehaviorHarness) throw new Error('AI 응답이 올바르지 않습니다');
 
       if (persona.npcBehaviorHarness) {

@@ -16,6 +16,33 @@ import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { validateScenario } from "../services/scenarios/scenarioValidator";
 import { mediaStorage } from "../services/mediaStorage";
 
+/** SSE 헬퍼 — AI 생성 엔드포인트의 프록시 타임아웃 방지 */
+async function streamWithHeartbeat(
+  res: express.Response,
+  fn: () => Promise<Record<string, any>>
+): Promise<void> {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const heartbeat = setInterval(() => {
+    res.write('data: {"type":"heartbeat"}\n\n');
+  }, 5000);
+
+  try {
+    const result = await fn();
+    clearInterval(heartbeat);
+    res.write(`data: ${JSON.stringify({ type: 'result', ...result })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    clearInterval(heartbeat);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: err.message || 'AI 생성 실패' })}\n\n`);
+    res.end();
+  }
+}
+
 export default function createAdminScenariosRouter(isAuthenticated: any) {
   const router = Router();
 
@@ -97,35 +124,45 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     });
   }));
 
-  router.post("/api/admin/generate-evaluation-harness", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+  router.post("/api/admin/generate-evaluation-harness", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     const { title, description, objectives, situation, playerRole } = req.body;
     if (!title && !description) {
-      throw createHttpError(400, "시나리오 제목 또는 설명이 필요합니다");
+      res.status(400).json({ message: "시나리오 제목 또는 설명이 필요합니다" });
+      return;
     }
-    const result = await generateEvaluationHarnessWithAI({ title, description, objectives, situation, playerRole });
-    res.json({ success: true, evaluationHarness: result });
-  }));
+    await streamWithHeartbeat(res, async () => {
+      const result = await generateEvaluationHarnessWithAI({ title, description, objectives, situation, playerRole });
+      return { success: true, evaluationHarness: result };
+    });
+  });
 
-  router.post("/api/admin/generate-player-constraints", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+  router.post("/api/admin/generate-player-constraints", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     const { title, description, objectives, situation, playerRole } = req.body;
     if (!title && !description) {
-      throw createHttpError(400, "시나리오 제목 또는 설명이 필요합니다");
+      res.status(400).json({ message: "시나리오 제목 또는 설명이 필요합니다" });
+      return;
     }
-    const result = await generatePlayerConstraintsWithAI({ title, description, objectives, situation, playerRole });
-    res.json({ success: true, playerConstraints: result });
-  }));
+    await streamWithHeartbeat(res, async () => {
+      const result = await generatePlayerConstraintsWithAI({ title, description, objectives, situation, playerRole });
+      return { success: true, playerConstraints: result };
+    });
+  });
 
-  router.post("/api/admin/generate-npc-behavior-harness", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+  router.post("/api/admin/generate-npc-behavior-harness", isAuthenticated, isOperatorOrAdmin, async (req, res) => {
     const { title, description, situation, persona } = req.body;
     if (!title && !description) {
-      throw createHttpError(400, "시나리오 제목 또는 설명이 필요합니다");
+      res.status(400).json({ message: "시나리오 제목 또는 설명이 필요합니다" });
+      return;
     }
     if (!persona || typeof persona !== 'object') {
-      throw createHttpError(400, "페르소나 정보가 필요합니다");
+      res.status(400).json({ message: "페르소나 정보가 필요합니다" });
+      return;
     }
-    const result = await generateNpcBehaviorHarnessWithAI({ title, description, situation, persona });
-    res.json({ success: true, npcBehaviorHarness: result });
-  }));
+    await streamWithHeartbeat(res, async () => {
+      const result = await generateNpcBehaviorHarnessWithAI({ title, description, situation, persona });
+      return { success: true, npcBehaviorHarness: result };
+    });
+  });
 
   router.post("/api/admin/fill-scenario-fields", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const { idea } = req.body;
