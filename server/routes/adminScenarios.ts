@@ -16,6 +16,8 @@ import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { validateScenario } from "../services/scenarios/scenarioValidator";
 import { mediaStorage } from "../services/mediaStorage";
 
+const AI_STREAM_TIMEOUT_MS = 55_000;
+
 /** SSE 헬퍼 — AI 생성 엔드포인트의 프록시 타임아웃 방지 */
 async function streamWithHeartbeat(
   res: express.Response,
@@ -25,21 +27,41 @@ async function streamWithHeartbeat(
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  // Nagle 알고리즘 비활성화: heartbeat 패킷이 즉시 전송되도록 보장
+  const socket = (res as any).socket;
+  if (socket) {
+    socket.setNoDelay(true);
+    socket.setTimeout(0);
+  }
   res.flushHeaders();
 
+  // 2.5초마다 heartbeat — Replit 프록시 idle timeout(~30초) 방지
   const heartbeat = setInterval(() => {
-    res.write('data: {"type":"heartbeat"}\n\n');
-  }, 5000);
+    try { res.write('data: {"type":"heartbeat"}\n\n'); } catch { /* 연결 이미 끊긴 경우 */ }
+  }, 2500);
+
+  // 55초 하드 타임아웃 — 프록시 30초 한도 내에서 에러를 반환하도록
+  const timeout = setTimeout(() => {
+    clearInterval(heartbeat);
+    try {
+      res.write('data: {"type":"error","message":"AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요."}\n\n');
+      res.end();
+    } catch { /* 이미 닫힌 경우 */ }
+  }, AI_STREAM_TIMEOUT_MS);
 
   try {
     const result = await fn();
     clearInterval(heartbeat);
+    clearTimeout(timeout);
     res.write(`data: ${JSON.stringify({ type: 'result', ...result })}\n\n`);
     res.end();
   } catch (err: any) {
     clearInterval(heartbeat);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: err.message || 'AI 생성 실패' })}\n\n`);
-    res.end();
+    clearTimeout(timeout);
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'error', message: err.message || 'AI 생성 실패' })}\n\n`);
+      res.end();
+    } catch { /* 이미 닫힌 경우 */ }
   }
 }
 

@@ -4,6 +4,7 @@
  *   POST /api/admin/generate-player-constraints
  *
  * Mocks GoogleGenAI and the two AI generator functions so no live API key is needed.
+ * Endpoints now respond with SSE (text/event-stream) — helper parseSseResult() extracts payload.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
@@ -80,6 +81,25 @@ vi.mock('../../server/services/aiServiceFactory', () => ({
 
 import { generateEvaluationHarnessWithAI, generatePlayerConstraintsWithAI } from '../../server/services/aiScenarioGenerator';
 import createAdminScenariosRouter from '../../server/routes/adminScenarios';
+
+// ─── SSE helper ───────────────────────────────────────────────────────────────
+
+/**
+ * Parse the SSE text/event-stream body and return the first non-heartbeat payload.
+ * Returns null if no such event is found.
+ */
+function parseSseResult(text: string): Record<string, any> | null {
+  for (const line of text.split('\n')) {
+    if (!line.startsWith('data: ')) continue;
+    const raw = line.slice(6).trim();
+    if (!raw) continue;
+    try {
+      const payload = JSON.parse(raw);
+      if (payload.type !== 'heartbeat') return payload;
+    } catch { continue; }
+  }
+  return null;
+}
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -162,7 +182,7 @@ describe('POST /api/admin/generate-evaluation-harness', () => {
       .send({});
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBeTruthy();
+    expect(res.body.message).toBeTruthy();
   });
 
   it('returns 400 when title is empty string and description is absent', async () => {
@@ -181,8 +201,9 @@ describe('POST /api/admin/generate-evaluation-harness', () => {
       .send({ title: 'Project Delay Negotiation', description: 'Handle a delayed delivery scenario' });
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.evaluationHarness).toEqual(VALID_HARNESS);
+    const payload = parseSseResult(res.text);
+    expect(payload?.success).toBe(true);
+    expect(payload?.evaluationHarness).toEqual(VALID_HARNESS);
   });
 
   it('accepts context with only title (no description)', async () => {
@@ -193,7 +214,8 @@ describe('POST /api/admin/generate-evaluation-harness', () => {
       .send({ title: 'Conflict Resolution' });
 
     expect(res.status).toBe(200);
-    expect(res.body.evaluationHarness.dimensions).toHaveLength(2);
+    const payload = parseSseResult(res.text);
+    expect(payload?.evaluationHarness?.dimensions).toHaveLength(2);
   });
 
   it('accepts context with only description (no title)', async () => {
@@ -204,7 +226,8 @@ describe('POST /api/admin/generate-evaluation-harness', () => {
       .send({ description: 'A customer complaint escalation scenario' });
 
     expect(res.status).toBe(200);
-    expect(res.body.evaluationHarness.passingRule?.minAverageScore).toBe(60);
+    const payload = parseSseResult(res.text);
+    expect(payload?.evaluationHarness?.passingRule?.minAverageScore).toBe(60);
   });
 
   it('forwards optional fields (objectives, situation, playerRole) to the generator', async () => {
@@ -229,7 +252,7 @@ describe('POST /api/admin/generate-evaluation-harness', () => {
     );
   });
 
-  it('returns 500 when the AI generator throws due to invalid response shape', async () => {
+  it('streams an error event when the AI generator throws', async () => {
     vi.mocked(generateEvaluationHarnessWithAI).mockRejectedValue(
       new Error('AI가 반환한 evaluationHarness 형식이 잘못되었습니다: Invalid enum value'),
     );
@@ -238,8 +261,10 @@ describe('POST /api/admin/generate-evaluation-harness', () => {
       .post('/api/admin/generate-evaluation-harness')
       .send({ title: 'Bad AI Response' });
 
-    expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/evaluationHarness/i);
+    expect(res.status).toBe(200);
+    const payload = parseSseResult(res.text);
+    expect(payload?.type).toBe('error');
+    expect(payload?.message).toMatch(/evaluationHarness/i);
   });
 });
 
@@ -257,7 +282,7 @@ describe('POST /api/admin/generate-player-constraints', () => {
       .send({});
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBeTruthy();
+    expect(res.body.message).toBeTruthy();
   });
 
   it('returns 400 when title is empty string and description is absent', async () => {
@@ -276,8 +301,9 @@ describe('POST /api/admin/generate-player-constraints', () => {
       .send({ title: 'Delivery Negotiation', description: 'Negotiate a delayed delivery timeline' });
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.playerConstraints).toEqual(VALID_CONSTRAINTS);
+    const payload = parseSseResult(res.text);
+    expect(payload?.success).toBe(true);
+    expect(payload?.playerConstraints).toEqual(VALID_CONSTRAINTS);
   });
 
   it('accepts context with only title (no description)', async () => {
@@ -288,7 +314,8 @@ describe('POST /api/admin/generate-player-constraints', () => {
       .send({ title: 'Conflict Resolution' });
 
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body.playerConstraints.canOffer)).toBe(true);
+    const payload = parseSseResult(res.text);
+    expect(Array.isArray(payload?.playerConstraints?.canOffer)).toBe(true);
   });
 
   it('accepts context with only description (no title)', async () => {
@@ -299,7 +326,8 @@ describe('POST /api/admin/generate-player-constraints', () => {
       .send({ description: 'Customer service escalation' });
 
     expect(res.status).toBe(200);
-    expect(res.body.playerConstraints.authorityLevel).toBeTruthy();
+    const payload = parseSseResult(res.text);
+    expect(payload?.playerConstraints?.authorityLevel).toBeTruthy();
   });
 
   it('forwards optional fields (objectives, situation, playerRole) to the generator', async () => {
@@ -324,7 +352,7 @@ describe('POST /api/admin/generate-player-constraints', () => {
     );
   });
 
-  it('returns 500 when the AI generator throws due to invalid response shape', async () => {
+  it('streams an error event when the AI generator throws', async () => {
     vi.mocked(generatePlayerConstraintsWithAI).mockRejectedValue(
       new Error('AI가 반환한 playerConstraints 형식이 잘못되었습니다: Required field missing'),
     );
@@ -333,8 +361,10 @@ describe('POST /api/admin/generate-player-constraints', () => {
       .post('/api/admin/generate-player-constraints')
       .send({ title: 'Bad AI Response' });
 
-    expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/playerConstraints/i);
+    expect(res.status).toBe(200);
+    const payload = parseSseResult(res.text);
+    expect(payload?.type).toBe('error');
+    expect(payload?.message).toMatch(/playerConstraints/i);
   });
 
   it('playerConstraints shape includes all expected keys', async () => {
@@ -344,7 +374,8 @@ describe('POST /api/admin/generate-player-constraints', () => {
       .post('/api/admin/generate-player-constraints')
       .send({ title: 'Any Scenario' });
 
-    const pc = res.body.playerConstraints as PlayerConstraints;
+    const payload = parseSseResult(res.text);
+    const pc = payload?.playerConstraints as PlayerConstraints;
     expect(pc).toHaveProperty('authorityLevel');
     expect(pc).toHaveProperty('canOffer');
     expect(pc).toHaveProperty('cannotOffer');
