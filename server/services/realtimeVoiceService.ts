@@ -62,9 +62,10 @@ async function preloadRecentMessages(
   }
 }
 
-// GA models (e.g. gemini-2.0-flash-live-001) use v1beta; preview models use v1alpha.
-function geminiLiveApiVersion(model: string): 'v1alpha' | 'v1beta' {
-  return model.endsWith('-preview') ? 'v1alpha' : 'v1beta';
+// All Gemini Live models use v1alpha for bidiGenerateContent (Live API).
+// v1beta does not support bidiGenerateContent for any current Live model.
+function geminiLiveApiVersion(_model: string): 'v1alpha' | 'v1beta' {
+  return 'v1alpha';
 }
 
 export class RealtimeVoiceService {
