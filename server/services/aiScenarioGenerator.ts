@@ -591,20 +591,10 @@ export async function generateEvaluationHarnessWithAI(
   const prompt = `당신은 기업 교육용 롤플레이 시나리오의 평가 기준(evaluationHarness)을 설계하는 전문가입니다.
 
 아래 시나리오 내용을 바탕으로 해당 시나리오에 최적화된 evaluationHarness JSON을 생성해주세요.
+반드시 순수 JSON만 출력하고, 마크다운 코드블록이나 설명 텍스트는 포함하지 마세요.
 
 ## 시나리오 내용
 ${contextStr}
-
-## evaluationHarness 구조 설명
-- dimensions: 평가 차원 배열. 각 항목은 아래 필드를 가집니다.
-  - key: 'clarity' | 'empathy' | 'logic' | 'ownership' | 'actionPlan' 중 하나
-  - weight: 이 차원의 가중치 (0~10, 소수점 가능). 모든 차원 weight 합이 5 이상이어야 합니다.
-  - scenarioSpecificDefinition: 이 시나리오에 맞춘 구체적 평가 기준 설명 (1~3문장)
-  - positiveSignals: 높은 점수를 받는 행동/표현 예시 (2~5개)
-  - negativeSignals: 낮은 점수를 받는 행동/표현 예시 (2~5개)
-- passingRule: 통과 기준
-  - minAverageScore: 평균 최소 점수 (0~100)
-  - requiredDimensions: 특정 차원에서 최소 점수를 요구하는 경우 (선택)
 
 ## 평가 차원 설명
 - clarity (명확성): 의사 전달이 명확하고 이해하기 쉬운가
@@ -613,7 +603,32 @@ ${contextStr}
 - ownership (책임감): 문제에 대한 책임을 인정하고 주도적으로 대응하는가
 - actionPlan (실행계획): 구체적이고 실현 가능한 해결책을 제시하는가
 
-이 시나리오의 목표와 상황에 맞게 각 차원의 weight를 조정하고, scenarioSpecificDefinition과 신호들을 시나리오 맥락에 맞게 작성해주세요.`;
+## 출력 JSON 형식 (이 구조를 정확히 따르세요)
+{
+  "dimensions": [
+    {
+      "key": "clarity",
+      "weight": 3,
+      "scenarioSpecificDefinition": "이 시나리오에 맞춘 명확성 평가 기준 (1~3문장)",
+      "positiveSignals": ["높은 점수 행동 예시 1", "예시 2"],
+      "negativeSignals": ["낮은 점수 행동 예시 1", "예시 2"]
+    }
+  ],
+  "passingRule": {
+    "minAverageScore": 60,
+    "requiredDimensions": [
+      { "key": "clarity", "minScore": 50 }
+    ]
+  }
+}
+
+규칙:
+- key는 반드시 clarity, empathy, logic, ownership, actionPlan 중 하나
+- 시나리오에 중요한 차원 3~5개를 선택
+- 모든 weight 합이 5 이상
+- positiveSignals, negativeSignals 각 2~5개
+- requiredDimensions는 핵심 차원 1~2개에만 적용 (선택)
+- 시나리오 맥락에 맞는 구체적인 표현 사용`;
 
   let configuredModel = await getModelForFeature('scenario');
   if (!configuredModel.startsWith('gemini-')) {
@@ -624,44 +639,6 @@ ${contextStr}
     model: configuredModel,
     config: {
       responseMimeType: "application/json",
-      responseSchema: {
-        type: "object",
-        properties: {
-          dimensions: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                key: { type: "string" },
-                weight: { type: "number" },
-                scenarioSpecificDefinition: { type: "string" },
-                positiveSignals: { type: "array", items: { type: "string" } },
-                negativeSignals: { type: "array", items: { type: "string" } },
-              },
-              required: ["key", "weight"],
-            }
-          },
-          passingRule: {
-            type: "object",
-            properties: {
-              minAverageScore: { type: "number" },
-              requiredDimensions: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    key: { type: "string" },
-                    minScore: { type: "number" },
-                  },
-                  required: ["key", "minScore"],
-                }
-              }
-            },
-            required: ["minAverageScore"],
-          }
-        },
-        required: ["dimensions", "passingRule"],
-      }
     },
     contents: prompt,
   });
@@ -778,27 +755,42 @@ export async function generateNpcBehaviorHarnessWithAI(
   const prompt = `당신은 기업 교육용 롤플레이 시나리오의 NPC 행동 제어(npcBehaviorHarness)를 설계하는 전문가입니다.
 
 아래 시나리오와 페르소나 정보를 바탕으로 해당 NPC에 최적화된 npcBehaviorHarness JSON을 생성해주세요.
+반드시 순수 JSON만 출력하고, 마크다운 코드블록이나 설명 텍스트는 포함하지 마세요.
 
 ## 시나리오 및 페르소나 정보
 ${contextStr}
 
-## npcBehaviorHarness 구조 설명
-- negotiationBounds: NPC의 협상 경계값
-  - minTrustToYield: NPC가 양보하기 위한 최소 신뢰도 (0~100). 신뢰도가 이 값 이상일 때 NPC가 양보합니다.
-  - maxAngerBeforeWalkout: NPC가 대화를 종료하는 최대 분노 수치 (0~100). 분노가 이 값을 초과하면 자리를 뜹니다.
-  - maxPatienceTurns: NPC가 진전 없이 기다리는 최대 턴 수 (양의 정수).
-- trustTriggers: 신뢰도를 변화시키는 트리거 배열 (2~5개 권장)
-  - keyword: 트리거가 되는 키워드 또는 행동 패턴 (한국어)
-  - trustDelta: 신뢰도 변화량 (양수=신뢰도 증가, 음수=감소, -20~+20 범위)
-  - angerDelta: 분노 변화량 (양수=분노 증가, 음수=감소, -20~+20 범위)
-  - description: 이 트리거가 발동되는 상황 설명
-- escalationTriggers: 갈등을 고조시키는 트리거 배열 (1~3개 권장)
-  - keyword: 트리거가 되는 키워드 또는 행동 패턴 (한국어)
-  - trustDelta: 신뢰도 변화량 (음수 권장)
-  - angerDelta: 분노 변화량 (양수 권장)
-  - description: 이 트리거가 발동되는 상황 설명
+## 출력 JSON 형식 (이 구조를 정확히 따르세요)
+{
+  "negotiationBounds": {
+    "minTrustToYield": 60,
+    "maxAngerBeforeWalkout": 80,
+    "maxPatienceTurns": 4
+  },
+  "trustTriggers": [
+    {
+      "keyword": "트리거 키워드 또는 행동 패턴",
+      "trustDelta": 10,
+      "angerDelta": -5,
+      "description": "이 트리거가 발동되는 상황 설명"
+    }
+  ],
+  "escalationTriggers": [
+    {
+      "keyword": "갈등 유발 키워드 또는 행동",
+      "trustDelta": -15,
+      "angerDelta": 20,
+      "description": "이 트리거가 발동되는 상황 설명"
+    }
+  ]
+}
 
-페르소나의 stance와 goal을 반영하여 현실적이고 교육적으로 유의미한 NPC 행동 제어를 설계해주세요.`;
+규칙:
+- negotiationBounds: minTrustToYield(0~100), maxAngerBeforeWalkout(0~100), maxPatienceTurns(양의 정수)
+- trustTriggers: 신뢰도 증가 트리거 2~5개, trustDelta(-20~+20), angerDelta(-20~+20)
+- escalationTriggers: 갈등 고조 트리거 1~3개, trustDelta 음수 권장, angerDelta 양수 권장
+- keyword는 한국어로 작성
+- 페르소나의 stance와 goal을 반영한 현실적인 내용`;
 
   let configuredModel = await getModelForFeature('scenario');
   if (!configuredModel.startsWith('gemini-')) {
@@ -809,45 +801,6 @@ ${contextStr}
     model: configuredModel,
     config: {
       responseMimeType: "application/json",
-      responseSchema: {
-        type: "object",
-        properties: {
-          negotiationBounds: {
-            type: "object",
-            properties: {
-              minTrustToYield: { type: "number" },
-              maxAngerBeforeWalkout: { type: "number" },
-              maxPatienceTurns: { type: "number" },
-            },
-          },
-          trustTriggers: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                keyword: { type: "string" },
-                trustDelta: { type: "number" },
-                angerDelta: { type: "number" },
-                description: { type: "string" },
-              },
-              required: ["keyword"],
-            },
-          },
-          escalationTriggers: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                keyword: { type: "string" },
-                trustDelta: { type: "number" },
-                angerDelta: { type: "number" },
-                description: { type: "string" },
-              },
-              required: ["keyword"],
-            },
-          },
-        },
-      },
     },
     contents: prompt,
   });
