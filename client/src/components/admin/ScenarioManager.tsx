@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -1908,7 +1909,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
                       </Button>
                     </div>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="imagePrompt"
                       value={formData.imagePrompt || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, imagePrompt: e.target.value }))}
@@ -2161,7 +2162,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
                           </Button>
                         </div>
-                        <Textarea
+                        <AutoResizeTextarea
                           id="videoPrompt"
                           value={formData.videoPrompt || ''}
                           onChange={(e) => setFormData(prev => ({ ...prev, videoPrompt: e.target.value }))}
@@ -2569,7 +2570,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
                 <div>
                   <Label htmlFor="description" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.scenarioDescription')}</Label>
-                  <Textarea
+                  <AutoResizeTextarea
                     id="description"
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
@@ -2616,7 +2617,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 
                 <div>
                   <Label htmlFor="situation" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.situation')}</Label>
-                  <Textarea
+                  <AutoResizeTextarea
                     id="situation"
                     value={formData.context.situation}
                     onChange={(e) => setFormData(prev => ({ 
@@ -2778,7 +2779,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 
                 <div>
                   <Label htmlFor="objectives" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.objectives')} ({t('admin.scenarioManager.form.separatedByNewline', 'separated by newline')})</Label>
-                  <Textarea
+                  <AutoResizeTextarea
                     id="objectives"
                     value={formData.objectives.join('\n')}
                     onChange={(e) => setFormData(prev => ({ 
@@ -2794,7 +2795,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="optimal" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.optimal')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="optimal"
                       value={formData.successCriteria.optimal}
                       onChange={(e) => setFormData(prev => ({ 
@@ -2809,7 +2810,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   
                   <div>
                     <Label htmlFor="good" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.good')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="good"
                       value={formData.successCriteria.good}
                       onChange={(e) => setFormData(prev => ({ 
@@ -2826,7 +2827,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="acceptable" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.acceptable')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="acceptable"
                       value={formData.successCriteria.acceptable}
                       onChange={(e) => setFormData(prev => ({ 
@@ -2841,7 +2842,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   
                   <div>
                     <Label htmlFor="failure" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.failure')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="failure"
                       value={formData.successCriteria.failure}
                       onChange={(e) => setFormData(prev => ({ 
@@ -3113,7 +3114,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         
                         <div>
                           <Label htmlFor={`persona-stance-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaStance')} *</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             id={`persona-stance-${index}`}
                             value={persona.stance}
                             onChange={(e) => {
@@ -3122,7 +3123,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               setFormData(prev => ({ ...prev, personas: newPersonas }));
                             }}
                             placeholder={t('admin.scenarioManager.form.personaStancePlaceholder')}
-                            rows={2}
                             data-testid={`input-persona-stance-${index}`}
                             className="bg-white whitespace-pre-wrap"
                           />
@@ -3130,7 +3130,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         
                         <div>
                           <Label htmlFor={`persona-goal-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaGoal')} *</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             id={`persona-goal-${index}`}
                             value={persona.goal}
                             onChange={(e) => {
@@ -3139,7 +3139,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               setFormData(prev => ({ ...prev, personas: newPersonas }));
                             }}
                             placeholder={t('admin.scenarioManager.form.personaGoalPlaceholder')}
-                            rows={2}
                             data-testid={`input-persona-goal-${index}`}
                             className="bg-white whitespace-pre-wrap"
                           />
@@ -3147,7 +3146,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         
                         <div>
                           <Label htmlFor={`persona-tradeoff-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaTradeoff')}</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             id={`persona-tradeoff-${index}`}
                             value={persona.tradeoff}
                             onChange={(e) => {
@@ -3156,7 +3155,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               setFormData(prev => ({ ...prev, personas: newPersonas }));
                             }}
                             placeholder={t('admin.scenarioManager.form.personaTradeoffPlaceholder')}
-                            rows={2}
                             data-testid={`input-persona-tradeoff-${index}`}
                             className="bg-white whitespace-pre-wrap"
                           />
@@ -3220,7 +3218,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           </div>
                           <div className="mt-2">
                             <Label htmlFor={`persona-triggerhints-${index}`} className="text-sm font-medium text-slate-700">Trigger Hints (one per line)</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               id={`persona-triggerhints-${index}`}
                               value={(persona.triggerHints ?? []).join('\n')}
                               onChange={(e) => {
@@ -3230,7 +3228,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
                               placeholder={"Enter phrases that should trigger switching to this persona\ne.g. 'budget approval'\n'legal review needed'"}
-                              rows={3}
                               className="bg-white whitespace-pre-wrap text-sm"
                             />
                           </div>

@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Plus, Trash2, ChevronDown, ChevronUp, Code2, ArrowUp, ArrowDown } from 'lucide-react';
 import type {
   FlowGraph, PersonaSwitchRules, TerminationRules,
@@ -1312,11 +1313,10 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange, readOnly }: E
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-xs text-slate-600 mb-0.5 block">긍정 신호 (한 줄에 하나)</Label>
-                      <Textarea
+                      <AutoResizeTextarea
                         value={dim.positiveSignals}
                         onChange={e => updateDim(di, { positiveSignals: e.target.value })}
                         placeholder={"고객의 감정을 인정한다\n해결책을 제안한다"}
-                        rows={3}
                         className="text-xs bg-white font-mono"
                         readOnly={readOnly}
                         disabled={readOnly}
@@ -1324,11 +1324,10 @@ export function EvaluationHarnessBuilder({ defaultValue, onChange, readOnly }: E
                     </div>
                     <div>
                       <Label className="text-xs text-slate-600 mb-0.5 block">부정 신호 (한 줄에 하나)</Label>
-                      <Textarea
+                      <AutoResizeTextarea
                         value={dim.negativeSignals}
                         onChange={e => updateDim(di, { negativeSignals: e.target.value })}
                         placeholder={"고객을 무시한다\n책임을 회피한다"}
-                        rows={3}
                         className="text-xs bg-white font-mono"
                         readOnly={readOnly}
                         disabled={readOnly}

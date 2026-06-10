@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -256,7 +256,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
               <Label htmlFor="idea" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                 어떤 상황의 시나리오를 만들고 싶으신가요?
               </Label>
-              <Textarea
+              <AutoResizeTextarea
                 id="idea"
                 value={formData.idea}
                 onChange={(e) => setFormData(prev => ({ ...prev, idea: e.target.value }))}
@@ -553,7 +553,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                     {t('admin.aiGenerator.situationDescription')}
                   </Label>
                   <div className="relative">
-                    <Textarea
+                    <AutoResizeTextarea
                       id="situation"
                       value={formData.situation}
                       onChange={(e) => {

@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -896,7 +896,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="personality_traits" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personalityTraits')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="personality_traits"
                       value={rawInputs.personality_traits}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, personality_traits: e.target.value }))}
@@ -912,7 +912,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
 
                   <div>
                     <Label htmlFor="communication_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.communicationStyle')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="communication_style"
                       value={formData.communication_style}
                       onChange={(e) => setFormData(prev => ({ ...prev, communication_style: e.target.value }))}
@@ -924,7 +924,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
 
                   <div>
                     <Label htmlFor="motivation" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.motivation')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="motivation"
                       value={formData.motivation}
                       onChange={(e) => setFormData(prev => ({ ...prev, motivation: e.target.value }))}
@@ -1071,7 +1071,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
 
                   <div>
                     <Label htmlFor="key_phrases" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.keyPhrases')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="key_phrases"
                       value={rawInputs.key_phrases}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, key_phrases: e.target.value }))}
@@ -1090,7 +1090,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
 
                   <div>
                     <Label htmlFor="win_conditions" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.winConditions')}</Label>
-                    <Textarea
+                    <AutoResizeTextarea
                       id="win_conditions"
                       value={rawInputs.win_conditions}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, win_conditions: e.target.value }))}
@@ -1215,13 +1215,12 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       <Label htmlFor="freeChatDescription" className="text-sm font-semibold text-slate-700 mb-1.5 block">
                         자유 대화 설명
                       </Label>
-                      <Textarea
+                      <AutoResizeTextarea
                         id="freeChatDescription"
                         value={formData.freeChatDescription || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, freeChatDescription: e.target.value }))}
                         placeholder="이 페르소나와의 자유 대화에 대한 설명을 입력하세요."
                         className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
-                        rows={3}
                       />
                     </div>
                   )}

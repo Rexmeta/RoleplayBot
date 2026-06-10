@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -494,7 +494,7 @@ export function OrganizationCategoryTree() {
             </div>
             <div>
               <Label>{t('orgCategoryTree.form.description', '설명')}</Label>
-              <Textarea
+              <AutoResizeTextarea
                 value={orgFormData.description}
                 onChange={(e) => setOrgFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder={t('orgCategoryTree.form.descriptionPlaceholder', '설명을 입력하세요')}
@@ -542,7 +542,7 @@ export function OrganizationCategoryTree() {
             </div>
             <div>
               <Label>{t('orgCategoryTree.form.description', '설명')}</Label>
-              <Textarea
+              <AutoResizeTextarea
                 value={categoryFormData.description}
                 onChange={(e) => setCategoryFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder={t('orgCategoryTree.form.descriptionPlaceholder', '설명을 입력하세요')}

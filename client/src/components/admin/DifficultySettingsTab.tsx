@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -257,11 +257,10 @@ export function DifficultySettingsTab() {
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.tone')}</Label>
                   {isEditing ? (
-                    <Textarea 
+                    <AutoResizeTextarea 
                       value={formData?.tone || ''} 
                       onChange={(e) => setEditForm({ ...formData!, tone: e.target.value })}
                       className="mt-1"
-                      rows={2}
                       data-testid={`input-difficulty-tone-${level}`}
                     />
                   ) : (
@@ -272,11 +271,10 @@ export function DifficultySettingsTab() {
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.pressure')}</Label>
                   {isEditing ? (
-                    <Textarea 
+                    <AutoResizeTextarea 
                       value={formData?.pressure || ''} 
                       onChange={(e) => setEditForm({ ...formData!, pressure: e.target.value })}
                       className="mt-1"
-                      rows={2}
                       data-testid={`input-difficulty-pressure-${level}`}
                     />
                   ) : (
@@ -287,11 +285,10 @@ export function DifficultySettingsTab() {
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.feedback')}</Label>
                   {isEditing ? (
-                    <Textarea 
+                    <AutoResizeTextarea 
                       value={formData?.feedback || ''} 
                       onChange={(e) => setEditForm({ ...formData!, feedback: e.target.value })}
                       className="mt-1"
-                      rows={2}
                       data-testid={`input-difficulty-feedback-${level}`}
                     />
                   ) : (

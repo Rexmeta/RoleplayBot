@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -193,15 +194,14 @@ function RubricItemsEditor({
             </div>
             <div>
               <label className="text-[11px] text-slate-500 font-medium">행동 기준 *</label>
-              <Textarea
+              <AutoResizeTextarea
                 value={item.behaviorAnchor || ''}
                 onChange={(e) => {
                   const updated = [...rubric];
                   updated[idx] = { ...updated[idx], behaviorAnchor: e.target.value };
                   onChange(updated);
                 }}
-                className={`text-xs mt-0.5 min-h-[48px] resize-none ${!item.behaviorAnchor?.trim() ? 'border-amber-300 focus-visible:ring-amber-300' : ''}`}
-                rows={2}
+                className={`text-xs mt-0.5 min-h-[48px] ${!item.behaviorAnchor?.trim() ? 'border-amber-300 focus-visible:ring-amber-300' : ''}`}
                 placeholder="이 점수대에서 관찰되는 구체적 행동 패턴 (예: 핵심 메시지를 명확히 전달하고 논리적 근거를 3가지 이상 제시함)"
               />
             </div>
@@ -847,7 +847,7 @@ export function EvaluationCriteriaManager() {
             </div>
             <div>
               <Label htmlFor="description">설명</Label>
-              <Textarea
+              <AutoResizeTextarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -980,7 +980,7 @@ export function EvaluationCriteriaManager() {
             </div>
             <div>
               <Label htmlFor="edit-description">설명</Label>
-              <Textarea
+              <AutoResizeTextarea
                 id="edit-description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -1084,7 +1084,7 @@ export function EvaluationCriteriaManager() {
             </div>
             <div>
               <Label htmlFor="dim-description">설명</Label>
-              <Textarea
+              <AutoResizeTextarea
                 id="dim-description"
                 value={dimensionFormData.description}
                 onChange={(e) => setDimensionFormData({ ...dimensionFormData, description: e.target.value })}
@@ -1264,12 +1264,11 @@ export function EvaluationCriteriaManager() {
                 <Label htmlFor="dim-evaluationPrompt">평가 요청 스크립트</Label>
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50">AI 전용</Badge>
               </div>
-              <Textarea
+              <AutoResizeTextarea
                 id="dim-evaluationPrompt"
                 value={dimensionFormData.evaluationPrompt}
                 onChange={(e) => setDimensionFormData({ ...dimensionFormData, evaluationPrompt: e.target.value })}
                 className="font-mono text-xs bg-slate-50 border-dashed"
-                rows={3}
                 placeholder="AI 모델에 전달할 평가 지침을 입력하세요. 이 내용은 피드백 생성 시 AI에 전달되며 일반 유저에게는 보이지 않습니다."
               />
               <p className="text-[11px] text-slate-400 mt-1">이 스크립트는 AI가 해당 차원을 평가할 때 참고하는 지침입니다. 일반 유저에게 노출되지 않습니다.</p>
@@ -1531,11 +1530,10 @@ function InlineDimensionEditor({
 
       <div>
         <Label className="text-xs">{t('admin.evaluationCriteria.descriptionLabel')}</Label>
-        <Textarea
+        <AutoResizeTextarea
           value={editData.description}
           onChange={(e) => setEditData({ ...editData, description: e.target.value })}
           className="text-sm mt-1 min-h-[60px]"
-          rows={2}
         />
       </div>
 
@@ -1544,11 +1542,10 @@ function InlineDimensionEditor({
           <Label className="text-xs">평가 요청 스크립트</Label>
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50">AI 전용</Badge>
         </div>
-        <Textarea
+        <AutoResizeTextarea
           value={editData.evaluationPrompt}
           onChange={(e) => setEditData({ ...editData, evaluationPrompt: e.target.value })}
           className="text-sm mt-1 min-h-[80px] font-mono text-xs bg-slate-100 border-dashed"
-          rows={3}
           placeholder="AI 모델에 전달할 평가 지침을 입력하세요. 이 내용은 피드백 생성 시 AI에 전달되며 일반 유저에게는 보이지 않습니다."
         />
         <p className="text-[11px] text-slate-400 mt-1">이 스크립트는 AI가 해당 차원을 평가할 때 참고하는 지침입니다. 일반 유저에게 노출되지 않습니다.</p>

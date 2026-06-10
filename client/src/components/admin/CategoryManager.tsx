@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -282,7 +282,7 @@ export function CategoryManager() {
             </div>
             <div>
               <Label>{t('admin.categoryManager.form.description', '설명')}</Label>
-              <Textarea
+              <AutoResizeTextarea
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder={t('admin.categoryManager.form.descriptionPlaceholder', '카테고리 설명을 입력하세요')}
@@ -348,7 +348,7 @@ export function CategoryManager() {
             </div>
             <div>
               <Label>{t('admin.categoryManager.form.description', '설명')}</Label>
-              <Textarea
+              <AutoResizeTextarea
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               />

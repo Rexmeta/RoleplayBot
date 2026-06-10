@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import {
   Dialog,
   DialogContent,
@@ -348,7 +348,7 @@ export function OperatorOrganizationManager() {
             </div>
             <div>
               <Label>{t('operatorOrg.form.description', '설명')}</Label>
-              <Textarea
+              <AutoResizeTextarea
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder={t('operatorOrg.form.descriptionPlaceholder', '조직에 대한 설명을 입력하세요')}

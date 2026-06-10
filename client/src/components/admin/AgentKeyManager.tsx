@@ -35,7 +35,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
@@ -1219,11 +1219,10 @@ export function AgentKeyManager() {
 
           <div className="space-y-2 py-2">
             <Label>{t("agentKeys.dialog.revoke.reasonLabel", "폐기 사유 (선택)")}</Label>
-            <Textarea
+            <AutoResizeTextarea
               value={revokeReason}
               onChange={(e) => setRevokeReason(e.target.value)}
               placeholder={t("agentKeys.dialog.revoke.reasonPlaceholder", "예: 보안 침해 의심, 직원 퇴사 등")}
-              rows={3}
             />
           </div>
 
