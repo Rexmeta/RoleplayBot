@@ -959,9 +959,9 @@ export function AgentKeyManager() {
         {globalDeliveryOpen && (
           <CardContent className="space-y-4">
             {/* Filters */}
-            <div className="flex flex-wrap items-end gap-3 p-3 rounded-md bg-muted/30 border">
-              <Filter className="h-4 w-4 text-muted-foreground mt-1 shrink-0" />
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap md:items-end gap-3 p-3 rounded-md bg-muted/30 border">
+              <Filter className="hidden md:block h-4 w-4 text-muted-foreground mt-1 shrink-0" />
+              <div className="space-y-1 w-full sm:w-auto">
                 <label className="text-xs font-medium text-muted-foreground">
                   {t("agentKeys.globalDeliveries.filter.status", "상태")}
                 </label>
@@ -969,7 +969,7 @@ export function AgentKeyManager() {
                   value={deliveryFilterStatus}
                   onValueChange={(v) => setDeliveryFilterStatus(v as "all" | "success" | "failed")}
                 >
-                  <SelectTrigger className="h-8 w-28 text-xs">
+                  <SelectTrigger className="h-8 w-full sm:w-28 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -979,68 +979,70 @@ export function AgentKeyManager() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 w-full sm:col-span-2 md:w-auto">
                 <label className="text-xs font-medium text-muted-foreground">
                   {t("agentKeys.globalDeliveries.filter.event", "이벤트")}
                 </label>
                 <Input
-                  className="h-8 w-52 text-xs font-mono"
+                  className="h-8 w-full sm:w-52 text-xs font-mono"
                   placeholder={t("agentKeys.globalDeliveries.filter.eventPlaceholder", "예: agent_key.low_token_rate")}
                   value={deliveryFilterEvent}
                   onChange={(e) => setDeliveryFilterEvent(e.target.value)}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 w-full sm:w-auto">
                 <label className="text-xs font-medium text-muted-foreground">
                   {t("agentKeys.globalDeliveries.filter.from", "시작일")}
                 </label>
                 <Input
                   type="date"
-                  className="h-8 w-36 text-xs"
+                  className="h-8 w-full sm:w-36 text-xs"
                   value={deliveryFilterFrom}
                   onChange={(e) => setDeliveryFilterFrom(e.target.value)}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 w-full sm:w-auto">
                 <label className="text-xs font-medium text-muted-foreground">
                   {t("agentKeys.globalDeliveries.filter.to", "종료일")}
                 </label>
                 <Input
                   type="date"
-                  className="h-8 w-36 text-xs"
+                  className="h-8 w-full sm:w-36 text-xs"
                   value={deliveryFilterTo}
                   onChange={(e) => setDeliveryFilterTo(e.target.value)}
                 />
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => refetchGlobalDeliveries()}
-                disabled={globalDeliveriesLoading}
-              >
-                {globalDeliveriesLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  t("agentKeys.globalDeliveries.filter.apply", "조회")
-                )}
-              </Button>
-              {(deliveryFilterStatus !== "all" || deliveryFilterEvent || deliveryFilterFrom || deliveryFilterTo) && (
+              <div className="flex items-center gap-2 w-full sm:w-auto sm:col-span-2 md:w-auto">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-8 text-xs text-muted-foreground"
-                  onClick={() => {
-                    setDeliveryFilterStatus("all");
-                    setDeliveryFilterEvent("");
-                    setDeliveryFilterFrom("");
-                    setDeliveryFilterTo("");
-                  }}
+                  variant="outline"
+                  className="h-8 text-xs flex-1 sm:flex-none"
+                  onClick={() => refetchGlobalDeliveries()}
+                  disabled={globalDeliveriesLoading}
                 >
-                  <X className="h-3.5 w-3.5 mr-1" />
-                  {t("agentKeys.globalDeliveries.filter.reset", "초기화")}
+                  {globalDeliveriesLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    t("agentKeys.globalDeliveries.filter.apply", "조회")
+                  )}
                 </Button>
-              )}
+                {(deliveryFilterStatus !== "all" || deliveryFilterEvent || deliveryFilterFrom || deliveryFilterTo) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-xs text-muted-foreground flex-1 sm:flex-none"
+                    onClick={() => {
+                      setDeliveryFilterStatus("all");
+                      setDeliveryFilterEvent("");
+                      setDeliveryFilterFrom("");
+                      setDeliveryFilterTo("");
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    {t("agentKeys.globalDeliveries.filter.reset", "초기화")}
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Deliveries Table */}
@@ -1291,7 +1293,7 @@ export function AgentKeyManager() {
 
             <div className="space-y-2">
               <Label>{t("agentKeys.dialog.create.scopes", "권한 (Scope)")}</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {AGENT_API_SCOPES.map((scope) => (
                   <div key={scope} className="flex items-center gap-2">
                     <Checkbox
