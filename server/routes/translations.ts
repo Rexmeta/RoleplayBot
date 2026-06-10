@@ -642,6 +642,9 @@ Return ONLY valid JSON:
       srcCommunication ? `Communication Style: ${srcCommunication}` : '',
       srcMotivation ? `Motivation: ${srcMotivation}` : '',
       srcFears.length ? `Fears (array): ${JSON.stringify(srcFears)}` : '',
+      srcTraits.length
+        ? `Personality Description (write 2-3 sentences summarizing the persona's character in target language based on the traits above): ${srcTraits.join(', ')}`
+        : '',
       srcEducation ? `Education: ${srcEducation}` : '',
       srcExperience ? `Previous Experience: ${srcExperience}` : '',
       srcProjects.length ? `Major Projects (array): ${JSON.stringify(srcProjects)}` : '',
@@ -654,21 +657,25 @@ Return ONLY valid JSON:
       communicationStyle: "communication style description",
       motivation: "motivation description",
       fears: ["fear 1", "fear 2"],
-      personalityDescription: "brief overall personality summary",
+      personalityDescription: "2-3 sentence personality overview",
       education: "education background",
       previousExperience: "previous experience",
       majorProjects: ["project 1", "project 2"],
       expertise: ["expertise 1", "expertise 2"],
     }, null, 2);
 
-    const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona into ${languageNames[targetLocale] || targetLocale}.
-Return ONLY valid JSON. Translate all non-empty fields. Keep arrays as arrays.
-Omit fields that have no source content (empty string or empty array).
+    const prompt = `You are a professional translator. Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona into ${languageNames[targetLocale] || targetLocale}.
+
+Rules:
+- Return ONLY valid JSON, no other text
+- Translate every field that has source content; keep arrays as arrays
+- For "personalityDescription": always write 2-3 sentences synthesizing the personality traits into a coherent character description in the target language
+- Omit a field only if its source line is absent
 
 Source:
 ${sourceBlock}
 
-Return JSON with this structure (omit fields that have no source content):
+Return JSON matching this structure (include all fields that have source content):
 ${exampleJson}`;
 
     const aiService = await getAIServiceForFeature('translation');
