@@ -579,8 +579,8 @@ Return ONLY valid JSON:
       throw createHttpError(400, "대상 언어가 필요합니다");
     }
 
-    const personas = await fileManager.getAllPersonas();
-    const persona = personas.find(p => p.id === personaId);
+    const personas = await storage.getAllMbtiPersonas();
+    const persona = personas.find((p: any) => p.id === personaId);
     if (!persona) {
       throw createHttpError(404, "페르소나를 찾을 수 없습니다");
     }
@@ -592,8 +592,8 @@ Return ONLY valid JSON:
       'zh': 'Chinese Simplified (简体中文)',
     };
 
-    let sourceName = persona.name;
-    let sourceDesc = (persona as any).personalityDescription || '';
+    let sourceName: string = (persona as any).mbti || (persona as any).id;
+    let sourceDesc: string = (persona as any).communicationStyle || ((persona as any).personalityTraits || []).join(', ') || '';
 
     if (sourceLocale !== 'ko') {
       const sourceTranslation = await storage.getPersonaTranslation(personaId, sourceLocale);
@@ -762,17 +762,17 @@ Return JSON: {"title": "translated title", "description": "translated descriptio
         }
       }
     } else if (contentType === 'personas') {
-      const personas = await fileManager.getAllPersonas();
+      const personas = await storage.getAllMbtiPersonas();
       for (const persona of personas) {
         if (fatalError) break;
-        const existing = await storage.getPersonaTranslation(persona.id, targetLocale);
+        const existing = await storage.getPersonaTranslation((persona as any).id, targetLocale);
         if (!existing) {
           const personaData = persona as any;
           let sourceName = '';
           let sourceDesc = '';
 
           if (sourceLocale !== 'ko') {
-            const sourceTranslation = await storage.getPersonaTranslation(persona.id, sourceLocale);
+            const sourceTranslation = await storage.getPersonaTranslation(personaData.id, sourceLocale);
             if (!sourceTranslation) continue;
             sourceName = sourceTranslation.name;
             sourceDesc = sourceTranslation.personalityDescription || '';
@@ -782,7 +782,7 @@ Return JSON: {"title": "translated title", "description": "translated descriptio
             ? `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona into ${languageNames[targetLocale] || targetLocale}. 
 Return ONLY valid JSON.
 
-Source: MBTI ${personaData.mbti}, Traits: ${JSON.stringify(personaData.personality_traits || [])}
+Source: MBTI ${personaData.mbti}, Traits: ${JSON.stringify(personaData.personalityTraits || [])}
 
 Return JSON: {"name": "type name", "personalityDescription": "description"}`
             : `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona into ${languageNames[targetLocale] || targetLocale}. 
@@ -870,7 +870,7 @@ Return JSON: {"name": "translated name", "description": "translated description"
     const languages = await storage.getActiveSupportedLanguages();
     const nonDefaultLanguages = languages.filter((l: any) => !l.isDefault);
     const scenarios = await storage.getAllScenarios();
-    const personas = await fileManager.getAllPersonas();
+    const personas = await storage.getAllMbtiPersonas();
     const categories = await storage.getAllCategories();
 
     const scenarioTranslations: Record<string, { count: number; reviewed: number; machine: number }> = {};

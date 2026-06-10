@@ -29,6 +29,7 @@ const mockStorage = vi.hoisted(() => ({
   getScenarioTranslation: vi.fn().mockResolvedValue(null),
   upsertScenarioTranslation: vi.fn().mockResolvedValue({}),
   getAllScenarios: vi.fn().mockResolvedValue([]),
+  getAllMbtiPersonas: vi.fn().mockResolvedValue([]),
   getPersonaTranslation: vi.fn().mockResolvedValue(null),
   upsertPersonaTranslation: vi.fn().mockResolvedValue({}),
   getAllCategories: vi.fn().mockResolvedValue([]),
@@ -106,10 +107,9 @@ const MOCK_SCENARIO = {
 
 const MOCK_PERSONA = {
   id: PERSONA_ID,
-  name: 'INTJ',
   mbti: 'INTJ',
-  personality_traits: ['Strategic', 'Independent', 'Decisive'],
-  personalityDescription: 'A strategic thinker who values efficiency.',
+  personalityTraits: ['Strategic', 'Independent', 'Decisive'],
+  communicationStyle: 'A strategic thinker who values efficiency.',
 };
 
 const MOCK_CATEGORY = {
@@ -447,7 +447,7 @@ describe('POST /api/admin/personas/:id/generate-translation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.GOOGLE_API_KEY = 'test-api-key';
-    mockFileManager.getAllPersonas.mockResolvedValue([MOCK_PERSONA]);
+    mockStorage.getAllMbtiPersonas.mockResolvedValue([MOCK_PERSONA]);
     mockStorage.getPersonaTranslation.mockResolvedValue(null);
   });
 
@@ -459,7 +459,7 @@ describe('POST /api/admin/personas/:id/generate-translation', () => {
   });
 
   it('returns 404 when persona is not found', async () => {
-    mockFileManager.getAllPersonas.mockResolvedValue([]);
+    mockStorage.getAllMbtiPersonas.mockResolvedValue([]);
     const res = await request(buildApp())
       .post('/api/admin/personas/nonexistent/generate-translation')
       .send({ targetLocale: 'en' });
@@ -568,7 +568,7 @@ describe('POST /api/admin/generate-all-translations (contentType=personas)', () 
     vi.clearAllMocks();
     process.env.GOOGLE_API_KEY = 'test-api-key';
     mockStorage.getActiveSupportedLanguages.mockResolvedValue(ACTIVE_LANGUAGES);
-    mockFileManager.getAllPersonas.mockResolvedValue([MOCK_PERSONA]);
+    mockStorage.getAllMbtiPersonas.mockResolvedValue([MOCK_PERSONA]);
     mockStorage.getPersonaTranslation.mockResolvedValue(null);
     mockStorage.upsertPersonaTranslation.mockResolvedValue({});
   });
@@ -614,10 +614,10 @@ describe('POST /api/admin/generate-all-translations (contentType=personas)', () 
 
   it('returns count matching the number of successful persona translations', async () => {
     const personas = [
-      { id: 'p-1', name: 'INTJ', mbti: 'INTJ', personality_traits: ['Strategic'] },
-      { id: 'p-2', name: 'ENFP', mbti: 'ENFP', personality_traits: ['Creative'] },
+      { id: 'p-1', mbti: 'INTJ', personalityTraits: ['Strategic'], communicationStyle: '' },
+      { id: 'p-2', mbti: 'ENFP', personalityTraits: ['Creative'], communicationStyle: '' },
     ];
-    mockFileManager.getAllPersonas.mockResolvedValue(personas);
+    mockStorage.getAllMbtiPersonas.mockResolvedValue(personas);
     mockGenerateContent.mockResolvedValue({ text: makePersonaTranslationJson() });
 
     const res = await request(buildApp())
