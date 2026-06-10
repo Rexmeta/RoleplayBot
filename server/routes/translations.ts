@@ -528,7 +528,16 @@ Return ONLY valid JSON:
     const { personaId, locale } = req.params;
     const {
       name,
+      personalityTraits,
+      communicationStyle,
+      motivation,
+      fears,
       personalityDescription,
+      education,
+      previousExperience,
+      majorProjects,
+      expertise,
+      background,
       isMachineTranslated
     } = req.body;
 
@@ -540,7 +549,16 @@ Return ONLY valid JSON:
       personaId,
       locale,
       name,
-      personalityDescription,
+      personalityTraits: Array.isArray(personalityTraits) ? personalityTraits : undefined,
+      communicationStyle: communicationStyle || undefined,
+      motivation: motivation || undefined,
+      fears: Array.isArray(fears) ? fears : undefined,
+      personalityDescription: personalityDescription || undefined,
+      education: education || undefined,
+      previousExperience: previousExperience || undefined,
+      majorProjects: Array.isArray(majorProjects) ? majorProjects : undefined,
+      expertise: Array.isArray(expertise) ? expertise : undefined,
+      background: background || undefined,
       isMachineTranslated: isMachineTranslated || false,
       isReviewed: false,
     });
@@ -592,24 +610,66 @@ Return ONLY valid JSON:
       'zh': 'Chinese Simplified (简体中文)',
     };
 
-    let sourceName: string = (persona as any).mbti || (persona as any).id;
-    let sourceDesc: string = (persona as any).communicationStyle || ((persona as any).personalityTraits || []).join(', ') || '';
+    const p = persona as any;
+    let srcName: string = p.mbti || p.id;
+    let srcTraits: string[] = p.personalityTraits || [];
+    let srcCommunication: string = p.communicationStyle || '';
+    let srcMotivation: string = p.motivation || '';
+    let srcFears: string[] = p.fears || [];
+    let srcEducation: string = p.background?.social?.preference || '';
+    let srcExperience: string = p.background?.social?.behavior || '';
+    let srcProjects: string[] = p.background?.hobbies || [];
+    let srcExpertise: string[] = p.background?.personal_values || [];
 
     if (sourceLocale !== 'ko') {
       const sourceTranslation = await storage.getPersonaTranslation(personaId, sourceLocale);
       if (sourceTranslation) {
-        sourceName = sourceTranslation.name;
-        sourceDesc = sourceTranslation.personalityDescription || '';
+        srcName = sourceTranslation.name;
+        srcTraits = (sourceTranslation as any).personalityTraits || [];
+        srcCommunication = (sourceTranslation as any).communicationStyle || '';
+        srcMotivation = (sourceTranslation as any).motivation || '';
+        srcFears = (sourceTranslation as any).fears || [];
+        srcEducation = (sourceTranslation as any).education || '';
+        srcExperience = (sourceTranslation as any).previousExperience || '';
+        srcProjects = (sourceTranslation as any).majorProjects || [];
+        srcExpertise = (sourceTranslation as any).expertise || [];
       }
     }
 
-    const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} persona description into ${languageNames[targetLocale] || targetLocale}. 
-Return ONLY valid JSON.
+    const sourceBlock = [
+      `Name: ${srcName}`,
+      srcTraits.length ? `Personality Traits (array): ${JSON.stringify(srcTraits)}` : '',
+      srcCommunication ? `Communication Style: ${srcCommunication}` : '',
+      srcMotivation ? `Motivation: ${srcMotivation}` : '',
+      srcFears.length ? `Fears (array): ${JSON.stringify(srcFears)}` : '',
+      srcEducation ? `Education: ${srcEducation}` : '',
+      srcExperience ? `Previous Experience: ${srcExperience}` : '',
+      srcProjects.length ? `Major Projects (array): ${JSON.stringify(srcProjects)}` : '',
+      srcExpertise.length ? `Expertise (array): ${JSON.stringify(srcExpertise)}` : '',
+    ].filter(Boolean).join('\n');
 
-Persona Name: ${sourceName}
-Description: ${sourceDesc}
+    const exampleJson = JSON.stringify({
+      name: "translated MBTI type name",
+      personalityTraits: ["trait 1", "trait 2"],
+      communicationStyle: "communication style description",
+      motivation: "motivation description",
+      fears: ["fear 1", "fear 2"],
+      personalityDescription: "brief overall personality summary",
+      education: "education background",
+      previousExperience: "previous experience",
+      majorProjects: ["project 1", "project 2"],
+      expertise: ["expertise 1", "expertise 2"],
+    }, null, 2);
 
-Return JSON: {"name": "translated name", "personalityDescription": "translated description"}`;
+    const prompt = `Translate the following ${languageNames[sourceLocale] || sourceLocale} MBTI persona into ${languageNames[targetLocale] || targetLocale}.
+Return ONLY valid JSON. Translate all non-empty fields. Keep arrays as arrays.
+Omit fields that have no source content (empty string or empty array).
+
+Source:
+${sourceBlock}
+
+Return JSON with this structure (omit fields that have no source content):
+${exampleJson}`;
 
     const aiService = await getAIServiceForFeature('translation');
     const rawResponse = await aiService.generateText(prompt);

@@ -145,7 +145,15 @@ function makeTranslationJson(overrides: Record<string, any> = {}) {
 function makePersonaTranslationJson(overrides: Record<string, any> = {}) {
   return JSON.stringify({
     name: 'Translated INTJ',
+    personalityTraits: ['Translated trait 1', 'Translated trait 2'],
+    communicationStyle: 'Translated communication style',
+    motivation: 'Translated motivation',
+    fears: ['Translated fear 1'],
     personalityDescription: 'Translated personality description',
+    education: 'Translated education',
+    previousExperience: 'Translated experience',
+    majorProjects: ['Translated project 1'],
+    expertise: ['Translated expertise 1'],
     ...overrides,
   });
 }
