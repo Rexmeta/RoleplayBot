@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   X, Wand2, Pen, Sparkles, ChevronRight, Loader2,
@@ -300,13 +300,12 @@ export default function SceneSetupModal({ personaName, personaDescription, onCon
           {tab === "custom" && (
             <div className="p-4 space-y-3">
               <p className="text-xs text-slate-500">원하는 장면을 자유롭게 설명하세요. 페르소나가 이 배경에 맞게 반응합니다.</p>
-              <Textarea
+              <AutoResizeTextarea
                 value={customText}
                 onChange={(e) => setCustomText(e.target.value.slice(0, 1000))}
                 placeholder={`예시: 우리는 같은 대학 동기로, 졸업 후 5년 만에 동창회에서 재회했다. ${personaName}은 해외 생활을 하다 막 귀국했고, 나는 같은 도시에서 직장을 다니고 있다. 서로 반갑지만 어색한 분위기...`}
-                rows={6}
                 maxLength={1000}
-                className="resize-none text-sm"
+                className="text-sm"
               />
               <p className="text-[11px] text-slate-400">{customText.length}/1000자</p>
             </div>
@@ -317,12 +316,11 @@ export default function SceneSetupModal({ personaName, personaDescription, onCon
               {!generatedScene ? (
                 <>
                   <p className="text-xs text-slate-500">짧은 아이디어나 키워드를 입력하면 AI가 배경·분위기·오프닝 라인을 포함한 장면을 생성해줍니다.</p>
-                  <Textarea
+                  <AutoResizeTextarea
                     value={aiIdea}
                     onChange={(e) => setAiIdea(e.target.value)}
                     placeholder={`예시: "카페에서 우연히 만난 전 연인", "우주선 비상상황", "탐정이 의뢰인을 처음 만나는 장면"`}
-                    rows={3}
-                    className="resize-none text-sm"
+                    className="text-sm"
                     disabled={generateMutation.isPending}
                   />
                   <Button
@@ -376,11 +374,10 @@ export default function SceneSetupModal({ personaName, personaDescription, onCon
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-400 uppercase">배경</label>
-                          <textarea
+                          <AutoResizeTextarea
                             value={editingScene.setting}
                             onChange={(e) => setEditingScene({ ...editingScene, setting: e.target.value })}
-                            rows={3}
-                            className="mt-0.5 w-full text-sm text-slate-700 bg-transparent resize-none border-b border-slate-200 focus:border-emerald-400 outline-none py-1 leading-relaxed"
+                            className="mt-0.5 w-full text-sm text-slate-700 bg-transparent border-0 border-b border-slate-200 focus:border-emerald-400 rounded-none shadow-none focus-visible:ring-0 outline-none py-1 leading-relaxed"
                           />
                         </div>
                         <div>
@@ -393,11 +390,10 @@ export default function SceneSetupModal({ personaName, personaDescription, onCon
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-400 uppercase">{personaName}의 첫 마디</label>
-                          <textarea
+                          <AutoResizeTextarea
                             value={editingScene.openingLine}
                             onChange={(e) => setEditingScene({ ...editingScene, openingLine: e.target.value })}
-                            rows={2}
-                            className="mt-0.5 w-full text-sm text-emerald-700 italic bg-transparent resize-none border-b border-slate-200 focus:border-emerald-400 outline-none py-1 leading-relaxed"
+                            className="mt-0.5 w-full text-sm text-emerald-700 italic bg-transparent border-0 border-b border-slate-200 focus:border-emerald-400 rounded-none shadow-none focus-visible:ring-0 outline-none py-1 leading-relaxed"
                           />
                         </div>
                       </div>

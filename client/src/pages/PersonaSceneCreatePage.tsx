@@ -5,7 +5,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import PersonaLayout from "@/components/PersonaLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -204,12 +204,11 @@ export default function PersonaSceneCreatePage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <Textarea
+            <AutoResizeTextarea
               value={aiIdea}
               onChange={e => setAiIdea(e.target.value)}
               placeholder="예: '카페에서 우연히 만난 소설 속 탐정', '우주선에서 갑작스러운 조난 상황', '첫 출근날 만난 선배'"
-              rows={3}
-              className="text-sm resize-none bg-white border-emerald-200 focus:border-emerald-400 mb-3"
+              className="text-sm bg-white border-emerald-200 focus:border-emerald-400 mb-3"
               disabled={aiGenerateMutation.isPending}
             />
             <Button
@@ -258,13 +257,12 @@ export default function PersonaSceneCreatePage() {
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">장면 설명</label>
-                <Textarea
+                <AutoResizeTextarea
                   value={form.description}
                   onChange={e => update("description", e.target.value)}
                   placeholder="이 장면에 대해 간략하게 설명해주세요"
-                  rows={3}
                   maxLength={500}
-                  className="resize-none text-sm"
+                  className="text-sm"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">{form.description.length}/500자</p>
               </div>
@@ -299,13 +297,12 @@ export default function PersonaSceneCreatePage() {
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />배경 상황
                 </label>
-                <Textarea
+                <AutoResizeTextarea
                   value={form.setting}
                   onChange={e => update("setting", e.target.value)}
                   placeholder="장면의 배경과 상황을 구체적으로 설명해주세요. 예: '비 오는 오후, 작은 카페의 창가 자리. 두 사람은 우연히 우산을 바꿔 가져갔다는 걸 알게 되었다.'"
-                  rows={5}
                   maxLength={1000}
-                  className="resize-none text-sm"
+                  className="text-sm"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">{form.setting.length}/1000자</p>
               </div>
@@ -326,13 +323,12 @@ export default function PersonaSceneCreatePage() {
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
                   <MessageSquare className="w-3.5 h-3.5 text-slate-400" />AI 캐릭터 첫 대사
                 </label>
-                <Textarea
+                <AutoResizeTextarea
                   value={form.openingLine}
                   onChange={e => update("openingLine", e.target.value)}
                   placeholder="장면이 시작될 때 AI 캐릭터가 건넬 첫 마디를 작성해주세요. 비워두면 AI가 자동으로 생성합니다."
-                  rows={3}
                   maxLength={500}
-                  className="resize-none text-sm"
+                  className="text-sm"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">{form.openingLine.length}/500자</p>
               </div>

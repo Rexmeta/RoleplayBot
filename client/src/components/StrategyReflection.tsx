@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, MessageSquare, Lightbulb, ArrowRight } from "lucide-react";
 import { type ScenarioPersona } from "@/lib/scenario-system";
@@ -96,11 +96,11 @@ export function StrategyReflection({
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Textarea
+            <AutoResizeTextarea
               placeholder="이 순서로 대화를 진행한 이유와 전략을 자세히 작성해주세요. (최소 50자)"
               value={reflection}
               onChange={(e) => setReflection(e.target.value)}
-              className="min-h-[150px] max-h-[40vh] text-base resize-none"
+              className="min-h-[150px] text-base"
               data-testid="strategy-reflection-input"
             />
             <p className="text-sm text-gray-500 mt-2">

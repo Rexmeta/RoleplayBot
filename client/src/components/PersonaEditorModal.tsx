@@ -6,7 +6,7 @@ import { useUpload } from "@/hooks/use-upload";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -379,15 +379,15 @@ export default function PersonaEditorModal({ persona, onClose, onSaved }: {
           </div>
           <div>
             <Label>소개</Label>
-            <Textarea value={form.description} onChange={e => set("description", e.target.value)} placeholder="이 페르소나는 어떤 캐릭터인가요?" className="mt-1" rows={2} />
+            <AutoResizeTextarea value={form.description} onChange={e => set("description", e.target.value)} placeholder="이 페르소나는 어떤 캐릭터인가요?" className="mt-1" />
           </div>
           <div>
             <Label>첫 인사말</Label>
-            <Textarea value={form.greeting} onChange={e => set("greeting", e.target.value)} placeholder="대화 시작 시 AI가 먼저 하는 말" className="mt-1" rows={2} />
+            <AutoResizeTextarea value={form.greeting} onChange={e => set("greeting", e.target.value)} placeholder="대화 시작 시 AI가 먼저 하는 말" className="mt-1" />
           </div>
           <div>
             <Label>배경 스토리</Label>
-            <Textarea value={form.background} onChange={e => set("background", e.target.value)} placeholder="캐릭터의 직업, 경험, 세계관 등" className="mt-1" rows={2} />
+            <AutoResizeTextarea value={form.background} onChange={e => set("background", e.target.value)} placeholder="캐릭터의 직업, 경험, 세계관 등" className="mt-1" />
           </div>
           <div>
             <Label>성격 특성</Label>

@@ -9,7 +9,7 @@ import { useUpload } from "@/hooks/use-upload";
 import PersonaLayout from "@/components/PersonaLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -185,7 +185,7 @@ export default function PersonaCreatePage() {
                     <FormItem>
                       <FormLabel>소개</FormLabel>
                       <FormControl>
-                        <Textarea {...field} placeholder="이 캐릭터는 어떤 AI인가요?" rows={3} />
+                        <AutoResizeTextarea {...field} placeholder="이 캐릭터는 어떤 AI인가요?" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -198,10 +198,9 @@ export default function PersonaCreatePage() {
                     <FormItem>
                       <FormLabel>첫 인사말</FormLabel>
                       <FormControl>
-                        <Textarea
+                        <AutoResizeTextarea
                           {...field}
                           placeholder="대화 시작 시 AI가 먼저 하는 말 (비워두면 자동 설정)"
-                          rows={2}
                         />
                       </FormControl>
                       <FormMessage />
@@ -291,7 +290,7 @@ export default function PersonaCreatePage() {
                     <FormItem>
                       <FormLabel>배경 스토리</FormLabel>
                       <FormControl>
-                        <Textarea {...field} placeholder="캐릭터의 직업, 경험, 세계관 등" rows={4} />
+                        <AutoResizeTextarea {...field} placeholder="캐릭터의 직업, 경험, 세계관 등" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
