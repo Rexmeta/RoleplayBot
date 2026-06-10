@@ -1437,7 +1437,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-2">
+              <div className="sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-2 z-10">
                 <Button 
                   type="button" 
                   variant="outline" 

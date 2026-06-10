@@ -3950,7 +3950,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-4">
+              <div className="sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-4 z-10">
                 <Button
                   type="button"
                   variant="outline"
