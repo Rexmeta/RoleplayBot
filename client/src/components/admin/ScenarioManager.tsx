@@ -4326,7 +4326,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   
                   <div>
                     <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">{t('admin.scenarioManager.personas')}</h4>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="space-y-2">
                       {(scenario.personas || []).map((persona, index) => {
                         if (typeof persona === 'string') {
                           return (
@@ -4345,13 +4345,23 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         const mbti = p.mbti ? `(${p.mbti})` : '';
                         const displayText = [department, name, mbti].filter(Boolean).join(' ');
                         return (
-                          <Badge 
-                            key={index} 
-                            variant="outline" 
-                            className="text-xs bg-purple-50 text-purple-700 border-purple-200"
-                          >
-                            {displayText}
-                          </Badge>
+                          <div key={index}>
+                            <Badge 
+                              variant="outline" 
+                              className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                            >
+                              {displayText}
+                            </Badge>
+                            {p.npcBehaviorHarness && (
+                              <div className="mt-1.5">
+                                <NpcBehaviorHarnessBuilder
+                                  value={p.npcBehaviorHarness}
+                                  onChange={() => {}}
+                                  readOnly
+                                />
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

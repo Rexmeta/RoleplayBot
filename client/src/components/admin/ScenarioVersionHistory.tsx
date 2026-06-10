@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Loader2, Tag, RotateCcw, Eye, User, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
+import { NpcBehaviorHarnessBuilder } from './NpcBehaviorHarnessBuilder';
 
 interface ScenarioVersion {
   id: string;
@@ -75,9 +76,18 @@ function VersionPreviewDialog({ version, open, onClose }: { version: ScenarioVer
           {snap?.personas?.length > 0 && (
             <div>
               <span className="font-medium text-slate-700">페르소나 ({snap.personas.length}명):</span>
-              <div className="mt-1 flex flex-wrap gap-2">
+              <div className="mt-2 space-y-3">
                 {snap.personas.map((p: any, i: number) => (
-                  <Badge key={i} variant="outline" className="text-xs">{p.name} — {p.position}</Badge>
+                  <div key={i} className="rounded-md border border-slate-200 bg-slate-50 p-2.5">
+                    <Badge variant="outline" className="text-xs mb-2">{p.name} — {p.position}</Badge>
+                    {p.npcBehaviorHarness && (
+                      <NpcBehaviorHarnessBuilder
+                        value={p.npcBehaviorHarness}
+                        onChange={() => {}}
+                        readOnly
+                      />
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
