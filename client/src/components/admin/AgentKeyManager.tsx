@@ -901,87 +901,163 @@ export function AgentKeyManager() {
                 {t("agentKeys.globalDeliveries.empty", "전송 이력이 없습니다.")}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">{t("agentKeys.globalDeliveries.col.status", "상태")}</TableHead>
-                      <TableHead>{t("agentKeys.globalDeliveries.col.event", "이벤트")}</TableHead>
-                      <TableHead>{t("agentKeys.globalDeliveries.col.key", "API 키")}</TableHead>
-                      <TableHead>{t("agentKeys.globalDeliveries.col.webhookUrl", "웹훅 URL")}</TableHead>
-                      <TableHead className="text-right w-20">{t("agentKeys.globalDeliveries.col.latency", "지연")}</TableHead>
-                      <TableHead className="text-right w-16">{t("agentKeys.globalDeliveries.col.attempt", "시도")}</TableHead>
-                      <TableHead className="text-right w-32">{t("agentKeys.globalDeliveries.col.createdAt", "시각")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {globalDeliveries.map((d) => {
-                      const isSuccess = d.succeededAt !== null;
-                      // Any delivery that has not succeeded is treated as failed,
-                      // including transport-level failures where statusCode is null
-                      // (network timeouts, connection refused, etc.)
-                      const isFailed = !isSuccess;
-                      return (
-                        <TableRow key={d.id} className={isFailed ? "bg-red-50/50 dark:bg-red-950/30" : "bg-green-50/50 dark:bg-green-950/30"}>
-                          <TableCell>
-                            <span
-                              className={`font-mono font-semibold text-sm ${
-                                isFailed
-                                  ? "text-red-600 dark:text-red-400"
-                                  : "text-green-600 dark:text-green-400"
-                              }`}
-                            >
-                              {d.statusCode ?? "—"}
-                            </span>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">{d.event}</TableCell>
-                          <TableCell>
-                            <button
-                              className="flex items-center gap-1 text-left hover:underline"
-                              onClick={() => {
-                                const key = keys.find((k) => k.id === d.agentKeyId);
-                                if (key) {
-                                  setWebhookTarget(key);
-                                  setNewWebhookUrl("");
-                                }
-                              }}
-                              title={t("agentKeys.globalDeliveries.goToKey", "웹훅 관리 열기")}
-                            >
-                              <span className="font-mono text-xs text-muted-foreground">{d.agentKeyPrefix}…</span>
-                              <span className="text-xs truncate max-w-[120px]">{d.agentKeyName}</span>
-                              <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
-                            </button>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-mono text-xs text-muted-foreground truncate block max-w-[200px]" title={d.webhookUrl}>
-                              {d.webhookUrl}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right text-xs font-mono tabular-nums">
-                            {d.latencyMs !== null
-                              ? d.latencyMs >= 1000
-                                ? `${(d.latencyMs / 1000).toFixed(1)}s`
-                                : `${d.latencyMs}ms`
-                              : "—"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {d.attempt > 1 ? (
-                              <Badge variant="outline" className="text-xs px-1 py-0">
-                                {d.attempt}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">{d.attempt}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
+              <>
+                {/* Mobile card view (≤640px) */}
+                <div className="flex flex-col gap-2 sm:hidden">
+                  {globalDeliveries.map((d) => {
+                    const isSuccess = d.succeededAt !== null;
+                    const isFailed = !isSuccess;
+                    const latencyLabel = d.latencyMs !== null
+                      ? d.latencyMs >= 1000
+                        ? `${(d.latencyMs / 1000).toFixed(1)}s`
+                        : `${d.latencyMs}ms`
+                      : "—";
+                    return (
+                      <div
+                        key={d.id}
+                        className={`rounded-md border px-3 py-2 text-xs space-y-1 ${
+                          isFailed
+                            ? "bg-red-50/50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
+                            : "bg-green-50/50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+                        }`}
+                      >
+                        {/* Row 1: status + event */}
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`font-mono font-semibold ${
+                              isFailed ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                            }`}
+                          >
+                            {d.statusCode ?? "—"}
+                          </span>
+                          <span className="font-mono text-muted-foreground truncate">{d.event}</span>
+                        </div>
+                        {/* Row 2: key name + webhook URL */}
+                        <div className="flex items-center gap-1 min-w-0">
+                          <button
+                            className="flex items-center gap-1 shrink-0 hover:underline"
+                            onClick={() => {
+                              const key = keys.find((k) => k.id === d.agentKeyId);
+                              if (key) {
+                                setWebhookTarget(key);
+                                setNewWebhookUrl("");
+                              }
+                            }}
+                            title={t("agentKeys.globalDeliveries.goToKey", "웹훅 관리 열기")}
+                          >
+                            <span className="font-mono text-muted-foreground">{d.agentKeyPrefix}…</span>
+                            <span className="truncate max-w-[80px]">{d.agentKeyName}</span>
+                            <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                          </button>
+                          <span className="text-muted-foreground mx-1">·</span>
+                          <span className="font-mono text-muted-foreground truncate" title={d.webhookUrl}>
+                            {d.webhookUrl}
+                          </span>
+                        </div>
+                        {/* Row 3: latency / attempt / time */}
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <span className="font-mono tabular-nums">{latencyLabel}</span>
+                          <span>·</span>
+                          {d.attempt > 1 ? (
+                            <Badge variant="outline" className="text-xs px-1 py-0">
+                              {t("agentKeys.globalDeliveries.col.attempt", "시도")} {d.attempt}
+                            </Badge>
+                          ) : (
+                            <span>{t("agentKeys.globalDeliveries.col.attempt", "시도")} {d.attempt}</span>
+                          )}
+                          <span>·</span>
+                          <span className="whitespace-nowrap">
                             {d.createdAt ? format(new Date(d.createdAt), "MM-dd HH:mm") : "—"}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop table view (≥641px) */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">{t("agentKeys.globalDeliveries.col.status", "상태")}</TableHead>
+                        <TableHead>{t("agentKeys.globalDeliveries.col.event", "이벤트")}</TableHead>
+                        <TableHead>{t("agentKeys.globalDeliveries.col.key", "API 키")}</TableHead>
+                        <TableHead>{t("agentKeys.globalDeliveries.col.webhookUrl", "웹훅 URL")}</TableHead>
+                        <TableHead className="text-right w-20">{t("agentKeys.globalDeliveries.col.latency", "지연")}</TableHead>
+                        <TableHead className="text-right w-16">{t("agentKeys.globalDeliveries.col.attempt", "시도")}</TableHead>
+                        <TableHead className="text-right w-32">{t("agentKeys.globalDeliveries.col.createdAt", "시각")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {globalDeliveries.map((d) => {
+                        const isSuccess = d.succeededAt !== null;
+                        // Any delivery that has not succeeded is treated as failed,
+                        // including transport-level failures where statusCode is null
+                        // (network timeouts, connection refused, etc.)
+                        const isFailed = !isSuccess;
+                        return (
+                          <TableRow key={d.id} className={isFailed ? "bg-red-50/50 dark:bg-red-950/30" : "bg-green-50/50 dark:bg-green-950/30"}>
+                            <TableCell>
+                              <span
+                                className={`font-mono font-semibold text-sm ${
+                                  isFailed
+                                    ? "text-red-600 dark:text-red-400"
+                                    : "text-green-600 dark:text-green-400"
+                                }`}
+                              >
+                                {d.statusCode ?? "—"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">{d.event}</TableCell>
+                            <TableCell>
+                              <button
+                                className="flex items-center gap-1 text-left hover:underline"
+                                onClick={() => {
+                                  const key = keys.find((k) => k.id === d.agentKeyId);
+                                  if (key) {
+                                    setWebhookTarget(key);
+                                    setNewWebhookUrl("");
+                                  }
+                                }}
+                                title={t("agentKeys.globalDeliveries.goToKey", "웹훅 관리 열기")}
+                              >
+                                <span className="font-mono text-xs text-muted-foreground">{d.agentKeyPrefix}…</span>
+                                <span className="text-xs truncate max-w-[120px]">{d.agentKeyName}</span>
+                                <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                              </button>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-mono text-xs text-muted-foreground truncate block max-w-[200px]" title={d.webhookUrl}>
+                                {d.webhookUrl}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-mono tabular-nums">
+                              {d.latencyMs !== null
+                                ? d.latencyMs >= 1000
+                                  ? `${(d.latencyMs / 1000).toFixed(1)}s`
+                                  : `${d.latencyMs}ms`
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {d.attempt > 1 ? (
+                                <Badge variant="outline" className="text-xs px-1 py-0">
+                                  {d.attempt}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">{d.attempt}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                              {d.createdAt ? format(new Date(d.createdAt), "MM-dd HH:mm") : "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
 
             <p className="text-xs text-muted-foreground">
