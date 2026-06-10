@@ -1086,7 +1086,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.ready', turnSeq: 3 });
     });
 
-    it('response.ready on first cancel carries the correct turnSeq value', () => {
+    it('response.ready on first cancel carries the incremented turnSeq value', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({ geminiSession, isInterrupted: false, turnSeq: 7 });
       const sessions = new Map([[session.id, session]]);
@@ -1095,7 +1095,9 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
       const readyCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'response.ready');
       expect(readyCalls).toHaveLength(1);
-      expect(readyCalls[0][1]).toEqual({ type: 'response.ready', turnSeq: 7 });
+      // turnSeq is incremented before sending response.ready so in-flight audio
+      // from the cancelled turn (old turnSeq=7) is filtered on the client side.
+      expect(readyCalls[0][1]).toEqual({ type: 'response.ready', turnSeq: 8 });
     });
 
     it('cancelledTurnSeq is set to the session turnSeq at the time of the first cancel', () => {

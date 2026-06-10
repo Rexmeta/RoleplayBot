@@ -312,6 +312,12 @@ export function handleClientMessage(
 
       session.currentTranscript = '';
 
+      // Increment turnSeq so that any in-flight audio.delta packets from the
+      // cancelled turn (which carry the old turnSeq) are filtered out by the
+      // client-side turnSeq guard once response.ready is received.
+      session.turnSeq++;
+      console.log(`📊 Turn seq incremented to ${session.turnSeq} (post-barge-in)`);
+
       sendToClient(session, { type: 'response.interrupted' });
       sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
       break;

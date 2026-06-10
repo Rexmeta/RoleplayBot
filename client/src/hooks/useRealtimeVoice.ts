@@ -526,9 +526,14 @@ export function useRealtimeVoice({
                   console.log(`🔇 Ignoring old audio (turnSeq ${data.turnSeq} < expected ${expectedTurnSeqRef.current})`);
                   break;
                 }
+                // Do NOT reset isInterruptedRef here.
+                // playAudioDelta has its own guard: if isInterruptedRef.current is true it
+                // returns immediately, blocking in-flight audio from a cancelled turn.
+                // Only response.ready (or session connect) should clear isInterruptedRef so
+                // that old audio arriving before response.ready is reliably suppressed.
                 if (isInterruptedRef.current) {
-                  console.log('🔊 New AI response started - resetting barge-in interrupted flag');
-                  isInterruptedRef.current = false;
+                  console.log(`🔇 Dropping in-flight audio after barge-in (turnSeq ${data.turnSeq})`);
+                  break;
                 }
                 if (!aiSpeakingCallbackFiredRef.current) {
                   aiSpeakingCallbackFiredRef.current = true;
