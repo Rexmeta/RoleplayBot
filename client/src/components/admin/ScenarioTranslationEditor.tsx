@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -444,7 +444,7 @@ export function ScenarioTranslationEditor({
 
                     <div className="space-y-2">
                       <Label>설명</Label>
-                      <Textarea
+                      <AutoResizeTextarea
                         value={originalTranslation.description || scenarioDescription || ''}
                         onChange={(e) => handleFieldChange(sourceLocale, 'description', e.target.value)}
                         placeholder="설명 입력..."
@@ -460,7 +460,7 @@ export function ScenarioTranslationEditor({
                     
                     <div className="space-y-2">
                       <Label>상황 설명</Label>
-                      <Textarea
+                      <AutoResizeTextarea
                         value={originalTranslation.situation || scenarioContext?.situation || ''}
                         onChange={(e) => handleFieldChange(sourceLocale, 'situation', e.target.value)}
                         placeholder="상황 설명..."
@@ -647,7 +647,7 @@ export function ScenarioTranslationEditor({
                         </div>
                         <div className="space-y-2 flex flex-col">
                           <Label>번역 설명 ({lang.name})</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             value={translation.description || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'description', e.target.value)}
                             placeholder={`${lang.nativeName} 설명 입력...`}
@@ -671,7 +671,7 @@ export function ScenarioTranslationEditor({
                         </div>
                         <div className="space-y-2 flex flex-col">
                           <Label>번역 상황 설명 ({lang.name})</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             value={translation.situation || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'situation', e.target.value)}
                             placeholder={`${lang.nativeName} 상황 설명...`}
@@ -872,7 +872,7 @@ export function ScenarioTranslationEditor({
                         </div>
                         <div className="space-y-2 flex flex-col">
                           <Label className="text-green-700">번역 최적 ({lang.name})</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             value={translation.successCriteriaOptimal || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'successCriteriaOptimal', e.target.value)}
                             placeholder={`${lang.nativeName} 최적 기준...`}
@@ -890,7 +890,7 @@ export function ScenarioTranslationEditor({
                         </div>
                         <div className="space-y-2 flex flex-col">
                           <Label className="text-blue-700">번역 양호 ({lang.name})</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             value={translation.successCriteriaGood || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'successCriteriaGood', e.target.value)}
                             placeholder={`${lang.nativeName} 양호 기준...`}
@@ -908,7 +908,7 @@ export function ScenarioTranslationEditor({
                         </div>
                         <div className="space-y-2 flex flex-col">
                           <Label className="text-yellow-700">번역 수용가능 ({lang.name})</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             value={translation.successCriteriaAcceptable || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'successCriteriaAcceptable', e.target.value)}
                             placeholder={`${lang.nativeName} 수용가능 기준...`}
@@ -926,7 +926,7 @@ export function ScenarioTranslationEditor({
                         </div>
                         <div className="space-y-2 flex flex-col">
                           <Label className="text-red-700">번역 실패 ({lang.name})</Label>
-                          <Textarea
+                          <AutoResizeTextarea
                             value={translation.successCriteriaFailure || ''}
                             onChange={(e) => handleFieldChange(lang.code, 'successCriteriaFailure', e.target.value)}
                             placeholder={`${lang.nativeName} 실패 기준...`}
@@ -1011,7 +1011,7 @@ export function ScenarioTranslationEditor({
                                   </div>
                                   <div className="space-y-1 flex flex-col">
                                     <Label className="text-xs">입장/태도 ({lang.nativeName})</Label>
-                                    <Textarea
+                                    <AutoResizeTextarea
                                       value={ctx.stance || ''}
                                       onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'stance', e.target.value)}
                                       placeholder={`${lang.nativeName} 입장/태도...`}
@@ -1027,7 +1027,7 @@ export function ScenarioTranslationEditor({
                                   </div>
                                   <div className="space-y-1 flex flex-col">
                                     <Label className="text-xs">목표 ({lang.nativeName})</Label>
-                                    <Textarea
+                                    <AutoResizeTextarea
                                       value={ctx.goal || ''}
                                       onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'goal', e.target.value)}
                                       placeholder={`${lang.nativeName} 목표...`}
@@ -1043,7 +1043,7 @@ export function ScenarioTranslationEditor({
                                   </div>
                                   <div className="space-y-1 flex flex-col">
                                     <Label className="text-xs">협상 가능 범위 ({lang.nativeName})</Label>
-                                    <Textarea
+                                    <AutoResizeTextarea
                                       value={ctx.tradeoff || ''}
                                       onChange={(e) => handlePersonaContextChange(lang.code, persona.id, 'tradeoff', e.target.value)}
                                       placeholder={`${lang.nativeName} 협상 가능 범위...`}

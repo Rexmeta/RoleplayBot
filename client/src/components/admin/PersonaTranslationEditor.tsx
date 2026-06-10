@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -429,7 +429,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.personality')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={(translation.personalityTraits || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'personalityTraits', e.target.value)}
                               placeholder={`${t('admin.personaTranslationEditor.placeholder.trait')}1\n${t('admin.personaTranslationEditor.placeholder.trait')}2\n${t('admin.personaTranslationEditor.placeholder.trait')}3`}
@@ -447,7 +447,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.communication')} ({lang.nativeName})</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={translation.communicationStyle || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'communicationStyle', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.communication')}...`}
@@ -465,7 +465,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.motivationLabel')} ({lang.nativeName})</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={translation.motivation || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'motivation', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.motivationLabel')}...`}
@@ -483,7 +483,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.fearsLabel')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={(translation.fears || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'fears', e.target.value)}
                               placeholder={`${t('admin.personaTranslationEditor.placeholder.fear')}1\n${t('admin.personaTranslationEditor.placeholder.fear')}2`}
@@ -501,7 +501,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.personalityDesc')} ({lang.nativeName})</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={translation.personalityDescription || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'personalityDescription', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.personalityDesc')}...`}
@@ -544,7 +544,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.experience')} ({lang.nativeName})</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={translation.previousExperience || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'previousExperience', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.experience')}...`}
@@ -562,7 +562,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.projects')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={(translation.majorProjects || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'majorProjects', e.target.value)}
                               placeholder={`${t('admin.personaTranslationEditor.placeholder.project')}1\n${t('admin.personaTranslationEditor.placeholder.project')}2`}
@@ -580,7 +580,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.expertise')} ({lang.nativeName}) - {t('admin.personaTranslationEditor.label.separateByLine')}</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={(translation.expertise || []).join('\n')}
                               onChange={(e) => handleArrayFieldChange(lang.code, 'expertise', e.target.value)}
                               placeholder={`${t('admin.personaTranslationEditor.placeholder.expertiseItem')}1\n${t('admin.personaTranslationEditor.placeholder.expertiseItem')}2`}
@@ -598,7 +598,7 @@ export function PersonaTranslationEditor({
                           </div>
                           <div className="space-y-2 flex flex-col">
                             <Label>{t('admin.personaTranslationEditor.label.backgroundLabel')} ({lang.nativeName})</Label>
-                            <Textarea
+                            <AutoResizeTextarea
                               value={translation.background || ''}
                               onChange={(e) => handleFieldChange(lang.code, 'background', e.target.value)}
                               placeholder={`${lang.nativeName} ${t('admin.personaTranslationEditor.label.backgroundLabel')}...`}
