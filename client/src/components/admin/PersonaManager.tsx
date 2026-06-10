@@ -1193,90 +1193,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 </div>
               </div>
 
-              {/* 자유 대화 설정 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-comments text-emerald-600"></i>
-                  자유 대화 설정
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="freeChatAvailable"
-                      checked={formData.freeChatAvailable ?? false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, freeChatAvailable: checked }))}
-                    />
-                    <Label htmlFor="freeChatAvailable" className="text-sm font-semibold text-slate-700">
-                      자유 대화 활성화
-                    </Label>
-                  </div>
-                  {formData.freeChatAvailable && (
-                    <div>
-                      <Label htmlFor="freeChatDescription" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                        자유 대화 설명
-                      </Label>
-                      <AutoResizeTextarea
-                        id="freeChatDescription"
-                        value={formData.freeChatDescription || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, freeChatDescription: e.target.value }))}
-                        placeholder="이 페르소나와의 자유 대화에 대한 설명을 입력하세요."
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 스토어 설정 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-store text-amber-600"></i>
-                  Store Settings
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="personaStoreListed"
-                      checked={formData.storeListed ?? false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, storeListed: checked }))}
-                    />
-                    <Label htmlFor="personaStoreListed" className="text-sm font-semibold text-slate-700 cursor-pointer">
-                      Publish to Store
-                    </Label>
-                    <span className="text-xs text-slate-500">
-                      {formData.storeListed ? 'Listed in content store' : 'Not in store'}
-                    </span>
-                  </div>
-                  {formData.storeListed && (
-                    <div className="ml-8 space-y-2">
-                      <div className="flex items-center gap-3">
-                        <Label className="text-xs text-slate-600 w-24">Price (USD)</Label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="0.00"
-                          className="border rounded px-2 py-1 text-sm w-24"
-                          value={formData.storePriceUsd ?? ''}
-                          onChange={e => setFormData(prev => ({ ...prev, storePriceUsd: e.target.value ? parseFloat(e.target.value) : null }))}
-                        />
-                        <span className="text-xs text-slate-500">0 = free</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Label className="text-xs text-slate-600 w-24">Pack ID</Label>
-                        <input
-                          type="text"
-                          placeholder="Store pack ID (optional)"
-                          className="border rounded px-2 py-1 text-sm flex-1"
-                          value={formData.storePackId ?? ''}
-                          onChange={e => setFormData(prev => ({ ...prev, storePackId: e.target.value || null }))}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* 이미지 정보 섹션 */}
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
@@ -1434,6 +1350,90 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* 자유 대화 설정 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-comments text-emerald-600"></i>
+                  자유 대화 설정
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="freeChatAvailable"
+                      checked={formData.freeChatAvailable ?? false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, freeChatAvailable: checked }))}
+                    />
+                    <Label htmlFor="freeChatAvailable" className="text-sm font-semibold text-slate-700">
+                      자유 대화 활성화
+                    </Label>
+                  </div>
+                  {formData.freeChatAvailable && (
+                    <div>
+                      <Label htmlFor="freeChatDescription" className="text-sm font-semibold text-slate-700 mb-1.5 block">
+                        자유 대화 설명
+                      </Label>
+                      <AutoResizeTextarea
+                        id="freeChatDescription"
+                        value={formData.freeChatDescription || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, freeChatDescription: e.target.value }))}
+                        placeholder="이 페르소나와의 자유 대화에 대한 설명을 입력하세요."
+                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 스토어 설정 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <i className="fas fa-store text-amber-600"></i>
+                  Store Settings
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="personaStoreListed"
+                      checked={formData.storeListed ?? false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, storeListed: checked }))}
+                    />
+                    <Label htmlFor="personaStoreListed" className="text-sm font-semibold text-slate-700 cursor-pointer">
+                      Publish to Store
+                    </Label>
+                    <span className="text-xs text-slate-500">
+                      {formData.storeListed ? 'Listed in content store' : 'Not in store'}
+                    </span>
+                  </div>
+                  {formData.storeListed && (
+                    <div className="ml-8 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-xs text-slate-600 w-24">Price (USD)</Label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="border rounded px-2 py-1 text-sm w-24"
+                          value={formData.storePriceUsd ?? ''}
+                          onChange={e => setFormData(prev => ({ ...prev, storePriceUsd: e.target.value ? parseFloat(e.target.value) : null }))}
+                        />
+                        <span className="text-xs text-slate-500">0 = free</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="text-xs text-slate-600 w-24">Pack ID</Label>
+                        <input
+                          type="text"
+                          placeholder="Store pack ID (optional)"
+                          className="border rounded px-2 py-1 text-sm flex-1"
+                          value={formData.storePackId ?? ''}
+                          onChange={e => setFormData(prev => ({ ...prev, storePackId: e.target.value || null }))}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
