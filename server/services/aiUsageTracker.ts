@@ -6,9 +6,10 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   // Gemini models (2025 pricing - unified thinking/non-thinking)
   'gemini-2.5-flash': { input: 0.30, output: 2.50 },
   'gemini-2.5-pro': { input: 1.25, output: 10.00 }, // ≤200K tokens
-  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 },      // Live API — v1beta (SDK default)
+  'gemini-3.1-flash-live-preview': { input: 0.35, output: 1.50 },       // Live API — v1beta (Google official)
   // Legacy/invalid names kept for historical usage log records only:
-  'gemini-live-2.5-flash-native-audio': { input: 0.35, output: 1.50 }, // was used in DB before June 2026 fix
+  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 },
+  'gemini-live-2.5-flash-native-audio': { input: 0.35, output: 1.50 },
   'gemini-3.1-flash-live': { input: 0.35, output: 1.50 },
   'gemini-3.5-live-translate': { input: 0.35, output: 1.50 },
   // Legacy/deprecated — kept for historical usage log records only

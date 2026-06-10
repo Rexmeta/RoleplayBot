@@ -31,13 +31,14 @@ import { eq } from 'drizzle-orm';
 import { getOrCreateSessionContext } from './simulation/simulationEngine';
 import { createDefaultSimulationState } from './simulation/simulationTypes';
 
-// SDK (@google/genai v1.15.0) default for Google AI (non-Vertex) is 'gemini-live-2.5-flash-preview'.
-// 'gemini-live-2.5-flash-native-audio' is mentioned in Google docs but is NOT a valid API model ID.
-const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
+// Per Google official docs (ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-live-preview):
+// 'gemini-3.1-flash-live-preview' is the current supported model for v1beta bidiGenerateContent.
+// All previous names ('gemini-live-2.5-flash-preview', 'gemini-live-2.5-flash-native-audio', etc.) fail.
+const DEFAULT_REALTIME_MODEL = 'gemini-3.1-flash-live-preview';
 
 // All Gemini Live models use v1beta. v1alpha is never used.
 const VALID_GEMINI_REALTIME_MODELS = [
-  'gemini-live-2.5-flash-preview', // SDK default — v1beta
+  'gemini-3.1-flash-live-preview', // v1beta — Google AI official docs confirmed
 ];
 const VALID_OPENAI_REALTIME_MODELS = ['gpt-4o-realtime-preview', 'gpt-4o-mini-realtime-preview'];
 
