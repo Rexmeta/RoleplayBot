@@ -31,12 +31,13 @@ import { eq } from 'drizzle-orm';
 import { getOrCreateSessionContext } from './simulation/simulationEngine';
 import { createDefaultSimulationState } from './simulation/simulationTypes';
 
-const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash-native-audio';
+// SDK (@google/genai v1.15.0) default for Google AI (non-Vertex) is 'gemini-live-2.5-flash-preview'.
+// 'gemini-live-2.5-flash-native-audio' is mentioned in Google docs but is NOT a valid API model ID.
+const DEFAULT_REALTIME_MODEL = 'gemini-live-2.5-flash-preview';
 
+// All Gemini Live models use v1beta. v1alpha is never used.
 const VALID_GEMINI_REALTIME_MODELS = [
-  'gemini-live-2.5-flash-native-audio', // GA — v1beta
-  'gemini-3.1-flash-live',              // Preview — v1alpha
-  'gemini-3.5-live-translate',          // Preview — v1alpha (translation)
+  'gemini-live-2.5-flash-preview', // SDK default — v1beta
 ];
 const VALID_OPENAI_REALTIME_MODELS = ['gpt-4o-realtime-preview', 'gpt-4o-mini-realtime-preview'];
 
@@ -66,12 +67,10 @@ async function preloadRecentMessages(
   }
 }
 
-// GA models use v1beta; preview/experimental models use v1alpha.
-// gemini-live-2.5-flash-native-audio is GA → v1beta
-// gemini-3.1-flash-live and gemini-3.5-live-translate are preview → v1alpha
-function geminiLiveApiVersion(model: string): 'v1alpha' | 'v1beta' {
-  const gaModels = ['gemini-live-2.5-flash-native-audio'];
-  return gaModels.includes(model) ? 'v1beta' : 'v1alpha';
+// Always use v1beta for all Gemini Live models.
+// v1alpha is not used — production services must target minimum v1beta.
+function geminiLiveApiVersion(_model: string): 'v1beta' {
+  return 'v1beta';
 }
 
 export class RealtimeVoiceService {

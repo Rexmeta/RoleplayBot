@@ -1,21 +1,15 @@
 ---
 name: Gemini Live valid models
-description: Which model IDs actually work for Gemini Live bidiGenerateContent API, and what API version each requires.
+description: Correct model IDs for @google/genai SDK Live API bidiGenerateContent, confirmed via SDK source
 ---
 
 ## Rule
-Three valid models per Google Gemini Live API docs (June 2026):
+Use `gemini-live-2.5-flash-preview` with API version `v1beta`.
 
-| Model ID | Status | API Version |
-|---|---|---|
-| `gemini-live-2.5-flash-native-audio` | **GA (default)** | `v1beta` |
-| `gemini-3.1-flash-live` | Preview | `v1alpha` |
-| `gemini-3.5-live-translate` | Preview (translation only) | `v1alpha` |
-
-**Why:** All previous names (`gemini-2.0-flash-live-001`, `gemini-2.5-flash-live-preview`, `gemini-2.0-flash-live-preview-04-09`, `gemini-3.1-flash-live-preview`, `gemini-live-2.5-flash-preview`, etc.) fail at connection time with code 1008 "model not found for API version". GA models use `v1beta`; preview models use `v1alpha` for bidiGenerateContent.
+**Why:** `gemini-live-2.5-flash-native-audio` appears in Google marketing/docs but is NOT a valid bidiGenerateContent model ID — every attempt returns code 1008 "not found for API version". The `@google/genai` SDK v1.15.0 source (`dist/index.cjs`) shows the actual default for Google AI (non-Vertex) is `gemini-live-2.5-flash-preview`. The Vertex AI default is `gemini-2.0-flash-live-preview-04-09` (not used here). v1alpha is never used per product requirement.
 
 **How to apply:**
-- `DEFAULT_REALTIME_MODEL` = `'gemini-live-2.5-flash-native-audio'` in `server/services/realtimeVoiceService.ts`
-- `geminiLiveApiVersion()` returns `'v1beta'` for GA models, `'v1alpha'` for preview models
-- `server/migrate.ts` migration uses `NOT IN (valid models list)` to catch all new deprecated names automatically
-- `shared/realtimeModels.ts` REALTIME_MODELS list shows these three + OpenAI options
+- `DEFAULT_REALTIME_MODEL` in `server/services/realtimeVoiceService.ts` → `'gemini-live-2.5-flash-preview'`
+- `geminiLiveApiVersion()` always returns `'v1beta'` — v1alpha is excluded entirely
+- `server/migrate.ts` migration uses `NOT IN ('gemini-live-2.5-flash-preview', 'gpt-4o-realtime-preview', 'gpt-4o-mini-realtime-preview')` to auto-correct any stale DB values
+- `shared/realtimeModels.ts` REALTIME_MODELS shows this model + OpenAI options

@@ -8,25 +8,11 @@ export interface RealtimeModelInfo {
 
 export const REALTIME_MODELS: RealtimeModelInfo[] = [
   {
-    value: "gemini-live-2.5-flash-native-audio",
-    modelKey: "geminiLive25FlashNativeAudio",
+    value: "gemini-live-2.5-flash-preview",
+    modelKey: "geminiLive25FlashPreview",
     provider: "Google Live",
     recommended: true,
-    description: "GA — 엔터프라이즈 안정 버전",
-  },
-  {
-    value: "gemini-3.1-flash-live",
-    modelKey: "gemini31FlashLive",
-    provider: "Google Live",
-    recommended: false,
-    description: "프리뷰 — 최신 대화형 음성 AI",
-  },
-  {
-    value: "gemini-3.5-live-translate",
-    modelKey: "gemini35LiveTranslate",
-    provider: "Google Live",
-    recommended: false,
-    description: "프리뷰 — 실시간 통역 전용",
+    description: "v1beta (프로덕션 안정)",
   },
   {
     value: "gpt-4o-realtime-preview",
