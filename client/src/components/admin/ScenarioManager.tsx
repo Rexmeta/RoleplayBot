@@ -304,6 +304,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [aiPreviewOpen, setAiPreviewOpen] = useState(false);
   const [aiPreviewType, setAiPreviewType] = useState<'evaluationHarness' | 'playerConstraints' | null>(null);
   const [aiPreviewData, setAiPreviewData] = useState<EvaluationHarness | PlayerConstraints | null>(null);
+  const [aiPreviewExisting, setAiPreviewExisting] = useState<EvaluationHarness | PlayerConstraints | null>(null);
+  const [aiPreviewEdited, setAiPreviewEdited] = useState<EvaluationHarness | PlayerConstraints | null>(null);
   const [analyticsTrackedMetrics, setAnalyticsTrackedMetrics] = useState<string[]>([]);
   const [analyticsReportSections, setAnalyticsReportSections] = useState<string[]>([]);
   const [analyticsBenchmarkGroup, setAnalyticsBenchmarkGroup] = useState('');
@@ -1294,6 +1296,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       });
       if (!data.success || !data.evaluationHarness) throw new Error('AI 응답이 올바르지 않습니다');
       setAiPreviewData(data.evaluationHarness);
+      setAiPreviewEdited(data.evaluationHarness);
+      setAiPreviewExisting(evaluationHarnessValue);
       setAiPreviewType('evaluationHarness');
       setAiPreviewOpen(true);
     } catch (error: any) {
@@ -1316,6 +1320,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       });
       if (!data.success || !data.playerConstraints) throw new Error('AI 응답이 올바르지 않습니다');
       setAiPreviewData(data.playerConstraints);
+      setAiPreviewEdited(data.playerConstraints);
+      setAiPreviewExisting(playerConstraintsValue);
       setAiPreviewType('playerConstraints');
       setAiPreviewOpen(true);
     } catch (error: any) {
@@ -1358,19 +1364,27 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
   };
 
+  const closeAiPreviewDialog = () => {
+    setAiPreviewOpen(false);
+    setAiPreviewData(null);
+    setAiPreviewEdited(null);
+    setAiPreviewExisting(null);
+    setAiPreviewType(null);
+  };
+
   const handleApplyAiPreview = () => {
-    if (!aiPreviewData || !aiPreviewType) return;
+    if (!aiPreviewType) return;
+    const dataToApply = aiPreviewEdited ?? aiPreviewData;
+    if (!dataToApply) return;
     if (aiPreviewType === 'evaluationHarness') {
-      setEvaluationHarnessValue(aiPreviewData as EvaluationHarness);
+      setEvaluationHarnessValue(dataToApply as EvaluationHarness);
       setBuilderKey(k => k + 1);
       toast({ title: 'AI 생성 완료', description: '평가 기준(evaluationHarness)이 채워졌습니다.' });
     } else {
-      setPlayerConstraintsValue(aiPreviewData as PlayerConstraints);
+      setPlayerConstraintsValue(dataToApply as PlayerConstraints);
       toast({ title: 'AI 생성 완료', description: '플레이어 제약(playerConstraints)이 채워졌습니다.' });
     }
-    setAiPreviewOpen(false);
-    setAiPreviewData(null);
-    setAiPreviewType(null);
+    closeAiPreviewDialog();
   };
 
   const handleGenerateVideo = async () => {
@@ -4646,54 +4660,103 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={aiPreviewOpen} onOpenChange={(open) => {
-        if (!open) {
-          setAiPreviewOpen(false);
-          setAiPreviewData(null);
-          setAiPreviewType(null);
-        }
-      }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <Dialog open={aiPreviewOpen} onOpenChange={(open) => { if (!open) closeAiPreviewDialog(); }}>
+        <DialogContent className={aiPreviewExisting ? 'max-w-5xl max-h-[90vh] flex flex-col' : 'max-w-2xl max-h-[80vh] flex flex-col'}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-purple-500" />
               {aiPreviewType === 'evaluationHarness' ? 'AI 생성 결과 — 평가 기준 (evaluationHarness)' : 'AI 생성 결과 — 플레이어 제약 (playerConstraints)'}
             </DialogTitle>
             <DialogDescription>
-              아래 내용을 확인한 후 적용하거나 취소할 수 있습니다. 적용하면 현재 입력된 내용이 대체됩니다.
+              {aiPreviewExisting
+                ? '기존 내용과 AI 생성 내용을 비교하세요. AI 버전을 바로 편집한 후 적용할 수 있습니다.'
+                : '아래 내용을 확인한 후 적용하거나 취소할 수 있습니다. 적용하면 현재 입력된 내용이 대체됩니다.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto p-1 min-h-0">
-            {aiPreviewData && aiPreviewType === 'evaluationHarness' && (
-              <EvaluationHarnessBuilder
-                key={JSON.stringify(aiPreviewData)}
-                defaultValue={aiPreviewData as EvaluationHarness}
-                onChange={() => {}}
-                readOnly
-              />
-            )}
-            {aiPreviewData && aiPreviewType === 'playerConstraints' && (
-              <PlayerConstraintsBuilder
-                value={aiPreviewData as PlayerConstraints}
-                onChange={() => {}}
-                readOnly
-              />
-            )}
-          </div>
-          <DialogFooter className="gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setAiPreviewOpen(false);
-                setAiPreviewData(null);
-                setAiPreviewType(null);
-              }}
-            >
+
+          {aiPreviewExisting ? (
+            /* ── Diff view: existing vs AI generated ── */
+            <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
+              {/* Left: current content (read-only) */}
+              <div className="flex flex-col min-h-0 border rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 border-b shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-600">현재 내용</span>
+                </div>
+                <div className="flex-1 overflow-auto p-2">
+                  {aiPreviewType === 'evaluationHarness' && (
+                    <EvaluationHarnessBuilder
+                      key={`existing-${JSON.stringify(aiPreviewExisting)}`}
+                      defaultValue={aiPreviewExisting as EvaluationHarness}
+                      onChange={() => {}}
+                      readOnly
+                    />
+                  )}
+                  {aiPreviewType === 'playerConstraints' && (
+                    <PlayerConstraintsBuilder
+                      value={aiPreviewExisting as PlayerConstraints}
+                      onChange={() => {}}
+                      readOnly
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Right: AI generated content (editable so users can merge manually) */}
+              <div className="flex flex-col min-h-0 border rounded-lg border-purple-200 overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border-b shrink-0">
+                  <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
+                  <span className="text-xs font-semibold text-purple-700">AI 생성 — 편집 후 적용 가능</span>
+                </div>
+                <div className="flex-1 overflow-auto p-2">
+                  {aiPreviewType === 'evaluationHarness' && (
+                    <EvaluationHarnessBuilder
+                      key={`ai-${JSON.stringify(aiPreviewData)}`}
+                      defaultValue={(aiPreviewEdited ?? aiPreviewData) as EvaluationHarness}
+                      onChange={(val) => setAiPreviewEdited(val)}
+                    />
+                  )}
+                  {aiPreviewType === 'playerConstraints' && (
+                    <PlayerConstraintsBuilder
+                      value={(aiPreviewEdited ?? aiPreviewData) as PlayerConstraints}
+                      onChange={(val) => setAiPreviewEdited(val)}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ── Single preview (no existing content) ── */
+            <div className="flex-1 overflow-auto p-1 min-h-0">
+              {aiPreviewData && aiPreviewType === 'evaluationHarness' && (
+                <EvaluationHarnessBuilder
+                  key={JSON.stringify(aiPreviewData)}
+                  defaultValue={aiPreviewData as EvaluationHarness}
+                  onChange={() => {}}
+                  readOnly
+                />
+              )}
+              {aiPreviewData && aiPreviewType === 'playerConstraints' && (
+                <PlayerConstraintsBuilder
+                  value={aiPreviewData as PlayerConstraints}
+                  onChange={() => {}}
+                  readOnly
+                />
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 pt-2 shrink-0">
+            <Button type="button" variant="outline" onClick={closeAiPreviewDialog}>
               취소
             </Button>
+            {aiPreviewExisting && (
+              <Button type="button" variant="outline" onClick={closeAiPreviewDialog}>
+                현재 유지
+              </Button>
+            )}
             <Button type="button" onClick={handleApplyAiPreview}>
-              적용
+              {aiPreviewExisting ? 'AI 버전 적용' : '적용'}
             </Button>
           </DialogFooter>
         </DialogContent>
