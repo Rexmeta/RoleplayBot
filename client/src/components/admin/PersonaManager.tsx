@@ -838,7 +838,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
               {t('admin.personaManager.createPersona')}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
+          <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
             <DialogHeader className="bg-indigo-600 -m-6 mb-4 p-6 rounded-t-lg">
               <DialogTitle className="text-white text-xl flex items-center gap-2">
                 <i className="fas fa-user-edit"></i>
@@ -853,7 +853,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                   <i className="fas fa-id-card text-indigo-600"></i>
                   {t('admin.personaManager.section.basicInfo')}
                 </h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="id" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personaId')}</Label>
                     <Input
@@ -998,7 +998,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label htmlFor="social_preference" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.socialPreference')}</Label>
                       <Input
@@ -1116,7 +1116,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                   {t('admin.personaManager.section.voiceAndGender')}
                 </h3>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <div>
                       <Label htmlFor="voice_tone" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.voiceTone')}</Label>
                       <Input
@@ -1200,7 +1200,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                   {t('admin.personaManager.section.imageInfo')}
                 </h3>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label htmlFor="images_base" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.baseImageUrl')}</Label>
                       <Input
@@ -1287,7 +1287,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                   <p className="text-sm text-slate-600 mb-3">{t('admin.personaManager.image.currentSelection')}: <span className="font-semibold">{formData.gender === 'male' ? t('admin.personaManager.image.maleExpressions') : t('admin.personaManager.image.femaleExpressions')}</span></p>
                 </div>
 
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                   {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '단호', '실망', '당혹'].map((emotion) => {
                     const currentGender = formData.gender;
                     let imageUrl = '';
@@ -1747,7 +1747,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                   {persona.voice && (
                     <div>
                       <h4 className="font-medium text-slate-700 mb-1">{t('admin.personaManager.card.voiceTraits')}</h4>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {persona.voice.tone && (
                           <div>
                             <p className="text-xs text-slate-500">{t('admin.personaManager.card.tone')}:</p>

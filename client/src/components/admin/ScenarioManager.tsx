@@ -1871,7 +1871,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
+            <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
               <DialogHeader className="bg-white px-6 py-4 -mx-6 -mt-6 border-b border-slate-200">
                 <DialogTitle className="text-xl text-slate-900">
                   {editingScenario ? (editingScenario.title || t('admin.scenarioManager.editScenario')) : t('admin.scenarioManager.newScenario')}
@@ -2026,7 +2026,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.introVideo')}</Label>
 
                   {/* 모드 선택 라디오 카드 */}
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {/* 사용 안 함 */}
                     <button
                       type="button"
@@ -2286,7 +2286,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   )}
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="title" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.scenarioTitle')}</Label>
                     <Input
@@ -2677,7 +2677,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="timeline" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.timeline')}</Label>
                     <Input
@@ -2709,7 +2709,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="position" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerPosition', 'Player Position')}</Label>
                     <Input
@@ -2747,7 +2747,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="playerExperience" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerExperience', 'Player Experience')}</Label>
                     <Input
@@ -2839,7 +2839,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="optimal" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.optimal')}</Label>
                     <AutoResizeTextarea
@@ -2871,7 +2871,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="acceptable" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.acceptable')}</Label>
                     <AutoResizeTextarea
@@ -3023,7 +3023,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           </Button>
                         </div>
                         
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           <div>
                             <Label htmlFor={`persona-id-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaId')} *</Label>
                             <Select
@@ -3210,7 +3210,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         {/* Multi-persona switching fields */}
                         <div className="border-t border-slate-200 pt-3 mt-1">
                           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Multi-Persona Switching</p>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -3368,7 +3368,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     </div>
 
                     {/* Emotion Tool Limits */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <Label className="text-xs font-semibold text-slate-700 mb-1 block">턴당 감정 업데이트 횟수 (최대)</Label>
                         <Input
@@ -3394,7 +3394,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     {/* Allowed Incident Types */}
                     <div>
                       <Label className="text-xs font-semibold text-slate-700 mb-1 block">허용 이벤트 유형</Label>
-                      <div className="grid grid-cols-2 gap-y-1 gap-x-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-3">
                         {HARNESS_ALL_INCIDENT_TYPES.map(type => (
                           <label key={type} className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
                             <input
@@ -3416,7 +3416,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     </div>
 
                     {/* Cooldowns */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <Label className="text-xs font-semibold text-slate-700 mb-1 block">전역 이벤트 쿨다운 (초)</Label>
                         <Input
@@ -3520,7 +3520,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           </div>
 
                           {/* Numeric fields row */}
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                             <label className="flex items-center gap-2">
                               <span className="font-medium text-slate-500 shrink-0">턴당 최대 호출:</span>
                               <input
@@ -4489,7 +4489,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
       {/* 번역 관리 모달 */}
       <Dialog open={!!translatingScenario} onOpenChange={(open) => !open && setTranslatingScenario(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="translation-dialog">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="translation-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Languages className="h-5 w-5" />
@@ -4550,7 +4550,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
       {/* 기존 이미지 선택 다이얼로그 */}
       <Dialog open={showImageSelector} onOpenChange={setShowImageSelector}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('admin.scenarioManager.form.selectExisting', '기존 이미지 선택')}</DialogTitle>
           </DialogHeader>
@@ -4565,7 +4565,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 생성된 이미지가 없습니다. 먼저 이미지를 생성해주세요.
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {existingImages.map((img, idx) => (
                   <div
                     key={idx}
@@ -4593,7 +4593,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
       {/* 기존 비디오 선택 다이얼로그 */}
       <Dialog open={showVideoSelector} onOpenChange={setShowVideoSelector}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('admin.scenarioManager.form.selectExistingVideo', '기존 비디오 선택')}</DialogTitle>
           </DialogHeader>
@@ -4608,7 +4608,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 생성된 비디오가 없습니다. 먼저 비디오를 생성해주세요.
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {existingVideos.map((vid, idx) => (
                   <div
                     key={idx}
@@ -4654,7 +4654,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       </Dialog>
 
       <Dialog open={aiPreviewOpen} onOpenChange={(open) => { if (!open) closeAiPreviewDialog(); }}>
-        <DialogContent className={aiPreviewExisting ? 'max-w-5xl max-h-[90vh] flex flex-col' : 'max-w-2xl max-h-[80vh] flex flex-col'}>
+        <DialogContent className={aiPreviewExisting ? 'w-full max-w-[calc(100vw-2rem)] sm:max-w-5xl max-h-[90vh] flex flex-col' : 'w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[80vh] flex flex-col'}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-purple-500" />
@@ -4669,7 +4669,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
           {aiPreviewExisting ? (
             /* ── Diff view: existing vs AI generated ── */
-            <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
               {/* Left: current content (read-only) */}
               <div className="flex flex-col min-h-0 border rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 border-b shrink-0">
