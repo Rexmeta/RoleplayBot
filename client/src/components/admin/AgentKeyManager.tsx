@@ -588,12 +588,12 @@ export function AgentKeyManager() {
       )}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0">
           <CardTitle className="flex items-center gap-2">
             <Key className="h-5 w-5" />
             {t("agentKeys.title", "Agent API 키 관리")}
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               size="sm"
@@ -993,7 +993,7 @@ export function AgentKeyManager() {
 
       {/* Create Key Dialog */}
       <Dialog open={createOpen} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setFormData(EMPTY_FORM); } else { setCreateOpen(true); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("agentKeys.dialog.create.title", "새 Agent API 키 생성")}</DialogTitle>
             <DialogDescription>
@@ -1011,7 +1011,7 @@ export function AgentKeyManager() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>{t("agentKeys.dialog.create.environment", "환경")}</Label>
                 <Select
@@ -1138,7 +1138,7 @@ export function AgentKeyManager() {
 
       {/* Revealed Key Dialog */}
       <Dialog open={!!revealedKey} onOpenChange={(open) => !open && setRevealedKey(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-green-600">
               <CheckCircle className="h-5 w-5" />
@@ -1203,7 +1203,7 @@ export function AgentKeyManager() {
 
       {/* Revoke Key Dialog */}
       <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-destructive">
               {t("agentKeys.dialog.revoke.title", "API 키 폐기")}
@@ -1252,7 +1252,7 @@ export function AgentKeyManager() {
 
       {/* Scenario Access Dialog */}
       <Dialog open={!!scenarioTarget} onOpenChange={(open) => !open && handleScenarioDialogClose()}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {t("agentKeys.dialog.scenarios.title", "시나리오 접근 편집")}
@@ -1347,7 +1347,7 @@ export function AgentKeyManager() {
           }
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Webhook className="h-5 w-5" />
@@ -1738,7 +1738,7 @@ export function AgentKeyManager() {
 
       {/* Threshold Configuration Dialog */}
       <Dialog open={thresholdEditOpen} onOpenChange={(open) => !open && setThresholdEditOpen(false)}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings2 className="h-5 w-5" />

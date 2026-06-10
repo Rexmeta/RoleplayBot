@@ -127,7 +127,7 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
@@ -139,7 +139,7 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <span className="text-sm text-muted-foreground">{t("agentKeys.usage.range", "Range:")}</span>
           <Button
             size="sm"
@@ -155,7 +155,7 @@ export function AgentKeyUsageDashboard({ keyId, keyName, keyPrefix, open, onClos
           >
             {t("agentKeys.usage.last30Days", "Last 30 days")}
           </Button>
-          <span className="text-xs text-muted-foreground ml-2">
+          <span className="text-xs text-muted-foreground">
             {dateRange.from} → {dateRange.to}
           </span>
         </div>
