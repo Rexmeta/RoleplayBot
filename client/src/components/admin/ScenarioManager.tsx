@@ -20,8 +20,9 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient, streamApiRequest } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
 import { flowGraphSchema, personaSwitchRulesSchema, evaluationHarnessSchema, terminationRulesSchema, simulationHarnessSchema, playerConstraintsSchema, difficultyProfileSchema, analyticsSpecSchema, TRACKED_METRICS, REPORT_SECTIONS } from '@shared/schema/scenarios';
-import type { TrackedMetricKey, ReportSectionKey, EvaluationHarness, TerminationRules, TerminationConditionGroup, FlowGraph, PersonaSwitchRules, PlayerConstraints, DifficultyProfile } from '@shared/schema/scenarios';
+import type { TrackedMetricKey, ReportSectionKey, EvaluationHarness, TerminationRules, TerminationConditionGroup, FlowGraph, PersonaSwitchRules, PlayerConstraints, DifficultyProfile, NpcBehaviorHarness } from '@shared/schema/scenarios';
 import { PlayerConstraintsBuilder } from './PlayerConstraintsBuilder';
+import { NpcBehaviorHarnessBuilder } from './NpcBehaviorHarnessBuilder';
 import { DifficultyProfileBuilder } from './DifficultyProfileBuilder';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
@@ -3279,8 +3280,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           </div>
                           <div className="mt-2">
                             <div className="flex items-center justify-between mb-1">
-                              <Label htmlFor={`persona-npcbehaviorharness-${index}`} className="text-sm font-medium text-slate-700">
-                                NPC Behavior Harness <span className="text-xs text-slate-400 font-normal">(JSON, 선택사항)</span>
+                              <Label className="text-sm font-medium text-slate-700">
+                                NPC Behavior Harness <span className="text-xs text-slate-400 font-normal">(선택사항)</span>
                               </Label>
                               <TooltipProvider>
                                 <Tooltip>
@@ -3316,21 +3317,13 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                 </Tooltip>
                               </TooltipProvider>
                             </div>
-                            <Textarea
-                              id={`persona-npcbehaviorharness-${index}`}
-                              value={persona.npcBehaviorHarness ? JSON.stringify(persona.npcBehaviorHarness, null, 2) : ''}
-                              onChange={(e) => {
+                            <NpcBehaviorHarnessBuilder
+                              value={persona.npcBehaviorHarness}
+                              onChange={(updated: NpcBehaviorHarness | null) => {
                                 const newPersonas = [...formData.personas];
-                                let parsed: any = null;
-                                if (e.target.value.trim()) {
-                                  try { parsed = JSON.parse(e.target.value); } catch { parsed = e.target.value; }
-                                }
-                                newPersonas[index] = { ...persona, npcBehaviorHarness: parsed };
+                                newPersonas[index] = { ...persona, npcBehaviorHarness: updated ?? undefined };
                                 setFormData(prev => ({ ...prev, personas: newPersonas }));
                               }}
-                              placeholder={'{\n  "negotiationBounds": { "minTrustToYield": 60, "maxAngerBeforeWalkout": 80 },\n  "trustTriggers": [{ "keyword": "사과", "trustDelta": 10 }],\n  "escalationTriggers": [{ "keyword": "거짓말", "angerDelta": 15 }]\n}'}
-                              rows={4}
-                              className="bg-white font-mono text-xs"
                             />
                           </div>
                         </div>
