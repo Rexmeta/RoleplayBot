@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getProgressInfo } from "@/lib/conversationProgress";
@@ -328,13 +328,13 @@ export function ChatInputBar({
     <div className="flex gap-4">
       <div className="flex-1">
         <div className="relative">
-          <Textarea
+          <AutoResizeTextarea
             value={userInput}
             onChange={(e) => onUserInputChange(e.target.value)}
             placeholder={`메시지를 입력하세요... (최대 200자)`}
             maxLength={200}
             rows={3}
-            className="resize-none rounded-xl border-slate-200 focus:border-corporate-400 focus:ring-corporate-400/20 focus:ring-4 transition-all duration-200 pr-12 pb-8"
+            className="rounded-xl border-slate-200 focus:border-corporate-400 focus:ring-corporate-400/20 focus:ring-4 transition-all duration-200 pr-12 pb-8"
             disabled={isLoading}
             data-testid="input-message"
           />
