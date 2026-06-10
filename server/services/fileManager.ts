@@ -211,6 +211,12 @@ export class FileManagerService {
       flowGraph: (dbScenario as any).flowGraph ?? undefined,
       personaSwitchRules: (dbScenario as any).personaSwitchRules ?? undefined,
       simulationHarness: (dbScenario as any).simulationHarness ?? undefined,
+      evaluationHarness: (dbScenario as any).evaluationHarness ?? undefined,
+      terminationRules: (dbScenario as any).terminationRules ?? undefined,
+      playerConstraints: (dbScenario as any).playerConstraints ?? undefined,
+      difficultyProfile: (dbScenario as any).difficultyProfile ?? undefined,
+      sourceLocale: (dbScenario as any).sourceLocale ?? undefined,
+      analyticsSpec: (dbScenario as any).analyticsSpec ?? undefined,
     };
   }
   
@@ -425,6 +431,11 @@ export class FileManagerService {
         if ((scenario as any).flowGraph !== undefined) updates.flowGraph = (scenario as any).flowGraph;
         if ((scenario as any).personaSwitchRules !== undefined) updates.personaSwitchRules = (scenario as any).personaSwitchRules;
         if ((scenario as any).simulationHarness !== undefined) updates.simulationHarness = (scenario as any).simulationHarness;
+        if ((scenario as any).evaluationHarness !== undefined) updates.evaluationHarness = (scenario as any).evaluationHarness;
+        if ((scenario as any).terminationRules !== undefined) updates.terminationRules = (scenario as any).terminationRules;
+        if ((scenario as any).playerConstraints !== undefined) updates.playerConstraints = (scenario as any).playerConstraints;
+        if ((scenario as any).difficultyProfile !== undefined) updates.difficultyProfile = (scenario as any).difficultyProfile;
+        if ((scenario as any).sourceLocale !== undefined) updates.sourceLocale = (scenario as any).sourceLocale;
         
         const updated = await storage.updateScenario(id, updates);
         this.invalidateScenarioCountCache();
