@@ -106,7 +106,7 @@ export const chatMessages = pgTable("chat_messages", {
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("idx_chat_messages_persona_run_id").on(table.personaRunId),
-  uniqueIndex("idx_chat_messages_upsert_key").on(table.personaRunId, table.turnIndex, table.sender),
+  uniqueIndex("idx_chat_messages_upsert_key").on(table.personaRunId, table.turnIndex),
 ]);
 
 export const insertSimulationEventSchema = createInsertSchema(simulationEvents).omit({

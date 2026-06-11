@@ -228,13 +228,17 @@ describe('turnIndex formula regression (pure algorithm)', () => {
   function computeOld(msgs: Msg[]) {
     return msgs.map((m, i) => ({ ...m, turnIndex: Math.floor(i / 2) }));
   }
+  // Models the NEW unique key: (personaRunId, turnIndex) — sender is NOT part of the key.
+  // turnIndex alone must be unique per run for the upsert to be collision-free.
   function upsert(rows: ReturnType<typeof computeFixed>) {
-    const store = new Map<string, string>();
-    rows.forEach(r => store.set(`${r.sender}:${r.turnIndex}`, r.message));
+    const store = new Map<number, { sender: string; message: string }>();
+    rows.forEach(r => store.set(r.turnIndex, { sender: r.sender, message: r.message }));
     return store;
   }
 
   it('Math.floor(i/2) loses consecutive same-sender messages (documents the bug)', () => {
+    // With Math.floor(i/2): indices [0,0,1,1] → positions 0 and 1 collide,
+    // positions 2 and 3 collide → only 2 DB rows survive out of 4.
     const msgs = [
       { sender: 'ai',   message: 'Greeting' },
       { sender: 'ai',   message: 'Follow-up' },
@@ -242,8 +246,9 @@ describe('turnIndex formula regression (pure algorithm)', () => {
       { sender: 'ai',   message: 'Final reply' },
     ];
     const store = upsert(computeOld(msgs));
-    expect(store.size).toBe(3);                      // only 3 rows — Greeting was lost
-    expect(store.get('ai:0')).toBe('Follow-up');     // Greeting overwritten
+    expect(store.size).toBe(2);                               // only 2 rows — 2 messages lost
+    expect(store.get(0)?.message).toBe('Follow-up');          // Greeting overwritten
+    expect(store.get(1)?.message).toBe('Final reply');        // User response overwritten
   });
 
   it('fixed algorithm (i as turnIndex) preserves all messages', () => {
@@ -255,9 +260,9 @@ describe('turnIndex formula regression (pure algorithm)', () => {
     ];
     const store = upsert(computeFixed(msgs));
     expect(store.size).toBe(4);
-    expect(store.get('ai:0')).toBe('Greeting');
-    expect(store.get('ai:1')).toBe('Follow-up');
-    expect(store.get('user:2')).toBe('User response');
-    expect(store.get('ai:3')).toBe('Final reply');
+    expect(store.get(0)?.message).toBe('Greeting');
+    expect(store.get(1)?.message).toBe('Follow-up');
+    expect(store.get(2)?.message).toBe('User response');
+    expect(store.get(3)?.message).toBe('Final reply');
   });
 });
