@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import type { Feedback } from "@shared/schema";
 import { EVIDENCE_SCORE_CAP } from "@shared/schema/types";
+import type { BargeInAnalysis } from "@shared/schema/types";
 import {
   toTenPoint,
   getScoreHex,
@@ -708,6 +709,97 @@ export function ScoreOverview({
           </CardContent>
         </Card>
       )}
+
+      <BargeInSection bargeInAnalysis={feedback.detailedFeedback?.bargeInAnalysis} scoreAnimKey={scoreAnimKey} />
     </div>
+  );
+}
+
+function BargeInSection({ bargeInAnalysis, scoreAnimKey }: { bargeInAnalysis?: BargeInAnalysis; scoreAnimKey: number }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!bargeInAnalysis || bargeInAnalysis.count === 0) return null;
+
+  const { count, positiveCount, negativeCount, neutralCount, rate, summary, events } = bargeInAnalysis;
+  const isReplay = scoreAnimKey > 0;
+  const sampleEvents = events.slice(0, 3);
+
+  const assessmentBadge = (a: 'positive' | 'negative' | 'neutral') => {
+    if (a === 'positive') return <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5">✅ 적극적 참여</span>;
+    if (a === 'negative') return <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-rose-100 text-rose-700 border border-rose-200 rounded px-1.5 py-0.5">❌ 경청 부족</span>;
+    return <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5">➖ 중립</span>;
+  };
+
+  return (
+    <Card
+      className="transform transition-all duration-500 hover:shadow-lg screen-only"
+      style={{ opacity: 0, animation: `fadeInUp 0.8s ease-out ${isReplay ? 0.5 : 3.5}s forwards` }}
+    >
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2">
+          <i className="fas fa-comment-slash text-indigo-500"></i>
+          말 끊기 / 중간 개입 분석
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+            <p className="text-2xl font-extrabold text-slate-800">{count}</p>
+            <p className="text-xs text-slate-500 mt-0.5">총 발생</p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+            <p className="text-2xl font-extrabold text-emerald-700">{positiveCount}</p>
+            <p className="text-xs text-emerald-600 mt-0.5">적절한 개입</p>
+          </div>
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
+            <p className="text-2xl font-extrabold text-rose-700">{negativeCount}</p>
+            <p className="text-xs text-rose-600 mt-0.5">경청 부족</p>
+          </div>
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center">
+            <p className="text-2xl font-extrabold text-indigo-700">{Math.round(rate * 100)}%</p>
+            <p className="text-xs text-indigo-600 mt-0.5">AI 발화 대비 비율</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+          {summary}
+        </p>
+
+        {sampleEvents.length > 0 && (
+          <div>
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="flex items-center gap-1.5 text-[12px] font-medium text-indigo-600 hover:text-indigo-800 transition-colors mb-2"
+            >
+              <i className={`fas fa-chevron-${expanded ? 'up' : 'down'} text-[10px]`}></i>
+              대표 사례 {sampleEvents.length}건
+            </button>
+            {expanded && (
+              <div className="space-y-3">
+                {sampleEvents.map((ev, idx) => (
+                  <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-100">
+                      <span className="text-xs font-semibold text-slate-500">#{idx + 1}</span>
+                      {assessmentBadge(ev.assessment)}
+                      <span className="text-[11px] text-slate-400 ml-auto">심각도 {ev.severity}/4</span>
+                    </div>
+                    <div className="px-3 py-2 space-y-2">
+                      <div>
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">AI 발화</span>
+                        <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">"{ev.aiMessage}"</p>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">사용자 반응</span>
+                        <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">"{ev.userMessage}"</p>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic">{ev.reason}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

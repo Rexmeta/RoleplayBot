@@ -24,6 +24,26 @@ export type ScoreAdjustments = {
   evidenceCappedDimensions?: string[];
 };
 
+export type BargeInEvent = {
+  turnIndex: number;
+  aiMessage: string;
+  userMessage: string;
+  assessment: 'positive' | 'negative' | 'neutral';
+  reason: string;
+  severity: number;
+};
+
+export type BargeInAnalysis = {
+  count: number;
+  positiveCount: number;
+  negativeCount: number;
+  neutralCount: number;
+  rate: number;
+  netScoreAdjustment: number;
+  events: BargeInEvent[];
+  summary: string;
+};
+
 export type EvaluationScore = {
   category: string;
   name: string;
@@ -105,6 +125,7 @@ export type DetailedFeedback = {
   evaluationCriteriaSetId?: string;
   evaluationCriteriaSetName?: string;
   scoreAdjustments?: ScoreAdjustments;
+  bargeInAnalysis?: BargeInAnalysis;
   insufficientConversation?: boolean;
   confidence?: number;
   reportStatus?: ReportStatus;

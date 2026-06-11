@@ -9,6 +9,7 @@
 
 import type { ConversationMessage } from "@shared/schema";
 import { EVIDENCE_SCORE_CAP } from "@shared/schema/types";
+import type { BargeInAnalysis, BargeInEvent } from "@shared/schema/types";
 import type { EvaluationCriteriaWithDimensions } from "./aiService";
 import type { PassingRule } from "@shared/schema/scenarios";
 
@@ -277,25 +278,17 @@ export function analyzeNonVerbalPatterns(
 /**
  * 말 끊기(Barge-in) 분석
  * interrupted 플래그가 설정된 AI 발화를 찾아 긍정/부정/중립 평가
+ * 각 이벤트마다 reason, severity를 포함한 상세 BargeInAnalysis를 반환한다.
  */
-export function analyzeBargeIn(messages: ConversationMessage[]): {
-  count: number;
-  contexts: Array<{
-    aiMessage: string;
-    userMessage: string;
-    assessment: 'positive' | 'negative' | 'neutral';
-  }>;
-  netScoreAdjustment: number;
-} {
-  const contexts: Array<{
-    aiMessage: string;
-    userMessage: string;
-    assessment: 'positive' | 'negative' | 'neutral';
-  }> = [];
+export function analyzeBargeIn(messages: ConversationMessage[]): BargeInAnalysis {
+  const events: BargeInEvent[] = [];
   let positiveCount = 0;
   let negativeCount = 0;
+  let neutralCount = 0;
+  let turnIndex = 0;
 
   messages.forEach((msg, idx) => {
+    if (msg.sender === 'ai') turnIndex++;
     if (msg.sender === 'ai' && msg.interrupted) {
       const nextUserMsg = messages[idx + 1];
       if (nextUserMsg && nextUserMsg.sender === 'user') {
@@ -303,39 +296,87 @@ export function analyzeBargeIn(messages: ConversationMessage[]): {
         const userText = nextUserMsg.message;
 
         let assessment: 'positive' | 'negative' | 'neutral' = 'neutral';
+        let reason = '';
+        let severity = 2;
 
-        if (
+        const isQuestion =
           aiText.includes('?') ||
-          aiText.match(/어떻|무엇|왜|어디|누가|언제|how|what|why|where|who|when/i)
-        ) {
+          aiText.match(/어떻|무엇|왜|어디|누가|언제|how|what|why|where|who|when/i);
+        const isWrapUp =
+          aiText.match(/정리하자면|요약하면|결론적으로|마무리|그러므로|따라서|in summary|to conclude/i);
+        const isDefensive =
+          userText.match(/아니|아니요|그게 아니라|그건|잠깐|잠시만|그렇지 않아|틀렸|no,|wait,|actually/i);
+        const isSubstantive = userText.length > 30 && !userText.match(/^(네|아니|음|어|uh|um)/i);
+
+        if (isQuestion) {
           assessment = 'negative';
+          reason = 'AI의 질문이 끝나기 전에 끊어 경청 부족을 나타냄';
+          severity = 3;
           negativeCount++;
-        } else if (userText.length > 30 && !userText.match(/^(네|아니|음|어|uh|um)/i)) {
+        } else if (isWrapUp) {
+          assessment = 'negative';
+          reason = 'AI의 정리·결론 발화를 끊어 대화 흐름을 방해함';
+          severity = 2;
+          negativeCount++;
+        } else if (isDefensive) {
+          assessment = 'negative';
+          reason = '방어적·부정적 표현으로 끼어들어 협력적 소통을 저해함';
+          severity = 3;
+          negativeCount++;
+        } else if (isSubstantive) {
           assessment = 'positive';
+          reason = '적극적인 발언으로 대화에 실질적인 내용을 추가함';
+          severity = 1;
           positiveCount++;
         } else {
           assessment = 'neutral';
+          reason = '짧은 끼어들기로 맥락 영향이 미미함';
+          severity = 2;
+          neutralCount++;
         }
 
-        contexts.push({
-          aiMessage: aiText.substring(0, 100) + (aiText.length > 100 ? '...' : ''),
-          userMessage: userText.substring(0, 100) + (userText.length > 100 ? '...' : ''),
+        events.push({
+          turnIndex,
+          aiMessage: aiText.substring(0, 120) + (aiText.length > 120 ? '...' : ''),
+          userMessage: userText.substring(0, 120) + (userText.length > 120 ? '...' : ''),
           assessment,
+          reason,
+          severity,
         });
       }
     }
   });
 
-  const netScoreAdjustment =
+  const aiTurnCount = messages.filter(m => m.sender === 'ai').length;
+  const rate = aiTurnCount > 0 ? Math.round((events.length / aiTurnCount) * 100) / 100 : 0;
+
+  const rawAdjustment =
     positiveCount * BARGE_IN_POSITIVE_BONUS - negativeCount * BARGE_IN_NEGATIVE_PENALTY;
+  const netScoreAdjustment = Math.max(
+    BARGE_IN_MIN_ADJUSTMENT,
+    Math.min(BARGE_IN_MAX_ADJUSTMENT, rawAdjustment)
+  );
+
+  let summary = '';
+  if (events.length === 0) {
+    summary = '말 끊기(Barge-in)가 감지되지 않았습니다.';
+  } else if (negativeCount > positiveCount) {
+    summary = `총 ${events.length}회의 말 끊기 중 ${negativeCount}회가 경청 부족(AI 질문·정리 발화 중 끊기)으로 분류되어 소통 역량 향상이 필요합니다.`;
+  } else if (positiveCount >= negativeCount && positiveCount > 0) {
+    summary = `총 ${events.length}회의 말 끊기 중 ${positiveCount}회가 적극적 참여로 분류되어 전반적으로 능동적인 대화 스타일을 보였습니다.`;
+  } else {
+    summary = `총 ${events.length}회의 말 끊기가 발생하였으며 대체로 중립적인 영향을 미쳤습니다.`;
+  }
 
   return {
-    count: contexts.length,
-    contexts,
-    netScoreAdjustment: Math.max(
-      BARGE_IN_MIN_ADJUSTMENT,
-      Math.min(BARGE_IN_MAX_ADJUSTMENT, netScoreAdjustment)
-    ),
+    count: events.length,
+    positiveCount,
+    negativeCount,
+    neutralCount,
+    rate,
+    netScoreAdjustment,
+    events,
+    summary,
   };
 }
 

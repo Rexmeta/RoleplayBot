@@ -993,9 +993,12 @@ ${userMessagesText}
 ${hasNonVerbalIssues ? `\n⚠️ 비언어적 표현 감지: ${nonVerbalAnalysis.count}개 발견
 ${nonVerbalAnalysis.patterns.map(p => `  - ${p}`).join('\n')}
 → 자동 감점: -${nonVerbalAnalysis.penaltyPoints}점 (시스템이 별도 적용)\n` : ''}
-${hasBargeInIssues ? `\n🎤 말 끊기(Barge-in) 감지: ${bargeInAnalysis.count}회 발생
-${bargeInAnalysis.contexts.map(c => `  - [${c.assessment === 'positive' ? '✅ 적극적 참여' : c.assessment === 'negative' ? '❌ 경청 부족' : '➖ 중립'}] AI: "${c.aiMessage}" → 사용자: "${c.userMessage}"`).join('\n')}
-→ 순 점수 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (시스템이 별도 적용)\n` : ''}
+${hasBargeInIssues ? `\n🎤 말 끊기(Barge-in) 감지: ${bargeInAnalysis.count}회 발생 (적극적 참여: ${bargeInAnalysis.positiveCount}회 / 경청 부족: ${bargeInAnalysis.negativeCount}회 / 중립: ${bargeInAnalysis.neutralCount}회, AI 발화 대비 비율: ${Math.round(bargeInAnalysis.rate * 100)}%)
+대표 사례 (최대 3건):
+${bargeInAnalysis.events.slice(0, 3).map((e, i) => `  [${i + 1}] [${e.assessment === 'positive' ? '✅ 적극적 참여' : e.assessment === 'negative' ? '❌ 경청 부족' : '➖ 중립'}] (심각도 ${e.severity}/4) AI: "${e.aiMessage}" → 사용자: "${e.userMessage}" — ${e.reason}`).join('\n')}
+→ 시스템 요약: ${bargeInAnalysis.summary}
+→ 순 점수 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (시스템이 별도 적용)
+→ 피드백 작성 지침: 경청 부족 사례가 있으면 improvements에 구체적 사례를 인용하여 개선 방향을 제시하세요. 적극적 참여 사례는 strengths에 반영하세요.\n` : ''}
 ${isIncomplete
   ? voiceMode
     ? `\n📉 음성 대화 완성도 부족: 대화량이 부족합니다 — 근거가 없는 역량은 1-3점, 부분적 근거가 있으면 최대 5점, 7점 이상은 명확한 긍정 근거가 있을 때만 허용하세요.
@@ -1069,6 +1072,19 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
   "summary": "이번 대화에서 피평가자는 상대방의 입장에 대한 기본적인 공감 능력을 보여주었으나, 논리적 설득과 전략적 대화 구조화에서 개선이 필요합니다. 특히 핵심 주장의 명확한 전달과 협상 마무리 기술이 부족했습니다. 향후 구조화된 논증 방식과 적극적 경청 기법을 훈련하면 커뮤니케이션 역량이 크게 향상될 것으로 기대됩니다.",
   "ranking": "전반적으로 기본적인 대화 역량은 갖추고 있으나, 직장 내 갈등 상황에서의 전략적 소통 능력이 부족합니다. 공감 능력은 평균 이상이나, 이를 설득력 있는 논거와 결합하는 통합적 커뮤니케이션 역량 개발이 필요합니다. 체계적인 대화 구조화 훈련과 협상 기법 학습을 통해 단기간 내 의미 있는 성장이 가능할 것으로 판단됩니다.",
   "conversationDuration": 10,
+  "bargeInAnalysis": {
+    "count": 2,
+    "positiveCount": 1,
+    "negativeCount": 1,
+    "neutralCount": 0,
+    "rate": 0.2,
+    "netScoreAdjustment": 0,
+    "summary": "총 2회의 말 끊기가 발생하였으며 긍정·부정이 혼재합니다.",
+    "events": [
+      {"turnIndex": 2, "aiMessage": "AI 발화 앞부분...", "userMessage": "사용자 반응 발화...", "assessment": "negative", "reason": "AI의 질문이 끝나기 전에 끊어 경청 부족을 나타냄", "severity": 3},
+      {"turnIndex": 5, "aiMessage": "AI 발화 앞부분...", "userMessage": "사용자 반응 발화...", "assessment": "positive", "reason": "적극적인 발언으로 대화에 실질적인 내용을 추가함", "severity": 1}
+    ]
+  },
   "behaviorGuides": [
     {"situation": "상대방이 강하게 반대 의견을 표명할 때", "action": "감정적 반응을 자제하고, 상대방의 핵심 우려사항을 먼저 인정한 후 대안을 제시합니다. 'Yes, and...' 기법을 활용하세요.", "example": "'말씀하신 일정 우려는 충분히 이해합니다. 그 점을 고려하여 단계적 도입 방안을 준비했는데, A단계에서는 기존 방식을 유지하면서 B단계부터 점진적으로 전환하는 것은 어떨까요?'", "impact": "상대방이 자신의 의견이 존중받았다고 느끼게 되어 방어적 태도가 줄어들고, 건설적인 대화로 전환할 수 있습니다. 갈등 해소 확률이 60% 이상 높아집니다."},
     {"situation": "대화가 교착 상태에 빠졌을 때", "action": "공통 목표를 재확인하고, 양측 모두에게 이익이 되는 제3의 대안을 모색합니다. 개방형 질문을 통해 새로운 가능성을 탐색하세요.", "example": "'우리 모두 프로젝트 성공이라는 같은 목표를 갖고 있잖아요. 혹시 두 가지 방안의 장점을 결합할 수 있는 방법이 있을까요?'", "impact": "대립 구도에서 협력 구도로 전환되어 창의적인 해결책을 도출할 가능성이 높아집니다."},
@@ -1266,7 +1282,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
           ...improvements
         ];
       }
-      if (bargeInAnalysis.contexts.filter(c => c.assessment === 'negative').length > 0) {
+      if (bargeInAnalysis.events.filter(c => c.assessment === 'negative').length > 0) {
         improvements = [
           `상대방의 질문에 끝까지 경청한 후 응답하세요`,
           ...improvements
@@ -1301,6 +1317,24 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
           : undefined,
       }));
 
+      // bargeInAnalysis 폴백: AI가 제공하지 않으면 시스템 계산값으로 채움
+      const parsedBargeIn = parsed.bargeInAnalysis;
+      const finalBargeInAnalysis: import("@shared/schema/types").BargeInAnalysis =
+        parsedBargeIn && typeof parsedBargeIn.count === 'number'
+          ? {
+              count: parsedBargeIn.count ?? bargeInAnalysis.count,
+              positiveCount: parsedBargeIn.positiveCount ?? bargeInAnalysis.positiveCount,
+              negativeCount: parsedBargeIn.negativeCount ?? bargeInAnalysis.negativeCount,
+              neutralCount: parsedBargeIn.neutralCount ?? bargeInAnalysis.neutralCount,
+              rate: parsedBargeIn.rate ?? bargeInAnalysis.rate,
+              netScoreAdjustment: bargeInAnalysis.netScoreAdjustment,
+              events: Array.isArray(parsedBargeIn.events) && parsedBargeIn.events.length > 0
+                ? parsedBargeIn.events
+                : bargeInAnalysis.events,
+              summary: parsedBargeIn.summary || bargeInAnalysis.summary,
+            }
+          : bargeInAnalysis;
+
       const feedback: DetailedFeedback = {
         overallScore: adjustedScore,
         scores: evaluationScoreArray,
@@ -1314,6 +1348,7 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
         behaviorGuides: parsed.behaviorGuides || this.getDefaultBehaviorGuides(),
         conversationGuides: parsed.conversationGuides || this.getDefaultConversationGuides(),
         developmentPlan: parsed.developmentPlan || this.getDefaultDevelopmentPlan(),
+        bargeInAnalysis: finalBargeInAnalysis.count > 0 ? finalBargeInAnalysis : undefined,
         scoreAdjustments: {
           // baseScore is pre-evidence-cap so the identity holds:
           // baseScore - evidencePenalty - noisePenalty - completionPenalty + bargeInAdj == finalScore
