@@ -7,11 +7,14 @@ import {
   setSessionState,
   clearSessionContext,
   getOrCreateSessionContext,
+  evaluateFlowGraph,
+  setSessionFlowConfig,
 } from '../../server/services/simulation/simulationEngine';
 import {
   createDefaultSimulationState,
   SimulationStatePatch,
 } from '../../server/services/simulation/simulationTypes';
+import type { FlowGraph } from '../../shared/schema/scenarios';
 
 const RUN_ID = 'test-run-001';
 
@@ -480,7 +483,7 @@ describe('scoreAccumulator (report carry-forward beyond 10-turn window)', () => 
     expect(afterReconnect.currentScore).toBeLessThanOrEqual(85);
   });
 
-  it('re-hydrates accumulators via setSessionState when context was pre-created without state', () => {
+  it('re-hydrates accumulators via setSessionState when context was pre-created without state (leading to correct weighted average)', () => {
     // Build up 12 turns with varying scores (mix of 60 and 100) → average = 80
     for (let i = 0; i < 12; i++) {
       const score = i % 2 === 0 ? 60 : 100;
@@ -531,5 +534,341 @@ describe('scoreAccumulator (report carry-forward beyond 10-turn window)', () => 
     // Without the fix the accumulators would reset to 0→40/1=40
     expect(afterRestore.currentScore).toBeGreaterThan(60);
     expect(afterRestore.currentScore).toBeLessThanOrEqual(85);
+  });
+});
+
+// ─── evaluateFlowGraph — direct unit tests ────────────────────────────────────
+
+const SIMPLE_FLOW_GRAPH: FlowGraph = {
+  stages: [
+    {
+      id: 'intro',
+      exitConditions: [{ type: 'turn_count', operator: 'gte', value: 3 }],
+      exitConditionsLogic: 'all',
+      nextStage: 'conflict',
+      goal: 'Establish rapport',
+    },
+    {
+      id: 'conflict',
+      exitConditions: [
+        { type: 'npc_emotion', metric: 'anger', operator: 'gte', value: 70 },
+        { type: 'turn_count', operator: 'gte', value: 5 },
+      ],
+      exitConditionsLogic: 'any',
+      nextStage: 'resolution',
+      goal: 'De-escalate the situation',
+    },
+    {
+      id: 'resolution',
+      exitConditions: [],
+      nextStage: 'resolution',
+    },
+  ],
+};
+
+describe('evaluateFlowGraph', () => {
+  it('returns null when current stage has no exit conditions', () => {
+    const state = createDefaultSimulationState();
+    state.stage = 'resolution';
+    state.summary.totalTurns = 10;
+    const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when the stage is not defined in the flow graph', () => {
+    const state = createDefaultSimulationState();
+    state.stage = 'escalation';
+    const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when exit condition is not met (turn_count below threshold)', () => {
+    const state = createDefaultSimulationState();
+    state.stage = 'intro';
+    state.summary = { ...state.summary, totalTurns: 2 };
+    const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
+    expect(result).toBeNull();
+  });
+
+  it('returns nextStage when all-logic exit condition is met', () => {
+    const state = createDefaultSimulationState();
+    state.stage = 'intro';
+    state.summary = { ...state.summary, totalTurns: 5 };
+    const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
+    expect(result).toBe('conflict');
+  });
+
+  it('returns nextStage when any-logic condition is met via npc_emotion', () => {
+    const state = createDefaultSimulationState();
+    state.stage = 'conflict';
+    state.summary = { ...state.summary, totalTurns: 2 };
+    state.npcEmotions = { ...state.npcEmotions, anger: 80 };
+    const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
+    expect(result).toBe('resolution');
+  });
+
+  it('returns nextStage when any-logic condition is met via turn_count', () => {
+    const state = createDefaultSimulationState();
+    state.stage = 'conflict';
+    state.summary = { ...state.summary, totalTurns: 6 };
+    state.npcEmotions = { ...state.npcEmotions, anger: 30 };
+    const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
+    expect(result).toBe('resolution');
+  });
+
+  it('returns null when any-logic conflict stage conditions are both unmet', () => {
+    const state = createDefaultSimulationState();
+    state.stage = 'conflict';
+    state.summary = { ...state.summary, totalTurns: 3 };
+    state.npcEmotions = { ...state.npcEmotions, anger: 50 };
+    const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
+    expect(result).toBeNull();
+  });
+
+  it('rejects stage transition that goes backward in STAGE_ORDER', () => {
+    const backwardGraph: FlowGraph = {
+      stages: [
+        {
+          id: 'conflict',
+          exitConditions: [{ type: 'turn_count', operator: 'gte', value: 1 }],
+          exitConditionsLogic: 'all',
+          nextStage: 'intro',
+        },
+      ],
+    };
+    const state = createDefaultSimulationState();
+    state.stage = 'conflict';
+    state.summary = { ...state.summary, totalTurns: 3 };
+    const result = evaluateFlowGraph(state, backwardGraph);
+    expect(result).toBeNull();
+  });
+
+  it('evaluates turn_score exit condition using windowed average', () => {
+    const graphWithScore: FlowGraph = {
+      stages: [
+        {
+          id: 'intro',
+          exitConditions: [
+            { type: 'turn_score', metric: 'total', operator: 'gte', value: 70, windowTurns: 2 },
+          ],
+          exitConditionsLogic: 'all',
+          nextStage: 'conflict',
+        },
+      ],
+    };
+    const state = createDefaultSimulationState();
+    state.stage = 'intro';
+    state.recentTurnScores = [
+      { turnId: 't1', turnIndex: 0, clarity: 80, empathy: 80, logic: 80, ownership: 80, actionPlan: 80, total: 80, evaluationMethod: 'rule', evaluationConfidence: 80 },
+      { turnId: 't2', turnIndex: 1, clarity: 75, empathy: 75, logic: 75, ownership: 75, actionPlan: 75, total: 75, evaluationMethod: 'rule', evaluationConfidence: 80 },
+    ];
+    const result = evaluateFlowGraph(state, graphWithScore);
+    expect(result).toBe('conflict');
+  });
+
+  it('returns null for turn_score condition when recentTurnScores is empty', () => {
+    const graphWithScore: FlowGraph = {
+      stages: [
+        {
+          id: 'intro',
+          exitConditions: [
+            { type: 'turn_score', metric: 'total', operator: 'gte', value: 50 },
+          ],
+          exitConditionsLogic: 'all',
+          nextStage: 'conflict',
+        },
+      ],
+    };
+    const state = createDefaultSimulationState();
+    state.stage = 'intro';
+    state.recentTurnScores = [];
+    const result = evaluateFlowGraph(state, graphWithScore);
+    expect(result).toBeNull();
+  });
+});
+
+// ─── FlowGraph integration via applySimulationPatch ──────────────────────────
+
+const FLOW_RUN = 'flow-test-run';
+
+describe('applySimulationPatch + FlowGraph integration', () => {
+  beforeEach(() => {
+    clearSessionContext(FLOW_RUN);
+  });
+
+  it('auto-advances stage when flow graph exit condition triggers', () => {
+    const graph: FlowGraph = {
+      stages: [
+        {
+          id: 'intro',
+          exitConditions: [{ type: 'turn_count', operator: 'gte', value: 2 }],
+          exitConditionsLogic: 'all',
+          nextStage: 'conflict',
+          goal: 'Get to conflict',
+        },
+      ],
+    };
+    setSessionFlowConfig(FLOW_RUN, graph, null);
+
+    for (let i = 0; i < 2; i++) {
+      applySimulationPatch(FLOW_RUN, {
+        source: 'server_evaluation', priority: 'normal', turnId: `t${i}`,
+        patch: {
+          turnScoresToAdd: [{
+            turnId: `ts${i}`, turnIndex: i,
+            clarity: 60, empathy: 60, logic: 60, ownership: 60, actionPlan: 60,
+            total: 60, evaluationMethod: 'rule', evaluationConfidence: 70,
+          }],
+        },
+      });
+    }
+
+    const state = getSessionState(FLOW_RUN)!;
+    expect(state.stage).toBe('conflict');
+  });
+
+  it('does NOT advance stage before exit conditions are met', () => {
+    const graph: FlowGraph = {
+      stages: [
+        {
+          id: 'intro',
+          exitConditions: [{ type: 'turn_count', operator: 'gte', value: 5 }],
+          exitConditionsLogic: 'all',
+          nextStage: 'conflict',
+        },
+      ],
+    };
+    setSessionFlowConfig(FLOW_RUN, graph, null);
+
+    applySimulationPatch(FLOW_RUN, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't0',
+      patch: {
+        turnScoresToAdd: [{
+          turnId: 'ts0', turnIndex: 0,
+          clarity: 60, empathy: 60, logic: 60, ownership: 60, actionPlan: 60,
+          total: 60, evaluationMethod: 'rule', evaluationConfidence: 70,
+        }],
+      },
+    });
+
+    const state = getSessionState(FLOW_RUN)!;
+    expect(state.stage).toBe('intro');
+  });
+
+  it('injects a stage-transition directive when flow graph fires', () => {
+    const graph: FlowGraph = {
+      stages: [
+        {
+          id: 'intro',
+          exitConditions: [{ type: 'npc_emotion', metric: 'anger', operator: 'gte', value: 60 }],
+          exitConditionsLogic: 'all',
+          nextStage: 'conflict',
+        },
+        {
+          id: 'conflict',
+          exitConditions: [],
+          nextStage: 'resolution',
+          goal: 'Now escalate',
+        },
+      ],
+    };
+    setSessionFlowConfig(FLOW_RUN, graph, null);
+
+    const state = applySimulationPatch(FLOW_RUN, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't0',
+      patch: { npcEmotionDelta: { anger: 40 } },
+    });
+
+    expect(state.stage).toBe('conflict');
+    const transitionDirective = state.simulationDirectives.find(d =>
+      d.instruction.includes('STAGE TRANSITION') && d.instruction.includes('conflict')
+    );
+    expect(transitionDirective).toBeDefined();
+    expect(transitionDirective!.instruction).toContain('Now escalate');
+  });
+
+  it('preserves currentStageGoal from flow graph after transition', () => {
+    const graph: FlowGraph = {
+      stages: [
+        {
+          id: 'intro',
+          exitConditions: [{ type: 'turn_count', operator: 'gte', value: 1 }],
+          exitConditionsLogic: 'all',
+          nextStage: 'negotiation',
+        },
+        {
+          id: 'negotiation',
+          exitConditions: [],
+          nextStage: 'resolution',
+          goal: 'Negotiate a deal',
+        },
+      ],
+    };
+    setSessionFlowConfig(FLOW_RUN, graph, null);
+
+    const state = applySimulationPatch(FLOW_RUN, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't0',
+      patch: {
+        turnScoresToAdd: [{
+          turnId: 'ts0', turnIndex: 0,
+          clarity: 70, empathy: 70, logic: 70, ownership: 70, actionPlan: 70,
+          total: 70, evaluationMethod: 'rule', evaluationConfidence: 80,
+        }],
+      },
+    });
+
+    expect(state.stage).toBe('negotiation');
+    expect(state.currentStageGoal).toBe('Negotiate a deal');
+  });
+});
+
+// ─── State immutability ───────────────────────────────────────────────────────
+
+describe('applySimulationPatch — state immutability', () => {
+  beforeEach(() => {
+    clearSessionContext(RUN_ID);
+  });
+
+  it('does not mutate the previous state object', () => {
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't0', patch: {},
+    });
+    const before = getSessionState(RUN_ID)!;
+    const beforeVersion = before.version;
+    const beforeAnger = before.npcEmotions.anger;
+
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { anger: 20 } },
+    });
+
+    expect(before.version).toBe(beforeVersion);
+    expect(before.npcEmotions.anger).toBe(beforeAnger);
+  });
+
+  it('returns a new object reference on every patch', () => {
+    const s1 = applySimulationPatch(RUN_ID, {
+      source: 'server_rule', priority: 'normal', turnId: 't1', patch: {},
+    });
+    const s2 = applySimulationPatch(RUN_ID, {
+      source: 'server_rule', priority: 'normal', turnId: 't2', patch: {},
+    });
+    expect(s1).not.toBe(s2);
+  });
+
+  it('does not mutate the npcEmotions sub-object of the previous state', () => {
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't0', patch: {},
+    });
+    const before = getSessionState(RUN_ID)!;
+    const emotionsRef = before.npcEmotions;
+
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { anger: 10, trust: -5 } },
+    });
+
+    expect(emotionsRef.anger).toBe(30);
+    expect(emotionsRef.trust).toBe(50);
   });
 });
