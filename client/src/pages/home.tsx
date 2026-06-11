@@ -67,6 +67,7 @@ export default function Home() {
   } | null>(null); // AI 전략 회고 평가
   const [isCreatingConversation, setIsCreatingConversation] = useState(false); // 대화 생성 중 상태
   const urlAutoStartRef = useRef(false); // URL 파라미터 자동 시작 중복 실행 방지
+  const chatWindowReadyRef = useRef(false); // earlyConnect 시 ChatWindow 사전 로드 완료 여부
   const [loadingPersonaId, setLoadingPersonaId] = useState<string | null>(null); // 로딩 중인 페르소나 ID
   const [selectedDifficulty, setSelectedDifficulty] = useState<number>(4); // 사용자가 선택한 난이도 (기본값: 4)
   const isResumingRef = useRef(false); // 대화 재개 중 상태 (ref: 변경 시 재렌더링/effect 재실행 방지)
@@ -474,6 +475,10 @@ export default function Home() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setCurrentView("chat");
+        // earlyConnect로 ChatWindow가 미리 로드된 경우 오버레이를 빠르게 해제 (300ms 페이드)
+        if (chatWindowReadyRef.current) {
+          setTimeout(() => setIsVideoTransitioning(false), 300);
+        }
       });
     });
     
@@ -497,6 +502,10 @@ export default function Home() {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setCurrentView("chat");
+        // earlyConnect로 ChatWindow가 미리 로드된 경우 오버레이를 빠르게 해제 (300ms 페이드)
+        if (chatWindowReadyRef.current) {
+          setTimeout(() => setIsVideoTransitioning(false), 300);
+        }
       });
     });
     
@@ -511,8 +520,9 @@ export default function Home() {
     }, 1500);
   };
 
-  // ChatWindow가 준비 완료되면 전환 오버레이 해제
+  // ChatWindow가 준비 완료되면 전환 오버레이 해제 (earlyConnect 시 사전 로드 상태도 기록)
   const handleChatReady = () => {
+    chatWindowReadyRef.current = true;
     setIsVideoTransitioning(false);
   };
 
