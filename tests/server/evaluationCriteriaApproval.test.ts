@@ -49,6 +49,11 @@ vi.mock('@google/genai', () => ({
   GoogleGenAI: vi.fn().mockImplementation(() => ({})),
 }));
 
+vi.mock('../../server/services/aiServiceFactory', () => ({
+  generateFeedback: vi.fn(),
+  getAIServiceForFeature: vi.fn(),
+}));
+
 // DB mock for direct storage-layer tests — supports fluent drizzle chains
 vi.mock('../../server/storage/db', () => {
   const makeThenableChain = (resolveWith: unknown[]) => {
@@ -91,6 +96,7 @@ vi.mock('../../server/storage/db', () => {
 import { storage } from '../../server/storage';
 import createEvaluationCriteriaRouter from '../../server/routes/evaluationCriteria';
 import { AnalyticsMixin } from '../../server/storage/analytics';
+import { generateFeedback } from '../../server/services/aiServiceFactory';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -636,6 +642,139 @@ describe('Rubric Approval Workflow — API Endpoints', () => {
       const ids = res.body.map((s: any) => s.id);
       expect(ids).toContain('in-scope');
       expect(ids).not.toContain('out-scope');
+    });
+  });
+
+  // ─── dry-run ────────────────────────────────────────────────────────────────
+
+  describe('POST /api/admin/evaluation-criteria/:id/dry-run', () => {
+    const SAMPLE_MESSAGES = [{ role: 'user', content: '안녕하세요, 도움이 필요합니다.' }];
+
+    const FAKE_FEEDBACK = {
+      overallScore: 78,
+      summary: '소통 능력이 양호합니다.',
+      dimensionScores: [
+        { category: 'clarity', score: 8, maxScore: 10 },
+        { category: 'empathy', score: 7, maxScore: 10 },
+      ],
+    };
+
+    it('returns the correct envelope { feedback, criteriaSetId, isDryRun: true }', async () => {
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet() as any);
+      vi.mocked(generateFeedback).mockResolvedValue(FAKE_FEEDBACK as any);
+
+      const res = await request(app)
+        .post('/api/admin/evaluation-criteria/set-1/dry-run')
+        .send({ messages: SAMPLE_MESSAGES });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        criteriaSetId: 'set-1',
+        isDryRun: true,
+        feedback: {
+          overallScore: 78,
+          summary: '소통 능력이 양호합니다.',
+        },
+      });
+      expect(res.body.feedback.dimensionScores).toHaveLength(2);
+    });
+
+    it('nests feedback under the feedback key — not at root level (regression guard)', async () => {
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet() as any);
+      vi.mocked(generateFeedback).mockResolvedValue(FAKE_FEEDBACK as any);
+
+      const res = await request(app)
+        .post('/api/admin/evaluation-criteria/set-1/dry-run')
+        .send({ messages: SAMPLE_MESSAGES });
+
+      expect(res.body.feedback).toBeDefined();
+      expect(res.body.overallScore).toBeUndefined();
+      expect(res.body.dimensionScores).toBeUndefined();
+    });
+
+    it('returns 404 when the criteria set does not exist', async () => {
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(undefined);
+
+      const res = await request(app)
+        .post('/api/admin/evaluation-criteria/nonexistent/dry-run')
+        .send({ messages: SAMPLE_MESSAGES });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 400 when messages is absent from the body', async () => {
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet() as any);
+
+      const res = await request(app)
+        .post('/api/admin/evaluation-criteria/set-1/dry-run')
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when messages is an empty array', async () => {
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet() as any);
+
+      const res = await request(app)
+        .post('/api/admin/evaluation-criteria/set-1/dry-run')
+        .send({ messages: [] });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 when messages is not an array', async () => {
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet() as any);
+
+      const res = await request(app)
+        .post('/api/admin/evaluation-criteria/set-1/dry-run')
+        .send({ messages: 'not an array' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 500 when generateFeedback throws', async () => {
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet() as any);
+      vi.mocked(generateFeedback).mockRejectedValue(new Error('AI service unavailable'));
+
+      const res = await request(app)
+        .post('/api/admin/evaluation-criteria/set-1/dry-run')
+        .send({ messages: SAMPLE_MESSAGES });
+
+      expect(res.status).toBe(500);
+    });
+
+    it('passes the provided messages to generateFeedback', async () => {
+      const customMessages = [
+        { role: 'user', content: '이렇게 하면 어떨까요?' },
+        { role: 'assistant', content: '좋은 생각입니다.' },
+      ];
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet() as any);
+      vi.mocked(generateFeedback).mockResolvedValue(FAKE_FEEDBACK as any);
+
+      await request(app)
+        .post('/api/admin/evaluation-criteria/set-1/dry-run')
+        .send({ messages: customMessages });
+
+      expect(vi.mocked(generateFeedback)).toHaveBeenCalledWith(
+        expect.anything(),
+        customMessages,
+        expect.anything(),
+        undefined,
+        expect.anything(),
+        expect.any(String),
+      );
+    });
+
+    it('does not persist feedback to storage — no write calls are made', async () => {
+      vi.mocked(storage.getEvaluationCriteriaSetWithDimensions).mockResolvedValue(makeSet() as any);
+      vi.mocked(generateFeedback).mockResolvedValue(FAKE_FEEDBACK as any);
+
+      await request(app)
+        .post('/api/admin/evaluation-criteria/set-1/dry-run')
+        .send({ messages: SAMPLE_MESSAGES });
+
+      expect(vi.mocked(storage.updateEvaluationCriteriaSet)).not.toHaveBeenCalled();
+      expect(vi.mocked(storage.updateEvaluationCriteriaSetStatus)).not.toHaveBeenCalled();
     });
   });
 });
