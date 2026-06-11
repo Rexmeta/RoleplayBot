@@ -570,7 +570,13 @@ export function EvaluationCriteriaManager() {
       icon: '',
       color: '',
       isActive: true,
-      scoringRubric: [],
+      scoringRubric: [
+        { score: 2, label: '매우 미흡', description: '', behaviorAnchor: '' },
+        { score: 4, label: '미흡', description: '', behaviorAnchor: '' },
+        { score: 6, label: '보통', description: '', behaviorAnchor: '' },
+        { score: 8, label: '우수', description: '', behaviorAnchor: '' },
+        { score: 10, label: '탁월', description: '', behaviorAnchor: '' },
+      ],
       evaluationPrompt: '',
     });
   };
