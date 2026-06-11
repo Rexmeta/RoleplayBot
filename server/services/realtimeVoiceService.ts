@@ -676,7 +676,7 @@ export class RealtimeVoiceService {
         this.handleClientMessage(session.id, bufferedMessage);
       }
 
-      console.log('⏳ Gemini connected — waiting for user to speak first (no auto-greeting).');
+      console.log('⏳ Gemini connected — will trigger AI greeting on client.ready.');
 
     } catch (error) {
       console.error(`Failed to connect to Gemini Live API:`, error);
