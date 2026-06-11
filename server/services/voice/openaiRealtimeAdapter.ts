@@ -204,6 +204,14 @@ export function createMessageHandler(
 
       case 'conversation.item.input_audio_transcription.delta': {
         if (msg.delta) {
+          // Discard stale transcription deltas that arrive while barge-in is active.
+          // These are in-flight Whisper deltas belonging to the AI's previous turn audio
+          // that was picked up by the microphone; accumulating them would pollute the next
+          // user message. Mirrors the Gemini handler's isStaleDelta guard.
+          if (session.isInterrupted) {
+            console.log(`🚫 [OpenAI Realtime] Discarding stale user transcript delta during barge-in: "${msg.delta.substring(0, 50)}"`);
+            break;
+          }
           accumulatedUserTranscript += msg.delta;
           session.userTranscriptBuffer = accumulatedUserTranscript;
           sendToClient(session, {
@@ -245,6 +253,11 @@ export function createMessageHandler(
       case 'response.cancelled': {
         aiTranscriptBuffer = '';
         session.currentTranscript = '';
+        // Also reset the user transcript accumulation buffer so any in-flight Whisper
+        // deltas that were already discarded by the barge-in guard don't ghost into the
+        // next turn if the buffer somehow held partial state before the barge-in.
+        accumulatedUserTranscript = '';
+        session.userTranscriptBuffer = '';
 
         // Increment turnSeq for the cancelled response (mirrors Gemini's turnComplete behaviour).
         // response.cancelled is sent instead of response.done for barge-in, so we must advance

@@ -542,4 +542,94 @@ describe('createMessageHandler — barge-in state machine', () => {
       );
     });
   });
+
+  // ─── Barge-in user transcript buffer guard ────────────────────────────────────
+
+  describe('conversation.item.input_audio_transcription.delta — barge-in guard', () => {
+    it('discards delta and does not forward to client when isInterrupted=true', () => {
+      session.isInterrupted = true;
+
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'stale text' });
+
+      expect(sendToClient).not.toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'user.transcription.delta' })
+      );
+    });
+
+    it('does not accumulate delta into buffer when isInterrupted=true', () => {
+      session.isInterrupted = true;
+
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'stale text' });
+
+      expect(session.userTranscriptBuffer).toBe('');
+    });
+
+    it('accumulates delta normally when isInterrupted=false', () => {
+      session.isInterrupted = false;
+
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'good text' });
+
+      expect(session.userTranscriptBuffer).toBe('good text');
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'user.transcription.delta', text: 'good text', accumulated: 'good text' })
+      );
+    });
+
+    it('discards multiple stale deltas during barge-in then accumulates cleanly after interrupt clears', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 0;
+      session.turnSeq = 0;
+
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'stale1 ' });
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'stale2 ' });
+
+      // Barge-in confirmed: response.cancelled resets buffer and clears interrupt
+      handleMessage({ type: 'response.cancelled' });
+
+      // Now new user speech comes in — should accumulate without stale prefix
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'real speech' });
+
+      expect(session.userTranscriptBuffer).toBe('real speech');
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({ type: 'user.transcription.delta', text: 'real speech', accumulated: 'real speech' })
+      );
+    });
+
+    it('response.cancelled resets accumulatedUserTranscript so next turn starts clean', () => {
+      // Simulate a partial buffer that accumulated before the barge-in guard was hit
+      session.isInterrupted = false;
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'partial ' });
+      expect(session.userTranscriptBuffer).toBe('partial ');
+
+      // Barge-in occurs
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 0;
+
+      // Cancellation arrives — buffer must be wiped
+      handleMessage({ type: 'response.cancelled' });
+
+      expect(session.userTranscriptBuffer).toBe('');
+
+      // Subsequent delta (with interrupt now cleared) starts fresh
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'fresh' });
+      expect(session.userTranscriptBuffer).toBe('fresh');
+    });
+
+    it('completed event after barge-in cancel does not emit stale transcript', () => {
+      session.isInterrupted = true;
+      handleMessage({ type: 'conversation.item.input_audio_transcription.delta', delta: 'stale' });
+
+      // Barge-in confirmed
+      handleMessage({ type: 'response.cancelled' });
+
+      // completed arrives with no transcript and an empty buffer — should not emit user.transcription
+      handleMessage({ type: 'conversation.item.input_audio_transcription.completed' });
+
+      const transcriptCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'user.transcription');
+      expect(transcriptCalls).toHaveLength(0);
+    });
+  });
 });
