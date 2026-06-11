@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./users";
@@ -104,6 +104,7 @@ export const chatMessages = pgTable("chat_messages", {
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("idx_chat_messages_persona_run_id").on(table.personaRunId),
+  uniqueIndex("idx_chat_messages_upsert_key").on(table.personaRunId, table.turnIndex, table.sender),
 ]);
 
 export const insertSimulationEventSchema = createInsertSchema(simulationEvents).omit({

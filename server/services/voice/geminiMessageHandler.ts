@@ -472,10 +472,30 @@ export function handleGeminiMessage(
 
       // Suppress stale deltas that arrive while barge-in is still active. These
       // are typically echoes of the AI's own audio picked up by the mic, or
-      // in-flight deltas from the previous turn context. Legitimate user speech
-      // will only arrive after isInterrupted is cleared by the audio-delta path.
+      // in-flight deltas from the previous turn context.
+      //
+      // EXCEPTION: If the transcript buffer is still empty, the user has not yet
+      // been marked as speaking, AND the session's turnSeq has already advanced
+      // past the cancelled turn (mirrors the audio-delta path at line ~425), this
+      // is the very first delta of genuine new user speech.  Gemini may deliver
+      // inputTranscription before an audio-delta in some network conditions, so
+      // we clear isInterrupted here rather than waiting for audio that may never
+      // arrive.
+      //
       // NOTE: we must NOT return early here — Gemini may co-deliver inputTranscription
       // alongside turnComplete or other serverContent fields in the same message.
+      if (
+        session.isInterrupted &&
+        transcript.length > 0 &&
+        session.userTranscriptBuffer.length === 0 &&
+        !session.userSpeechStarted &&
+        session.turnSeq > session.cancelledTurnSeq
+      ) {
+        console.log(`🔄 First user transcript delta seen for new turn (turnSeq=${session.turnSeq} > cancelledTurn=${session.cancelledTurnSeq}) — clearing isInterrupted early`);
+        session.isInterrupted = false;
+        session.cancelledTurnSeq = -1;
+      }
+
       const isStaleDelta = session.isInterrupted && transcript.length > 0;
       if (isStaleDelta) {
         console.log(`🚫 Discarding stale inputTranscription delta during barge-in: "${transcript.substring(0, 50)}"`);

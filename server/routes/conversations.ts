@@ -10,6 +10,7 @@ import {
   insertSequenceAnalysisSchema,
   scenarioRuns,
   personaRuns,
+  chatMessages as chatMessagesTable,
 } from "@shared/schema";
 import { eq, inArray } from "drizzle-orm";
 import {
@@ -1526,11 +1527,13 @@ ${userNameLine}
 
     console.log(`🎙️ 실시간 음성 대화 메시지 일괄 저장: ${personaRunId}, ${messages.length}개 메시지, isFinal=${isFinal}`);
 
-    await storage.deleteChatMessagesByPersonaRun(personaRunId);
-
+    // Upsert each message individually using (personaRunId, turnIndex, sender)
+    // as the conflict key (backed by idx_chat_messages_upsert_key unique index).
+    // No prior DELETE is needed — existing rows are updated in-place, so a
+    // mid-flight error leaves already-saved messages intact.
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
-      await storage.createChatMessage({
+      const values = {
         personaRunId,
         sender: msg.sender,
         message: msg.message,
@@ -1538,7 +1541,18 @@ ${userNameLine}
         emotion: msg.emotion || null,
         emotionReason: msg.emotionReason || null,
         createdAt: msg.timestamp ? new Date(msg.timestamp) : new Date()
-      });
+      };
+      await db.insert(chatMessagesTable)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [chatMessagesTable.personaRunId, chatMessagesTable.turnIndex, chatMessagesTable.sender],
+          set: {
+            message: values.message,
+            emotion: values.emotion,
+            emotionReason: values.emotionReason,
+            createdAt: values.createdAt,
+          },
+        });
     }
 
     const turnCount = Math.floor(messages.length / 2);

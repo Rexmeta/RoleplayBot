@@ -138,6 +138,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     mainChatScrollCleanupRef.current = () => node.removeEventListener('scroll', handleScroll);
   }, []);
   const handleSwitchToTextModeRef = useRef<(() => Promise<void>) | null>(null);
+  const flushRealtimeMessagesRef = useRef<((isFinal?: boolean) => Promise<void>) | null>(null);
   const pendingModeTransitionRef = useRef<'realtime-voice' | 'text' | undefined>(undefined);
 
   const { toast } = useToast();
@@ -212,8 +213,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     setPersonaSwitchAnnounced(false);
   }, []);
 
-  const { localMessages, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
-    pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText,
+  const { localMessages, localMessagesRef, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
+    pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText, pendingUserTextRef,
     isStreamingActive, addUserMessage, addRealtimeUserMessage,
     messagesEndRef, sendMessageMutation } = useChatMessages({
     conversationId,
@@ -262,6 +263,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '' }];
       });
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
+      // Incrementally persist after each AI turn so that if the session ends
+      // abnormally, as many turns as possible are already saved.
+      flushRealtimeMessagesRef.current?.(false).catch(console.error);
     },
     onUserTranscription: (transcript) => {
       addRealtimeUserMessage(transcript);
@@ -353,12 +357,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog,
     showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
     handleGoToFeedback, handleFeedbackRequest, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
-    conversationId, localMessages, pendingUserText, isPersonaMode, isNearingEnd, currentTurn, targetTurns,
+    conversationId, localMessages, localMessagesRef, pendingUserText, pendingUserTextRef, isPersonaMode, isNearingEnd, currentTurn, targetTurns,
     onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
     setLocalMessages, setConversationStartTime, setElapsedTime,
     showMicPromptReset: () => { hasUserSpokenRef.current = false; setShowMicPrompt(false); },
   });
+
+  flushRealtimeMessagesRef.current = flushRealtimeMessages;
 
   handleSwitchToTextModeRef.current = async () => {
     if (isSwitchingMode) return;
@@ -491,13 +497,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   // 🔧 Fix 2: 탭 닫기/새로고침/페이지 이탈 시 localMessages를 sendBeacon으로 저장
   // navigator.sendBeacon은 페이지가 닫히는 도중에도 쿠키와 함께 POST 전송 보장
-  const localMessagesRef = useRef(localMessages);
-  const pendingUserTextRef = useRef(pendingUserText);
+  // localMessagesRef and pendingUserTextRef come from useChatMessages (updated
+  // synchronously on every state change) — no need to re-declare them here.
   const conversationIdRef = useRef(conversationId);
   const isGoingToFeedbackRef = useRef(false);
 
-  useEffect(() => { localMessagesRef.current = localMessages; }, [localMessages]);
-  useEffect(() => { pendingUserTextRef.current = pendingUserText; }, [pendingUserText]);
   useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
   useEffect(() => { isGoingToFeedbackRef.current = isGoingToFeedback; }, [isGoingToFeedback]);
 

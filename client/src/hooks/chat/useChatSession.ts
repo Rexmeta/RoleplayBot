@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type MutableRefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
@@ -8,7 +8,9 @@ import type { ConversationMessage } from "@shared/schema";
 interface UseChatSessionOptions {
   conversationId: string;
   localMessages: ConversationMessage[];
+  localMessagesRef?: MutableRefObject<ConversationMessage[]>;
   pendingUserText?: string;
+  pendingUserTextRef?: MutableRefObject<string>;
   isPersonaMode: boolean;
   isNearingEnd: boolean;
   currentTurn: number;
@@ -27,7 +29,9 @@ interface UseChatSessionOptions {
 export function useChatSession({
   conversationId,
   localMessages,
+  localMessagesRef,
   pendingUserText = '',
+  pendingUserTextRef,
   isPersonaMode,
   isNearingEnd,
   currentTurn,
@@ -56,7 +60,10 @@ export function useChatSession({
     onChatComplete();
   };
 
-  // 🔧 Fix 3: pendingUserText(말하는 도중 종료)가 있으면 마지막 발화로 추가
+  // pendingUserText(말하는 도중 종료)가 있으면 마지막 발화로 추가.
+  // pendingUserTextRef is preferred over pendingUserText prop because it is
+  // updated synchronously on every change, avoiding React batching races at
+  // session end where the state value might not yet reflect the latest text.
   const buildSavePayload = (msgs: ConversationMessage[], pendingText: string) => {
     const messages = msgs.map(msg => ({
       sender: msg.sender,
@@ -65,7 +72,8 @@ export function useChatSession({
       emotion: msg.emotion,
       emotionReason: msg.emotionReason,
     }));
-    const trimmed = pendingText.trim();
+    const latest = pendingUserTextRef ? pendingUserTextRef.current : pendingText;
+    const trimmed = latest.trim();
     if (trimmed) {
       console.log(`🎤 [save] Including pendingUserText as last message: "${trimmed.substring(0, 60)}"`);
       messages.push({
@@ -95,7 +103,11 @@ export function useChatSession({
   const handleEndRealtimeConversation = () => {
     if (isPersonaMode) {
       disconnectVoice();
-      const payload = buildSavePayload(localMessages, pendingUserText);
+      // Use localMessagesRef.current (always up-to-date) to include any message
+      // appended since the last render (e.g. final transcription arriving while
+      // the user taps End).
+      const msgs = localMessagesRef?.current ?? localMessages;
+      const payload = buildSavePayload(msgs, pendingUserText);
       if (payload.length > 0) {
         apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {
           messages: payload,
@@ -125,7 +137,10 @@ export function useChatSession({
 
       onConversationEnding?.();
 
-      const payload = buildSavePayload(localMessages, pendingUserText);
+      // Use localMessagesRef.current (always up-to-date) to include any message
+      // appended since the last render before this async function was called.
+      const msgs = localMessagesRef?.current ?? localMessages;
+      const payload = buildSavePayload(msgs, pendingUserText);
       if (payload.length > 0) {
         const res = await apiRequest(
           'POST',
@@ -185,7 +200,11 @@ export function useChatSession({
   };
 
   const flushRealtimeMessages = async (isFinal = false): Promise<void> => {
-    const payload = buildSavePayload(localMessages, pendingUserText);
+    // Prefer localMessagesRef.current (always up-to-date synchronously) over
+    // localMessages prop (captured at last render), so a flush called immediately
+    // after setLocalMessages includes the just-added message.
+    const msgs = localMessagesRef?.current ?? localMessages;
+    const payload = buildSavePayload(msgs, pendingUserText);
     if (payload.length === 0) return;
     try {
       await apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {

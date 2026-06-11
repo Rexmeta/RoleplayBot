@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
@@ -126,19 +126,45 @@ async function streamingFetch(
 }
 
 export function useChatMessages({ conversationId, serverMessages, onSimulationUpdate, onPersonaSwitched }: UseChatMessagesOptions) {
-  const [localMessages, setLocalMessages] = useState<ConversationMessage[]>([]);
+  const [localMessages, _setLocalMessages] = useState<ConversationMessage[]>([]);
   const [pendingAiMessage, setPendingAiMessage] = useState(false);
   const [pendingUserMessage, setPendingUserMessage] = useState(false);
-  const [pendingUserText, setPendingUserText] = useState('');
+  const [pendingUserText, _setPendingUserText] = useState('');
   const [isStreamingActive, setIsStreamingActive] = useState(false);
+
+  // Ref that mirrors localMessages synchronously at dispatch time.
+  // We compute next from localMessagesRef.current (NOT from the React prevState
+  // callback) so the ref is updated in the same JS tick as the setLocalMessages
+  // call — before any save path (flushRealtimeMessages, sendBeacon, etc.) can
+  // observe a stale value. _setLocalMessages receives the already-computed array,
+  // so React just stores it without running a delayed functional updater.
+  const localMessagesRef = useRef<ConversationMessage[]>([]);
+  const setLocalMessages = useCallback(
+    (value: ConversationMessage[] | ((prev: ConversationMessage[]) => ConversationMessage[])) => {
+      const next = typeof value === 'function' ? value(localMessagesRef.current) : value;
+      localMessagesRef.current = next;   // synchronous — updated before this call returns
+      _setLocalMessages(next);           // schedule React re-render with the pre-computed array
+    },
+    [], // _setLocalMessages and localMessagesRef are both stable
+  );
+
+  // Ref that mirrors pendingUserText but is always up-to-date synchronously.
+  // Use this ref wherever the latest value must be readable without waiting for
+  // a React re-render (e.g. in save-payload builders called right at session end).
+  const pendingUserTextRef = useRef('');
+  const setPendingUserText = (value: string) => {
+    pendingUserTextRef.current = value;
+    _setPendingUserText(value);
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useTranslation();
 
-  // Stable refs to avoid stale closures inside mutationFn
+  // Stable refs to avoid stale closures inside mutationFn.
+  // setLocalMessages is memoized via useCallback so its identity is stable —
+  // no useEffect needed to keep this ref in sync.
   const setLocalMessagesRef = useRef(setLocalMessages);
-  useEffect(() => { setLocalMessagesRef.current = setLocalMessages; }, [setLocalMessages]);
   const setIsStreamingActiveRef = useRef(setIsStreamingActive);
   useEffect(() => { setIsStreamingActiveRef.current = setIsStreamingActive; }, [setIsStreamingActive]);
   const onPersonaSwitchedRef = useRef(onPersonaSwitched);
@@ -336,15 +362,20 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   const addRealtimeUserMessage = (transcript: string) => {
     hasPendingLocalRef.current = true;
     setPendingUserMessage(false);
-    setPendingUserText('');
+    // Append message BEFORE clearing pendingUserText so that any save path
+    // triggered between these two calls always sees either the transcript in
+    // localMessagesRef.current OR the pending text in pendingUserTextRef.current
+    // — never neither.
     setLocalMessages(prev => [...prev, {
       sender: 'user',
       message: transcript,
       timestamp: new Date().toISOString(),
     }]);
+    setPendingUserText('');
   };
 
   const addRealtimeAiMessage = (message: string, emotion?: string, emotionReason?: string) => {
+    hasPendingLocalRef.current = true;
     setPendingAiMessage(false);
     setLocalMessages(prev => [...prev, {
       sender: 'ai',
@@ -366,6 +397,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
 
   return {
     localMessages,
+    localMessagesRef,
     setLocalMessages,
     pendingAiMessage,
     setPendingAiMessage,
@@ -373,6 +405,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     setPendingUserMessage,
     pendingUserText,
     setPendingUserText,
+    pendingUserTextRef,
     isStreamingActive,
     messagesEndRef,
     sendMessageMutation,

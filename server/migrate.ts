@@ -1815,6 +1815,27 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add store_entitlements stripe columns:', err);
       }
 
+      // Unique index on chat_messages for upsert support.
+      // Before creating the index, remove any duplicate (persona_run_id, turn_index, sender)
+      // rows left over from the old delete+insert scheme (keeping the latest id per group).
+      try {
+        await client.query(`
+          DELETE FROM "chat_messages" a
+          USING "chat_messages" b
+          WHERE a.id < b.id
+            AND a.persona_run_id = b.persona_run_id
+            AND a.turn_index = b.turn_index
+            AND a.sender = b.sender;
+        `);
+        await client.query(`
+          CREATE UNIQUE INDEX IF NOT EXISTS "idx_chat_messages_upsert_key"
+            ON "chat_messages"("persona_run_id", "turn_index", "sender");
+        `);
+        console.log('✅ chat_messages upsert unique index ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to create chat_messages upsert index:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();
