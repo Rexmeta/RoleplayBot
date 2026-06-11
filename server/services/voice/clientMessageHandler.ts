@@ -277,21 +277,10 @@ export function handleClientMessage(
           }
         }
       } else {
-        console.log('🎬 Client ready (fresh start) - triggering AI greeting');
+        console.log('🎬 Client ready (fresh start) - waiting for user to speak first');
+        // New flow: user greets first — no auto-trigger.
+        // Mark flag to prevent duplicate processing if client.ready fires again.
         session.hasTriggeredFirstGreeting = true;
-        const greetingText: Record<string, string> = {
-          ko: '안녕하세요',
-          en: 'Hello',
-          ja: 'こんにちは',
-          zh: '你好',
-        };
-        const trigger = greetingText[session.userLanguage] ?? '안녕하세요';
-        const greetingPayload = {
-          turns: [{ role: 'user', parts: [{ text: trigger }] }],
-          turnComplete: true,
-        };
-        pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: greetingPayload } });
-        session.geminiSession.sendClientContent(greetingPayload);
       }
       break;
     }
