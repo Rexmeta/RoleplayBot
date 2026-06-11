@@ -413,9 +413,9 @@ function CompetencyHeatmap({ orgId }: { orgId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-muted-foreground">{data.members.length} team members · {data.dimensions.length} dimensions · click a cell to drill down</p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Button variant="outline" size="sm" onClick={() => downloadFile(`/api/analytics/hr/export/team-competency?format=csv&orgId=${orgId}`, "team-competency.csv")}>
             <Download className="h-4 w-4 mr-1" />CSV
           </Button>
@@ -509,9 +509,9 @@ function SkillGapPanel({ orgId, onOpenBenchmarks, dimensions }: { orgId: string;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-muted-foreground">Comparing team averages to benchmark targets</p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <Button variant="outline" size="sm" onClick={onOpenBenchmarks}><Settings className="h-4 w-4 mr-1" />Benchmarks</Button>
           <Button variant="outline" size="sm" onClick={() => downloadFile(`/api/analytics/hr/export/skill-gap?format=csv&orgId=${orgId}`, "skill-gap.csv")}>
             <Download className="h-4 w-4 mr-1" />CSV
@@ -632,7 +632,7 @@ function GrowthTrendPanel({ orgId }: { orgId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm flex-wrap">
           <label className="text-muted-foreground">From</label>
           <Input type="date" value={dateRange.start} onChange={e => setDateRange(p => ({ ...p, start: e.target.value }))} className="w-36 h-8" />
           <label className="text-muted-foreground">To</label>
@@ -651,7 +651,7 @@ function GrowthTrendPanel({ orgId }: { orgId: string }) {
             </SelectContent>
           </Select>
         )}
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 sm:ml-auto flex-wrap">
           <span className="text-sm text-muted-foreground">Latest avg:</span>
           <span className="font-bold">{last.average}</span>
           {trendDir === "up" && <TrendingUp className="h-4 w-4 text-green-600" />}
@@ -851,7 +851,7 @@ export default function HRAnalyticsPage() {
     <div className="min-h-screen bg-background">
       <AppHeader />
       <div className="container mx-auto px-4 py-6 max-w-7xl">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-start sm:items-center justify-between mb-6 flex-wrap gap-2">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <BarChart3 className="h-6 w-6 text-blue-600" />
@@ -859,7 +859,7 @@ export default function HRAnalyticsPage() {
             </h1>
             <p className="text-muted-foreground text-sm mt-1">Org-level competency intelligence for your team</p>
           </div>
-          <Badge className="bg-blue-100 text-blue-700 border-blue-200">{planStatus.planName} Plan</Badge>
+          <Badge className="bg-blue-100 text-blue-700 border-blue-200 self-start sm:self-auto">{planStatus.planName} Plan</Badge>
         </div>
 
         <Tabs defaultValue="heatmap">
