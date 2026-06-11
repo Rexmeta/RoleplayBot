@@ -1,0 +1,405 @@
+아래 순서대로 수정하면 됩니다.
+
+Step 1. shared/schema/types.ts 수정
+
+파일:
+
+shared/schema/types.ts
+1) 타입 추가
+
+ScoreAdjustments 아래 또는 DetailedFeedback 위에 추가하세요.
+
+export type BargeInEvent = {
+  aiMessage: string;
+  userMessage: string;
+  assessment: 'positive' | 'negative' | 'neutral';
+  reason: string;
+  severity: 0 | 1 | 2 | 3 | 4;
+};
+
+export type BargeInAnalysis = {
+  count: number;
+  positiveCount: number;
+  negativeCount: number;
+  neutralCount: number;
+  rate: number;
+  netScoreAdjustment: number;
+  events: BargeInEvent[];
+  summary: string;
+};
+2) DetailedFeedback에 필드 추가
+
+기존 DetailedFeedback 타입에 아래 필드를 추가하세요.
+
+bargeInAnalysis?: BargeInAnalysis;
+
+예:
+
+export type DetailedFeedback = {
+  overallScore: number | null;
+  scores: EvaluationScore[];
+  dimensionFeedback?: Record<string, string>;
+  strengths: string[];
+  improvements: string[];
+  nextSteps: string[];
+  summary: string;
+  ranking?: string;
+  behaviorGuides?: ActionGuide[];
+  conversationGuides?: ConversationGuide[];
+  developmentPlan?: DevelopmentPlan;
+  conversationDuration?: number;
+  averageResponseTime?: number;
+  timePerformance?: {
+    rating: 'excellent' | 'good' | 'average' | 'slow';
+    feedback: string;
+  };
+  sequenceAnalysis?: SequenceAnalysis;
+  evaluationCriteriaSetId?: string;
+  evaluationCriteriaSetName?: string;
+  scoreAdjustments?: ScoreAdjustments;
+  bargeInAnalysis?: BargeInAnalysis;
+  insufficientConversation?: boolean;
+  confidence?: number;
+  reportStatus?: ReportStatus;
+  insufficientReasons?: string[];
+  personaSegmentFeedbacks?: PersonaSegmentFeedback[];
+};
+Step 2. server/services/evaluationEngine.ts 수정
+
+파일:
+
+server/services/evaluationEngine.ts
+
+현재 analyzeBargeIn()은 이미 있습니다.
+이 함수를 아래처럼 확장하는 방식이 좋습니다.
+
+교체 권장 코드
+export function analyzeBargeIn(messages: ConversationMessage[]): {
+  count: number;
+  positiveCount: number;
+  negativeCount: number;
+  neutralCount: number;
+  rate: number;
+  contexts: Array<{
+    aiMessage: string;
+    userMessage: string;
+    assessment: 'positive' | 'negative' | 'neutral';
+    reason: string;
+    severity: 0 | 1 | 2 | 3 | 4;
+  }>;
+  netScoreAdjustment: number;
+  summary: string;
+} {
+  const contexts: Array<{
+    aiMessage: string;
+    userMessage: string;
+    assessment: 'positive' | 'negative' | 'neutral';
+    reason: string;
+    severity: 0 | 1 | 2 | 3 | 4;
+  }> = [];
+
+  let positiveCount = 0;
+  let negativeCount = 0;
+  let neutralCount = 0;
+
+  const aiTurnCount = messages.filter(m => m.sender === 'ai').length || 1;
+
+  messages.forEach((msg, idx) => {
+    if (msg.sender === 'ai' && msg.interrupted) {
+      const nextUserMsg = messages[idx + 1];
+
+      if (!nextUserMsg || nextUserMsg.sender !== 'user') return;
+
+      const aiText = msg.message || '';
+      const userText = nextUserMsg.message || '';
+      const normalizedUserText = userText.trim();
+
+      let assessment: 'positive' | 'negative' | 'neutral' = 'neutral';
+      let reason = '짧은 반응 또는 맥락상 영향이 크지 않은 중간 개입입니다.';
+      let severity: 0 | 1 | 2 | 3 | 4 = 1;
+
+      const aiLooksLikeQuestion =
+        aiText.includes('?') ||
+        /어떻|무엇|왜|어디|누가|언제|how|what|why|where|who|when/i.test(aiText);
+
+      const userLooksLikeClarification =
+        /제가 이해한|정리하면|확인하면|말씀하신|오해|정정|잠깐|먼저|핵심은|요지는/.test(normalizedUserText);
+
+      const userLooksDefensive =
+        /아니|그건 아니|이미 말했|제 말은|그게 아니라|왜냐하면|변명|문제가 아니/.test(normalizedUserText);
+
+      const userHasSubstance = normalizedUserText.length >= 30;
+
+      if (userLooksLikeClarification && userHasSubstance) {
+        assessment = 'positive';
+        reason = '상대 발화를 끊었지만, 내용을 정리·확인·정정하며 대화 흐름을 구조화한 개입입니다.';
+        severity = 0;
+        positiveCount++;
+      } else if (aiLooksLikeQuestion && !userLooksLikeClarification) {
+        assessment = 'negative';
+        reason = 'AI가 질문 또는 우려를 제시하는 도중 개입하여 경청 부족으로 인식될 수 있습니다.';
+        severity = userLooksDefensive ? 3 : 2;
+        negativeCount++;
+      } else if (userHasSubstance && !userLooksDefensive) {
+        assessment = 'positive';
+        reason = '중간 개입이 있었지만, 실질적인 정보 제공 또는 대화 주도에 기여했습니다.';
+        severity = 1;
+        positiveCount++;
+      } else {
+        assessment = 'neutral';
+        reason = '짧은 응답 또는 맞장구 수준으로 대화 품질에 큰 영향은 제한적입니다.';
+        severity = 1;
+        neutralCount++;
+      }
+
+      contexts.push({
+        aiMessage: aiText.substring(0, 120) + (aiText.length > 120 ? '...' : ''),
+        userMessage: userText.substring(0, 120) + (userText.length > 120 ? '...' : ''),
+        assessment,
+        reason,
+        severity,
+      });
+    }
+  });
+
+  const netScoreAdjustment =
+    positiveCount * BARGE_IN_POSITIVE_BONUS - negativeCount * BARGE_IN_NEGATIVE_PENALTY;
+
+  const cappedAdjustment = Math.max(
+    BARGE_IN_MIN_ADJUSTMENT,
+    Math.min(BARGE_IN_MAX_ADJUSTMENT, netScoreAdjustment)
+  );
+
+  const count = contexts.length;
+  const rate = Math.round((count / aiTurnCount) * 100) / 100;
+
+  const summary =
+    count === 0
+      ? '대화 중 AI 발화를 중단한 장면이 거의 없어 안정적인 경청 흐름을 보였습니다.'
+      : negativeCount > positiveCount
+        ? `총 ${count}회의 중간 개입 중 경청 부족으로 해석될 수 있는 장면이 ${negativeCount}회 확인되었습니다. 상대의 질문이나 우려가 끝난 뒤 요약하고 답변하는 연습이 필요합니다.`
+        : positiveCount > 0
+          ? `총 ${count}회의 중간 개입이 있었고, 이 중 ${positiveCount}회는 대화 정리·정보 제공·주도적 개입으로 볼 수 있습니다. 다만 반복될 경우 상대가 충분히 듣지 않는다고 느낄 수 있습니다.`
+          : `총 ${count}회의 중간 개입이 있었으나 대부분 짧은 반응 수준으로, 대화 품질에 미치는 영향은 제한적입니다.`;
+
+  return {
+    count,
+    positiveCount,
+    negativeCount,
+    neutralCount,
+    rate,
+    contexts,
+    netScoreAdjustment: cappedAdjustment,
+    summary,
+  };
+}
+Step 3. server/services/providers/optimizedGeminiProvider.ts 수정
+
+파일:
+
+server/services/providers/optimizedGeminiProvider.ts
+
+이미 이 파일에서 analyzeBargeIn(messages)를 호출하고 있습니다.
+다만 최종 JSON에 bargeInAnalysis를 반드시 포함하도록 프롬프트를 강화해야 합니다.
+
+1) 프롬프트의 barge-in 안내 문구 교체
+
+현재 부분:
+
+${hasBargeInIssues ? `\n🎤 말 끊기(Barge-in) 감지: ${bargeInAnalysis.count}회 발생
+${bargeInAnalysis.contexts.map(c => `  - [${c.assessment === 'positive' ? '✅ 적극적 참여' : c.assessment === 'negative' ? '❌ 경청 부족' : '➖ 중립'}] AI: "${c.aiMessage}" → 사용자: "${c.userMessage}"`).join('\n')}
+→ 순 점수 조정: ${bargeInAnalysis.netScoreAdjustment}점 (시스템이 별도 적용)\n` : ''}
+
+아래처럼 바꾸세요.
+
+${hasBargeInIssues ? `\n🎤 말 끊기(Barge-in) 분석:
+- 총 발생 횟수: ${bargeInAnalysis.count}회
+- 적절한 개입: ${bargeInAnalysis.positiveCount}회
+- 경청 부족 가능성: ${bargeInAnalysis.negativeCount}회
+- 중립적 개입: ${bargeInAnalysis.neutralCount}회
+- AI 발화 대비 비율: ${Math.round(bargeInAnalysis.rate * 100)}%
+- 순 점수 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점
+
+대표 장면:
+${bargeInAnalysis.contexts.map(c => `  - [${c.assessment === 'positive' ? '✅ 적절한 개입' : c.assessment === 'negative' ? '❌ 경청 부족' : '➖ 중립'}] AI: "${c.aiMessage}" → 사용자: "${c.userMessage}" / 이유: ${c.reason}`).join('\n')}
+
+피드백 작성 지침:
+- 단순히 "말을 끊었다"라고 비난하지 말고, 적절한 개입과 방해성 개입을 구분하세요.
+- 경청 부족으로 보이는 장면은 "상대방의 우려를 먼저 요약한 뒤 답변하기" 방식으로 개선 가이드를 제시하세요.
+- 적극적 참여로 볼 수 있는 장면은 대화 주도성의 강점으로 인정하되, 반복 시 주의점을 함께 안내하세요.\n` : ''}
+2) JSON 출력 형식에 bargeInAnalysis 추가
+
+현재 JSON 형식 예시에 overallScore, scores, evidence, dimensionFeedback, strengths, improvements 등이 들어갑니다.
+여기에 아래 필드를 추가하세요.
+
+"bargeInAnalysis": {
+  "count": ${bargeInAnalysis.count},
+  "positiveCount": ${bargeInAnalysis.positiveCount},
+  "negativeCount": ${bargeInAnalysis.negativeCount},
+  "neutralCount": ${bargeInAnalysis.neutralCount},
+  "rate": ${bargeInAnalysis.rate},
+  "netScoreAdjustment": ${bargeInAnalysis.netScoreAdjustment},
+  "summary": "${bargeInAnalysis.summary}",
+  "events": [
+    {
+      "aiMessage": "중단된 AI 발화",
+      "userMessage": "사용자 개입 발화",
+      "assessment": "positive | negative | neutral",
+      "reason": "왜 그렇게 분류했는지",
+      "severity": 0
+    }
+  ]
+}
+
+프롬프트 안에서는 실제 템플릿 리터럴이므로 아래 형태가 더 안전합니다.
+
+"bargeInAnalysis": {
+  "count": ${bargeInAnalysis.count},
+  "positiveCount": ${bargeInAnalysis.positiveCount},
+  "negativeCount": ${bargeInAnalysis.negativeCount},
+  "neutralCount": ${bargeInAnalysis.neutralCount},
+  "rate": ${bargeInAnalysis.rate},
+  "netScoreAdjustment": ${bargeInAnalysis.netScoreAdjustment},
+  "summary": "말 끊기 패턴에 대한 사용자 친화적 요약",
+  "events": [
+    {
+      "aiMessage": "중단된 AI 발화 요약",
+      "userMessage": "사용자 개입 발화 요약",
+      "assessment": "positive",
+      "reason": "대화 흐름을 정리한 적절한 개입",
+      "severity": 0
+    }
+  ]
+}
+Step 4. parseFeedbackResponse()에서 fallback 보정
+
+같은 파일에서 parseFeedbackResponse() 함수가 있을 겁니다.
+
+파일:
+
+server/services/providers/optimizedGeminiProvider.ts
+
+parseFeedbackResponse() 내부에서 AI가 bargeInAnalysis를 누락해도 시스템 분석값을 넣도록 보정해야 합니다.
+
+추가할 개념
+
+parseFeedbackResponse()에 bargeInAnalysis 인자를 넘기거나, 함수 내부에서 다시 계산하세요.
+
+가장 간단한 방식은 parseFeedbackResponse() 내부에서 다시 계산하는 것입니다.
+
+const bargeInAnalysis = analyzeBargeIn(messages);
+
+그리고 최종 feedback 객체를 반환하기 전에:
+
+feedback.bargeInAnalysis = feedback.bargeInAnalysis || {
+  count: bargeInAnalysis.count,
+  positiveCount: bargeInAnalysis.positiveCount,
+  negativeCount: bargeInAnalysis.negativeCount,
+  neutralCount: bargeInAnalysis.neutralCount,
+  rate: bargeInAnalysis.rate,
+  netScoreAdjustment: bargeInAnalysis.netScoreAdjustment,
+  summary: bargeInAnalysis.summary,
+  events: bargeInAnalysis.contexts.map(c => ({
+    aiMessage: c.aiMessage,
+    userMessage: c.userMessage,
+    assessment: c.assessment,
+    reason: c.reason,
+    severity: c.severity,
+  })),
+};
+
+이렇게 해야 AI가 JSON에서 빠뜨려도 리포트 데이터가 안정적으로 유지됩니다.
+
+Step 5. 피드백 리포트 UI에 섹션 추가
+
+정확한 UI 파일명은 저장소 구조상 추가 검색이 필요하지만, 보통 아래 중 하나일 가능성이 큽니다.
+
+client/src/pages/FeedbackReport.tsx
+client/src/pages/Feedback.tsx
+client/src/components/FeedbackReport.tsx
+client/src/components/feedback/FeedbackReport.tsx
+client/src/components/Report.tsx
+
+Replit 검색에서 아래 키워드로 찾으세요.
+
+DetailedFeedback
+
+또는
+
+strengths
+
+또는
+
+dimensionFeedback
+
+찾은 리포트 컴포넌트에서 summary, strengths, improvements를 보여주는 영역 근처에 아래 섹션을 추가하세요.
+
+{feedback.bargeInAnalysis && feedback.bargeInAnalysis.count > 0 && (
+  <section className="rounded-lg border p-4 space-y-3">
+    <div>
+      <h3 className="text-lg font-semibold">말 끊기 / 중간 개입 분석</h3>
+      <p className="text-sm text-muted-foreground">
+        대화 중 AI 발화가 끝나기 전에 사용자가 개입한 장면을 분석합니다.
+      </p>
+    </div>
+
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="rounded-md bg-muted p-3">
+        <div className="text-xs text-muted-foreground">총 발생</div>
+        <div className="text-xl font-bold">{feedback.bargeInAnalysis.count}회</div>
+      </div>
+
+      <div className="rounded-md bg-muted p-3">
+        <div className="text-xs text-muted-foreground">적절한 개입</div>
+        <div className="text-xl font-bold">{feedback.bargeInAnalysis.positiveCount}회</div>
+      </div>
+
+      <div className="rounded-md bg-muted p-3">
+        <div className="text-xs text-muted-foreground">경청 부족</div>
+        <div className="text-xl font-bold">{feedback.bargeInAnalysis.negativeCount}회</div>
+      </div>
+
+      <div className="rounded-md bg-muted p-3">
+        <div className="text-xs text-muted-foreground">AI 발화 대비</div>
+        <div className="text-xl font-bold">
+          {Math.round(feedback.bargeInAnalysis.rate * 100)}%
+        </div>
+      </div>
+    </div>
+
+    <p className="text-sm leading-relaxed">
+      {feedback.bargeInAnalysis.summary}
+    </p>
+
+    <div className="space-y-2">
+      {feedback.bargeInAnalysis.events.slice(0, 3).map((event, index) => (
+        <div key={index} className="rounded-md border p-3 text-sm space-y-1">
+          <div className="font-medium">
+            {event.assessment === 'positive'
+              ? '✅ 적절한 개입'
+              : event.assessment === 'negative'
+                ? '❌ 경청 부족 가능성'
+                : '➖ 중립적 개입'}
+          </div>
+          <div>
+            <span className="text-muted-foreground">AI:</span> “{event.aiMessage}”
+          </div>
+          <div>
+            <span className="text-muted-foreground">사용자:</span> “{event.userMessage}”
+          </div>
+          <div className="text-muted-foreground">
+            {event.reason}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+)}
+Step 6. 리포트 문구 기준
+
+최종 리포트에는 아래 톤이 좋습니다.
+
+나쁜 문구
+말 끊기가 5회 발생했습니다. 경청 태도가 부족합니다.
+좋은 문구
+대화 중 중간 개입이 5회 있었습니다. 이 중 2회는 내용을 정리하거나 빠르게 정보를 제공한 적절한 개입이었지만, 3회는 상대방의 질문이나 우려가 끝나기 전에 답변하여 경청 부족으로 보일 수 있습니다. 다음 대화에서는 상대방의 말을 먼저 요약한 뒤 해결책을 제시하는 방식이 좋습니다.
