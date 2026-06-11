@@ -135,7 +135,7 @@ export function useChatSession({
 
         await res.json();
 
-        await queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}`] });
+        await queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
         await queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
         await queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
       }
@@ -163,7 +163,7 @@ export function useChatSession({
 
       resetPhase();
 
-      await queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}`] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
 
       setConversationStartTime(null);
       setElapsedTime(0);

@@ -214,7 +214,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { localMessages, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText,
-    isStreamingActive,
+    isStreamingActive, addUserMessage, addRealtimeUserMessage,
     messagesEndRef, sendMessageMutation } = useChatMessages({
     conversationId,
     serverMessages: initialMessages,
@@ -264,8 +264,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
     },
     onUserTranscription: (transcript) => {
-      setPendingUserMessage(false); setPendingUserText('');
-      setLocalMessages(prev => [...prev, { sender: 'user', message: transcript, timestamp: new Date().toISOString() }]);
+      addRealtimeUserMessage(transcript);
     },
     onUserTranscriptionDelta: (_delta, accumulated) => { setPendingUserText(accumulated); },
     onAiSpeakingStart: () => { setPendingAiMessage(true); isAISpeakingForBargeInRef.current = true; },
@@ -299,7 +298,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   }, [earlyConnect, inputMode, realtimeVoice.status]);
 
   const { data: conversation, error } = useQuery<Conversation>({
-    queryKey: ["/api/conversations", conversationId], enabled: !!conversationId,
+    queryKey: ["/api/conversations", conversationId],
+    enabled: !!conversationId,
+    refetchOnWindowFocus: realtimeVoice.conversationPhase !== 'active',
   });
 
   const { elapsedTime, setConversationStartTime, setElapsedTime } = useConversationTimer({
@@ -622,7 +623,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     // session is active. Sending text via the voice WebSocket (sendTextMessage) only
     // produces ctrl46 control characters from the Gemini Live audio endpoint, which
     // are stripped by filterThinkingText, yielding an empty response.
-    setLocalMessages(prev => [...prev, { sender: 'user', message, timestamp: new Date().toISOString() }]);
+    addUserMessage(message);
     setIsLoading(true); setUserInput(""); if (window.innerWidth < 1024) setShowInputMode(false);
     lastUserTextRef.current = message;
     const transitionMode = pendingModeTransitionRef.current;

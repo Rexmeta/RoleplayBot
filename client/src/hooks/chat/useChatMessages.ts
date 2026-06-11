@@ -146,11 +146,43 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   const conversationIdRef = useRef(conversationId);
   useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
 
+  const isStreamingActiveRef = useRef(isStreamingActive);
+  useEffect(() => { isStreamingActiveRef.current = isStreamingActive; }, [isStreamingActive]);
+  // Declared before the sync effect to avoid temporal-dead-zone issues with sendMessageMutation.
+  // isMutationPendingRef     — true while the HTTP send is in-flight (set in onMutate, cleared in onSuccess/onError)
+  // hasPendingLocalRef       — true when local messages exist that aren't yet confirmed by server data
+  //                            (set when a user message is added locally)
+  // localMessagesLengthRef   — mirrors localMessages.length; used to detect server catch-up without
+  //                            adding localMessages to the sync effect's dependency array
+  const isMutationPendingRef = useRef(false);
+  const hasPendingLocalRef = useRef(false);
+  const localMessagesLengthRef = useRef(0);
+  useEffect(() => { localMessagesLengthRef.current = localMessages.length; }, [localMessages]);
+
+  // When the conversation changes, reset all pending flags so the new conversation
+  // syncs unconditionally from server data.
   useEffect(() => {
-    if (serverMessages) {
-      setLocalMessages(serverMessages);
+    isMutationPendingRef.current = false;
+    hasPendingLocalRef.current = false;
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!serverMessages) return;
+    // Skip while a send mutation is in-flight or SSE stream is active to prevent
+    // background React Query refetches (window focus, staleTime expiry) from
+    // wiping optimistic user messages or in-progress AI responses.
+    if (isMutationPendingRef.current || isStreamingActiveRef.current) return;
+    if (hasPendingLocalRef.current) {
+      // Allow sync only once the server has caught up to the locally-added messages.
+      // This handles voice mode where transcribed messages are added before DB persistence.
+      if (serverMessages.length >= localMessagesLengthRef.current) {
+        hasPendingLocalRef.current = false; // server acknowledged — allow sync
+      } else {
+        return; // still waiting for server to catch up
+      }
     }
-  }, [serverMessages]);
+    setLocalMessages(serverMessages);
+  }, [serverMessages, isStreamingActive]);
 
 
   const sendMessageMutation = useMutation({
@@ -221,7 +253,11 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
         onStreamingDone
       );
     },
+    onMutate: () => {
+      isMutationPendingRef.current = true;
+    },
     onSuccess: (data) => {
+      isMutationPendingRef.current = false;
       // Clear streaming indicator now that mutation has fully resolved
       setIsStreamingActive(false);
       // Only add AI message if NOT streamed (streaming handles it progressively)
@@ -257,6 +293,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
     },
     onError: () => {
+      isMutationPendingRef.current = false;
       setIsStreamingActive(false);
       setLocalMessages(prev => {
         if (prev.length > 0 && prev[prev.length - 1].sender === 'user') {
@@ -274,6 +311,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   });
 
   const addUserMessage = (message: string) => {
+    hasPendingLocalRef.current = true;
     const userMessage: ConversationMessage = {
       sender: 'user',
       message: message,
@@ -296,6 +334,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   };
 
   const addRealtimeUserMessage = (transcript: string) => {
+    hasPendingLocalRef.current = true;
     setPendingUserMessage(false);
     setPendingUserText('');
     setLocalMessages(prev => [...prev, {
@@ -317,6 +356,8 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   };
 
   const resetMessages = () => {
+    hasPendingLocalRef.current = false;
+    isMutationPendingRef.current = false;
     setLocalMessages([]);
     setPendingAiMessage(false);
     setPendingUserMessage(false);
