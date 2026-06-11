@@ -246,7 +246,10 @@ export function analyzeNonVerbalPatterns(
 
   userMessages.forEach(msg => {
     const text = msg.message.trim().toLowerCase();
-    if (text.length < 3) {
+    if (text === '침묵' || text === 'skip' || text === '스킵') {
+      nonVerbalPatterns.push(`스킵: "${msg.message}"`);
+      penaltyPoints += 5;
+    } else if (text.length < 3) {
       nonVerbalPatterns.push(`짧은 응답: "${msg.message}"`);
       penaltyPoints += 2;
     } else if (
@@ -262,9 +265,6 @@ export function analyzeNonVerbalPatterns(
     } else if (text.match(/^(음+|어+|그+|아+|uh+|um+|hmm+|흠+)\.*/i)) {
       nonVerbalPatterns.push(`비언어적 표현: "${msg.message}"`);
       penaltyPoints += 2;
-    } else if (text === '침묵' || text === 'skip' || text === '스킵') {
-      nonVerbalPatterns.push(`스킵: "${msg.message}"`);
-      penaltyPoints += 5;
     }
   });
 

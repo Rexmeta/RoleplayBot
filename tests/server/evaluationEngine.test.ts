@@ -246,32 +246,27 @@ describe('analyzeNonVerbalPatterns — filler sounds', () => {
 });
 
 describe('analyzeNonVerbalPatterns — skip keyword branch reachability', () => {
-  // The skip-keyword branch ("침묵", "skip", "스킵") sits after the short-text
-  // and filler branches. Due to the if-else chain ordering:
-  //   • "침묵" (length 2) is caught by the < 3 guard → "짧은 응답".
-  //   • "스킵" (length 2) likewise.
-  //   • "skip" (length 4, all a-z) is caught by the 3-5 char Latin branch → "무의미한 단답".
-  // These tests document the actual observed behaviour so any future refactor
-  // that reorders or adds conditions will surface regressions immediately.
-  it('"침묵" (length 2) is caught by the short-response guard, not the skip branch', () => {
+  // The skip-keyword branch ("침묵", "skip", "스킵") is checked first in the
+  // if-else chain so it is always reached before shorter-text guards.
+  it('"침묵" is caught by the skip branch and penalised +5', () => {
     const result = analyzeNonVerbalPatterns([makeMsg('침묵')]);
     expect(result.count).toBe(1);
-    expect(result.patterns[0]).toContain('짧은 응답');
-    expect(result.penaltyPoints).toBe(2);
+    expect(result.patterns[0]).toContain('스킵');
+    expect(result.penaltyPoints).toBe(5);
   });
 
-  it('"스킵" (length 2) is caught by the short-response guard, not the skip branch', () => {
+  it('"스킵" is caught by the skip branch and penalised +5', () => {
     const result = analyzeNonVerbalPatterns([makeMsg('스킵')]);
     expect(result.count).toBe(1);
-    expect(result.patterns[0]).toContain('짧은 응답');
-    expect(result.penaltyPoints).toBe(2);
+    expect(result.patterns[0]).toContain('스킵');
+    expect(result.penaltyPoints).toBe(5);
   });
 
-  it('"skip" (4 lowercase chars) is caught by the meaningless-one-liner branch', () => {
+  it('"skip" is caught by the skip branch and penalised +5', () => {
     const result = analyzeNonVerbalPatterns([makeMsg('skip')]);
     expect(result.count).toBe(1);
-    expect(result.patterns[0]).toContain('무의미한 단답');
-    expect(result.penaltyPoints).toBe(1);
+    expect(result.patterns[0]).toContain('스킵');
+    expect(result.penaltyPoints).toBe(5);
   });
 });
 
