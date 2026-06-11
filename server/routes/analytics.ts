@@ -1,8 +1,10 @@
 import { Router } from "express";
-import { storage } from "../storage";
+import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { getOperatorAccessibleCategoryIds, asyncHandler, createHttpError } from "./routerHelpers";
 import type { EvaluationScore, DetailedFeedback } from "@shared/schema";
+import { aiUsageLogs } from "@shared/schema";
+import { gte, lte, and, sql, inArray, asc, desc } from "drizzle-orm";
 
 export default function createAnalyticsRouter(isAuthenticated: any) {
   const router = Router();
@@ -1584,6 +1586,162 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     }
 
     res.json({ results });
+  }));
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/analytics/ai-usage
+  // Operator-scoped AI usage from ai_usage_logs (conversations, feedback, voice …)
+  // Query params: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+  // ─────────────────────────────────────────────────────────────────────────────
+  router.get("/api/admin/analytics/ai-usage", isAuthenticated, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (user?.role !== "admin" && user?.role !== "operator") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const today = new Date();
+    const defaultFrom = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+    const defaultTo = today.toISOString().slice(0, 10);
+
+    const fromStr = (req.query.from as string | undefined) ?? defaultFrom;
+    const toStr   = (req.query.to   as string | undefined) ?? defaultTo;
+
+    const startDate = new Date(`${fromStr}T00:00:00.000Z`);
+    const endDate   = new Date(`${toStr}T23:59:59.999Z`);
+
+    // Resolve which userIds are in the operator's scope by tracing
+    // categories → scenarios → scenario_runs → userId
+    let userIdFilter: string[] | null = null; // null = no filter (admin, all)
+
+    if (user.role === "operator") {
+      const accessibleCategoryIds = await getOperatorAccessibleCategoryIds(user);
+
+      if (accessibleCategoryIds.length === 0) {
+        // Operator has no category access — return empty
+        return res.json({
+          rows: [],
+          summary: { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCachedTokens: 0, totalErrors: 0, totalCostUsd: 0 },
+          byFeature: [],
+          byModel: [],
+        });
+      }
+
+      const allScenarios = await fileManager.getAllScenarios() as any[];
+      const scenarioIds = new Set(
+        allScenarios
+          .filter((s: any) => accessibleCategoryIds.includes(String(s.categoryId)))
+          .map((s: any) => s.id)
+      );
+
+      const allScenarioRuns = await storage.getAllScenarioRuns();
+      const uids = new Set<string>();
+      for (const sr of allScenarioRuns) {
+        if (scenarioIds.has(sr.scenarioId) && sr.userId) uids.add(String(sr.userId));
+      }
+      userIdFilter = Array.from(uids);
+
+      if (userIdFilter.length === 0) {
+        return res.json({
+          rows: [],
+          summary: { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCachedTokens: 0, totalErrors: 0, totalCostUsd: 0 },
+          byFeature: [],
+          byModel: [],
+        });
+      }
+    }
+
+    // Build WHERE conditions
+    const baseConditions: any[] = [
+      gte(aiUsageLogs.occurredAt, startDate),
+      lte(aiUsageLogs.occurredAt, endDate),
+    ];
+    if (userIdFilter !== null) {
+      baseConditions.push(inArray(aiUsageLogs.userId, userIdFilter));
+    }
+    const where = and(...baseConditions);
+
+    // Daily breakdown
+    const dailyRaw = await db
+      .select({
+        date: sql<string>`TO_CHAR(${aiUsageLogs.occurredAt}, 'YYYY-MM-DD')`,
+        requestCount:    sql<number>`COUNT(*)::int`,
+        inputTokens:     sql<number>`COALESCE(SUM(${aiUsageLogs.promptTokens}), 0)::int`,
+        outputTokens:    sql<number>`COALESCE(SUM(${aiUsageLogs.completionTokens}), 0)::int`,
+        totalTokens:     sql<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)::int`,
+        cachedTokens:    sql<number>`COALESCE(SUM(${aiUsageLogs.cachedTokens}), 0)::int`,
+        totalCostUsd:    sql<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+      })
+      .from(aiUsageLogs)
+      .where(where)
+      .groupBy(sql`TO_CHAR(${aiUsageLogs.occurredAt}, 'YYYY-MM-DD')`)
+      .orderBy(asc(sql`TO_CHAR(${aiUsageLogs.occurredAt}, 'YYYY-MM-DD')`));
+
+    const rows = dailyRaw.map(r => ({
+      date:         r.date,
+      requestCount: Number(r.requestCount),
+      inputTokens:  Number(r.inputTokens),
+      outputTokens: Number(r.outputTokens),
+      totalTokens:  Number(r.totalTokens),
+      cachedTokens: Number(r.cachedTokens),
+      totalCostUsd: Number(r.totalCostUsd),
+    }));
+
+    // Summary
+    const summary = rows.reduce(
+      (acc, r) => {
+        acc.totalRequests      += r.requestCount;
+        acc.totalInputTokens   += r.inputTokens;
+        acc.totalOutputTokens  += r.outputTokens;
+        acc.totalCachedTokens  += r.cachedTokens;
+        acc.totalCostUsd       += r.totalCostUsd;
+        return acc;
+      },
+      { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCachedTokens: 0, totalErrors: 0, totalCostUsd: 0 }
+    );
+
+    // By feature
+    const byFeatureRaw = await db
+      .select({
+        feature:      aiUsageLogs.feature,
+        requestCount: sql<number>`COUNT(*)::int`,
+        totalTokens:  sql<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)::int`,
+        totalCostUsd: sql<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+      })
+      .from(aiUsageLogs)
+      .where(where)
+      .groupBy(aiUsageLogs.feature)
+      .orderBy(desc(sql`SUM(${aiUsageLogs.totalTokens})`));
+
+    const byFeature = byFeatureRaw.map(r => ({
+      feature:      r.feature,
+      requestCount: Number(r.requestCount),
+      totalTokens:  Number(r.totalTokens),
+      totalCostUsd: Number(r.totalCostUsd),
+    }));
+
+    // By model
+    const byModelRaw = await db
+      .select({
+        model:        aiUsageLogs.model,
+        provider:     aiUsageLogs.provider,
+        requestCount: sql<number>`COUNT(*)::int`,
+        totalTokens:  sql<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)::int`,
+        totalCostUsd: sql<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+      })
+      .from(aiUsageLogs)
+      .where(where)
+      .groupBy(aiUsageLogs.model, aiUsageLogs.provider)
+      .orderBy(desc(sql`SUM(${aiUsageLogs.totalTokens})`));
+
+    const byModel = byModelRaw.map(r => ({
+      model:        r.model,
+      provider:     r.provider,
+      requestCount: Number(r.requestCount),
+      totalTokens:  Number(r.totalTokens),
+      totalCostUsd: Number(r.totalCostUsd),
+    }));
+
+    res.json({ rows, summary, byFeature, byModel });
   }));
 
   return router;

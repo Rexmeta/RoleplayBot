@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ResponsiveContainer,
@@ -15,9 +14,12 @@ import {
   YAxis,
   Tooltip,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import { authFetch } from "@/lib/authFetch";
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Zap, AlertCircle } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpFromLine, Zap, DollarSign, AlertCircle } from "lucide-react";
 
 interface DailyRow {
   date: string;
@@ -26,7 +28,22 @@ interface DailyRow {
   outputTokens: number;
   totalTokens: number;
   cachedTokens: number;
-  errorCount: number;
+  totalCostUsd: number;
+}
+
+interface FeatureRow {
+  feature: string;
+  requestCount: number;
+  totalTokens: number;
+  totalCostUsd: number;
+}
+
+interface ModelRow {
+  model: string;
+  provider: string;
+  requestCount: number;
+  totalTokens: number;
+  totalCostUsd: number;
 }
 
 interface UsageSummary {
@@ -34,20 +51,14 @@ interface UsageSummary {
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCachedTokens: number;
-  totalErrors: number;
+  totalCostUsd: number;
 }
 
 interface UsageResponse {
   rows: DailyRow[];
   summary: UsageSummary;
-}
-
-interface AgentKey {
-  id: string;
-  name: string;
-  keyPrefix: string;
-  environment: string;
-  isActive: boolean;
+  byFeature: FeatureRow[];
+  byModel: ModelRow[];
 }
 
 function getDefaultDates() {
@@ -63,41 +74,56 @@ function fmt(n: number): string {
   return String(n);
 }
 
+function fmtCost(n: number): string {
+  if (n === 0) return "$0.00";
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(2)}`;
+}
+
+const FEATURE_COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#ec4899"];
+const MODEL_COLORS   = ["#6366f1", "#14b8a6", "#f97316", "#84cc16", "#e11d48", "#0ea5e9"];
+
+const FEATURE_LABELS: Record<string, string> = {
+  conversation: "대화",
+  feedback: "피드백",
+  voice: "음성",
+  emotion: "감정분석",
+  strategy: "전략평가",
+  translation: "번역",
+  scenario_generation: "시나리오생성",
+  image_generation: "이미지생성",
+};
+
+function featureLabel(f: string): string {
+  return FEATURE_LABELS[f] ?? f;
+}
+
 export function ApiUsageTab() {
   const defaults = getDefaultDates();
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
-  const [selectedKeyId, setSelectedKeyId] = useState<string>("all");
   const [appliedFrom, setAppliedFrom] = useState(defaults.from);
   const [appliedTo, setAppliedTo] = useState(defaults.to);
-  const [appliedKeyId, setAppliedKeyId] = useState<string>("all");
-
-  const { data: agentKeys = [] } = useQuery<AgentKey[]>({
-    queryKey: ["/api/admin/agent-keys"],
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const usageParams = new URLSearchParams({ from: appliedFrom, to: appliedTo });
-  if (appliedKeyId !== "all") usageParams.set("keyId", appliedKeyId);
 
   const {
     data: usageData,
     isLoading,
     isError,
   } = useQuery<UsageResponse>({
-    queryKey: ["/api/admin/agent-keys/usage", appliedFrom, appliedTo, appliedKeyId],
-    queryFn: () => authFetch(`/api/admin/agent-keys/usage?${usageParams}`),
+    queryKey: ["/api/admin/analytics/ai-usage", appliedFrom, appliedTo],
+    queryFn: () => authFetch(`/api/admin/analytics/ai-usage?from=${appliedFrom}&to=${appliedTo}`),
     staleTime: 1000 * 60 * 2,
   });
 
   function handleApply() {
     setAppliedFrom(from);
     setAppliedTo(to);
-    setAppliedKeyId(selectedKeyId);
   }
 
   const summary = usageData?.summary;
   const rows = usageData?.rows ?? [];
+  const byFeature = (usageData?.byFeature ?? []).map(r => ({ ...r, feature: featureLabel(r.feature) }));
+  const byModel = usageData?.byModel ?? [];
 
   const summaryCards = [
     {
@@ -125,10 +151,10 @@ export function ApiUsageTab() {
       bg: "bg-amber-50",
     },
     {
-      label: "캐시 토큰",
-      value: summary ? fmt(summary.totalCachedTokens ?? 0) : "–",
-      icon: <AlertCircle className="w-5 h-5 text-cyan-500" />,
-      bg: "bg-cyan-50",
+      label: "추정 비용",
+      value: summary ? fmtCost(summary.totalCostUsd ?? 0) : "–",
+      icon: <DollarSign className="w-5 h-5 text-green-500" />,
+      bg: "bg-green-50",
     },
   ];
 
@@ -138,7 +164,7 @@ export function ApiUsageTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="w-5 h-5" />
-            API 사용량 현황
+            AI 사용량 현황
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -163,22 +189,6 @@ export function ApiUsageTab() {
                 className="w-40"
               />
             </div>
-            <div className="space-y-1">
-              <Label>API 키 필터</Label>
-              <Select value={selectedKeyId} onValueChange={setSelectedKeyId}>
-                <SelectTrigger className="w-52">
-                  <SelectValue placeholder="전체 키" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 키</SelectItem>
-                  {agentKeys.map((k) => (
-                    <SelectItem key={k.id} value={k.id}>
-                      {k.name} ({k.keyPrefix}…)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <Button onClick={handleApply} disabled={isLoading}>
               조회
             </Button>
@@ -186,7 +196,7 @@ export function ApiUsageTab() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {summaryCards.map((card) => (
           <Card key={card.label} className={card.bg}>
             <CardContent className="pt-5">
@@ -221,7 +231,7 @@ export function ApiUsageTab() {
             </div>
           ) : rows.length === 0 ? (
             <p className="text-center text-slate-500 py-12">
-              선택한 기간에 사용 데이터가 없습니다.
+              선택한 기간에 AI 사용 데이터가 없습니다.
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={320}>
@@ -240,7 +250,7 @@ export function ApiUsageTab() {
                     value === "inputTokens" ? "입력 토큰" : value === "outputTokens" ? "출력 토큰" : value
                   }
                 />
-                <Bar dataKey="inputTokens" stackId="tokens" fill="#8b5cf6" name="inputTokens" />
+                <Bar dataKey="inputTokens"  stackId="tokens" fill="#8b5cf6" name="inputTokens" />
                 <Bar dataKey="outputTokens" stackId="tokens" fill="#10b981" name="outputTokens" />
               </BarChart>
             </ResponsiveContainer>
@@ -248,26 +258,118 @@ export function ApiUsageTab() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>일별 요청 수</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : rows.length === 0 ? null : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={rows} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value: number) => [value.toLocaleString(), "요청 수"]} />
-                <Bar dataKey="requestCount" fill="#3b82f6" name="요청 수" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>기능별 사용량</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : byFeature.length === 0 ? (
+              <p className="text-center text-slate-500 py-12 text-sm">데이터 없음</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={byFeature}
+                    dataKey="totalTokens"
+                    nameKey="feature"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={90}
+                    label={({ feature, percent }) =>
+                      `${feature}: ${(percent * 100).toFixed(0)}%`
+                    }
+                  >
+                    {byFeature.map((_, i) => (
+                      <Cell key={i} fill={FEATURE_COLORS[i % FEATURE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number, name: string) => [fmt(value), name === "totalTokens" ? "토큰" : name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>모델별 사용량</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : byModel.length === 0 ? (
+              <p className="text-center text-slate-500 py-12 text-sm">데이터 없음</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart
+                  data={byModel}
+                  layout="vertical"
+                  margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tickFormatter={(v) => fmt(v)} tick={{ fontSize: 11 }} />
+                  <YAxis
+                    type="category"
+                    dataKey="model"
+                    tick={{ fontSize: 11 }}
+                    width={120}
+                    tickFormatter={(v: string) => (v.length > 18 ? v.slice(0, 18) + "…" : v)}
+                  />
+                  <Tooltip
+                    formatter={(value: number, name: string) => [
+                      fmt(value),
+                      name === "totalTokens" ? "총 토큰" : name,
+                    ]}
+                  />
+                  {byModel.map((_, i) => null)}
+                  <Bar dataKey="totalTokens" name="totalTokens" radius={[0, 3, 3, 0]}>
+                    {byModel.map((_, i) => (
+                      <Cell key={i} fill={MODEL_COLORS[i % MODEL_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {rows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>기능별 상세</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-slate-500">
+                    <th className="text-left py-2 pr-4">기능</th>
+                    <th className="text-right py-2 pr-4">요청 수</th>
+                    <th className="text-right py-2 pr-4">총 토큰</th>
+                    <th className="text-right py-2">추정 비용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byFeature.map((r, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                      <td className="py-2 pr-4 font-medium">{r.feature}</td>
+                      <td className="text-right py-2 pr-4">{r.requestCount.toLocaleString()}</td>
+                      <td className="text-right py-2 pr-4">{fmt(r.totalTokens)}</td>
+                      <td className="text-right py-2 text-slate-600">{fmtCost(r.totalCostUsd)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
