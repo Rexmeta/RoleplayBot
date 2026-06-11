@@ -363,6 +363,12 @@
     "notGenerated": "反馈尚未生成",
     "notGeneratedDesc": "完成对话后可生成反馈。",
     "generating": "生成反馈中...",
+    "progress": {
+      "stage1": "正在分析对话内容...",
+      "stage2": "正在计算回答分数...",
+      "stage3": "正在撰写报告...",
+      "timeHint": "通常需要30～60秒"
+    },
     "generate": "生成反馈",
     "backToMyPage": "返回我的页面",
     "error": "发生错误",

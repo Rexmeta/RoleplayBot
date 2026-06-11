@@ -363,6 +363,12 @@
     "notGenerated": "Feedback has not been generated yet",
     "notGeneratedDesc": "You can generate feedback after completing the conversation.",
     "generating": "Generating feedback...",
+    "progress": {
+      "stage1": "Analyzing conversation...",
+      "stage2": "Calculating response scores...",
+      "stage3": "Writing report...",
+      "timeHint": "This usually takes 30–60 seconds"
+    },
     "generate": "Generate Feedback",
     "backToMyPage": "Back to My Page",
     "error": "An error occurred",
