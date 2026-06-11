@@ -62,6 +62,8 @@ export const personaRuns = pgTable("persona_runs", {
     transitionLine: string;
     timestamp: string;
   }>>(),
+  feedbackStatus: varchar("feedback_status"),
+  feedbackJobStartedAt: timestamp("feedback_job_started_at"),
   startedAt: timestamp("started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   actualStartedAt: timestamp("actual_started_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   completedAt: timestamp("completed_at"),

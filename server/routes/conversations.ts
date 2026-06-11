@@ -26,6 +26,7 @@ import {
 import {
   markGenerating,
   isGenerating,
+  isGeneratingWithDbFallback,
   unmarkGenerating,
   markGenerationError,
   getGenerationError,
@@ -1812,7 +1813,7 @@ ${userNameLine}
 
     const feedback = await storage.getFeedbackByConversationId(personaRunId);
     if (!feedback) {
-      if (isGenerating(personaRunId)) {
+      if (await isGeneratingWithDbFallback(personaRunId)) {
         return res.json({ status: "generating" });
       }
       if (getGenerationError(personaRunId)) {
