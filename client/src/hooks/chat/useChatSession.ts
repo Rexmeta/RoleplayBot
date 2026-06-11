@@ -1,4 +1,4 @@
-import { useState, type MutableRefObject } from "react";
+import { useState, useRef, type MutableRefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
@@ -11,6 +11,7 @@ interface UseChatSessionOptions {
   localMessagesRef?: MutableRefObject<ConversationMessage[]>;
   pendingUserText?: string;
   pendingUserTextRef?: MutableRefObject<string>;
+  hasPendingLocalRef?: MutableRefObject<boolean>;
   isPersonaMode: boolean;
   isNearingEnd: boolean;
   currentTurn: number;
@@ -32,6 +33,7 @@ export function useChatSession({
   localMessagesRef,
   pendingUserText = '',
   pendingUserTextRef,
+  hasPendingLocalRef,
   isPersonaMode,
   isNearingEnd,
   currentTurn,
@@ -199,6 +201,14 @@ export function useChatSession({
     }
   };
 
+  // Durable in-flight guard using useRef so it survives re-renders.
+  // Prevents concurrent flush calls from sending overlapping payloads:
+  // - Non-final duplicate flush while one is already in-flight → skip.
+  // - Final flush while one is in-flight → wait for it then send.
+  const flushInFlightRef = useRef(false);
+  // Promise that resolves when the current in-flight flush finishes.
+  const flushInFlightPromiseRef = useRef<Promise<void> | null>(null);
+
   const flushRealtimeMessages = async (isFinal = false): Promise<void> => {
     // Prefer localMessagesRef.current (always up-to-date synchronously) over
     // localMessages prop (captured at last render), so a flush called immediately
@@ -206,14 +216,44 @@ export function useChatSession({
     const msgs = localMessagesRef?.current ?? localMessages;
     const payload = buildSavePayload(msgs, pendingUserText);
     if (payload.length === 0) return;
+
+    if (flushInFlightRef.current) {
+      if (!isFinal) {
+        // A non-final flush is already in-flight; skip this duplicate.
+        console.log(`⏩ [flushRealtimeMessages] Skipping duplicate non-final flush (in-flight)`);
+        return;
+      }
+      // Final flush: wait for the in-flight flush to complete before sending
+      // the definitive payload so no partial snapshot overwrites it.
+      console.log(`⏳ [flushRealtimeMessages] Waiting for in-flight flush before final save`);
+      await flushInFlightPromiseRef.current;
+    }
+
+    let resolveFlight!: () => void;
+    flushInFlightPromiseRef.current = new Promise<void>(r => { resolveFlight = r; });
+    flushInFlightRef.current = true;
     try {
       await apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {
         messages: payload,
         isFinal,
       });
       console.log(`✅ [flushRealtimeMessages] Saved ${payload.length} messages, isFinal=${isFinal}`);
+      // Successful save: allow server sync to resume by clearing the pending flag.
+      // hasPendingLocalRef is intentionally NOT cleared on error — local messages
+      // that have not yet been acknowledged by the server must not be overwritten
+      // by a stale server refetch, regardless of how many flush attempts fail.
+      if (hasPendingLocalRef) {
+        hasPendingLocalRef.current = false;
+      }
     } catch (error) {
       console.error('❌ [flushRealtimeMessages] Failed to save messages:', error);
+      // Re-throw so callers can distinguish success from failure and apply their
+      // own recovery logic (e.g. show an error toast, retry, or fall back).
+      // hasPendingLocalRef remains true — local messages are still unsaved.
+      throw error;
+    } finally {
+      flushInFlightRef.current = false;
+      resolveFlight();
     }
   };
 

@@ -1540,13 +1540,27 @@ ${userNameLine}
     // as the conflict key (backed by idx_chat_messages_upsert_key unique index).
     // No prior DELETE is needed — existing rows are updated in-place, so a
     // mid-flight error leaves already-saved messages intact.
+    //
+    // turnIndex is the array index i — the position of each message in the
+    // payload. This is the only assignment that guarantees uniqueness for ALL
+    // message orderings, including consecutive same-sender runs (e.g. two AI
+    // messages before the user responds).
+    //
+    // Math.floor(i/2) and transition-based counting both fail when the same
+    // sender appears consecutively because the unique key is
+    // (personaRunId, turnIndex, sender): two messages from 'ai' at the same
+    // turnIndex collide and the second upsert silently overwrites the first.
+    //
+    // Using i as turnIndex avoids all collisions: every position is unique, and
+    // incremental flushes that re-send the full accumulated list are idempotent
+    // — each re-sent row upserts to the exact same key with the same content.
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
       const values = {
         personaRunId,
         sender: msg.sender,
         message: msg.message,
-        turnIndex: Math.floor(i / 2),
+        turnIndex: i,
         emotion: msg.emotion || null,
         emotionReason: msg.emotionReason || null,
         createdAt: msg.timestamp ? new Date(msg.timestamp) : new Date()

@@ -216,7 +216,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const { localMessages, localMessagesRef, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText, pendingUserTextRef,
     isStreamingActive, addUserMessage, addRealtimeUserMessage,
-    messagesEndRef, sendMessageMutation } = useChatMessages({
+    messagesEndRef, sendMessageMutation, hasPendingLocalRef } = useChatMessages({
     conversationId,
     serverMessages: initialMessages,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
@@ -357,7 +357,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog,
     showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
     handleGoToFeedback, handleFeedbackRequest, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
-    conversationId, localMessages, localMessagesRef, pendingUserText, pendingUserTextRef, isPersonaMode, isNearingEnd, currentTurn, targetTurns,
+    conversationId, localMessages, localMessagesRef, pendingUserText, pendingUserTextRef, hasPendingLocalRef, isPersonaMode, isNearingEnd, currentTurn, targetTurns,
     onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
     setLocalMessages, setConversationStartTime, setElapsedTime,

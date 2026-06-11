@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { useRef } from 'react';
 import { useChatSession } from '../../client/src/hooks/chat/useChatSession';
 
 vi.mock('@tanstack/react-query', () => ({
@@ -15,10 +16,12 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+const mockApiRequest = vi.fn().mockResolvedValue({
+  json: vi.fn().mockResolvedValue({}),
+});
+
 vi.mock('@/lib/queryClient', () => ({
-  apiRequest: vi.fn().mockResolvedValue({
-    json: vi.fn().mockResolvedValue({}),
-  }),
+  get apiRequest() { return mockApiRequest; },
 }));
 
 vi.mock('@/hooks/use-toast', () => ({
@@ -192,5 +195,89 @@ describe('useChatSession — almost done warning flow', () => {
       expect(result.current.showAlmostDoneDialog).toBe(false);
       expect(onExit).toHaveBeenCalled();
     });
+  });
+});
+
+// ─── flushRealtimeMessages failure-mode tests ─────────────────────────────────
+
+describe('flushRealtimeMessages — pending guard preserved on failure', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiRequest.mockResolvedValue({ json: vi.fn().mockResolvedValue({}) });
+  });
+
+  it('keeps hasPendingLocalRef=true after a flush error so server refetch cannot overwrite local messages', async () => {
+    // Arrange: hasPendingLocalRef starts true (voice messages are unsaved)
+    const hasPendingLocalRef = { current: true };
+    const localMessagesRef = { current: [
+      { sender: 'ai'   as const, message: 'Hello', timestamp: '2025-01-01T00:00:00Z' },
+      { sender: 'user' as const, message: 'Hi',    timestamp: '2025-01-01T00:00:01Z' },
+    ]};
+
+    // Make apiRequest reject to simulate network/server failure
+    const networkError = new Error('Network error');
+    mockApiRequest.mockRejectedValueOnce(networkError);
+
+    const { result } = renderHook(() =>
+      useChatSession(buildDefaultOptions({ hasPendingLocalRef, localMessagesRef }))
+    );
+
+    // Act: flush fails
+    let caughtError: unknown;
+    await act(async () => {
+      try {
+        await result.current.flushRealtimeMessages(false);
+      } catch (e) {
+        caughtError = e;
+      }
+    });
+
+    // Assert: error was re-thrown (caller can detect failure)
+    expect(caughtError).toBe(networkError);
+    // Assert: pending guard is still latched — a server refetch must not overwrite local messages
+    expect(hasPendingLocalRef.current).toBe(true);
+  });
+
+  it('clears hasPendingLocalRef=false only after a successful flush', async () => {
+    const hasPendingLocalRef = { current: true };
+    const localMessagesRef = { current: [
+      { sender: 'ai'   as const, message: 'Hello', timestamp: '2025-01-01T00:00:00Z' },
+    ]};
+
+    mockApiRequest.mockResolvedValueOnce({ json: vi.fn().mockResolvedValue({}) });
+
+    const { result } = renderHook(() =>
+      useChatSession(buildDefaultOptions({ hasPendingLocalRef, localMessagesRef }))
+    );
+
+    await act(async () => {
+      await result.current.flushRealtimeMessages(false);
+    });
+
+    // Successful save: guard must be cleared so server sync can resume
+    expect(hasPendingLocalRef.current).toBe(false);
+  });
+
+  it('keeps hasPendingLocalRef=true across multiple consecutive flush failures (no bounded fallback)', async () => {
+    const hasPendingLocalRef = { current: true };
+    const localMessagesRef = { current: [
+      { sender: 'user' as const, message: 'Important message', timestamp: '2025-01-01T00:00:00Z' },
+    ]};
+
+    // Simulate 5 consecutive failures (previously the 3-failure threshold cleared the guard)
+    mockApiRequest.mockRejectedValue(new Error('Server unreachable'));
+
+    const { result } = renderHook(() =>
+      useChatSession(buildDefaultOptions({ hasPendingLocalRef, localMessagesRef }))
+    );
+
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        try { await result.current.flushRealtimeMessages(false); } catch {}
+      });
+    }
+
+    // After 5 failures, local messages are still protected — guard must remain true
+    expect(hasPendingLocalRef.current).toBe(true);
   });
 });

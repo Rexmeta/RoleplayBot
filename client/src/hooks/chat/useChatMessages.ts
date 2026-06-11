@@ -198,15 +198,12 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     // background React Query refetches (window focus, staleTime expiry) from
     // wiping optimistic user messages or in-progress AI responses.
     if (isMutationPendingRef.current || isStreamingActiveRef.current) return;
-    if (hasPendingLocalRef.current) {
-      // Allow sync only once the server has caught up to the locally-added messages.
-      // This handles voice mode where transcribed messages are added before DB persistence.
-      if (serverMessages.length >= localMessagesLengthRef.current) {
-        hasPendingLocalRef.current = false; // server acknowledged — allow sync
-      } else {
-        return; // still waiting for server to catch up
-      }
-    }
+    // Skip while local voice messages are pending flush. hasPendingLocalRef is
+    // cleared explicitly by flushRealtimeMessages after a successful save, NOT
+    // by guessing from server message counts (which can give false positives when
+    // the server returns a stale snapshot with the right count but wrong content,
+    // or when repeated identical text matches a different message slot).
+    if (hasPendingLocalRef.current) return;
     setLocalMessages(serverMessages);
   }, [serverMessages, isStreamingActive]);
 
@@ -286,6 +283,10 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
       isMutationPendingRef.current = false;
       // Clear streaming indicator now that mutation has fully resolved
       setIsStreamingActive(false);
+      // Text/TTS mode: addUserMessage sets hasPendingLocalRef=true for optimistic
+      // updates. Once the mutation succeeds and queries are invalidated, the server
+      // is authoritative — clear the flag so the sync effect can resume.
+      hasPendingLocalRef.current = false;
       // Only add AI message if NOT streamed (streaming handles it progressively)
       if (!data?._streamed && data?.messages?.length > 0) {
         const latestMessage = data.messages[data.messages.length - 1];
@@ -321,6 +322,8 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     onError: () => {
       isMutationPendingRef.current = false;
       setIsStreamingActive(false);
+      // Optimistic user message is rolled back — local state matches server again.
+      hasPendingLocalRef.current = false;
       setLocalMessages(prev => {
         if (prev.length > 0 && prev[prev.length - 1].sender === 'user') {
           return prev.slice(0, -1);
@@ -414,5 +417,6 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     addRealtimeUserMessage,
     addRealtimeAiMessage,
     resetMessages,
+    hasPendingLocalRef,
   };
 }
