@@ -290,12 +290,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const pendingAiMessage = rawPendingAiMessage && !realtimeVoice.isReconnecting;
 
-  // ① Start WebSocket connection early (during video intro) so Gemini is warm by the time video ends
+  // ① Start WebSocket connection early (during video intro) so Gemini is warm by the time video ends.
+  // Status is intentionally omitted from deps — connect() has its own idempotency guard and will
+  // ignore duplicate calls when already connecting/connected, preventing extra sessions on GoAway.
   useEffect(() => {
-    if (earlyConnect && inputMode === 'realtime-voice' && realtimeVoice.status === 'disconnected') {
+    if (earlyConnect && inputMode === 'realtime-voice') {
       realtimeVoice.connect();
     }
-  }, [earlyConnect, inputMode, realtimeVoice.status]);
+  }, [earlyConnect, inputMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: conversation, error } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId],

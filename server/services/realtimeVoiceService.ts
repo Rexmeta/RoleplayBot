@@ -634,6 +634,11 @@ export class RealtimeVoiceService {
         },
       };
 
+      if (!options?.isResume) {
+        session.suppressAIUntilUserSpeaks = true;
+        console.log('🔇 suppressAIUntilUserSpeaks=true (fresh Gemini session — waiting for user to speak first)');
+      }
+
       const realtimeModel = session.realtimeModel || await this.getRealtimeModel();
       const apiVersion = geminiLiveApiVersion(realtimeModel);
       const genAILive = apiVersion === 'v1alpha' ? this.genAILiveAlpha : this.genAILiveBeta;

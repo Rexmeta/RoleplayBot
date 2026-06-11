@@ -296,6 +296,69 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
     });
   });
 
+  describe('connectToGemini — suppressAIUntilUserSpeaks on fresh vs resume', () => {
+    let mockGeminiSession: any;
+
+    beforeEach(() => {
+      mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+        close: vi.fn(),
+      };
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        setTimeout(() => callbacks?.onopen?.(), 0);
+        return Promise.resolve(mockGeminiSession);
+      });
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+    });
+
+    it('sets suppressAIUntilUserSpeaks=true on fresh start (isResume=false)', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session.suppressAIUntilUserSpeaks).toBe(true);
+    });
+
+    it('does NOT set suppressAIUntilUserSpeaks on resume (isResume=true)', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      session.suppressAIUntilUserSpeaks = false;
+
+      mockLiveConnect.mockImplementation(({ callbacks }: { callbacks: any }) => {
+        setTimeout(() => callbacks?.onopen?.(), 0);
+        return Promise.resolve({ sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() });
+      });
+
+      await (service as any).connectToGemini(session, 'mock instructions', 'female', { isResume: true });
+
+      expect(session.suppressAIUntilUserSpeaks).toBe(false);
+    });
+
+    it('suppressAIUntilUserSpeaks is cleared when user sends audio (input_audio_buffer.append)', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session.suppressAIUntilUserSpeaks).toBe(true);
+
+      service.handleClientMessage(SESSION_ID, {
+        type: 'input_audio_buffer.append',
+        audio: 'AAAA',
+      });
+
+      expect(session.suppressAIUntilUserSpeaks).toBe(false);
+    });
+  });
+
   describe('buffered client.ready replay (client arrives before Gemini connects)', () => {
     function makeGeminiSession() {
       return {

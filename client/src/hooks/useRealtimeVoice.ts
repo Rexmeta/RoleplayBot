@@ -204,6 +204,8 @@ export function useRealtimeVoice({
     releaseCoeff: voiceAudioSettingsRaw['agc_release_coeff'],
   } : undefined;
 
+  const statusRef = useRef<RealtimeVoiceStatus>('disconnected');
+
   const hasConversationStartedRef = useRef<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
   const captureContextRef = useRef<AudioContext | null>(null);
@@ -268,6 +270,10 @@ export function useRealtimeVoice({
     onPersonaSwitchAnnouncedRef.current = onPersonaSwitchAnnounced;
     onPersonaSwitchPendingClearedRef.current = onPersonaSwitchPendingCleared;
   }, [onMessage, onMessageComplete, onReconnectGreetingComplete, onUserTranscription, onUserTranscriptionDelta, onAiSpeakingStart, onUserSpeakingStart, onError, onSessionTerminated, onSimulationUpdate, onPersonaSwitched, onPersonaSwitchAnnounced, onPersonaSwitchPendingCleared]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     conversationPhaseRef.current = conversationPhase;
@@ -410,9 +416,14 @@ export function useRealtimeVoice({
   const previousMessagesRef = useRef<PreviousMessage[] | undefined>(undefined);
 
   const connect = useCallback(async (previousMessages?: PreviousMessage[]) => {
+    if (statusRef.current === 'connecting' || statusRef.current === 'connected') {
+      console.log(`⚠️ connect() called while status is already '${statusRef.current}' — ignoring duplicate`);
+      return;
+    }
     previousMessagesRef.current = previousMessages;
 
     setStatus('connecting');
+    statusRef.current = 'connecting';
     setError(null);
     setGreetingFailed(false);
     isInterruptedRef.current = false;
@@ -656,8 +667,13 @@ export function useRealtimeVoice({
               break;
 
             case 'session.ready':
+              if (statusRef.current === 'connected') {
+                console.log('⚠️ session.ready received but already connected — ignoring duplicate');
+                break;
+              }
               console.log('✅ Gemini session ready - transitioning to connected state');
               setStatus('connected');
+              statusRef.current = 'connected';
               setConversationPhase('active');
               if (reconnectInProgressRef.current) {
                 setError(null);
