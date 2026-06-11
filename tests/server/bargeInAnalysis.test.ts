@@ -424,3 +424,86 @@ describe('analyzeBargeIn — message truncation in events', () => {
     expect(result.count).toBe(0);
   });
 });
+
+// ─── count / events consistency (UI card ↔ sample badges must always match) ──
+
+describe('analyzeBargeIn — count/events consistency invariant', () => {
+  it('count always equals events.length', () => {
+    const msgs = [
+      aiMsg('What do you think?', true),
+      userMsg('I disagree.'),
+      aiMsg('We could try this option.', true),
+      userMsg('I believe this alternative would be far more cost-effective for the project.'),
+      aiMsg('Let us move on.', true),
+      userMsg('Sure.'),
+    ];
+    const result = analyzeBargeIn(msgs);
+    expect(result.count).toBe(result.events.length);
+  });
+
+  it('positiveCount + negativeCount + neutralCount equals events.length', () => {
+    const msgs = [
+      aiMsg('What do you think?', true),
+      userMsg('I disagree.'),
+      aiMsg('We could try this option.', true),
+      userMsg('I believe this alternative would be far more cost-effective for the project.'),
+      aiMsg('Let us move on.', true),
+      userMsg('Sure.'),
+    ];
+    const result = analyzeBargeIn(msgs);
+    expect(result.positiveCount + result.negativeCount + result.neutralCount).toBe(result.events.length);
+  });
+
+  it('positiveCount matches events filtered by positive assessment', () => {
+    const msgs = [
+      aiMsg('We could try option A here.', true),
+      userMsg('I believe option B would be significantly more cost-effective given our current budget constraints.'),
+      aiMsg('What do you think?', true),
+      userMsg('I disagree completely.'),
+    ];
+    const result = analyzeBargeIn(msgs);
+    const derivedPositive = result.events.filter(e => e.assessment === 'positive').length;
+    expect(result.positiveCount).toBe(derivedPositive);
+  });
+
+  it('negativeCount matches events filtered by negative assessment', () => {
+    const msgs = [
+      aiMsg('What is your opinion?', true),
+      userMsg('I disagree.'),
+      aiMsg('How do you feel about this?', true),
+      userMsg('No, that is wrong.'),
+    ];
+    const result = analyzeBargeIn(msgs);
+    const derivedNegative = result.events.filter(e => e.assessment === 'negative').length;
+    expect(result.negativeCount).toBe(derivedNegative);
+  });
+
+  it('neutralCount matches events filtered by neutral assessment', () => {
+    const msgs = [
+      aiMsg('Moving along.', true),
+      userMsg('OK.'),
+      aiMsg('Next item.', true),
+      userMsg('Sure.'),
+    ];
+    const result = analyzeBargeIn(msgs);
+    const derivedNeutral = result.events.filter(e => e.assessment === 'neutral').length;
+    expect(result.neutralCount).toBe(derivedNeutral);
+  });
+
+  it('count/positiveCount/negativeCount/neutralCount remain consistent across mixed assessment types', () => {
+    const msgs = [
+      aiMsg('We should review this more carefully.', true),
+      userMsg('I believe adding a dedicated review step would significantly improve overall quality here.'),
+      aiMsg('What do you think about this plan?', true),
+      userMsg('No, I completely disagree with that approach.'),
+      aiMsg('Let us proceed.', true),
+      userMsg('OK.'),
+    ];
+    const result = analyzeBargeIn(msgs);
+    expect(result.count).toBe(result.events.length);
+    expect(result.positiveCount).toBe(result.events.filter(e => e.assessment === 'positive').length);
+    expect(result.negativeCount).toBe(result.events.filter(e => e.assessment === 'negative').length);
+    expect(result.neutralCount).toBe(result.events.filter(e => e.assessment === 'neutral').length);
+    expect(result.positiveCount + result.negativeCount + result.neutralCount).toBe(result.count);
+  });
+});

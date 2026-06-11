@@ -650,7 +650,19 @@ JSON 형식으로 응답:
       conversationGuides: feedbackData.conversationGuides || this.generateConversationGuides(),
       developmentPlan: feedbackData.developmentPlan || this.generateDevelopmentPlan(feedbackData.overallScore || 60),
       evaluationCriteriaSetName: evaluationCriteria?.name,
-      bargeInAnalysis: bargeInAnalysis.count > 0 ? bargeInAnalysis : undefined,
+      bargeInAnalysis: (() => {
+        if (bargeInAnalysis.count === 0) return undefined;
+        // events 배열 기준으로 count/positiveCount/negativeCount/neutralCount를
+        // 재산출해 카드 요약 숫자와 대표 사례 배지가 항상 일치하도록 보장한다.
+        const evts = bargeInAnalysis.events;
+        return {
+          ...bargeInAnalysis,
+          count: evts.length,
+          positiveCount: evts.filter(e => e.assessment === 'positive').length,
+          negativeCount: evts.filter(e => e.assessment === 'negative').length,
+          neutralCount: evts.filter(e => e.assessment === 'neutral').length,
+        };
+      })(),
       scoreAdjustments: {
         // baseScore is the pre-evidence-cap weighted score so that:
         // baseScore - evidencePenalty - completionPenalty + bargeInAdj = finalScore

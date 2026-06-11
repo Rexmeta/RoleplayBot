@@ -1318,22 +1318,27 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
       }));
 
       // bargeInAnalysis 폴백: AI가 제공하지 않으면 시스템 계산값으로 채움
+      // count/positiveCount/negativeCount/neutralCount는 최종 events 배열 기준으로
+      // 재산출해 카드 요약 숫자와 대표 사례 배지가 항상 일치하도록 보장한다.
       const parsedBargeIn = parsed.bargeInAnalysis;
-      const finalBargeInAnalysis: import("@shared/schema/types").BargeInAnalysis =
-        parsedBargeIn && typeof parsedBargeIn.count === 'number'
-          ? {
-              count: parsedBargeIn.count ?? bargeInAnalysis.count,
-              positiveCount: parsedBargeIn.positiveCount ?? bargeInAnalysis.positiveCount,
-              negativeCount: parsedBargeIn.negativeCount ?? bargeInAnalysis.negativeCount,
-              neutralCount: parsedBargeIn.neutralCount ?? bargeInAnalysis.neutralCount,
-              rate: parsedBargeIn.rate ?? bargeInAnalysis.rate,
-              netScoreAdjustment: bargeInAnalysis.netScoreAdjustment,
-              events: Array.isArray(parsedBargeIn.events) && parsedBargeIn.events.length > 0
-                ? parsedBargeIn.events
-                : bargeInAnalysis.events,
-              summary: parsedBargeIn.summary || bargeInAnalysis.summary,
-            }
-          : bargeInAnalysis;
+      const finalBargeInAnalysis: import("@shared/schema/types").BargeInAnalysis = (() => {
+        if (parsedBargeIn && typeof parsedBargeIn.count === 'number') {
+          const finalEvents = Array.isArray(parsedBargeIn.events) && parsedBargeIn.events.length > 0
+            ? parsedBargeIn.events
+            : bargeInAnalysis.events;
+          return {
+            count: finalEvents.length,
+            positiveCount: finalEvents.filter(e => e.assessment === 'positive').length,
+            negativeCount: finalEvents.filter(e => e.assessment === 'negative').length,
+            neutralCount: finalEvents.filter(e => e.assessment === 'neutral').length,
+            rate: parsedBargeIn.rate ?? bargeInAnalysis.rate,
+            netScoreAdjustment: bargeInAnalysis.netScoreAdjustment,
+            events: finalEvents,
+            summary: parsedBargeIn.summary || bargeInAnalysis.summary,
+          };
+        }
+        return bargeInAnalysis;
+      })();
 
       const feedback: DetailedFeedback = {
         overallScore: adjustedScore,
