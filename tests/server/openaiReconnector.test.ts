@@ -6,11 +6,12 @@ import WebSocket from 'ws';
 function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession {
   return {
     id: 'session-1',
-    conversationId: 'conv-1',
+    personaRunId: 'run-1',
     scenarioId: 'scenario-1',
     personaId: 'persona-1',
     personaName: 'TestPersona',
     userId: 'user-1',
+    userName: 'testuser',
     clientWs: {
       readyState: WebSocket.OPEN,
       close: vi.fn(),
@@ -24,8 +25,10 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     lastActivityTime: Date.now(),
     totalUserTranscriptLength: 0,
     totalAiTranscriptLength: 0,
+    totalCachedTokens: 0,
     realtimeModel: 'openai-realtime',
     hasReceivedFirstAIResponse: false,
+    hasReceivedFirstAIAudio: false,
     hasTriggeredFirstGreeting: false,
     firstGreetingRetryCount: 0,
     isInterrupted: false,
@@ -43,7 +46,6 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     userLanguage: 'ko',
     pendingMessages: [],
     outgoingMessageIndex: 0,
-    hasReceivedFirstAIAudio: false,
     hasReceivedFirstTranscriptDelta: false,
     greetingResponseCount: 0,
     userTurnsCompleted: 0,
@@ -59,7 +61,11 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     lastClientContentSentAt: 0,
     greetingTimeoutId: null,
     pendingIsResuming: false,
-    userName: 'testuser',
+    pendingHasExistingConversation: false,
+    usingReconnectInstructions: false,
+    activePersonaIndex: 0,
+    voiceId: null,
+    scenarioPersonas: null,
     ...overrides,
   };
 }

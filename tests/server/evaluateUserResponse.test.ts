@@ -113,6 +113,23 @@ describe('evaluateUserResponse – rule-based evaluation (no API key)', () => {
     const result = await evaluateUserResponse(makeInput());
     expect(typeof result.emotionDelta).toBe('object');
   });
+
+  it('respects evaluationHarness dimension weights', async () => {
+    const resultCustom = await evaluateUserResponse(makeInput({
+      userText: 'I understand your concern. Because of these reasons, I will take full responsibility and implement a solution by Friday.',
+      evaluationHarness: {
+        dimensions: [
+          { key: 'clarity', weight: 1.0 },
+          { key: 'empathy', weight: 0.0 },
+          { key: 'logic', weight: 0.0 },
+          { key: 'ownership', weight: 0.0 },
+          { key: 'actionPlan', weight: 0.0 },
+        ],
+      },
+    }));
+
+    expect(resultCustom.turnScore.total).toBe(resultCustom.turnScore.clarity);
+  });
 });
 
 // ─── LLM path ────────────────────────────────────────────────────────────────

@@ -1,15 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   inferEmotionPatchFromEvaluation,
-  inferStagePatchFromState,
-  inferIncidentCandidate,
   buildRuleFallbackPatch,
 } from '../../server/services/simulation/simulationRules';
 import { clearSessionContext } from '../../server/services/simulation/simulationEngine';
 import {
   createDefaultSimulationState,
   TurnScore,
-  SimulationState,
 } from '../../server/services/simulation/simulationTypes';
 
 const RUN_ID = 'rules-test-001';
@@ -57,44 +54,6 @@ describe('inferEmotionPatchFromEvaluation', () => {
   });
 });
 
-describe('inferStagePatchFromState', () => {
-  it('returns null for brand new state', () => {
-    const state = createDefaultSimulationState();
-    expect(inferStagePatchFromState(state)).toBeNull();
-  });
-
-  it('transitions intro->conflict after 2 turns', () => {
-    const state: SimulationState = {
-      ...createDefaultSimulationState(),
-      stage: 'intro',
-      summary: { totalTurns: 2, totalIncidents: 0, averageScore: 60, maxAnger: 30, minTrust: 50 },
-    };
-    expect(inferStagePatchFromState(state)).toBe('conflict');
-  });
-
-  it('transitions conflict->negotiation when anger is high', () => {
-    const state: SimulationState = {
-      ...createDefaultSimulationState(),
-      stage: 'conflict',
-      npcEmotions: { anger: 75, trust: 40, confusion: 20, interest: 50 },
-      pressureLevel: 2,
-      summary: { totalTurns: 5, totalIncidents: 0, averageScore: 50, maxAnger: 75, minTrust: 40 },
-    };
-    expect(inferStagePatchFromState(state)).toBe('negotiation');
-  });
-
-  it('transitions to resolution when anger is low and trust is high', () => {
-    const state: SimulationState = {
-      ...createDefaultSimulationState(),
-      stage: 'negotiation',
-      npcEmotions: { anger: 30, trust: 70, confusion: 15, interest: 60 },
-      pressureLevel: 2,
-      summary: { totalTurns: 8, totalIncidents: 0, averageScore: 75, maxAnger: 60, minTrust: 40 },
-    };
-    expect(inferStagePatchFromState(state)).toBe('resolution');
-  });
-});
-
 describe('buildRuleFallbackPatch', () => {
   it('returns null when tool calls were made', () => {
     const state = createDefaultSimulationState();
@@ -124,32 +83,9 @@ describe('buildRuleFallbackPatch', () => {
     };
     const ts = makeTurnScore(30);
     const patch = buildRuleFallbackPatch(ts, state, 0);
-    // If inferStagePatchFromState returns a stage, we get a patch; check no npcEmotionDelta
-    if (patch !== null) {
-      expect(patch.npcEmotionDelta).toBeUndefined();
-      expect(patch.targetStage).toBeDefined();
-    }
-    // Either null (no transition needed) or a stage-only patch — never has emotion delta
-    expect(patch?.npcEmotionDelta).toBeUndefined();
+    expect(patch).not.toBeNull();
+    expect(patch!.npcEmotionDelta).toBeUndefined();
+    expect(patch!.targetStage).toBeDefined();
   });
 });
 
-describe('inferIncidentCandidate', () => {
-  it('returns null when state is neutral', () => {
-    const state = createDefaultSimulationState();
-    const incident = inferIncidentCandidate(state, RUN_ID, 0, 'ko', '');
-    expect(incident).toBeNull();
-  });
-
-  it('returns customer_escalation when anger is very high and trust is low', () => {
-    const state: SimulationState = {
-      ...createDefaultSimulationState(),
-      npcEmotions: { anger: 90, trust: 15, confusion: 30, interest: 20 },
-      summary: { totalTurns: 5, totalIncidents: 0, averageScore: 35, maxAnger: 90, minTrust: 15 },
-    };
-    const incident = inferIncidentCandidate(state, RUN_ID, 5, 'ko', '');
-    expect(incident).not.toBeNull();
-    expect(incident?.type).toBe('customer_escalation');
-    expect(incident?.severity).toBe('high');
-  });
-});
