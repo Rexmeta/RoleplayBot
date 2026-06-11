@@ -295,6 +295,44 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   wss.on('connection', async (ws: WebSocket, req) => {
     console.log('🎙️ New WebSocket connection for realtime voice');
 
+    // ③ Register ALL event handlers IMMEDIATELY so client.ready is never dropped.
+    // Messages received before session initialization are buffered and replayed once ready.
+    let finalSessionId: string | null = null;
+    let sessionInitialized = false;
+    const earlyMessages: any[] = [];
+
+    ws.on('message', (data: WebSocket.Data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        if (sessionInitialized && finalSessionId) {
+          realtimeVoiceService.handleClientMessage(finalSessionId, message);
+        } else {
+          earlyMessages.push(message);
+        }
+      } catch (error) {
+        console.error('Error handling client message:', error);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'error', error: 'Invalid message format' }));
+        }
+      }
+    });
+
+    ws.on('close', () => {
+      if (finalSessionId) {
+        console.log(`🔌 WebSocket closed for session: ${finalSessionId}`);
+        realtimeVoiceService.closeSession(finalSessionId);
+      }
+    });
+
+    ws.on('error', (error) => {
+      if (finalSessionId) {
+        console.error(`WebSocket error for session ${finalSessionId}:`, error);
+        realtimeVoiceService.closeSession(finalSessionId);
+      } else {
+        console.error('WebSocket error (pre-session):', error);
+      }
+    });
+
     if (!realtimeVoiceService.isServiceAvailable()) {
       ws.send(JSON.stringify({
         type: 'error',
@@ -346,16 +384,25 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       return;
     }
 
-    const scenarioRun = await storage.getScenarioRun(personaRun.scenarioRunId);
+    // ② Parallelize independent DB queries (was sequential: ~3s → now ~1s)
+    const [scenarioRun, subscriptionResult, voiceUser] = await Promise.all([
+      storage.getScenarioRun(personaRun.scenarioRunId),
+      storage.getOrCreateSubscription(userId).catch((err: unknown) => {
+        console.warn('[voice-ws] Could not check quota, proceeding anyway:', err);
+        return null;
+      }),
+      storage.getUser(userId),
+    ]);
+
     if (!scenarioRun || scenarioRun.userId !== userId) {
       ws.send(JSON.stringify({ type: 'error', error: 'Unauthorized access' }));
       ws.close();
       return;
     }
 
-    // Token quota check before starting a real-time voice session
-    try {
-      const { subscription, plan } = await storage.getOrCreateSubscription(userId);
+    // Token quota check using parallelized result
+    if (subscriptionResult) {
+      const { subscription, plan } = subscriptionResult;
       if (plan.tokenQuotaMonthly !== UNLIMITED_QUOTA && subscription.tokensUsedThisCycle >= plan.tokenQuotaMonthly) {
         ws.send(JSON.stringify({
           type: 'error',
@@ -365,17 +412,15 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         ws.close(1008, 'Quota exceeded');
         return;
       }
-    } catch (err) {
-      console.warn('[voice-ws] Could not check quota, proceeding anyway:', err);
     }
 
     const sessionId = `${userId}-${conversationId}-${Date.now()}`;
+    finalSessionId = sessionId;
 
     try {
       const userSelectedDifficulty = personaRun.difficulty || scenarioRun.difficulty || 4;
       console.log(`🎯 실시간 음성 세션 난이도: Level ${userSelectedDifficulty}`);
 
-      const voiceUser = await storage.getUser(userId);
       const voiceUserLanguage = (voiceUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
       console.log(`🌐 실시간 음성 세션 언어: ${voiceUserLanguage}`);
 
@@ -392,25 +437,15 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
       console.log(`✅ Realtime voice session created: ${sessionId}`);
 
-      ws.on('message', (data: WebSocket.Data) => {
-        try {
-          const message = JSON.parse(data.toString());
-          realtimeVoiceService.handleClientMessage(sessionId, message);
-        } catch (error) {
-          console.error('Error handling client message:', error);
-          ws.send(JSON.stringify({ type: 'error', error: 'Invalid message format' }));
+      // Mark session as ready and replay any client messages buffered during init
+      sessionInitialized = true;
+      if (earlyMessages.length > 0) {
+        console.log(`⏪ Replaying ${earlyMessages.length} buffered client message(s) received during init`);
+        for (const msg of earlyMessages) {
+          realtimeVoiceService.handleClientMessage(sessionId, msg);
         }
-      });
-
-      ws.on('close', () => {
-        console.log(`🔌 WebSocket closed for session: ${sessionId}`);
-        realtimeVoiceService.closeSession(sessionId);
-      });
-
-      ws.on('error', (error) => {
-        console.error(`WebSocket error for session ${sessionId}:`, error);
-        realtimeVoiceService.closeSession(sessionId);
-      });
+        earlyMessages.length = 0;
+      }
 
     } catch (error) {
       console.error('Error creating realtime voice session:', error);

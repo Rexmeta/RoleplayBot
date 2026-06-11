@@ -98,6 +98,7 @@ interface UseRealtimeVoiceProps {
   scenarioId: string;
   personaId: string;
   enabled: boolean;
+  delayGreeting?: boolean;
   onMessage?: (message: string) => void;
   onMessageComplete?: (message: string, emotion?: string, emotionReason?: string) => void;
   onReconnectGreetingComplete?: () => void;
@@ -141,6 +142,7 @@ export function useRealtimeVoice({
   scenarioId,
   personaId,
   enabled,
+  delayGreeting,
   onMessage,
   onMessageComplete,
   onReconnectGreetingComplete,
@@ -178,6 +180,16 @@ export function useRealtimeVoice({
   });
   const vadSensitivityRef = useRef<number>(vadSensitivity);
   useEffect(() => { vadSensitivityRef.current = vadSensitivity; }, [vadSensitivity]);
+
+  // ① When delayGreeting turns false (video intro ends), send any held client.ready
+  useEffect(() => {
+    delayGreetingRef.current = delayGreeting ?? false;
+    if (!delayGreeting && pendingReadyMsgRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('▶️ Video intro ended — sending held client.ready to server');
+      wsRef.current.send(JSON.stringify(pendingReadyMsgRef.current));
+      pendingReadyMsgRef.current = null;
+    }
+  }, [delayGreeting]);
 
   const { data: voiceAudioSettingsRaw } = useQuery<Record<string, number>>({
     queryKey: ['/api/settings/voice-audio'],
@@ -220,6 +232,8 @@ export function useRealtimeVoice({
   const reconnectInProgressRef = useRef<boolean>(false);
   const skipReconnectGreetingRef = useRef<boolean>(false);
   const noiseFloorRef = useRef<number | null>(null);
+  const delayGreetingRef = useRef<boolean>(delayGreeting ?? false);
+  const pendingReadyMsgRef = useRef<any>(null);
 
   const MAX_AUTO_RECONNECT = 8;
   const sessionStorageKeyRef = useRef(`realtime_voice_messages_${conversationId}`);
@@ -451,7 +465,12 @@ export function useRealtimeVoice({
             } else {
               console.log('📤 Sent client.ready signal to server (fresh voice start)');
             }
-            ws.send(JSON.stringify(readyMessage));
+            if (delayGreetingRef.current) {
+              console.log('⏸️ client.ready held — waiting for video intro to finish');
+              pendingReadyMsgRef.current = readyMessage;
+            } else {
+              ws.send(JSON.stringify(readyMessage));
+            }
           }
         }, 100);
 

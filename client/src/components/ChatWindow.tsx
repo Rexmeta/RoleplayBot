@@ -53,9 +53,11 @@ interface ChatWindowProps {
   isPersonaMode?: boolean;
   initialMessages?: import("@shared/schema").ConversationMessage[];
   initialInputMode?: 'text' | 'realtime-voice';
+  earlyConnect?: boolean;
+  delayGreeting?: boolean;
 }
 
-export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode }: ChatWindowProps) {
+export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting }: ChatWindowProps) {
   const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -228,7 +230,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   });
 
   const realtimeVoice = useRealtimeVoice({
-    conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false,
+    conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false, delayGreeting,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
     onPersonaSwitched: handlePersonaSwitched,
     onPersonaSwitchAnnounced: handlePersonaSwitchAnnounced,
@@ -288,6 +290,13 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   });
 
   const pendingAiMessage = rawPendingAiMessage && !realtimeVoice.isReconnecting;
+
+  // ① Start WebSocket connection early (during video intro) so Gemini is warm by the time video ends
+  useEffect(() => {
+    if (earlyConnect && inputMode === 'realtime-voice' && realtimeVoice.status === 'disconnected') {
+      realtimeVoice.connect();
+    }
+  }, [earlyConnect, inputMode, realtimeVoice.status]);
 
   const { data: conversation, error } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId], enabled: !!conversationId,

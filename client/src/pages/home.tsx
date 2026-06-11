@@ -1102,17 +1102,21 @@ export default function Home() {
           );
         })()}
 
-        {currentView === "chat" && selectedScenario && selectedPersona && conversationId && (
-          <ChatWindow
-            scenario={translatedScenario || selectedScenario}
-            persona={applyPersonaContextTranslation(selectedPersona)}
-            conversationId={conversationId}
-            onChatComplete={handleChatComplete}
-            onExit={handleReturnToScenarios}
-            onReady={handleChatReady}
-            onConversationEnding={() => setIsTransitioningToFeedback(true)}
-            initialInputMode={resumedInputMode}
-          />
+        {(currentView === "chat" || currentView === "video-intro") && selectedScenario && selectedPersona && conversationId && (
+          <div className={currentView === "video-intro" ? "hidden" : undefined}>
+            <ChatWindow
+              scenario={translatedScenario || selectedScenario}
+              persona={applyPersonaContextTranslation(selectedPersona)}
+              conversationId={conversationId}
+              onChatComplete={handleChatComplete}
+              onExit={handleReturnToScenarios}
+              onReady={handleChatReady}
+              onConversationEnding={() => setIsTransitioningToFeedback(true)}
+              initialInputMode={resumedInputMode}
+              earlyConnect={currentView === "video-intro"}
+              delayGreeting={currentView === "video-intro"}
+            />
+          </div>
         )}
         
         {isVideoTransitioning && (
