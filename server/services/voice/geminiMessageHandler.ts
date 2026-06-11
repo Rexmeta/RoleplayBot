@@ -470,29 +470,42 @@ export function handleGeminiMessage(
       const transcript = serverContent.inputTranscription.text || '';
       console.log(`🎤 User transcript delta: ${transcript}`);
 
-      if (session.userTranscriptBuffer.length === 0 && transcript.length > 0) {
-        if (session.isInterrupted) {
-          console.log(`🔄 User speech confirmed by VAD — clearing barge-in state (cancelledTurn=${session.cancelledTurnSeq})`);
-          session.isInterrupted = false;
-          session.cancelledTurnSeq = -1;
-        }
-        if (!session.userSpeechStarted) {
-          session.userSpeechStarted = true;
-          console.log('🎙️ User speech started — userSpeechStarted=true');
-        }
-        console.log('🎙️ User started speaking - notifying client');
-        sendToClient(session, { type: 'user.speaking.started' });
+      // Suppress stale deltas that arrive while barge-in is still active. These
+      // are typically echoes of the AI's own audio picked up by the mic, or
+      // in-flight deltas from the previous turn context. Legitimate user speech
+      // will only arrive after isInterrupted is cleared by the audio-delta path.
+      // NOTE: we must NOT return early here — Gemini may co-deliver inputTranscription
+      // alongside turnComplete or other serverContent fields in the same message.
+      const isStaleDelta = session.isInterrupted && transcript.length > 0;
+      if (isStaleDelta) {
+        console.log(`🚫 Discarding stale inputTranscription delta during barge-in: "${transcript.substring(0, 50)}"`);
       }
 
-      session.userTranscriptBuffer += transcript;
-      session.totalUserTranscriptLength += transcript.length;
+      if (!isStaleDelta) {
+        if (session.userTranscriptBuffer.length === 0 && transcript.length > 0) {
+          if (session.isInterrupted) {
+            console.log(`🔄 User speech confirmed by VAD — clearing barge-in state (cancelledTurn=${session.cancelledTurnSeq})`);
+            session.isInterrupted = false;
+            session.cancelledTurnSeq = -1;
+          }
+          if (!session.userSpeechStarted) {
+            session.userSpeechStarted = true;
+            console.log('🎙️ User speech started — userSpeechStarted=true');
+          }
+          console.log('🎙️ User started speaking - notifying client');
+          sendToClient(session, { type: 'user.speaking.started' });
+        }
 
-      if (transcript.length > 0) {
-        sendToClient(session, {
-          type: 'user.transcription.delta',
-          text: transcript,
-          accumulated: session.userTranscriptBuffer,
-        });
+        session.userTranscriptBuffer += transcript;
+        session.totalUserTranscriptLength += transcript.length;
+
+        if (transcript.length > 0) {
+          sendToClient(session, {
+            type: 'user.transcription.delta',
+            text: transcript,
+            accumulated: session.userTranscriptBuffer,
+          });
+        }
       }
     }
 

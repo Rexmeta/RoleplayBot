@@ -312,6 +312,15 @@ export function handleClientMessage(
 
       session.currentTranscript = '';
 
+      // Clear any in-progress user transcript so that stale Gemini
+      // inputTranscription deltas (AI audio echoes arriving after the cancel)
+      // cannot pollute the next user message.
+      if (session.userTranscriptBuffer) {
+        console.log(`🧹 Clearing userTranscriptBuffer on barge-in (had ${session.userTranscriptBuffer.length} chars)`);
+        session.userTranscriptBuffer = '';
+        sendToClient(session, { type: 'user.transcription.reset' });
+      }
+
       // Increment turnSeq so that any in-flight audio.delta packets from the
       // cancelled turn (which carry the old turnSeq) are filtered out by the
       // client-side turnSeq guard once response.ready is received.

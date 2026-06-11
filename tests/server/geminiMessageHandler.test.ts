@@ -521,6 +521,95 @@ describe('handleGeminiMessage', () => {
 
       expect(session.userTranscriptBuffer).toBe('안녕하세요');
     });
+
+    it('discards inputTranscription delta and keeps buffer empty when isInterrupted=true', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 1;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { inputTranscription: { text: '스테이크 주세요' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.userTranscriptBuffer).toBe('');
+      const deltaCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'user.transcription.delta');
+      expect(deltaCalls).toHaveLength(0);
+    });
+
+    it('does not clear isInterrupted when discarding a stale delta', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 1;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { inputTranscription: { text: '불필요한 텍스트' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.isInterrupted).toBe(true);
+      expect(session.cancelledTurnSeq).toBe(1);
+    });
+
+    it('accumulates buffer correctly once isInterrupted is cleared and real user speech arrives', () => {
+      // Simulate barge-in: buffer was cleared, isInterrupted set to false
+      session.isInterrupted = false;
+      session.userTranscriptBuffer = '';
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { inputTranscription: { text: '안녕하세요' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+      handleGeminiMessage(
+        session,
+        { serverContent: { inputTranscription: { text: ' 반갑습니다' } } },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      expect(session.userTranscriptBuffer).toBe('안녕하세요 반갑습니다');
+      const deltaCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'user.transcription.delta');
+      expect(deltaCalls).toHaveLength(2);
+    });
+
+    it('still processes turnComplete when co-delivered with a stale inputTranscription delta during barge-in', () => {
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 1;
+      session.turnSeq = 1;
+      session.hasReceivedFirstAIResponse = true;
+
+      // Gemini may co-deliver inputTranscription + turnComplete in one message.
+      // The stale delta must be discarded, but turnComplete must still fire.
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            inputTranscription: { text: '에코 텍스트' },
+            turnComplete: true,
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect
+      );
+
+      // Transcript delta suppressed
+      expect(session.userTranscriptBuffer).toBe('');
+      const deltaCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'user.transcription.delta');
+      expect(deltaCalls).toHaveLength(0);
+
+      // turnComplete still processed
+      const doneCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'response.done');
+      expect(doneCalls.length).toBeGreaterThan(0);
+    });
   });
 
   describe('turnComplete handling', () => {
@@ -1318,7 +1407,7 @@ describe('handleGeminiMessage', () => {
   });
 
   describe('barge-in state reset via inputTranscription (VAD-confirmed user speech)', () => {
-    it('resets isInterrupted to false when VAD confirms user speech after barge-in', () => {
+    it('keeps isInterrupted true and discards delta while barge-in is active', () => {
       session.isInterrupted = true;
       session.cancelledTurnSeq = 2;
       session.userTranscriptBuffer = '';
@@ -1331,10 +1420,13 @@ describe('handleGeminiMessage', () => {
         proactiveReconnect
       );
 
-      expect(session.isInterrupted).toBe(false);
+      // Stale deltas during barge-in must NOT clear isInterrupted —
+      // the audio-delta path owns that responsibility now.
+      expect(session.isInterrupted).toBe(true);
+      expect(session.userTranscriptBuffer).toBe('');
     });
 
-    it('resets cancelledTurnSeq to -1 when VAD confirms user speech after barge-in', () => {
+    it('keeps cancelledTurnSeq unchanged when a stale delta arrives during barge-in', () => {
       session.isInterrupted = true;
       session.cancelledTurnSeq = 2;
       session.userTranscriptBuffer = '';
@@ -1347,7 +1439,7 @@ describe('handleGeminiMessage', () => {
         proactiveReconnect
       );
 
-      expect(session.cancelledTurnSeq).toBe(-1);
+      expect(session.cancelledTurnSeq).toBe(2);
     });
 
     it('does not reset isInterrupted on subsequent transcription chunks (only on first)', () => {

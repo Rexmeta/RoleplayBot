@@ -510,6 +510,14 @@ export function useRealtimeVoice({
               }
               break;
 
+            case 'user.transcription.reset':
+              // Server cleared the buffer due to barge-in; clear any partial
+              // user transcript display on the client side.
+              if (onUserTranscriptionDeltaRef.current) {
+                onUserTranscriptionDeltaRef.current('', '');
+              }
+              break;
+
             case 'user.speaking.started':
               console.log('🎙️ Server detected user speaking');
               if (serverVoiceDetectedTimeRef.current === null) {
