@@ -1109,6 +1109,89 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
       expect(session.cancelledTurnSeq).toBe(4);
     });
+
+    it('clears userTranscriptBuffer when it has content on first cancel', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession, userTranscriptBuffer: 'partial speech text' });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(session.userTranscriptBuffer).toBe('');
+    });
+
+    it('sends user.transcription.reset when userTranscriptBuffer has content on first cancel', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession, userTranscriptBuffer: 'partial speech text' });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      const types = sendToClient.mock.calls.map(([, msg]) => msg.type);
+      expect(types).toContain('user.transcription.reset');
+    });
+
+    it('does not send user.transcription.reset when userTranscriptBuffer is empty on first cancel', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession, userTranscriptBuffer: '' });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      const types = sendToClient.mock.calls.map(([, msg]) => msg.type);
+      expect(types).not.toContain('user.transcription.reset');
+    });
+
+    it('increments turnSeq by exactly 1 on first cancel', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession, isInterrupted: false, turnSeq: 3 });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(session.turnSeq).toBe(4);
+    });
+
+    it('duplicate cancel does not re-clear userTranscriptBuffer', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession,
+        isInterrupted: true,
+        turnSeq: 5,
+        userTranscriptBuffer: 'leftover buffer',
+      });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(session.userTranscriptBuffer).toBe('leftover buffer');
+    });
+
+    it('duplicate cancel does not send user.transcription.reset', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession,
+        isInterrupted: true,
+        turnSeq: 5,
+        userTranscriptBuffer: 'leftover buffer',
+      });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      const types = sendToClient.mock.calls.map(([, msg]) => msg.type);
+      expect(types).not.toContain('user.transcription.reset');
+    });
+
+    it('duplicate cancel does not increment turnSeq', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession, isInterrupted: true, turnSeq: 5 });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      expect(session.turnSeq).toBe(5);
+    });
   });
 
   describe('switch-case: ping', () => {
