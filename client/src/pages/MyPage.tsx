@@ -20,6 +20,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { StrategyReflection } from "@/components/StrategyReflection";
 import { MyUsageWidget } from "@/components/MyUsageWidget";
+import { FeedbackGeneratingBanner } from "@/components/FeedbackGeneratingBanner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer, ComposedChart, Bar } from "recharts";
 
 type ScoreChartPoint = {
@@ -416,6 +417,7 @@ export default function MyPage() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <FeedbackGeneratingBanner />
         <MyUsageWidget className="mb-4 sm:mb-6" />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ActiveTab)} className="space-y-4 sm:space-y-6">
           <TabsList className="grid w-full grid-cols-3 h-auto">
