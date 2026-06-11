@@ -186,7 +186,6 @@ export function useRealtimeVoice({
     delayGreetingRef.current = delayGreeting ?? false;
     if (!delayGreeting && pendingReadyMsgRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
       console.log('▶️ Video intro ended — sending held client.ready to server');
-      setIsWaitingForGreeting(true);
       wsRef.current.send(JSON.stringify(pendingReadyMsgRef.current));
       pendingReadyMsgRef.current = null;
     }
@@ -470,7 +469,6 @@ export function useRealtimeVoice({
               console.log('⏸️ client.ready held — waiting for video intro to finish');
               pendingReadyMsgRef.current = readyMessage;
             } else {
-              setIsWaitingForGreeting(true);
               ws.send(JSON.stringify(readyMessage));
             }
           }
