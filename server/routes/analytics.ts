@@ -1342,8 +1342,11 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const totalFeedbacks = feedbacks.length;
     const averageScore = totalFeedbacks > 0 ? parseFloat((totalScore / totalFeedbacks).toFixed(1)) : 0;
     const completedPersonaRuns = filteredPersonaRuns.filter(pr => pr.status === 'completed').length;
+    // Count unique personaRunIds that have at least one feedback to avoid double-counting
+    // when a run has multiple feedback records (e.g. regenerated feedback).
+    const personaRunsWithFeedback = new Set(feedbacks.map(f => f.personaRunId).filter(Boolean)).size;
     const feedbackCompletionRate = completedPersonaRuns > 0
-      ? Math.round((totalFeedbacks / completedPersonaRuns) * 100)
+      ? Math.min(100, Math.round((personaRunsWithFeedback / completedPersonaRuns) * 100))
       : 0;
 
     res.json({
