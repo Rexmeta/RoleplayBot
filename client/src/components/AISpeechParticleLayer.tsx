@@ -24,10 +24,17 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
       }
     };
 
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    let rafId: number;
+    rafId = requestAnimationFrame(() => resizeCanvas());
+
+    const observer = new ResizeObserver(() => resizeCanvas());
+    if (canvas.parentElement) {
+      observer.observe(canvas.parentElement);
+    }
+
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
     };
   }, []);
 
@@ -38,6 +45,11 @@ export function AISpeechParticleLayer({ amplitude, isActive, className = '' }: A
     if (!ctx) return;
 
     const animate = () => {
+      if (canvas.width === 0 || canvas.height === 0) {
+        animationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
       timeRef.current += 0.016;
       const time = timeRef.current;
 
