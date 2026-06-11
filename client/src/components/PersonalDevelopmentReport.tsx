@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { Progress } from "@/components/ui/progress";
 
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback, ConversationMessage } from "@shared/schema";
@@ -112,6 +113,78 @@ function ConversationHistoryPanel({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+const FEEDBACK_STAGES = [
+  { key: 'stage1', labelKey: 'report.progress.stage1', defaultLabel: '대화 내용 분석 중...', icon: '🔍', durationMs: 15000 },
+  { key: 'stage2', labelKey: 'report.progress.stage2', defaultLabel: '응답 점수 계산 중...', icon: '📊', durationMs: 20000 },
+  { key: 'stage3', labelKey: 'report.progress.stage3', defaultLabel: '보고서 작성 중...', icon: '📝', durationMs: Infinity },
+];
+
+function FeedbackProgressIndicator() {
+  const { t } = useTranslation();
+  const [stageIndex, setStageIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
+  const stageStartRef = useRef(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setElapsed(now - startRef.current);
+      const stageElapsed = now - stageStartRef.current;
+      const currentStage = FEEDBACK_STAGES[stageIndex];
+      if (currentStage && stageElapsed >= currentStage.durationMs && stageIndex < FEEDBACK_STAGES.length - 1) {
+        setStageIndex(i => i + 1);
+        stageStartRef.current = now;
+      }
+    }, 250);
+    return () => clearInterval(interval);
+  }, [stageIndex]);
+
+  const totalEstimatedMs = 60000;
+  const progressPct = Math.min(95, Math.round((elapsed / totalEstimatedMs) * 100));
+  const currentStage = FEEDBACK_STAGES[stageIndex];
+
+  return (
+    <div className="text-center py-16 px-6 max-w-md mx-auto" data-testid="feedback-loading">
+      <div className="mb-8">
+        <div className="text-5xl mb-4">{currentStage.icon}</div>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">
+          {t(currentStage.labelKey, currentStage.defaultLabel)}
+        </h2>
+        <p className="text-sm text-slate-500 mb-6">
+          {t('report.progress.timeHint', '보통 30~60초 정도 걸립니다')}
+        </p>
+      </div>
+
+      <div className="mb-6">
+        <Progress value={progressPct} className="h-2 mb-2" />
+        <div className="text-xs text-slate-400">{progressPct}%</div>
+      </div>
+
+      <div className="flex justify-center gap-6">
+        {FEEDBACK_STAGES.map((stage, idx) => (
+          <div key={stage.key} className="flex flex-col items-center gap-1">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${
+              idx < stageIndex
+                ? 'bg-corporate-600 text-white'
+                : idx === stageIndex
+                ? 'bg-corporate-100 text-corporate-700 ring-2 ring-corporate-400 ring-offset-1'
+                : 'bg-slate-100 text-slate-400'
+            }`}>
+              {idx < stageIndex ? '✓' : idx + 1}
+            </div>
+            <span className={`text-xs max-w-[64px] text-center leading-tight ${
+              idx === stageIndex ? 'text-corporate-700 font-medium' : 'text-slate-400'
+            }`}>
+              {t(stage.labelKey, stage.defaultLabel).replace(' 중...', '')}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -476,13 +549,7 @@ export default function PersonalDevelopmentReport({
 
   // --- Loading / error states ---
   if (isLoading || generateFeedbackMutation.isPending || isFeedbackGenerating || (hasRequestedFeedback && !feedback && !isFeedbackError)) {
-    return (
-      <div className="text-center py-16" data-testid="feedback-loading">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('report.analyzing', '개인 맞춤 분석 중...')}</h2>
-        <p className="text-slate-600">{t('report.analyzingDesc', 'AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.')}</p>
-      </div>
-    );
+    return <FeedbackProgressIndicator />;
   }
 
   if (isFeedbackError) {
@@ -542,13 +609,7 @@ export default function PersonalDevelopmentReport({
   }
 
   if (!feedback) {
-    return (
-      <div className="text-center py-16" data-testid="feedback-loading">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-8"></div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('report.analyzing', '개인 맞춤 분석 중...')}</h2>
-        <p className="text-slate-600">{t('report.analyzingDesc', 'AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.')}</p>
-      </div>
-    );
+    return <FeedbackProgressIndicator />;
   }
 
   const reportStatus = feedback.reportStatus ?? feedback.detailedFeedback?.reportStatus;
