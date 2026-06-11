@@ -123,6 +123,7 @@ const FEEDBACK_STAGES = [
 ];
 
 const feedbackGenStartKey = (conversationId: string) => `feedback_gen_start_${conversationId}`;
+const FEEDBACK_GEN_MAX_AGE_MS = 10 * 60 * 1000;
 
 function computeInitialStage(elapsed: number): { stageIndex: number; stageStartOffset: number } {
   let cumulative = 0;
@@ -142,7 +143,11 @@ function FeedbackProgressIndicator({ conversationId }: { conversationId: string 
   const [startTime] = useState(() => {
     try {
       const stored = localStorage.getItem(feedbackGenStartKey(conversationId));
-      if (stored) return parseInt(stored, 10);
+      if (stored) {
+        const ts = parseInt(stored, 10);
+        if (Date.now() - ts < FEEDBACK_GEN_MAX_AGE_MS) return ts;
+        localStorage.removeItem(feedbackGenStartKey(conversationId));
+      }
     } catch {}
     return Date.now();
   });
