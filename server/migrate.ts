@@ -1816,22 +1816,42 @@ export async function runMigrations(): Promise<void> {
       }
 
       // Unique index on chat_messages for upsert support.
-      // Before creating the index, remove any duplicate (persona_run_id, turn_index, sender)
-      // rows left over from the old delete+insert scheme (keeping the latest id per group).
+      // The conflict key is (persona_run_id, turn_index) — sender is NOT included
+      // because turn_index is the array-position slot and must be unique per run
+      // regardless of sender. Including sender would allow duplicate slots and
+      // silently lose consecutive same-sender messages.
+      //
+      // If the old 3-column index (persona_run_id, turn_index, sender) still exists
+      // we must: (1) renumber turn_index to a dense sequential per-run sequence so
+      // that the new 2-column constraint has no violations, (2) drop the old index,
+      // (3) create the new 2-column index.
       try {
+        // Step 1: Reassign turn_index to dense sequential (0,1,2,…) per persona_run_id,
+        // ordered by (turn_index, created_at, id) to preserve original ordering.
         await client.query(`
-          DELETE FROM "chat_messages" a
-          USING "chat_messages" b
-          WHERE a.id < b.id
-            AND a.persona_run_id = b.persona_run_id
-            AND a.turn_index = b.turn_index
-            AND a.sender = b.sender;
+          WITH ranked AS (
+            SELECT id,
+                   (ROW_NUMBER() OVER (
+                     PARTITION BY persona_run_id
+                     ORDER BY turn_index, created_at, id
+                   ) - 1)::integer AS new_turn_index
+            FROM chat_messages
+          )
+          UPDATE chat_messages
+          SET turn_index = ranked.new_turn_index
+          FROM ranked
+          WHERE chat_messages.id = ranked.id;
         `);
+        // Step 2: Drop the old index (may be 3-column or already 2-column).
+        await client.query(`
+          DROP INDEX IF EXISTS "idx_chat_messages_upsert_key";
+        `);
+        // Step 3: Create the correct 2-column unique index.
         await client.query(`
           CREATE UNIQUE INDEX IF NOT EXISTS "idx_chat_messages_upsert_key"
-            ON "chat_messages"("persona_run_id", "turn_index", "sender");
+            ON "chat_messages"("persona_run_id", "turn_index");
         `);
-        console.log('✅ chat_messages upsert unique index ensured');
+        console.log('✅ chat_messages upsert unique index ensured (2-column)');
       } catch (err) {
         console.warn('⚠️ Failed to create chat_messages upsert index:', err);
       }
