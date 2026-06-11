@@ -1775,7 +1775,7 @@ function CriteriaSetDetail({
       return res.json();
     },
     onSuccess: (data) => {
-      setDryRunResult(data);
+      setDryRunResult(data.feedback ?? data);
       toast({ title: '드라이런 평가 완료', description: '이 결과는 저장되지 않습니다.' });
     },
     onError: (error: any) => {
