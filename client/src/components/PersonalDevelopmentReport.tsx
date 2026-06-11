@@ -245,12 +245,16 @@ export default function PersonalDevelopmentReport({
     }
   }, [showSimulationTab, simulationHasData]);
 
-  const { data: feedback, isLoading, error, refetch } = useQuery<Feedback>({
+  const { data: feedbackData, isLoading, error, refetch } = useQuery<any>({
     queryKey: ["/api/conversations", conversationId, "feedback"],
     enabled: !!conversationId,
     retry: false,
     staleTime: Infinity,
     gcTime: Infinity,
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      return d && (d as any).status === 'generating' ? 3000 : false;
+    },
     queryFn: async () => {
       const response = await authFetchRaw(`/api/conversations/${conversationId}/feedback`);
       if (response.status === 404) throw new Error("FEEDBACK_NOT_FOUND");
@@ -258,6 +262,19 @@ export default function PersonalDevelopmentReport({
       return response.json();
     }
   });
+
+  const feedback: Feedback | null = feedbackData && !(feedbackData as any).status ? feedbackData as Feedback : null;
+  const isFeedbackGenerating = !!(feedbackData && (feedbackData as any).status === 'generating');
+  const isFeedbackError = !!(feedbackData && (feedbackData as any).status === 'error');
+  const feedbackErrorMessage: string = isFeedbackError ? ((feedbackData as any).message || '알 수 없는 오류') : '';
+
+  const prevGeneratingRef = useRef(false);
+  useEffect(() => {
+    if (prevGeneratingRef.current && !isFeedbackGenerating && feedback) {
+      onFeedbackGeneratingChange?.(false);
+    }
+    prevGeneratingRef.current = isFeedbackGenerating;
+  }, [isFeedbackGenerating, feedback, onFeedbackGeneratingChange]);
 
   const showMetricSnapshotTab = !!(
     feedback &&
@@ -272,10 +289,10 @@ export default function PersonalDevelopmentReport({
   const showStrategyTab = !!(feedback as any)?.detailedFeedback?.sequenceAnalysis && sectionEnabledEarly('strategy');
 
   useEffect(() => {
-    if (!isLoading && (feedback || error?.message === "FEEDBACK_NOT_FOUND")) {
+    if (!isLoading && (feedback || error?.message === "FEEDBACK_NOT_FOUND" || isFeedbackError)) {
       onReady?.();
     }
-  }, [feedback, isLoading, error, onReady]);
+  }, [feedback, isLoading, error, isFeedbackError, onReady]);
 
   const { data: userProfile } = useQuery<any>({ queryKey: ['/api/auth/user'] });
   const userName = userProfile?.name || t('report.defaultUser', '사용자');
@@ -349,7 +366,9 @@ export default function PersonalDevelopmentReport({
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/conversations", conversationId, "feedback"], data);
-      onFeedbackGeneratingChange?.(false);
+      if (!data?.status) {
+        onFeedbackGeneratingChange?.(false);
+      }
     },
     onError: (err) => {
       onFeedbackGeneratingChange?.(false);
@@ -369,13 +388,13 @@ export default function PersonalDevelopmentReport({
   };
 
   useEffect(() => {
-    if (autoGenerateFeedback && !isLoading && !feedback && !hasRequestedFeedback && !generateFeedbackMutation.isPending && error?.message === "FEEDBACK_NOT_FOUND") {
+    if (autoGenerateFeedback && !isLoading && !feedback && !isFeedbackGenerating && !hasRequestedFeedback && !generateFeedbackMutation.isPending && error?.message === "FEEDBACK_NOT_FOUND") {
       setHasRequestedFeedback(true);
       onFeedbackGeneratingChange?.(true);
       generateFeedbackMutation.mutate(undefined);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoGenerateFeedback, isLoading, feedback, hasRequestedFeedback, error?.message, generateFeedbackMutation.isPending]);
+  }, [autoGenerateFeedback, isLoading, feedback, isFeedbackGenerating, hasRequestedFeedback, error?.message, generateFeedbackMutation.isPending]);
 
   const getTranslatedDimensionName = (key: string | undefined, fallbackName: string) =>
     t(`evaluationDimensions.${key}.name`, { defaultValue: '' }) || fallbackName;
@@ -456,12 +475,30 @@ export default function PersonalDevelopmentReport({
   };
 
   // --- Loading / error states ---
-  if (isLoading || generateFeedbackMutation.isPending || (hasRequestedFeedback && !feedback)) {
+  if (isLoading || generateFeedbackMutation.isPending || isFeedbackGenerating || (hasRequestedFeedback && !feedback && !isFeedbackError)) {
     return (
       <div className="text-center py-16" data-testid="feedback-loading">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
         <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('report.analyzing', '개인 맞춤 분석 중...')}</h2>
         <p className="text-slate-600">{t('report.analyzingDesc', 'AI가 대화를 심층 분석하여 맞춤형 개발 계획을 수립하고 있습니다.')}</p>
+      </div>
+    );
+  }
+
+  if (isFeedbackError) {
+    return (
+      <div className="text-center py-16" data-testid="feedback-generation-error">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <i className="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+        </div>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('report.generationFailed', '피드백 생성에 실패했습니다')}</h2>
+        <p className="text-slate-600 mb-4">{feedbackErrorMessage}</p>
+        <div className="space-y-2">
+          <Button onClick={handleRegenerateFeedback} data-testid="retry-generate-feedback">
+            {t('common.retry', '다시 시도')}
+          </Button>
+          {!isAdminView && <Button variant="outline" onClick={() => window.location.href = '/mypage'}>{t('report.backToMyPage', '마이페이지로 돌아가기')}</Button>}
+        </div>
       </div>
     );
   }

@@ -23,6 +23,14 @@ import {
   asyncHandler,
   createHttpError
 } from "./routerHelpers";
+import {
+  markGenerating,
+  isGenerating,
+  unmarkGenerating,
+  markGenerationError,
+  getGenerationError,
+  clearGenerationError,
+} from "../services/feedbackGenerationTracker";
 import { normalizeProfileName, parseJoinModeSpeakerSegments } from "../services/conversationContextBuilder";
 import { filterThinkingText } from "../services/voice/textFilter";
 import { createDefaultSimulationState, TurnScore } from "../services/simulation/simulationTypes";
@@ -1735,6 +1743,16 @@ ${userNameLine}
         await storage.deleteFeedback(existingFeedback.id);
         console.log(`피드백 삭제 (재생성): ${personaRunId}`);
       }
+      clearGenerationError(personaRunId);
+    } else {
+      const existingFeedback = await storage.getFeedbackByConversationId(personaRunId);
+      if (existingFeedback) {
+        return res.json(existingFeedback);
+      }
+    }
+
+    if (isGenerating(personaRunId)) {
+      return res.status(202).json({ status: "generating" });
     }
 
     const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
@@ -1764,18 +1782,20 @@ ${userNameLine}
     const user = await storage.getUser(userId);
     const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
 
-    const feedback = await generateAndSaveFeedback(personaRunId, conversation, scenarioObj, persona, userLanguage);
-    res.json(feedback);
+    markGenerating(personaRunId);
+    generateAndSaveFeedback(personaRunId, conversation, scenarioObj, persona, userLanguage)
+      .then(() => unmarkGenerating(personaRunId))
+      .catch((err: any) => {
+        console.error(`[feedback] Background generation failed for ${personaRunId}:`, err);
+        markGenerationError(personaRunId, err?.message || 'Unknown error');
+      });
+
+    res.status(202).json({ status: "generating" });
   }));
 
   router.get("/:id/feedback", isAuthenticated, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     const personaRunId = req.params.id;
-
-    const feedback = await storage.getFeedbackByConversationId(personaRunId);
-    if (!feedback) {
-      throw createHttpError(404, "Feedback not found");
-    }
 
     const personaRun = await storage.getPersonaRun(personaRunId);
     if (!personaRun) {
@@ -1788,6 +1808,17 @@ ${userNameLine}
 
     if (!scenarioRun || (!isAdminOrOperator && scenarioRun.userId !== userId)) {
       throw createHttpError(403, "Unauthorized access");
+    }
+
+    const feedback = await storage.getFeedbackByConversationId(personaRunId);
+    if (!feedback) {
+      if (isGenerating(personaRunId)) {
+        return res.json({ status: "generating" });
+      }
+      if (getGenerationError(personaRunId)) {
+        return res.json({ status: "error", message: "피드백 생성 중 오류가 발생했습니다. 다시 시도해 주세요." });
+      }
+      throw createHttpError(404, "Feedback not found");
     }
 
     res.json(feedback);
