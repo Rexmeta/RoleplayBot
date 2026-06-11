@@ -122,12 +122,40 @@ const FEEDBACK_STAGES = [
   { key: 'stage3', labelKey: 'report.progress.stage3', defaultLabel: '보고서 작성 중...', icon: '📝', durationMs: Infinity },
 ];
 
-function FeedbackProgressIndicator() {
+const feedbackGenStartKey = (conversationId: string) => `feedback_gen_start_${conversationId}`;
+
+function computeInitialStage(elapsed: number): { stageIndex: number; stageStartOffset: number } {
+  let cumulative = 0;
+  for (let i = 0; i < FEEDBACK_STAGES.length - 1; i++) {
+    const dur = FEEDBACK_STAGES[i].durationMs;
+    if (elapsed < cumulative + dur) {
+      return { stageIndex: i, stageStartOffset: cumulative };
+    }
+    cumulative += dur;
+  }
+  return { stageIndex: FEEDBACK_STAGES.length - 1, stageStartOffset: cumulative };
+}
+
+function FeedbackProgressIndicator({ conversationId }: { conversationId: string }) {
   const { t } = useTranslation();
-  const [stageIndex, setStageIndex] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  const startRef = useRef(Date.now());
-  const stageStartRef = useRef(Date.now());
+
+  const [startTime] = useState(() => {
+    try {
+      const stored = localStorage.getItem(feedbackGenStartKey(conversationId));
+      if (stored) return parseInt(stored, 10);
+    } catch {}
+    return Date.now();
+  });
+
+  const [initialStage] = useState(() => {
+    const elapsed = Date.now() - startTime;
+    return computeInitialStage(elapsed);
+  });
+
+  const [stageIndex, setStageIndex] = useState(initialStage.stageIndex);
+  const [elapsed, setElapsed] = useState(Date.now() - startTime);
+  const startRef = useRef(startTime);
+  const stageStartRef = useRef(startTime + initialStage.stageStartOffset);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -345,9 +373,16 @@ export default function PersonalDevelopmentReport({
   useEffect(() => {
     if (prevGeneratingRef.current && !isFeedbackGenerating && feedback) {
       onFeedbackGeneratingChange?.(false);
+      try { localStorage.removeItem(feedbackGenStartKey(conversationId)); } catch {}
     }
     prevGeneratingRef.current = isFeedbackGenerating;
-  }, [isFeedbackGenerating, feedback, onFeedbackGeneratingChange]);
+  }, [isFeedbackGenerating, feedback, onFeedbackGeneratingChange, conversationId]);
+
+  useEffect(() => {
+    if (isFeedbackError) {
+      try { localStorage.removeItem(feedbackGenStartKey(conversationId)); } catch {}
+    }
+  }, [isFeedbackError, conversationId]);
 
   const showMetricSnapshotTab = !!(
     feedback &&
@@ -441,27 +476,32 @@ export default function PersonalDevelopmentReport({
       queryClient.setQueryData(["/api/conversations", conversationId, "feedback"], data);
       if (!data?.status) {
         onFeedbackGeneratingChange?.(false);
+        try { localStorage.removeItem(feedbackGenStartKey(conversationId)); } catch {}
       }
     },
     onError: (err) => {
       onFeedbackGeneratingChange?.(false);
+      try { localStorage.removeItem(feedbackGenStartKey(conversationId)); } catch {}
       toast({ title: "오류", description: `피드백을 생성할 수 없습니다: ${(err as Error).message}`, variant: "destructive" });
     }
   });
 
   const handleGenerateFeedback = () => {
+    try { localStorage.setItem(feedbackGenStartKey(conversationId), String(Date.now())); } catch {}
     setHasRequestedFeedback(true);
     onFeedbackGeneratingChange?.(true);
     generateFeedbackMutation.mutate(undefined);
   };
 
   const handleRegenerateFeedback = () => {
+    try { localStorage.setItem(feedbackGenStartKey(conversationId), String(Date.now())); } catch {}
     onFeedbackGeneratingChange?.(true);
     generateFeedbackMutation.mutate({ force: true });
   };
 
   useEffect(() => {
     if (autoGenerateFeedback && !isLoading && !feedback && !isFeedbackGenerating && !hasRequestedFeedback && !generateFeedbackMutation.isPending && error?.message === "FEEDBACK_NOT_FOUND") {
+      try { localStorage.setItem(feedbackGenStartKey(conversationId), String(Date.now())); } catch {}
       setHasRequestedFeedback(true);
       onFeedbackGeneratingChange?.(true);
       generateFeedbackMutation.mutate(undefined);
@@ -549,7 +589,7 @@ export default function PersonalDevelopmentReport({
 
   // --- Loading / error states ---
   if (isLoading || generateFeedbackMutation.isPending || isFeedbackGenerating || (hasRequestedFeedback && !feedback && !isFeedbackError)) {
-    return <FeedbackProgressIndicator />;
+    return <FeedbackProgressIndicator conversationId={conversationId} />;
   }
 
   if (isFeedbackError) {
@@ -609,7 +649,7 @@ export default function PersonalDevelopmentReport({
   }
 
   if (!feedback) {
-    return <FeedbackProgressIndicator />;
+    return <FeedbackProgressIndicator conversationId={conversationId} />;
   }
 
   const reportStatus = feedback.reportStatus ?? feedback.detailedFeedback?.reportStatus;
