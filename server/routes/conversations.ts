@@ -1578,11 +1578,18 @@ ${userNameLine}
     const turnCount = Math.floor(messages.length / 2);
 
     if (isFinal) {
-      await storage.updatePersonaRun(personaRunId, {
+      // When the client sends an empty payload with isFinal (e.g. all messages
+      // were already persisted by incremental non-final flushes and the local
+      // message list was empty at session-end time), preserve the existing
+      // turnCount so we don't overwrite the value set by previous flushes.
+      const completionUpdate: Parameters<typeof storage.updatePersonaRun>[1] = {
         status: 'completed',
         completedAt: new Date(),
-        turnCount
-      });
+      };
+      if (messages.length > 0) {
+        completionUpdate.turnCount = turnCount;
+      }
+      await storage.updatePersonaRun(personaRunId, completionUpdate);
       await checkAndCompleteScenario(personaRun!.scenarioRunId);
     } else {
       await storage.updatePersonaRun(personaRunId, {

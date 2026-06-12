@@ -57,9 +57,30 @@ export function useChatSession({
   const { toast } = useToast();
   const { t } = useTranslation();
 
-  const handleGoToFeedback = () => {
+  const handleGoToFeedback = async () => {
     setIsGoingToFeedback(true);
     onConversationEnding?.();
+
+    // Send a final save so the persona run is marked 'completed' and the
+    // server-side turn count is updated.  This also invalides the cached
+    // conversation snapshot so PersonalDevelopmentReport sees the full
+    // message list (not a stale pre-voice-session snapshot with 0 messages).
+    const msgs = localMessagesRef?.current ?? localMessages;
+    const payload = buildSavePayload(msgs, pendingUserText);
+    try {
+      await apiRequest('POST', `/api/conversations/${conversationId}/realtime-messages`, {
+        messages: payload,
+        isFinal: true,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    } catch (error) {
+      console.warn('⚠️ [handleGoToFeedback] Final save failed, proceeding anyway:', error);
+      // Still invalidate so the feedback page fetches the freshest data it can.
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] }).catch(() => {});
+    }
+
     onChatComplete();
   };
 
