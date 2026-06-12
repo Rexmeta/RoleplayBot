@@ -146,7 +146,7 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
-      return await db.select().from(chatMessages).where(eq(chatMessages.personaRunId, personaRunId)).orderBy(asc(chatMessages.turnIndex), asc(chatMessages.createdAt));
+      return await db.select().from(chatMessages).where(eq(chatMessages.personaRunId, personaRunId)).orderBy(sql`turn_index ASC NULLS LAST`, asc(chatMessages.createdAt));
     }
 
     async deleteChatMessagesByPersonaRun(personaRunId: string): Promise<void> {

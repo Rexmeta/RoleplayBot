@@ -193,7 +193,12 @@ export default function PersonaProfilePage() {
   }
 
   function sortMessagesByTime(msgs: ConversationMessage[]): ConversationMessage[] {
-    return [...msgs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return [...msgs].sort((a, b) => {
+      const ta = (a as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
+      const tb = (b as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
+      if (ta !== tb) return ta - tb;
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
   }
 
   useEffect(() => {

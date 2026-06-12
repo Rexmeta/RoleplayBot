@@ -251,8 +251,8 @@ export default function ConversationView() {
                   const placedKeys = new Set<string>();
 
                   const sortedMessages = [...(conversation.messages as ConversationMessage[])].sort((a, b) => {
-                    const ta = a.turnIndex ?? 0;
-                    const tb = b.turnIndex ?? 0;
+                    const ta = a.turnIndex ?? Number.MAX_SAFE_INTEGER;
+                    const tb = b.turnIndex ?? Number.MAX_SAFE_INTEGER;
                     if (ta !== tb) return ta - tb;
                     return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
                   });

@@ -407,8 +407,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (!conversation?.messages) return;
     setLocalMessages(prev => {
       const incoming = [...conversation.messages].sort((a, b) => {
-        const ta = (a as any).turnIndex ?? 0;
-        const tb = (b as any).turnIndex ?? 0;
+        const ta = (a as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
+        const tb = (b as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
         if (ta !== tb) return ta - tb;
         return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
       });
@@ -422,8 +422,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       // after all confirmed messages rather than defaulting to 0 (which would
       // sort them next to the greeting).
       const maxIncomingTurnIndex = incoming.reduce((max, m) => {
-        const t = (m as any).turnIndex ?? 0;
-        return t > max ? t : max;
+        const t = (m as any).turnIndex;
+        return t != null && t > max ? t : max;
       }, 0);
       const localOnlyWithIndex = localOnly.map((m, i) => ({
         ...m,
@@ -434,8 +434,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       // Sort the merged list by turnIndex then timestamp so the greeting
       // (turnIndex 0) always appears first and optimistic messages stay at tail.
       return [...incoming, ...localOnlyWithIndex].sort((a, b) => {
-        const ta = (a as any).__effectiveTurnIndex ?? (a as any).turnIndex ?? 0;
-        const tb = (b as any).__effectiveTurnIndex ?? (b as any).turnIndex ?? 0;
+        const ta = (a as any).__effectiveTurnIndex ?? (a as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
+        const tb = (b as any).__effectiveTurnIndex ?? (b as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
         if (ta !== tb) return ta - tb;
         return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
       });
