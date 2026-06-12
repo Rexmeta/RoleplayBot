@@ -135,4 +135,22 @@ describe('sortMessagesByTurnIndex', () => {
     expect(result).toHaveLength(2);
     expect(result.map(m => m.message)).toEqual(expect.arrayContaining(['a', 'b']));
   });
+
+  it('preserves insertion order when both turnIndex and timestamp are identical', () => {
+    const msgs = [
+      makeMsg({ timestamp: '2025-01-01T00:00:00Z', turnIndex: 1, message: 'first' }),
+      makeMsg({ timestamp: '2025-01-01T00:00:00Z', turnIndex: 1, message: 'second' }),
+      makeMsg({ timestamp: '2025-01-01T00:00:00Z', turnIndex: 1, message: 'third' }),
+    ];
+    const result = sortMessagesByTurnIndex(msgs);
+    expect(result.map(m => m.message)).toEqual(['first', 'second', 'third']);
+  });
+
+  it('preserves insertion order for identical timestamp + turnIndex regardless of input arrangement', () => {
+    const a = makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 0, message: 'a' });
+    const b = makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 0, message: 'b' });
+    const result = sortMessagesByTurnIndex([b, a]);
+    expect(result[0]).toBe(b);
+    expect(result[1]).toBe(a);
+  });
 });
