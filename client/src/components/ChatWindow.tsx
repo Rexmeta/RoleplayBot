@@ -250,6 +250,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         const newUrl = getCharacterImage(emotion);
         if (newUrl) preloadImage(newUrl);
       }
+      // Mark pending before mutating local state so the sync effect (which
+      // fires after the subsequent flushRealtimeMessages resolves) cannot
+      // overwrite localMessages with a stale server snapshot that is missing
+      // the user message that arrived just before this AI turn completed.
+      hasPendingLocalRef.current = true;
       setLocalMessages(prev => {
         if (prev.some(m => m.sender === 'ai' && m.message === message)) return prev;
         // Phase-based dedup: if AI has spoken but user hasn't yet (greeting phase),

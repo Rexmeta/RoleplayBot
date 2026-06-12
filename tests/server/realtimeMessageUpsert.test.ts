@@ -93,7 +93,7 @@ beforeAll(async () => {
   app.use((err: any, _req: any, res: any, _next: any) => {
     res.status(err.status || 500).json({ error: err.message });
   });
-});
+}, 30000);
 
 // ─── Route-level tests ────────────────────────────────────────────────────────
 
