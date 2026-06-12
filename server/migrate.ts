@@ -1815,70 +1815,63 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add store_entitlements stripe columns:', err);
       }
 
-      // Unique index on chat_messages for upsert support.
-      // The conflict key is (persona_run_id, turn_index) — sender is NOT included
-      // because turn_index is the array-position slot and must be unique per run
-      // regardless of sender. Including sender would allow duplicate slots and
-      // silently lose consecutive same-sender messages.
+      // The correct unique index for the voice-session upsert is the 3-column key
+      // (persona_run_id, turn_index, sender).  Including sender is required because
+      // different senders (user / ai) can legitimately occupy the same turn_index
+      // slot, and the ON CONFLICT clause in the batch-upsert route targets all three
+      // columns.  A 2-column index on (persona_run_id, turn_index) alone would create
+      // a false uniqueness violation when a user turn and an AI turn share the same
+      // position, and — crucially — an ON CONFLICT target that does NOT match an
+      // existing index causes Postgres to reject the statement outright, allowing
+      // duplicate rows to accumulate across voice-session reconnects.
       //
-      // If the old 3-column index (persona_run_id, turn_index, sender) still exists
-      // we must: (1) renumber turn_index to a dense sequential per-run sequence so
-      // that the new 2-column constraint has no violations, (2) drop the old index,
-      // (3) create the new 2-column index.
-      //
-      // This step is idempotent: we first check pg_indexes to see whether the old
-      // 3-column index is still present. If the 2-column index is already in place
-      // (or the old index is gone), we skip the expensive full-table UPDATE so that
-      // re-starting the app after migration never touches already-correct data.
+      // This step is idempotent: if the 3-column index already exists we skip the
+      // DROP/CREATE.  If a 2-column index was previously created by an earlier
+      // (incorrect) migration, we drop it and recreate with all three columns.
       try {
-        const oldIndexResult = await client.query(`
+        const indexResult = await client.query(`
           SELECT indexdef
           FROM pg_indexes
           WHERE tablename = 'chat_messages'
             AND indexname = 'idx_chat_messages_upsert_key';
         `);
 
-        const indexDef: string = oldIndexResult.rows[0]?.indexdef ?? '';
-        const hasOldThreeColumnIndex = indexDef.includes('sender');
+        const indexDef: string = indexResult.rows[0]?.indexdef ?? '';
+        const hasCorrectThreeColumnIndex = indexDef.includes('sender');
 
-        if (hasOldThreeColumnIndex) {
-          // Step 1: Reassign turn_index to dense sequential (0,1,2,…) per persona_run_id,
-          // ordered by (turn_index, created_at, id) to preserve original ordering.
+        if (hasCorrectThreeColumnIndex) {
+          console.log('✅ chat_messages upsert unique index already correct (3-column), skipped');
+        } else {
+          // Either a 2-column index exists (wrong) or no index exists yet.
+          // Before creating the 3-column unique index, remove any pre-existing
+          // duplicate (persona_run_id, turn_index, sender) rows. Keep the newest
+          // row per group (highest id) to preserve the most recent message content.
           await client.query(`
-            WITH ranked AS (
-              SELECT id,
-                     (ROW_NUMBER() OVER (
-                       PARTITION BY persona_run_id
-                       ORDER BY turn_index, created_at, id
-                     ) - 1)::integer AS new_turn_index
-              FROM chat_messages
-            )
-            UPDATE chat_messages
-            SET turn_index = ranked.new_turn_index
-            FROM ranked
-            WHERE chat_messages.id = ranked.id;
+            DELETE FROM chat_messages
+            WHERE id IN (
+              SELECT id FROM (
+                SELECT id,
+                       ROW_NUMBER() OVER (
+                         PARTITION BY persona_run_id, turn_index, sender
+                         ORDER BY id DESC
+                       ) AS rn
+                FROM chat_messages
+              ) ranked
+              WHERE rn > 1
+            );
           `);
-          // Step 2: Drop the old 3-column index.
+          // Drop whatever index exists (2-column or none) and create the correct one.
           await client.query(`
             DROP INDEX IF EXISTS "idx_chat_messages_upsert_key";
           `);
-          // Step 3: Create the correct 2-column unique index.
           await client.query(`
-            CREATE UNIQUE INDEX IF NOT EXISTS "idx_chat_messages_upsert_key"
-              ON "chat_messages"("persona_run_id", "turn_index");
+            CREATE UNIQUE INDEX "idx_chat_messages_upsert_key"
+              ON "chat_messages"("persona_run_id", "turn_index", "sender");
           `);
-          console.log('✅ chat_messages upsert unique index migrated to 2-column');
-        } else {
-          // The 2-column index is already in place (or the index doesn't exist yet).
-          // Just ensure the correct index exists without touching any row data.
-          await client.query(`
-            CREATE UNIQUE INDEX IF NOT EXISTS "idx_chat_messages_upsert_key"
-              ON "chat_messages"("persona_run_id", "turn_index");
-          `);
-          console.log('✅ chat_messages upsert unique index already correct (2-column), skipped renumbering');
+          console.log('✅ chat_messages upsert unique index created/corrected to 3-column (persona_run_id, turn_index, sender)');
         }
       } catch (err) {
-        console.warn('⚠️ Failed to create chat_messages upsert index:', err);
+        console.warn('⚠️ Failed to ensure chat_messages upsert index:', err);
       }
 
       console.log('✅ Database migrations completed successfully');

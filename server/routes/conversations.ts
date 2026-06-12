@@ -1536,19 +1536,20 @@ ${userNameLine}
 
     console.log(`🎙️ 실시간 음성 대화 메시지 일괄 저장: ${personaRunId}, ${messages.length}개 메시지, isFinal=${isFinal}`);
 
-    // Upsert each message individually using (personaRunId, turnIndex) as the
-    // conflict key (backed by idx_chat_messages_upsert_key unique index).
+    // Upsert each message individually using (personaRunId, turnIndex, sender)
+    // as the conflict key (backed by idx_chat_messages_upsert_key unique index).
     // No prior DELETE is needed — existing rows are updated in-place, so a
     // mid-flight error leaves already-saved messages intact.
     //
     // turnIndex is the array index i — the position of each message in the
-    // payload. This guarantees uniqueness for ALL message orderings, including
-    // consecutive same-sender runs (e.g. two AI messages before the user
-    // responds), because every array position is a unique slot.
+    // payload. Including sender in the unique key means user and AI messages
+    // that share the same array position are stored as distinct rows, which
+    // correctly handles consecutive same-sender runs.
     //
-    // Using i as turnIndex also makes incremental flushes idempotent: re-sending
-    // the full accumulated list upserts each row to the same slot it occupied
-    // before, leaving the stored conversation unchanged.
+    // Using i as turnIndex makes incremental flushes idempotent: re-sending
+    // the full accumulated list (e.g. after a voice session reconnect) upserts
+    // each row back to the same (turnIndex, sender) slot it already occupies,
+    // leaving the stored conversation unchanged.
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
       const values = {
@@ -1563,7 +1564,7 @@ ${userNameLine}
       await db.insert(chatMessagesTable)
         .values(values)
         .onConflictDoUpdate({
-          target: [chatMessagesTable.personaRunId, chatMessagesTable.turnIndex],
+          target: [chatMessagesTable.personaRunId, chatMessagesTable.turnIndex, chatMessagesTable.sender],
           set: {
             sender: values.sender,
             message: values.message,
