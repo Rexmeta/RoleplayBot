@@ -94,4 +94,45 @@ describe('sortMessagesByTurnIndex', () => {
     const result = sortMessagesByTurnIndex(msgs);
     expect(result.map(m => m.message)).toEqual(['a', 'b', 'c']);
   });
+
+  it('treats a missing (undefined) timestamp as epoch 0 — no NaN in comparisons', () => {
+    const msgs = [
+      makeMsg({ timestamp: undefined as unknown as string, turnIndex: 1, message: 'no-ts' }),
+      makeMsg({ timestamp: '2025-01-01T00:00:01Z', turnIndex: 1, message: 'with-ts' }),
+    ];
+    const result = sortMessagesByTurnIndex(msgs);
+    expect(result[0].message).toBe('no-ts');
+    expect(result[1].message).toBe('with-ts');
+  });
+
+  it('treats a null timestamp as epoch 0 — no NaN in comparisons', () => {
+    const msgs = [
+      makeMsg({ timestamp: null as unknown as string, turnIndex: 1, message: 'null-ts' }),
+      makeMsg({ timestamp: '2025-01-01T00:00:01Z', turnIndex: 1, message: 'with-ts' }),
+    ];
+    const result = sortMessagesByTurnIndex(msgs);
+    expect(result[0].message).toBe('null-ts');
+    expect(result[1].message).toBe('with-ts');
+  });
+
+  it('treats a malformed timestamp string as epoch 0 — no NaN in comparisons', () => {
+    const msgs = [
+      makeMsg({ timestamp: 'not-a-valid-date', turnIndex: 1, message: 'bad-ts' }),
+      makeMsg({ timestamp: '2025-01-01T00:00:01Z', turnIndex: 1, message: 'good-ts' }),
+    ];
+    const result = sortMessagesByTurnIndex(msgs);
+    expect(result[0].message).toBe('bad-ts');
+    expect(result[1].message).toBe('good-ts');
+  });
+
+  it('completes without error when both messages have missing timestamps', () => {
+    const msgs = [
+      makeMsg({ timestamp: undefined as unknown as string, turnIndex: 1, message: 'a' }),
+      makeMsg({ timestamp: null as unknown as string, turnIndex: 1, message: 'b' }),
+    ];
+    expect(() => sortMessagesByTurnIndex(msgs)).not.toThrow();
+    const result = sortMessagesByTurnIndex(msgs);
+    expect(result).toHaveLength(2);
+    expect(result.map(m => m.message)).toEqual(expect.arrayContaining(['a', 'b']));
+  });
 });

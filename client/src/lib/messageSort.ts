@@ -11,6 +11,10 @@ export function sortMessagesByTurnIndex(msgs: ConversationMessage[]): Conversati
     const ta = a.turnIndex ?? Number.MAX_SAFE_INTEGER;
     const tb = b.turnIndex ?? Number.MAX_SAFE_INTEGER;
     if (ta !== tb) return ta - tb;
-    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    const tsA = a.timestamp ? new Date(a.timestamp).getTime() : NaN;
+    const tsB = b.timestamp ? new Date(b.timestamp).getTime() : NaN;
+    const safeA = isNaN(tsA) ? 0 : tsA;
+    const safeB = isNaN(tsB) ? 0 : tsB;
+    return safeA - safeB;
   });
 }
