@@ -356,7 +356,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { isSessionEnding, isGoingToFeedback, showEndConversationDialog, setShowEndConversationDialog,
     showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
-    handleGoToFeedback, handleFeedbackRequest, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages } = useChatSession({
+    handleGoToFeedback, handleFeedbackRequest, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages,
+    messageSaveError, retrySave } = useChatSession({
     conversationId, localMessages, localMessagesRef, pendingUserText, pendingUserTextRef, hasPendingLocalRef, isPersonaMode, isNearingEnd, currentTurn, targetTurns,
     onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
@@ -1115,7 +1116,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             <div className="border-t border-slate-200/30 px-4 py-2 text-center">
                               <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
                                 <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                                <span>대화 내용 저장 중...</span>
+                                <span>{t('voice.savingMessages', { defaultValue: '대화 내용 저장 중...' })}</span>
                               </div>
                             </div>
                           )}
@@ -1212,6 +1213,28 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                             </div>
                           )}
                         </>
+                      )}
+                      {messageSaveError && (
+                        <div className="border-t border-red-200/60 bg-red-50/80 px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-red-700">{t('voice.saveErrorTitle')}</p>
+                                <p className="text-xs text-red-600 mt-0.5">{t('voice.saveErrorDescription')}</p>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0 h-7 px-3 text-xs border-red-300 text-red-700 hover:bg-red-100"
+                              onClick={retrySave}
+                              disabled={isGoingToFeedback}
+                            >
+                              {t('voice.retrySave')}
+                            </Button>
+                          </div>
+                        </div>
                       )}
                       {/* Mobile stage-aware end button */}
                       {!isPersonaMode && conversation.turnCount < MAX_TURNS && (

@@ -52,6 +52,7 @@ export function useChatSession({
   const [showEndConversationDialog, setShowEndConversationDialog] = useState(false);
   const [showAlmostDoneDialog, setShowAlmostDoneDialog] = useState(false);
   const [isGoingToFeedback, setIsGoingToFeedback] = useState(false);
+  const [messageSaveError, setMessageSaveError] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -126,45 +127,58 @@ export function useChatSession({
     setShowEndConversationDialog(true);
   };
 
+  const doSaveAndComplete = async () => {
+    setMessageSaveError(false);
+    setIsSessionEnding(true);
+    disconnectVoice();
+
+    await new Promise(resolve => setTimeout(resolve, 1800));
+    setIsSessionEnding(false);
+
+    onConversationEnding?.();
+
+    const msgs = localMessagesRef?.current ?? localMessages;
+    const payload = buildSavePayload(msgs, pendingUserText);
+    if (payload.length > 0) {
+      const res = await apiRequest(
+        'POST',
+        `/api/conversations/${conversationId}/realtime-messages`,
+        { messages: payload, isFinal: true }
+      );
+
+      await res.json();
+
+      await queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    }
+
+    onChatComplete();
+  };
+
   const confirmEndConversation = async () => {
     try {
       setShowEndConversationDialog(false);
       setIsGoingToFeedback(true);
 
-      setIsSessionEnding(true);
-      disconnectVoice();
-
-      await new Promise(resolve => setTimeout(resolve, 1800));
-      setIsSessionEnding(false);
-
-      onConversationEnding?.();
-
       // Use localMessagesRef.current (always up-to-date) to include any message
       // appended since the last render before this async function was called.
-      const msgs = localMessagesRef?.current ?? localMessages;
-      const payload = buildSavePayload(msgs, pendingUserText);
-      if (payload.length > 0) {
-        const res = await apiRequest(
-          'POST',
-          `/api/conversations/${conversationId}/realtime-messages`,
-          { messages: payload, isFinal: true }
-        );
-
-        await res.json();
-
-        await queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
-        await queryClient.invalidateQueries({ queryKey: ['/api/scenario-runs'] });
-        await queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
-      }
-
-      onChatComplete();
+      await doSaveAndComplete();
     } catch (error) {
       console.error('❌ Error saving realtime messages:', error);
-      toast({
-        title: t('voice.saveError'),
-        description: t('voice.saveError'),
-        variant: "destructive"
-      });
+      setIsGoingToFeedback(false);
+      setMessageSaveError(true);
+    }
+  };
+
+  const retrySave = async () => {
+    try {
+      setIsGoingToFeedback(true);
+      await doSaveAndComplete();
+    } catch (error) {
+      console.error('❌ Error retrying realtime message save:', error);
+      setIsGoingToFeedback(false);
+      setMessageSaveError(true);
     }
   };
 
@@ -271,5 +285,7 @@ export function useChatSession({
     confirmEndConversation,
     handleResetConversation,
     flushRealtimeMessages,
+    messageSaveError,
+    retrySave,
   };
 }
