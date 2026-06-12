@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import type { ConversationMessage } from "@shared/schema";
+import { sortMessagesByTurnIndex } from "@/lib/messageSort";
 
 export interface PersonaSwitchedPayload {
   fromIndex: number;
@@ -204,13 +205,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     // the server returns a stale snapshot with the right count but wrong content,
     // or when repeated identical text matches a different message slot).
     if (hasPendingLocalRef.current) return;
-    const sorted = [...serverMessages].sort((a, b) => {
-      const ta = (a as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
-      const tb = (b as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
-      if (ta !== tb) return ta - tb;
-      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-    });
-    setLocalMessages(sorted);
+    setLocalMessages(sortMessagesByTurnIndex(serverMessages));
   }, [serverMessages, isStreamingActive]);
 
 

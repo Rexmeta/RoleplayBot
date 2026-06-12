@@ -2,6 +2,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { type ConversationMessage } from "@shared/schema";
+import { sortMessagesByTurnIndex } from "@/lib/messageSort";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -250,12 +251,7 @@ export default function ConversationView() {
                   const items: ListItem[] = [];
                   const placedKeys = new Set<string>();
 
-                  const sortedMessages = [...(conversation.messages as ConversationMessage[])].sort((a, b) => {
-                    const ta = a.turnIndex ?? Number.MAX_SAFE_INTEGER;
-                    const tb = b.turnIndex ?? Number.MAX_SAFE_INTEGER;
-                    if (ta !== tb) return ta - tb;
-                    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-                  });
+                  const sortedMessages = sortMessagesByTurnIndex(conversation.messages as ConversationMessage[]);
 
                   sortedMessages.forEach((msg, idx) => {
                     // Insert switch markers BEFORE the first AI message of the new persona.

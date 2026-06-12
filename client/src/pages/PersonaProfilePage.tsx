@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { ScenarioPersona } from "@/lib/scenario-system";
 import type { ConversationMessage } from "@shared/schema";
+import { sortMessagesByTurnIndex } from "@/lib/messageSort";
 
 interface UserPersona {
   id: string;
@@ -193,12 +194,7 @@ export default function PersonaProfilePage() {
   }
 
   function sortMessagesByTime(msgs: ConversationMessage[]): ConversationMessage[] {
-    return [...msgs].sort((a, b) => {
-      const ta = (a as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
-      const tb = (b as any).turnIndex ?? Number.MAX_SAFE_INTEGER;
-      if (ta !== tb) return ta - tb;
-      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-    });
+    return sortMessagesByTurnIndex(msgs);
   }
 
   useEffect(() => {
