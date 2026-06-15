@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
+import { storage } from '../../server/storage';
 
 // ─── Captured upsert calls + simulated DB state ───────────────────────────────
 // db.insert().values() pushes the values object here for inspection AND writes
@@ -357,6 +358,163 @@ describe('voice session replay — no duplicate conversation rows', () => {
     expect(rows.find((r: any) => r.turnIndex === 0)).toMatchObject({ sender: 'ai',   message: 'AI greeting' });
     expect(rows.find((r: any) => r.turnIndex === 1)).toMatchObject({ sender: 'ai',   message: 'AI follow-up' });
     expect(rows.find((r: any) => r.turnIndex === 2)).toMatchObject({ sender: 'user', message: 'User reply' });
+  });
+});
+
+// ─── Cross-user ownership enforcement tests ───────────────────────────────────
+//
+// The route must reject requests where the authenticated user does not own the
+// persona run.  `verifyPersonaRunOwnership` checks `scenarioRun.userId !== userId`
+// and throws 403.  These tests confirm that the route surfaces that rejection
+// and that no DB insert is attempted in the cross-user case.
+
+describe('POST /api/conversations/:id/realtime-messages — cross-user ownership enforcement', () => {
+  const OWNER_ID = 'user-2';       // who owns the run in the DB
+  const REQUESTER_ID = 'user-1';  // who is making the request
+
+  beforeEach(() => {
+    capturedInserts.clear();
+    // Restore default mock values after each test
+    vi.mocked(storage.getPersonaRun).mockResolvedValue({
+      id: 'prun-1',
+      scenarioRunId: 'srun-1',
+    } as any);
+    vi.mocked(storage.getScenarioRun).mockResolvedValue({
+      id: 'srun-1',
+      userId: 'user-1',
+      status: 'completed',
+    } as any);
+  });
+
+  it('returns 403 when the requester does not own the persona run', async () => {
+    // Make the run belong to OWNER_ID (user-2), but the request comes from REQUESTER_ID (user-1)
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const crossUserApp = express();
+    crossUserApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    crossUserApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: REQUESTER_ID, role: 'user' };
+      next();
+    }));
+    crossUserApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    const res = await request(crossUserApp)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{ sender: 'user', message: 'hi', timestamp: Date.now() }], isFinal: false });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('does not attempt any DB insert when ownership check fails', async () => {
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const crossUserApp = express();
+    crossUserApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    crossUserApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: REQUESTER_ID, role: 'user' };
+      next();
+    }));
+    crossUserApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    await request(crossUserApp)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({
+        messages: [
+          { sender: 'user', message: 'hello', timestamp: Date.now() },
+          { sender: 'ai',   message: 'world',  timestamp: Date.now() },
+        ],
+        isFinal: false,
+      });
+
+    // The route must exit before any db.insert call
+    expect(capturedInserts.all()).toHaveLength(0);
+  });
+
+  it('returns 404 when the persona run does not exist', async () => {
+    vi.mocked(storage.getPersonaRun).mockResolvedValueOnce(null as any);
+
+    const res = await request(app)
+      .post('/api/conversations/nonexistent-run/realtime-messages')
+      .send({ messages: [], isFinal: false });
+
+    expect(res.status).toBe(404);
+    expect(capturedInserts.all()).toHaveLength(0);
+  });
+
+  it('returns 404 when the scenario run does not exist', async () => {
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce(null as any);
+
+    const res = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [], isFinal: false });
+
+    expect(res.status).toBe(404);
+    expect(capturedInserts.all()).toHaveLength(0);
+  });
+
+  it('allows the legitimate owner to upsert messages (200)', async () => {
+    // Default mocks already set userId to 'user-1', matching noopAuth user — should succeed
+    const res = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({
+        messages: [
+          { sender: 'user', message: 'owner message', timestamp: Date.now() },
+        ],
+        isFinal: false,
+      });
+
+    expect(res.status).toBe(200);
+    expect(capturedInserts.all()).toHaveLength(1);
+  });
+
+  it('enforces ownership even for admin role — this route does not pass role to verifyPersonaRunOwnership', async () => {
+    // NOTE: Unlike some other routes (e.g. simulation), the realtime-messages
+    // route calls verifyPersonaRunOwnership(personaRunId, userId) WITHOUT the
+    // third `userRole` argument.  That means the admin bypass inside
+    // verifyPersonaRunOwnership is never reached, and admins are subject to
+    // the same ownership check as regular users.  This test documents that
+    // behaviour; if the route is intentionally updated to pass the role, this
+    // test should be updated accordingly.
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const adminApp = express();
+    adminApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    adminApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: 'admin-user', role: 'admin' };
+      next();
+    }));
+    adminApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    const res = await request(adminApp)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({
+        messages: [{ sender: 'user', message: 'audit check', timestamp: Date.now() }],
+        isFinal: false,
+      });
+
+    expect(res.status).toBe(403);
+    expect(capturedInserts.all()).toHaveLength(0);
   });
 });
 
