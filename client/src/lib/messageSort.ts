@@ -5,8 +5,9 @@ import type { ConversationMessage } from "@shared/schema";
  * with messages that have a null/undefined `turnIndex` sorted last.
  * Within the same `turnIndex` (including the null bucket), messages are
  * ordered by timestamp ascending.
- * When both turnIndex and timestamp are equal, the original insertion order
- * is preserved (stable tiebreaker via source array index).
+ * When both turnIndex and timestamp are equal, the monotonic `id` field is
+ * used as a tiebreaker when present. The original insertion order (array
+ * index) is the final fallback for messages without an `id`.
  */
 export function sortMessagesByTurnIndex(msgs: ConversationMessage[]): ConversationMessage[] {
   return msgs
@@ -20,6 +21,7 @@ export function sortMessagesByTurnIndex(msgs: ConversationMessage[]): Conversati
       const safeA = isNaN(tsA) ? 0 : tsA;
       const safeB = isNaN(tsB) ? 0 : tsB;
       if (safeA !== safeB) return safeA - safeB;
+      if (a.msg.id != null && b.msg.id != null) return a.msg.id - b.msg.id;
       return a.idx - b.idx;
     })
     .map(({ msg }) => msg);

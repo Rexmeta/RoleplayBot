@@ -127,6 +127,9 @@ async function streamingFetch(
 }
 
 export function useChatMessages({ conversationId, serverMessages, onSimulationUpdate, onPersonaSwitched }: UseChatMessagesOptions) {
+  const nextIdRef = useRef(1);
+  const nextId = () => nextIdRef.current++;
+
   const [localMessages, _setLocalMessages] = useState<ConversationMessage[]>([]);
   const [pendingAiMessage, setPendingAiMessage] = useState(false);
   const [pendingUserMessage, setPendingUserMessage] = useState(false);
@@ -216,11 +219,14 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
         : { message: payload.message, previousInputMode: payload.previousInputMode };
 
       let streamingMessageAdded = false;
+      let streamingMsgId: number | undefined;
 
       const onDelta = (content: string) => {
         if (!streamingMessageAdded) {
+          streamingMsgId = nextId();
           setIsStreamingActiveRef.current(true);
           setLocalMessagesRef.current(prev => [...prev, {
+            id: streamingMsgId,
             sender: 'ai' as const,
             message: stripMetaPartial(content),
             timestamp: new Date().toISOString(),
@@ -343,6 +349,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   const addUserMessage = (message: string) => {
     hasPendingLocalRef.current = true;
     const userMessage: ConversationMessage = {
+      id: nextId(),
       sender: 'user',
       message: message,
       timestamp: new Date().toISOString()
@@ -353,6 +360,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
 
   const addAiMessage = (message: string, emotion?: string, emotionReason?: string) => {
     const aiMessage: ConversationMessage = {
+      id: nextId(),
       sender: 'ai',
       message,
       timestamp: new Date().toISOString(),
@@ -371,6 +379,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     // localMessagesRef.current OR the pending text in pendingUserTextRef.current
     // — never neither.
     setLocalMessages(prev => [...prev, {
+      id: nextId(),
       sender: 'user',
       message: transcript,
       timestamp: new Date().toISOString(),
@@ -382,6 +391,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     hasPendingLocalRef.current = true;
     setPendingAiMessage(false);
     setLocalMessages(prev => [...prev, {
+      id: nextId(),
       sender: 'ai',
       message,
       timestamp: new Date().toISOString(),

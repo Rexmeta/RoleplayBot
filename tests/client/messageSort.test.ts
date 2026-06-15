@@ -153,4 +153,35 @@ describe('sortMessagesByTurnIndex', () => {
     expect(result[0]).toBe(b);
     expect(result[1]).toBe(a);
   });
+
+  it('uses id as tiebreaker when id fields are out-of-order relative to array position', () => {
+    const msgs = [
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 1, message: 'second', id: 2 }),
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 1, message: 'first', id: 1 }),
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 1, message: 'third', id: 3 }),
+    ];
+    const result = sortMessagesByTurnIndex(msgs);
+    expect(result.map(m => m.message)).toEqual(['first', 'second', 'third']);
+  });
+
+  it('falls back to array index when id is absent, preserving insertion order', () => {
+    const msgs = [
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 0, message: 'x' }),
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 0, message: 'y' }),
+    ];
+    const result = sortMessagesByTurnIndex(msgs);
+    expect(result[0].message).toBe('x');
+    expect(result[1].message).toBe('y');
+  });
+
+  it('id tiebreaker works across mixed-turnIndex groups', () => {
+    const msgs = [
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 2, message: 'd', id: 4 }),
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 1, message: 'b', id: 2 }),
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 1, message: 'a', id: 1 }),
+      makeMsg({ timestamp: '2025-06-01T12:00:00Z', turnIndex: 2, message: 'c', id: 3 }),
+    ];
+    const result = sortMessagesByTurnIndex(msgs);
+    expect(result.map(m => m.message)).toEqual(['a', 'b', 'c', 'd']);
+  });
 });

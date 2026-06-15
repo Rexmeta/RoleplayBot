@@ -1,4 +1,5 @@
 export type ConversationMessage = {
+  id?: number;
   sender: "user" | "ai";
   message: string;
   timestamp: string;
