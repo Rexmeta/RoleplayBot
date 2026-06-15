@@ -1,24 +1,40 @@
 /**
  * Tests for the realtime-messages upsert endpoint.
  *
- * Two layers:
+ * Three layers:
  * 1. Pure algorithm tests — verify the turnIndex formula is correct
  * 2. Route-level integration tests — exercise POST /:id/realtime-messages with
  *    a mocked DB and verify the actual DB upsert values include a unique
  *    turnIndex equal to each message's array index.
+ * 3. Idempotency / no-duplicate tests — simulate ON CONFLICT DO UPDATE with a
+ *    Map keyed by (personaRunId, turnIndex, sender) and assert that replaying
+ *    the same payload never grows the row count beyond the unique tuple count.
  */
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
-// ─── Captured upsert calls ────────────────────────────────────────────────────
-// db.insert().values() pushes the values object here for inspection.
+// ─── Captured upsert calls + simulated DB state ───────────────────────────────
+// db.insert().values() pushes the values object here for inspection AND writes
+// to dbState which models the ON CONFLICT DO UPDATE unique-key deduplication.
 const capturedInserts = vi.hoisted(() => {
   const calls: any[] = [];
+  // Simulates the DB table: key = "personaRunId|turnIndex|sender", value = row
+  const state = new Map<string, any>();
   return {
-    push(v: any) { calls.push(v); },
-    clear() { calls.length = 0; },
+    push(v: any) {
+      calls.push(v);
+      // Replicate ON CONFLICT DO UPDATE — same key → overwrites, never appends
+      const key = `${v.personaRunId}|${v.turnIndex}|${v.sender}`;
+      state.set(key, v);
+    },
+    clear() {
+      calls.length = 0;
+      state.clear();
+    },
     all() { return [...calls]; },
+    /** Returns a snapshot of surviving rows (unique by upsert key). */
+    rows() { return [...state.values()]; },
   };
 });
 
@@ -214,6 +230,133 @@ describe('POST /api/conversations/:id/realtime-messages', () => {
       .post('/api/conversations/prun-1/realtime-messages')
       .send({ messages: 'not-an-array' });
     expect(res.status).toBe(400);
+  });
+});
+
+// ─── Idempotency / no-duplicate-row tests ────────────────────────────────────
+//
+// These tests use capturedInserts.rows() which models the DB's ON CONFLICT DO
+// UPDATE behaviour: the Map is keyed by (personaRunId, turnIndex, sender) so
+// replaying the same message yields an overwrite, never a new row.
+//
+// The core invariant: after any sequence of flushes, the surviving row count
+// must equal the number of *unique* (personaRunId, turnIndex, sender) tuples
+// sent — never more (no duplicates) and never fewer (no silent drops).
+
+describe('voice session replay — no duplicate conversation rows', () => {
+  beforeEach(() => {
+    capturedInserts.clear();
+  });
+
+  it('sending the same payload twice leaves exactly N rows, not 2N', async () => {
+    const messages = [
+      { sender: 'ai',   message: 'Hello!' },
+      { sender: 'user', message: 'Hi' },
+      { sender: 'ai',   message: 'How can I help?' },
+      { sender: 'user', message: 'I need help' },
+    ];
+
+    // First flush — initial voice session write
+    const r1 = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages, isFinal: false });
+    expect(r1.status).toBe(200);
+
+    // Second flush — same payload re-sent (simulates a replay / retry)
+    const r2 = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages, isFinal: false });
+    expect(r2.status).toBe(200);
+
+    // The DB state must have exactly 4 rows — not 8
+    const rows = capturedInserts.rows();
+    expect(rows).toHaveLength(4);
+    // Every unique (turnIndex, sender) key appears exactly once
+    const keys = rows.map((r: any) => `${r.sender}:${r.turnIndex}`);
+    expect(new Set(keys).size).toBe(4);
+  });
+
+  it('reconnect scenario: initial flush + re-flush of full accumulated list = same row count', async () => {
+    // Voice session sends 2 messages, disconnects, reconnects and re-sends the
+    // same 2 messages (accumulated list) plus 2 new ones in the final flush.
+    const initialMessages = [
+      { sender: 'ai',   message: 'Greeting' },
+      { sender: 'user', message: 'Response' },
+    ];
+    const accumulatedMessages = [
+      ...initialMessages,
+      { sender: 'ai',   message: 'Follow-up after reconnect' },
+      { sender: 'user', message: 'Acknowledged' },
+    ];
+
+    // Initial flush (before disconnect)
+    const r1 = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: initialMessages, isFinal: false });
+    expect(r1.status).toBe(200);
+
+    // Re-flush after reconnect: same first 2 messages re-sent plus 2 new ones
+    const r2 = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: accumulatedMessages, isFinal: true });
+    expect(r2.status).toBe(200);
+
+    // The DB must hold exactly 4 unique rows — the repeated first 2 messages
+    // must not create extra rows beyond the 4 total unique tuples
+    const rows = capturedInserts.rows();
+    expect(rows).toHaveLength(4);
+
+    // Original messages are in the correct slots (overwritten by re-flush, same values)
+    expect(rows.find((r: any) => r.turnIndex === 0)).toMatchObject({ sender: 'ai',   message: 'Greeting' });
+    expect(rows.find((r: any) => r.turnIndex === 1)).toMatchObject({ sender: 'user', message: 'Response' });
+    expect(rows.find((r: any) => r.turnIndex === 2)).toMatchObject({ sender: 'ai',   message: 'Follow-up after reconnect' });
+    expect(rows.find((r: any) => r.turnIndex === 3)).toMatchObject({ sender: 'user', message: 'Acknowledged' });
+  });
+
+  it('repeated full-list flushes (3 replays) never exceed unique tuple count', async () => {
+    const messages = [
+      { sender: 'ai',   message: 'Turn 0' },
+      { sender: 'user', message: 'Turn 1' },
+      { sender: 'ai',   message: 'Turn 2' },
+    ];
+
+    // Send same payload three times
+    for (let i = 0; i < 3; i++) {
+      const res = await request(app)
+        .post('/api/conversations/prun-1/realtime-messages')
+        .send({ messages, isFinal: i === 2 });
+      expect(res.status).toBe(200);
+    }
+
+    const rows = capturedInserts.rows();
+    // 3 unique tuples regardless of how many times the payload was replayed
+    expect(rows).toHaveLength(3);
+    rows.forEach((row: any, i: number) => {
+      expect(row.turnIndex).toBe(i);
+    });
+  });
+
+  it('consecutive same-sender replay leaves all N distinct slots', async () => {
+    // Edge case: two AI messages before the user — each has a distinct sender:turnIndex key
+    const messages = [
+      { sender: 'ai',   message: 'AI greeting' },
+      { sender: 'ai',   message: 'AI follow-up' },
+      { sender: 'user', message: 'User reply' },
+    ];
+
+    // Send twice — simulates a replay
+    await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages, isFinal: false });
+    await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages, isFinal: false });
+
+    const rows = capturedInserts.rows();
+    expect(rows).toHaveLength(3);
+    expect(rows.find((r: any) => r.turnIndex === 0)).toMatchObject({ sender: 'ai',   message: 'AI greeting' });
+    expect(rows.find((r: any) => r.turnIndex === 1)).toMatchObject({ sender: 'ai',   message: 'AI follow-up' });
+    expect(rows.find((r: any) => r.turnIndex === 2)).toMatchObject({ sender: 'user', message: 'User reply' });
   });
 });
 
