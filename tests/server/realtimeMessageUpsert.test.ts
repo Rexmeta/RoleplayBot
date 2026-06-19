@@ -66,6 +66,9 @@ vi.mock('../../server/storage', () => ({
       subscription: { tokensUsedThisCycle: 0 },
       plan: { tokenQuotaMonthly: -1 },
     }),
+    deleteChatMessagesByPersonaRun: vi.fn().mockResolvedValue(undefined),
+    getFeedbackByConversationId: vi.fn().mockResolvedValue(null),
+    addStrategyChoice: vi.fn().mockResolvedValue({}),
   },
 }));
 
@@ -515,6 +518,213 @@ describe('POST /api/conversations/:id/realtime-messages — cross-user ownership
 
     expect(res.status).toBe(403);
     expect(capturedInserts.all()).toHaveLength(0);
+  });
+});
+
+// ─── Cross-user ownership tests: DELETE /:id/messages ─────────────────────────
+//
+// The conversation-reset route (DELETE /:id/messages) is a destructive write
+// operation.  `userRole` is intentionally NOT forwarded to
+// verifyPersonaRunOwnership, so admins and operators are also blocked from
+// resetting another user's conversation.
+
+describe('DELETE /api/conversations/:id/messages — cross-user ownership enforcement', () => {
+  const OWNER_ID = 'user-2';
+  const REQUESTER_ID = 'user-1';
+
+  beforeEach(() => {
+    capturedInserts.clear();
+    vi.mocked(storage.getPersonaRun).mockResolvedValue({
+      id: 'prun-1',
+      scenarioRunId: 'srun-1',
+    } as any);
+    vi.mocked(storage.getScenarioRun).mockResolvedValue({
+      id: 'srun-1',
+      userId: 'user-1',
+      status: 'active',
+    } as any);
+  });
+
+  it('returns 403 when a regular user tries to reset another user\'s conversation', async () => {
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const crossUserApp = express();
+    crossUserApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    crossUserApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: REQUESTER_ID, role: 'user' };
+      next();
+    }));
+    crossUserApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    const res = await request(crossUserApp)
+      .delete('/api/conversations/prun-1/messages');
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 even for an admin trying to reset another user\'s conversation', async () => {
+    // NOTE: This route intentionally does NOT pass userRole to
+    // verifyPersonaRunOwnership.  Resetting another user's conversation history
+    // is a destructive write; admin bypass is not granted here by design.
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const adminApp = express();
+    adminApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    adminApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: 'admin-user', role: 'admin' };
+      next();
+    }));
+    adminApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    const res = await request(adminApp)
+      .delete('/api/conversations/prun-1/messages');
+
+    expect(res.status).toBe(403);
+  });
+
+  it('does not call deleteChatMessagesByPersonaRun when ownership check fails', async () => {
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const crossUserApp = express();
+    crossUserApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    crossUserApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: REQUESTER_ID, role: 'user' };
+      next();
+    }));
+    crossUserApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    await request(crossUserApp).delete('/api/conversations/prun-1/messages');
+
+    expect(vi.mocked(storage.deleteChatMessagesByPersonaRun)).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Cross-user ownership tests: POST /:id/strategy-choices ───────────────────
+//
+// The strategy-choices write route enforces owner-only access.  As with
+// realtime-messages and the message-reset route, `userRole` is not forwarded,
+// so admin/operator users cannot write strategy choices into another user's run.
+
+describe('POST /api/conversations/:id/strategy-choices — cross-user ownership enforcement', () => {
+  const OWNER_ID = 'user-2';
+  const REQUESTER_ID = 'user-1';
+
+  const validBody = {
+    phase: 1,
+    choice: 'Empathy-first approach',
+    reasoning: 'Building rapport before addressing the conflict',
+  };
+
+  beforeEach(() => {
+    capturedInserts.clear();
+    vi.mocked(storage.getPersonaRun).mockResolvedValue({
+      id: 'prun-1',
+      scenarioRunId: 'srun-1',
+    } as any);
+    vi.mocked(storage.getScenarioRun).mockResolvedValue({
+      id: 'srun-1',
+      userId: 'user-1',
+      status: 'active',
+    } as any);
+  });
+
+  it('returns 403 when a regular user tries to write strategy choices into another user\'s run', async () => {
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const crossUserApp = express();
+    crossUserApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    crossUserApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: REQUESTER_ID, role: 'user' };
+      next();
+    }));
+    crossUserApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    const res = await request(crossUserApp)
+      .post('/api/conversations/prun-1/strategy-choices')
+      .send(validBody);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 even for an admin trying to write strategy choices into another user\'s run', async () => {
+    // NOTE: This route intentionally does NOT pass userRole to
+    // verifyPersonaRunOwnership.  Writing strategy choices into another user's
+    // conversation is a write operation; admin bypass is not granted here by design.
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const adminApp = express();
+    adminApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    adminApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: 'admin-user', role: 'admin' };
+      next();
+    }));
+    adminApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    const res = await request(adminApp)
+      .post('/api/conversations/prun-1/strategy-choices')
+      .send(validBody);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('does not call addStrategyChoice when ownership check fails', async () => {
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: OWNER_ID,
+      status: 'active',
+    } as any);
+
+    const crossUserApp = express();
+    crossUserApp.use(express.json());
+    const { default: createConversationsRouter } = await import('../../server/routes/conversations');
+    crossUserApp.use('/api/conversations', createConversationsRouter((req: any, _res: any, next: any) => {
+      req.user = { id: REQUESTER_ID, role: 'user' };
+      next();
+    }));
+    crossUserApp.use((err: any, _req: any, res: any, _next: any) => {
+      res.status(err.status || 500).json({ error: err.message });
+    });
+
+    await request(crossUserApp)
+      .post('/api/conversations/prun-1/strategy-choices')
+      .send(validBody);
+
+    expect(vi.mocked(storage.addStrategyChoice)).not.toHaveBeenCalled();
   });
 });
 

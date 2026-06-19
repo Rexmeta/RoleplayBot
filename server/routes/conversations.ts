@@ -1521,6 +1521,12 @@ ${userNameLine}
     });
   }));
 
+  // NOTE: `userRole` is intentionally NOT passed to verifyPersonaRunOwnership here.
+  // This is a write route that upserts voice-session message history directly into
+  // another user's conversation — even admins and operators must not write into a
+  // run they do not own, to preserve data integrity.  Admin read-only access is
+  // handled by GET routes that do pass the role.  See the corresponding test in
+  // tests/server/realtimeMessageUpsert.test.ts.
   router.post("/:id/realtime-messages", isAuthenticated, checkTokenQuota, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     const personaRunId = req.params.id;
@@ -1602,6 +1608,9 @@ ${userNameLine}
     res.json({ success: true, turnCount });
   }));
 
+  // NOTE: `userRole` is intentionally NOT passed to verifyPersonaRunOwnership here.
+  // Deleting another user's conversation messages is a destructive write operation;
+  // strict owner-only enforcement is the correct posture even for admins/operators.
   router.delete("/:id/messages", isAuthenticated, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;
     const personaRunId = req.params.id;
