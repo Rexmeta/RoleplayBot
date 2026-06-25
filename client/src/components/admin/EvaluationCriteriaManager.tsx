@@ -1821,6 +1821,13 @@ function CriteriaSetDetail({
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dimensions' | 'quality' | 'dryrun' | 'translation'>('dimensions');
+  const [dryRunInputMode, setDryRunInputMode] = useState<'freetext' | 'json'>('freetext');
+  const [dryRunFreeText, setDryRunFreeText] = useState(
+`사용자: 안녕하세요. 이번 프로젝트 진행 상황을 보고드리려고 합니다.
+AI: 네, 말씀해 보세요.
+사용자: 결론부터 말씀드리면 일정이 2주 지연되었습니다. 주요 원인은 외부 API 연동 이슈였고, 현재 해결 완료하여 정상 진행 중입니다.
+AI: 지연된 이유가 더 있나요?
+사용자: 네, API 이슈 외에도 인원 1명이 병가를 내어 일정에 영향을 주었습니다. 2주 뒤 원래 일정 대비 80% 완료를 목표로 하고 있습니다.`);
   const [dryRunMessages, setDryRunMessages] = useState(`[
   { "role": "user", "content": "안녕하세요. 이번 프로젝트 진행 상황을 보고드리려고 합니다." },
   { "role": "assistant", "content": "네, 말씀해 보세요." },
@@ -1858,13 +1865,62 @@ function CriteriaSetDetail({
     enabled: activeTab === 'translation',
   });
 
+  function parseFreeTextToMessages(text: string): Array<{ role: string; content: string }> {
+    const lines = text.split('\n');
+    const messages: Array<{ role: string; content: string }> = [];
+    let currentRole: string | null = null;
+    let currentLines: string[] = [];
+
+    const flush = () => {
+      if (currentRole && currentLines.length > 0) {
+        const content = currentLines.join('\n').trim();
+        if (content) messages.push({ role: currentRole, content });
+      }
+      currentLines = [];
+    };
+
+    const skippedLines: string[] = [];
+    for (const line of lines) {
+      const userMatch = line.match(/^사용자:\s*(.*)/);
+      const aiMatch = line.match(/^AI:\s*(.*)/i);
+      if (userMatch) {
+        flush();
+        currentRole = 'user';
+        currentLines = [userMatch[1]];
+      } else if (aiMatch) {
+        flush();
+        currentRole = 'assistant';
+        currentLines = [aiMatch[1]];
+      } else if (currentRole) {
+        currentLines.push(line);
+      } else if (line.trim()) {
+        skippedLines.push(line.trim());
+      }
+    }
+    flush();
+
+    if (skippedLines.length > 0) {
+      console.warn('[드라이런] 인식되지 않은 라인 무시됨:', skippedLines);
+    }
+
+    if (messages.length === 0) {
+      throw new Error('대화를 파싱할 수 없습니다. "사용자: ..." / "AI: ..." 형식으로 입력해 주세요.');
+    }
+    return messages;
+  }
+
   const dryRunMutation = useMutation({
     mutationFn: async () => {
       let parsedMessages;
-      try {
-        parsedMessages = JSON.parse(dryRunMessages);
-      } catch {
-        throw new Error('대화 메시지 형식이 올바르지 않습니다. JSON 배열 형식으로 입력해 주세요.');
+      if (dryRunInputMode === 'freetext') {
+        parsedMessages = parseFreeTextToMessages(dryRunFreeText);
+        setDryRunMessages(JSON.stringify(parsedMessages, null, 2));
+      } else {
+        try {
+          parsedMessages = JSON.parse(dryRunMessages);
+        } catch {
+          throw new Error('대화 메시지 형식이 올바르지 않습니다. JSON 배열 형식으로 입력해 주세요.');
+        }
       }
       const res = await apiRequest('POST', `/api/admin/evaluation-criteria/${setId}/dry-run`, {
         messages: parsedMessages,
@@ -2432,19 +2488,54 @@ function CriteriaSetDetail({
             <Info className="h-4 w-4 mt-0.5 shrink-0" />
             <span>드라이런 평가는 이 루브릭으로 샘플 대화를 테스트합니다. <strong>결과는 저장되지 않습니다.</strong></span>
           </div>
-          <div>
-            <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">샘플 대화 메시지 (JSON 배열)</Label>
-            <Textarea
-              value={dryRunMessages}
-              onChange={(e) => setDryRunMessages(e.target.value)}
-              rows={10}
-              className="font-mono text-xs"
-              placeholder='[{"role":"user","content":"..."}, {"role":"assistant","content":"..."}]'
-            />
+
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 w-fit">
+            <button
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dryRunInputMode === 'freetext' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setDryRunInputMode('freetext')}
+            >
+              자유 텍스트
+            </button>
+            <button
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dryRunInputMode === 'json' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setDryRunInputMode('json')}
+            >
+              JSON 직접 입력
+            </button>
           </div>
+
+          {dryRunInputMode === 'freetext' ? (
+            <div>
+              <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">대화 입력 (사용자: ... / AI: ... 형식)</Label>
+              <Textarea
+                value={dryRunFreeText}
+                onChange={(e) => setDryRunFreeText(e.target.value)}
+                rows={10}
+                className="text-sm"
+                placeholder={`사용자: 안녕하세요.\nAI: 네, 말씀해 보세요.\n사용자: ...`}
+              />
+              <p className="text-xs text-slate-400 mt-1.5">줄마다 <code className="bg-slate-100 px-1 rounded">사용자:</code> 또는 <code className="bg-slate-100 px-1 rounded">AI:</code> 로 시작하세요. 실행 시 자동으로 JSON으로 변환됩니다.</p>
+            </div>
+          ) : (
+            <div>
+              <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">샘플 대화 메시지 (JSON 배열)</Label>
+              <Textarea
+                value={dryRunMessages}
+                onChange={(e) => setDryRunMessages(e.target.value)}
+                rows={10}
+                className="font-mono text-xs"
+                placeholder='[{"role":"user","content":"..."}, {"role":"assistant","content":"..."}]'
+              />
+            </div>
+          )}
+
           <Button onClick={() => dryRunMutation.mutate()} disabled={dryRunMutation.isPending} className="w-full">
             <FlaskConical className="h-4 w-4 mr-2" />
-            {dryRunMutation.isPending ? '평가 중...' : '드라이런 평가 실행'}
+            {dryRunMutation.isPending
+              ? '평가 중...'
+              : dryRunInputMode === 'freetext'
+                ? 'JSON으로 변환 후 실행'
+                : '드라이런 평가 실행'}
           </Button>
 
           {dryRunResult && (

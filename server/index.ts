@@ -181,7 +181,8 @@ app.use((req, res, next) => {
     req.path.includes('/generate-player-constraints') ||
     req.path.includes('/generate-npc-behavior-harness') ||
     req.path.includes('/fill-scenario-fields') ||
-    (req.method === 'POST' && req.path.includes('/feedback'));
+    (req.method === 'POST' && req.path.includes('/feedback')) ||
+    req.path.includes('/dry-run');
   
   const timeoutMs = isSlowEndpoint ? LONG_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
 
