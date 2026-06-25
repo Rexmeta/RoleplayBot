@@ -361,8 +361,10 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
       throw createHttpError(400, "Name is required");
     }
 
-    // Validate BEFORE persisting anything so we can fail fast without orphaning data or clearing the existing default
-    const setValidation = validateEvaluationCriteriaSet(Array.isArray(dimensions) ? dimensions : []);
+    // Validate BEFORE persisting anything so we can fail fast without orphaning data or clearing the existing default.
+    // Weight-sum (100%) check is intentionally deferred to the request-review stage so users can freely
+    // add/edit dimensions in any order without mid-stream validation failures.
+    const setValidation = validateEvaluationCriteriaSet(Array.isArray(dimensions) ? dimensions : [], { skipWeightValidation: true });
     if (!setValidation.valid) {
       throw createHttpError(400, `평가 기준 유효성 검사 실패:\n${setValidation.errors.join('\n')}`);
     }
@@ -725,6 +727,15 @@ Return JSON: {
     await assertOperatorRubricAccess(existing, req.user);
     if (existing.status === 'approved') throw createHttpError(400, "이미 승인된 기준은 검토 요청할 수 없습니다");
     if (existing.status === 'archived') throw createHttpError(400, "보관된 기준은 검토 요청할 수 없습니다");
+
+    // Final gate: enforce 100% weight sum before allowing review request.
+    // Individual add/edit/delete operations deliberately skip this check.
+    const dimensions = await storage.getEvaluationDimensionsByCriteriaSet(id);
+    const weightValidation = validateEvaluationCriteriaSet(dimensions);
+    if (!weightValidation.valid) {
+      throw createHttpError(400, `검토 요청 전 유효성 검사 실패:\n${weightValidation.errors.join('\n')}`);
+    }
+
     const updated = await storage.updateEvaluationCriteriaSetStatus(id, 'review');
     res.json(updated);
   }));
@@ -915,7 +926,8 @@ Return JSON: {
       throw createHttpError(400, `평가 차원 키 "${key}"가 이미 존재합니다. 다른 키를 사용하세요.`);
     }
 
-    // Validate the full post-change set (count ≥ 3, weight sum ≈ 100, rubric ≥ 5 per active dimension)
+    // Validate the full post-change set (count ≥ 3, rubric ≥ 5 per active dimension).
+    // Weight-sum (100%) check is skipped here — deferred to request-review stage.
     const postAddDims = [
       ...existingDimensions,
       {
@@ -929,7 +941,7 @@ Return JSON: {
         evaluationPrompt: evaluationPrompt || null,
       },
     ];
-    const postAddSetValidation = validateEvaluationCriteriaSet(postAddDims);
+    const postAddSetValidation = validateEvaluationCriteriaSet(postAddDims, { skipWeightValidation: true });
     if (!postAddSetValidation.valid) {
       throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postAddSetValidation.errors.join('\n')}`);
     }
@@ -1016,7 +1028,8 @@ Return JSON: {
       }
     }
 
-    // Validate the full post-change set (count ≥ 3, weight sum ≈ 100, rubric ≥ 5 per active dimension)
+    // Validate the full post-change set (count ≥ 3, rubric ≥ 5 per active dimension).
+    // Weight-sum (100%) check is skipped here — deferred to request-review stage.
     const postUpdateDims = siblings.map((d: any) =>
       d.id === id
         ? {
@@ -1031,7 +1044,7 @@ Return JSON: {
           }
         : d
     );
-    const postUpdateSetValidation = validateEvaluationCriteriaSet(postUpdateDims);
+    const postUpdateSetValidation = validateEvaluationCriteriaSet(postUpdateDims, { skipWeightValidation: true });
     if (!postUpdateSetValidation.valid) {
       throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postUpdateSetValidation.errors.join('\n')}`);
     }
@@ -1057,10 +1070,11 @@ Return JSON: {
       throw createHttpError(409, "승인된 루브릭의 차원은 삭제할 수 없습니다. 먼저 '새 버전 만들기'를 통해 초안 버전을 생성한 후 수정하세요.");
     }
 
-    // Validate the full post-delete set (count ≥ 3, weight sum ≈ 100)
+    // Validate the full post-delete set (count ≥ 3).
+    // Weight-sum (100%) check is skipped here — deferred to request-review stage.
     const siblings = await storage.getEvaluationDimensionsByCriteriaSet(existing.criteriaSetId);
     const postDeleteDims = siblings.filter((d: any) => d.id !== id);
-    const postDeleteSetValidation = validateEvaluationCriteriaSet(postDeleteDims);
+    const postDeleteSetValidation = validateEvaluationCriteriaSet(postDeleteDims, { skipWeightValidation: true });
     if (!postDeleteSetValidation.valid) {
       throw createHttpError(400, `삭제 후 세트 유효성 검사 실패:\n${postDeleteSetValidation.errors.join('\n')}`);
     }

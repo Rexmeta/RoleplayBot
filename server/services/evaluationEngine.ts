@@ -555,6 +555,9 @@ export function validateEvaluationDimension(dim: {
 /**
  * 평가 기준 세트 전체 유효성 검사
  * 차원 수(3개 이상), 가중치 합계(100%), 점수 범위, key 중복, 루브릭 단계 수를 검증한다
+ *
+ * @param options.skipWeightValidation true이면 가중치 합계 100% 검사를 건너뜀
+ *   (개별 차원 편집·삭제·추가 시 중간 상태 저장 허용 — 최종 검토 요청 단계에서만 강제)
  */
 export function validateEvaluationCriteriaSet(dimensions: Array<{
   key?: string;
@@ -565,7 +568,7 @@ export function validateEvaluationCriteriaSet(dimensions: Array<{
   isActive?: boolean;
   scoringRubric?: { score: number; label: string; description: string }[] | null;
   evaluationPrompt?: string | null;
-}>): { valid: boolean; errors: string[] } {
+}>, options?: { skipWeightValidation?: boolean }): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   const activeDims = dimensions.filter(d => d.isActive !== false);
@@ -574,9 +577,11 @@ export function validateEvaluationCriteriaSet(dimensions: Array<{
     errors.push(`평가 차원은 최소 3개 이상 필요합니다 (현재 활성: ${activeDims.length}개)`);
   }
 
-  const totalWeight = activeDims.reduce((sum, d) => sum + (d.weight ?? 0), 0);
-  if (Math.abs(totalWeight - 100) > 0.5) {
-    errors.push(`가중치 합계는 100%여야 합니다 (현재: ${totalWeight.toFixed(1)}%)`);
+  if (!options?.skipWeightValidation) {
+    const totalWeight = activeDims.reduce((sum, d) => sum + (d.weight ?? 0), 0);
+    if (Math.abs(totalWeight - 100) > 0.5) {
+      errors.push(`가중치 합계는 100%여야 합니다 (현재: ${totalWeight.toFixed(1)}%)`);
+    }
   }
 
   const keys = dimensions.map(d => d.key).filter(Boolean) as string[];

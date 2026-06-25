@@ -1821,6 +1821,7 @@ function CriteriaSetDetail({
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dimensions' | 'quality' | 'dryrun' | 'translation'>('dimensions');
+  const [reviewRequestWeightError, setReviewRequestWeightError] = useState<string | null>(null);
   const [dryRunInputMode, setDryRunInputMode] = useState<'freetext' | 'json'>('freetext');
   const [dryRunFreeText, setDryRunFreeText] = useState(
 `사용자: 안녕하세요. 이번 프로젝트 진행 상황을 보고드리려고 합니다.
@@ -2078,7 +2079,20 @@ AI: 지연된 이유가 더 있나요?
             </Button>
           )}
           {canRequestReview && (currentStatus === 'draft' || !currentStatus) && (
-            <Button variant="outline" size="sm" onClick={() => statusMutation.mutate({ action: 'request-review' })} disabled={isPending} className="text-yellow-700 border-yellow-300 hover:bg-yellow-50">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!isWeightValid) {
+                  setReviewRequestWeightError(`가중치 합계가 100%여야 합니다. 현재 ${totalWeight.toFixed(1)}%입니다.`);
+                  return;
+                }
+                setReviewRequestWeightError(null);
+                statusMutation.mutate({ action: 'request-review' });
+              }}
+              disabled={isPending}
+              className="text-yellow-700 border-yellow-300 hover:bg-yellow-50"
+            >
               <ClockIcon className="h-4 w-4 mr-1" />
               {isAdmin ? '검토 요청' : '승인 요청'}
             </Button>
@@ -2132,12 +2146,20 @@ AI: 지연된 이유가 더 있나요?
             </Button>
           )}
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${isWeightValid ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-          {!isWeightValid && <AlertCircle className="h-4 w-4" />}
-          <span className="text-sm font-medium">
-            {t('admin.evaluationCriteria.weightSum')}: <span className="font-bold">{totalWeight.toFixed(1)}%</span>
-            {!isWeightValid && ` ${t('admin.evaluationCriteria.weightRecommended')}`}
-          </span>
+        <div className="flex flex-col items-end gap-1">
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-lg ${isWeightValid ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+            {!isWeightValid && <AlertCircle className="h-4 w-4" />}
+            <span className="text-sm font-medium">
+              {t('admin.evaluationCriteria.weightSum')}: <span className="font-bold">{totalWeight.toFixed(1)}%</span>
+              {!isWeightValid && ` ${t('admin.evaluationCriteria.weightRecommended')}`}
+            </span>
+          </div>
+          {reviewRequestWeightError && !isWeightValid && (
+            <div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              <span>{reviewRequestWeightError}</span>
+            </div>
+          )}
         </div>
       </div>
 
