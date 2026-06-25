@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
@@ -217,6 +218,7 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
   };
 
   return (
+    <Fragment>
     <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) { setAiFilledFields(new Set()); setShowResetConfirm(false); } }}>
       <TooltipProvider>
         <Tooltip>
@@ -268,76 +270,28 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
                 <p className="text-xs text-slate-500">AI가 업종, 상황 세부사항, 시간 제약, 이해관계 등을 자동으로 추론합니다</p>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
                   {formData.idea.trim() && (
-                    showResetConfirm ? (
-                      <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-md px-2 py-1">
-                        <span className="text-xs text-red-600 font-medium">모두 지우시겠어요?</span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => { handleResetAll(); setShowResetConfirm(false); }}
-                          className="h-6 px-2 text-xs text-white bg-red-500 hover:bg-red-600"
-                        >
-                          확인
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setShowResetConfirm(false)}
-                          className="h-6 px-2 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-                        >
-                          취소
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowResetConfirm(true)}
-                        className="text-slate-400 hover:text-red-500 hover:bg-red-50 px-2"
-                      >
-                        <X className="h-3.5 w-3.5 mr-1" />
-                        전체 초기화
-                      </Button>
-                    )
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setShowResetConfirm(true)}
+                      className="text-slate-400 hover:text-red-500 hover:bg-red-50 px-2"
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" />
+                      전체 초기화
+                    </Button>
                   )}
                   {aiFilledFields.size > 0 && (
-                    showResetAutoFilledConfirm ? (
-                      <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-md px-2 py-1">
-                        <span className="text-xs text-red-600 font-medium">AI 입력을 지우시겠어요?</span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => { handleResetAutoFilled(); setShowResetAutoFilledConfirm(false); }}
-                          className="h-6 px-2 text-xs text-white bg-red-500 hover:bg-red-600"
-                        >
-                          확인
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setShowResetAutoFilledConfirm(false)}
-                          className="h-6 px-2 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-                        >
-                          취소
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowResetAutoFilledConfirm(true)}
-                        className="border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                      >
-                        <X className="h-3.5 w-3.5 mr-1.5" />
-                        초기화
-                      </Button>
-                    )
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowResetAutoFilledConfirm(true)}
+                      className="border-slate-300 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                    >
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      초기화
+                    </Button>
                   )}
                   <Button
                     type="button"
@@ -742,5 +696,46 @@ export function AIScenarioGenerator({ onGenerated }: AIGeneratorProps) {
         </div>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>전체 초기화</AlertDialogTitle>
+          <AlertDialogDescription>
+            입력된 모든 내용이 삭제됩니다. 계속하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleResetAll}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            확인
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog open={showResetAutoFilledConfirm} onOpenChange={setShowResetAutoFilledConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>AI 자동완성 초기화</AlertDialogTitle>
+          <AlertDialogDescription>
+            AI가 자동으로 입력한 내용이 삭제됩니다. 계속하시겠습니까?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => { handleResetAutoFilled(); setShowResetAutoFilledConfirm(false); }}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            확인
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </Fragment>
   );
 }
