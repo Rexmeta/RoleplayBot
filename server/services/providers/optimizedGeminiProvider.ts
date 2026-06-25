@@ -14,6 +14,7 @@ import {
   normalizeProfileName,
 } from "../conversationContextBuilder";
 import { trackUsage, extractGeminiTokens, getModelPricingKey } from "../aiUsageTracker";
+import { storage } from "../../storage";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 import {
   DEFAULT_DIMENSIONS,
@@ -755,9 +756,35 @@ ${conversationHistory}
     let lastReason = '';
     let hasSameScoreFailure = false;
 
+    // Pre-fetch few-shot examples once before retry loop
+    let fewShotSection = '';
+    try {
+      const dimensions = evaluationCriteria?.dimensions ?? [];
+      const fewShotParts = await Promise.all(
+        dimensions.map(async (dim) => {
+          const examples = await storage.getActiveFewShotExamplesByDimension(dim.id);
+          if (examples.length === 0) return null;
+          const exampleText = examples.map((ex, i) => {
+            const lines = [`  예시 ${i + 1} (점수: ${ex.score}/10)`];
+            if (ex.context) lines.push(`  [상황] ${ex.context}`);
+            lines.push(`  [대화]\n${ex.transcript.split('\n').map((l: string) => `    ${l}`).join('\n')}`);
+            lines.push(`  [채점 근거] ${ex.rationale}`);
+            return lines.join('\n');
+          }).join('\n\n');
+          return `**${dim.name}** 퓨샷 채점 예시:\n${exampleText}`;
+        })
+      );
+      const validParts = fewShotParts.filter(Boolean) as string[];
+      if (validParts.length > 0) {
+        fewShotSection = '\n\n**📚 퓨샷 채점 예시** (아래 예시를 참고하여 일관성 있게 채점하세요):\n' + validParts.join('\n\n');
+      }
+    } catch {
+      // Non-fatal: skip few-shot injection on error
+    }
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language, hasSameScoreFailure);
+        const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language, hasSameScoreFailure, fewShotSection);
 
         const response = await retryWithBackoff(() =>
           this.genAI.models.generateContent({
@@ -842,7 +869,7 @@ ${conversationHistory}
     return lastFeedback || this.getFallbackFeedback(evaluationCriteria);
   }
 
-  private buildCompactFeedbackPrompt(scenario: RoleplayScenario | string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko', hasSameScoreFailure: boolean = false): string {
+  private buildCompactFeedbackPrompt(scenario: RoleplayScenario | string, messages: ConversationMessage[], persona: ScenarioPersona, conversation?: Partial<import("@shared/schema").Conversation>, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko', hasSameScoreFailure: boolean = false, fewShotSection: string = ''): string {
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     const voiceMode = isVoiceMode(conversation);
 
@@ -1026,7 +1053,7 @@ ${emotionSection ? `- **감정 영향 평가**: AI 페르소나의 감정이 ${e
 
 **평가 영역** (1-10점):
 ${dimensionsList}
-${scoringRubricsSection}
+${scoringRubricsSection}${fewShotSection}
 
 **⚠️ 독립 증거 기반 채점 필수 원칙**:
 - **[1단계] 각 영역별로 피평가자 발화에서 해당 영역의 증거(긍정/부정)를 먼저 인용하세요.**

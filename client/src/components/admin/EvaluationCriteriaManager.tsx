@@ -19,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, ChevronRight, Info, Bot, Download } from "lucide-react";
+import { FewShotLearningTab } from "./FewShotLearningTab";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -1553,6 +1554,8 @@ function InlineDimensionEditor({
     '#ef4444', '#ec4899', '#d946ef', '#a855f7',
   ];
 
+  const [dimEditorTab, setDimEditorTab] = useState<'settings' | 'fewshot'>('settings');
+
   const handleSave = () => {
     onSave({
       key: dimension.key,
@@ -1602,6 +1605,18 @@ function InlineDimensionEditor({
           </Button>
         </div>
       </div>
+
+      <Tabs value={dimEditorTab} onValueChange={(v) => setDimEditorTab(v as any)}>
+        <TabsList className="h-7 text-xs mb-3">
+          <TabsTrigger value="settings" className="text-xs h-6 px-3">기본 설정</TabsTrigger>
+          <TabsTrigger value="fewshot" className="text-xs h-6 px-3">퓨샷 예시</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="fewshot" className="mt-0">
+          <FewShotLearningTab dimensionId={dimension.id} />
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-0">
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
@@ -1786,6 +1801,9 @@ function InlineDimensionEditor({
           </div>
         </div>
       </div>
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

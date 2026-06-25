@@ -43,7 +43,7 @@ Preferred communication style: Simple, everyday language.
   - `conversations.ts` — `conversations`, `persona_runs`, `simulation_events`, `chat_messages`
   - `scenarios.ts` — `scenarios`, `scenario_versions`, `scenario_runs`, `scenario_overrides`
   - `personas.ts` — `mbti_personas`, `user_personas`, `user_persona_likes`, `persona_user_scenes`
-  - `feedback.ts` — `feedbacks`, `evaluation_criteria_sets`, `evaluation_dimensions`
+  - `feedback.ts` — `feedbacks`, `evaluation_criteria_sets`, `evaluation_dimensions`, `few_shot_examples`
   - `analytics.ts` — `ai_usage_logs`, `hr_benchmark_targets`
   - `billing.ts` — `plans`, `subscriptions`
   - `store.ts` — `store_packs`, `store_entitlements`, `store_entitlement_audit_log`

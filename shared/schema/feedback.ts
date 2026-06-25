@@ -99,4 +99,24 @@ export type EvaluationCriteriaSetWithDimensions = EvaluationCriteriaSet & {
   dimensions: EvaluationDimension[];
 };
 
+export const fewShotExamples = pgTable("few_shot_examples", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dimensionId: varchar("dimension_id").notNull().references(() => evaluationDimensions.id, { onDelete: 'cascade' }),
+  context: text("context"),
+  transcript: text("transcript").notNull(),
+  score: integer("score").notNull(),
+  rationale: text("rationale").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_few_shot_examples_dimension").on(table.dimensionId),
+]);
+
+export const insertFewShotExampleSchema = createInsertSchema(fewShotExamples).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFewShotExample = z.infer<typeof insertFewShotExampleSchema>;
+export type FewShotExample = typeof fewShotExamples.$inferSelect;
+
 export type { EvaluationScore, DetailedFeedback, ActionGuide, ConversationGuide, DevelopmentPlan, PlanItem, ScoringRubric, EvaluationEvidence } from "./types";

@@ -62,6 +62,7 @@ const SERVER_FILES_ABSOLUTE: string[] = [
   "server/routes/personaScenes.ts",
   "server/routes/personaUserScenes.ts",
   "server/routes/hrAnalytics.ts",
+  "server/routes/fewShotExamples.ts",
   "server/replit_integrations/object_storage/routes.ts",
 ];
 

@@ -1,4 +1,4 @@
-import { type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions } from "@shared/schema";
+import { type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type FewShotExample, type InsertFewShotExample, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, fewShotExamples } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, and, gte, lte, or, isNull, sql } from "drizzle-orm";
 
@@ -30,6 +30,12 @@ export interface IAnalyticsStorage {
 
   getEvaluationCriteriaSetWithDimensions(id: string): Promise<EvaluationCriteriaSetWithDimensions | undefined>;
   getActiveEvaluationCriteriaSetWithDimensions(categoryId?: string): Promise<EvaluationCriteriaSetWithDimensions | undefined>;
+
+  getFewShotExamplesByDimension(dimensionId: string): Promise<FewShotExample[]>;
+  getActiveFewShotExamplesByDimension(dimensionId: string): Promise<FewShotExample[]>;
+  createFewShotExample(data: InsertFewShotExample): Promise<FewShotExample>;
+  updateFewShotExample(id: string, patch: Partial<InsertFewShotExample>): Promise<FewShotExample>;
+  deleteFewShotExample(id: string): Promise<void>;
 }
 
 type Constructor<T = {}> = new (...args: any[]) => T;
@@ -215,6 +221,29 @@ export function AnalyticsMixin<TBase extends Constructor>(Base: TBase) {
       const dimensions = await this.getEvaluationDimensionsByCriteriaSet(criteriaSet.id);
       return { ...criteriaSet, dimensions };
     }
+
+    async getFewShotExamplesByDimension(dimensionId: string): Promise<FewShotExample[]> {
+      return db.select().from(fewShotExamples).where(eq(fewShotExamples.dimensionId, dimensionId)).orderBy(desc(fewShotExamples.createdAt));
+    }
+
+    async getActiveFewShotExamplesByDimension(dimensionId: string): Promise<FewShotExample[]> {
+      return db.select().from(fewShotExamples).where(and(eq(fewShotExamples.dimensionId, dimensionId), eq(fewShotExamples.isActive, true))).orderBy(desc(fewShotExamples.createdAt));
+    }
+
+    async createFewShotExample(data: InsertFewShotExample): Promise<FewShotExample> {
+      const [row] = await db.insert(fewShotExamples).values(data as any).returning();
+      return row;
+    }
+
+    async updateFewShotExample(id: string, patch: Partial<InsertFewShotExample>): Promise<FewShotExample> {
+      const [row] = await db.update(fewShotExamples).set(patch as any).where(eq(fewShotExamples.id, id)).returning();
+      if (!row) throw new Error("FewShotExample not found");
+      return row;
+    }
+
+    async deleteFewShotExample(id: string): Promise<void> {
+      await db.delete(fewShotExamples).where(eq(fewShotExamples.id, id));
+    }
   };
 }
 
@@ -243,4 +272,9 @@ export class MemAnalyticsStorage implements IAnalyticsStorage {
   async deleteEvaluationDimension(_: string): Promise<void> { throw new Error("Not implemented in MemStorage"); }
   async getEvaluationCriteriaSetWithDimensions(_: string): Promise<EvaluationCriteriaSetWithDimensions | undefined> { return undefined; }
   async getActiveEvaluationCriteriaSetWithDimensions(_?: string): Promise<EvaluationCriteriaSetWithDimensions | undefined> { return undefined; }
+  async getFewShotExamplesByDimension(_: string): Promise<FewShotExample[]> { return []; }
+  async getActiveFewShotExamplesByDimension(_: string): Promise<FewShotExample[]> { return []; }
+  async createFewShotExample(_: InsertFewShotExample): Promise<FewShotExample> { throw new Error("Not implemented in MemStorage"); }
+  async updateFewShotExample(_: string, __: Partial<InsertFewShotExample>): Promise<FewShotExample> { throw new Error("Not implemented in MemStorage"); }
+  async deleteFewShotExample(_: string): Promise<void> { throw new Error("Not implemented in MemStorage"); }
 }

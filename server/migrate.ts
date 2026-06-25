@@ -1874,6 +1874,26 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to ensure chat_messages upsert index:', err);
       }
 
+      // few_shot_examples table
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "few_shot_examples" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "dimension_id" varchar NOT NULL REFERENCES "evaluation_dimensions"("id") ON DELETE CASCADE,
+            "context" text,
+            "transcript" text NOT NULL,
+            "score" integer NOT NULL,
+            "rationale" text NOT NULL,
+            "is_active" boolean DEFAULT true NOT NULL,
+            "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS "idx_few_shot_examples_dimension" ON "few_shot_examples"("dimension_id");
+        `);
+        console.log('✅ few_shot_examples table ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to ensure few_shot_examples table:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();
