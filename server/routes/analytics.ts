@@ -3,8 +3,8 @@ import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { getOperatorAccessibleCategoryIds, asyncHandler, createHttpError } from "./routerHelpers";
 import type { EvaluationScore, DetailedFeedback } from "@shared/schema";
-import { aiUsageLogs } from "@shared/schema";
-import { gte, lte, and, sql, inArray, asc, desc } from "drizzle-orm";
+import { aiUsageLogs, users } from "@shared/schema";
+import { gte, lte, and, sql, inArray, asc, desc, eq } from "drizzle-orm";
 
 export default function createAnalyticsRouter(isAuthenticated: any) {
   const router = Router();
@@ -1623,6 +1623,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
           summary: { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCachedTokens: 0, totalErrors: 0, totalCostUsd: 0 },
           byFeature: [],
           byModel: [],
+          byUser: [],
         });
       }
 
@@ -1646,6 +1647,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
           summary: { totalRequests: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCachedTokens: 0, totalErrors: 0, totalCostUsd: 0 },
           byFeature: [],
           byModel: [],
+          byUser: [],
         });
       }
     }
@@ -1741,7 +1743,32 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       totalCostUsd: Number(r.totalCostUsd),
     }));
 
-    res.json({ rows, summary, byFeature, byModel });
+    // By user
+    const byUserRaw = await db
+      .select({
+        userId:       aiUsageLogs.userId,
+        userName:     users.name,
+        userEmail:    users.email,
+        requestCount: sql<number>`COUNT(*)::int`,
+        totalTokens:  sql<number>`COALESCE(SUM(${aiUsageLogs.totalTokens}), 0)::int`,
+        totalCostUsd: sql<number>`COALESCE(SUM(${aiUsageLogs.totalCostUsd}), 0)::float`,
+      })
+      .from(aiUsageLogs)
+      .leftJoin(users, eq(aiUsageLogs.userId, users.id))
+      .where(where)
+      .groupBy(aiUsageLogs.userId, users.name, users.email)
+      .orderBy(desc(sql`SUM(${aiUsageLogs.totalTokens})`));
+
+    const byUser = byUserRaw.map(r => ({
+      userId:       r.userId ?? null,
+      userName:     r.userName ?? "(알 수 없음)",
+      userEmail:    r.userEmail ?? "",
+      requestCount: Number(r.requestCount),
+      totalTokens:  Number(r.totalTokens),
+      totalCostUsd: Number(r.totalCostUsd),
+    }));
+
+    res.json({ rows, summary, byFeature, byModel, byUser });
   }));
 
   return router;

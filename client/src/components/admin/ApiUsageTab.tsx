@@ -19,7 +19,7 @@ import {
   Cell,
 } from "recharts";
 import { authFetch } from "@/lib/authFetch";
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Zap, DollarSign, AlertCircle, Info } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpFromLine, Zap, DollarSign, AlertCircle, Info, Users } from "lucide-react";
 
 interface DailyRow {
   date: string;
@@ -46,6 +46,15 @@ interface ModelRow {
   totalCostUsd: number;
 }
 
+interface UserRow {
+  userId: string | null;
+  userName: string;
+  userEmail: string;
+  requestCount: number;
+  totalTokens: number;
+  totalCostUsd: number;
+}
+
 interface UsageSummary {
   totalRequests: number;
   totalInputTokens: number;
@@ -59,6 +68,7 @@ interface UsageResponse {
   summary: UsageSummary;
   byFeature: FeatureRow[];
   byModel: ModelRow[];
+  byUser: UserRow[];
 }
 
 function getDefaultDates() {
@@ -130,6 +140,7 @@ export function ApiUsageTab({ userRole }: ApiUsageTabProps = {}) {
   const rows = usageData?.rows ?? [];
   const byFeature = (usageData?.byFeature ?? []).map(r => ({ ...r, feature: featureLabel(r.feature) }));
   const byModel = usageData?.byModel ?? [];
+  const byUser = usageData?.byUser ?? [];
 
   const summaryCards = [
     {
@@ -391,6 +402,53 @@ export function ApiUsageTab({ userRole }: ApiUsageTabProps = {}) {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            사용자별 사용량
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2 py-4">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          ) : byUser.length === 0 ? (
+            <p className="text-center text-slate-500 py-8 text-sm">
+              선택한 기간에 사용자별 데이터가 없습니다.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-slate-500">
+                    <th className="text-left py-2 pr-4">이름</th>
+                    <th className="text-left py-2 pr-4">이메일</th>
+                    <th className="text-right py-2 pr-4">요청 수</th>
+                    <th className="text-right py-2 pr-4">총 토큰</th>
+                    <th className="text-right py-2">추정 비용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byUser.map((r, i) => (
+                    <tr key={r.userId ?? i} className="border-b last:border-0 hover:bg-slate-50">
+                      <td className="py-2 pr-4 font-medium">{r.userName}</td>
+                      <td className="py-2 pr-4 text-slate-500">{r.userEmail || "—"}</td>
+                      <td className="text-right py-2 pr-4">{r.requestCount.toLocaleString()}</td>
+                      <td className="text-right py-2 pr-4">{fmt(r.totalTokens)}</td>
+                      <td className="text-right py-2 text-slate-600">{fmtCost(r.totalCostUsd)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
