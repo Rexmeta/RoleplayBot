@@ -18,7 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, ChevronRight, Info, Bot } from "lucide-react";
+import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, ChevronRight, Info, Bot, Download } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -2586,6 +2586,50 @@ AI: 지연된 이유가 더 있나요?
 
           {dryRunResult && (
             <div className="space-y-3">
+              <div className="flex items-center gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(dryRunResult, null, 2))
+                      .then(() => toast({ title: '클립보드에 복사됨', description: 'JSON 결과가 클립보드에 복사되었습니다.' }))
+                      .catch(() => toast({ title: '복사 실패', variant: 'destructive' }));
+                  }}
+                >
+                  <Copy className="h-3 w-3" />
+                  결과 복사
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => {
+                    const scores = (dryRunResult.dimensionScores || dryRunResult.dimension_scores || []);
+                    const lines = [
+                      `드라이런 평가 결과`,
+                      `종합 점수: ${dryRunResult.overallScore ?? dryRunResult.total_score ?? '—'}`,
+                      `요약: ${dryRunResult.summary || dryRunResult.overallComment || '요약 없음'}`,
+                      '',
+                      '차원별 점수:',
+                      ...scores.map((ds: any, i: number) =>
+                        `  ${ds.dimensionName || ds.dimension_name || `차원 ${i + 1}`}: ${ds.score ?? ds.rawScore ?? '—'} (가중치 ${ds.weight ?? '—'}%)${ds.comment ? ' — ' + ds.comment : ''}`
+                      ),
+                    ];
+                    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `dryrun_result_${Date.now()}.txt`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    toast({ title: '다운로드 완료', description: '텍스트 요약 파일이 저장되었습니다.' });
+                  }}
+                >
+                  <Download className="h-3 w-3" />
+                  텍스트 다운로드
+                </Button>
+              </div>
               <div className="flex items-center gap-3 p-4 rounded-lg border bg-white">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-blue-600">{dryRunResult.overallScore ?? dryRunResult.total_score ?? '—'}</div>
