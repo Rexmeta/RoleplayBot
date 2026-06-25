@@ -19,7 +19,7 @@ import {
   Cell,
 } from "recharts";
 import { authFetch } from "@/lib/authFetch";
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Zap, DollarSign, AlertCircle } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpFromLine, Zap, DollarSign, AlertCircle, Info } from "lucide-react";
 
 interface DailyRow {
   date: string;
@@ -98,7 +98,11 @@ function featureLabel(f: string): string {
   return FEATURE_LABELS[f] ?? f;
 }
 
-export function ApiUsageTab() {
+interface ApiUsageTabProps {
+  userRole?: string;
+}
+
+export function ApiUsageTab({ userRole }: ApiUsageTabProps = {}) {
   const defaults = getDefaultDates();
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
@@ -119,6 +123,8 @@ export function ApiUsageTab() {
     setAppliedFrom(from);
     setAppliedTo(to);
   }
+
+  const isOperator = userRole === "operator";
 
   const summary = usageData?.summary;
   const rows = usageData?.rows ?? [];
@@ -160,6 +166,21 @@ export function ApiUsageTab() {
 
   return (
     <div className="space-y-6">
+      <div
+        className={`flex items-start gap-3 p-4 rounded-lg border ${
+          isOperator
+            ? "bg-blue-50 border-blue-200 text-blue-800"
+            : "bg-slate-50 border-slate-200 text-slate-700"
+        }`}
+      >
+        <Info className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isOperator ? "text-blue-500" : "text-slate-500"}`} />
+        <span className="text-sm font-medium">
+          {isOperator
+            ? "이 데이터는 귀하가 관리하는 조직의 사용량만 표시합니다."
+            : "전체 조직의 AI 사용량 데이터를 표시합니다."}
+        </span>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

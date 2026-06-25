@@ -390,7 +390,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="api-usage" className="space-y-6">
-            <ApiUsageTab />
+            <ApiUsageTab userRole={user?.role} />
           </TabsContent>
 
           <TabsContent value="store-revenue" className="space-y-6">

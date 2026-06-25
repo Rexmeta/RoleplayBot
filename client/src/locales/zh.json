@@ -1372,7 +1372,9 @@
         "realtime": "实时语音",
         "image": "图片生成"
       },
-      "showingLast14Days": "仅显示最近14天数据。共{{total}}天数据。"
+      "showingLast14Days": "仅显示最近14天数据。共{{total}}天数据。",
+      "scopeBannerOperator": "此数据仅显示您所管理组织的AI使用量。",
+      "scopeBannerAdmin": "此数据显示所有组织的AI使用量。"
     },
     "dialogs": {
       "editUser": {

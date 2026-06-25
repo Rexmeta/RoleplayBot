@@ -1372,7 +1372,9 @@
         "realtime": "リアルタイム音声",
         "image": "画像生成"
       },
-      "showingLast14Days": "過去14日間のデータのみ表示。全{{total}}日分のデータ中。"
+      "showingLast14Days": "過去14日間のデータのみ表示。全{{total}}日分のデータ中。",
+      "scopeBannerOperator": "このデータは、あなたが管理する組織のAI使用量のみを表示しています。",
+      "scopeBannerAdmin": "全組織のAI使用量データを表示しています。"
     },
     "dialogs": {
       "editUser": {

@@ -1376,7 +1376,9 @@
         "realtime": "Real-time Voice",
         "image": "Image Generation"
       },
-      "showingLast14Days": "Showing last 14 days. Total {{total}} days of data."
+      "showingLast14Days": "Showing last 14 days. Total {{total}} days of data.",
+      "scopeBannerOperator": "This data shows AI usage only for the organization you manage.",
+      "scopeBannerAdmin": "This data shows AI usage across all organizations."
     },
     "dialogs": {
       "editUser": {

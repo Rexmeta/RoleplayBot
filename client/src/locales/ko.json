@@ -1399,7 +1399,9 @@
         "realtime": "실시간 음성",
         "image": "이미지 생성"
       },
-      "showingLast14Days": "최근 14일 데이터만 표시됩니다. 전체 {{total}}일 데이터 중."
+      "showingLast14Days": "최근 14일 데이터만 표시됩니다. 전체 {{total}}일 데이터 중.",
+      "scopeBannerOperator": "이 데이터는 귀하가 관리하는 조직의 사용량만 표시합니다.",
+      "scopeBannerAdmin": "전체 조직의 AI 사용량 데이터를 표시합니다."
     },
     "dialogs": {
       "editUser": {
