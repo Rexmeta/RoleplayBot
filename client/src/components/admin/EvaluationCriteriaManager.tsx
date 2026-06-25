@@ -292,6 +292,8 @@ export function EvaluationCriteriaManager() {
     evaluationPrompt: '',
   });
 
+  const [rubricOverview, setRubricOverview] = useState({ positiveOverview: '', negativeOverview: '' });
+
   const PRESET_COLORS = [
     '#6366f1', // Indigo
     '#3b82f6', // Blue
@@ -494,6 +496,40 @@ export function EvaluationCriteriaManager() {
     },
   });
 
+  const generateRubricAnchorsMutation = useMutation({
+    mutationFn: async (payload: {
+      dimensionName: string;
+      dimensionDescription: string;
+      minScore: number;
+      maxScore: number;
+      positiveOverview: string;
+      negativeOverview: string;
+      rubricScores: number[];
+    }) => {
+      const res = await apiRequest('POST', '/api/evaluation-criteria/generate-rubric-anchors', payload);
+      return res.json() as Promise<Array<{ score: number; behaviorAnchor: string; positiveIndicators: string[]; negativeIndicators: string[] }>>;
+    },
+    onSuccess: (anchors) => {
+      setDimensionFormData(prev => ({
+        ...prev,
+        scoringRubric: prev.scoringRubric.map(item => {
+          const match = anchors.find(a => a.score === item.score);
+          if (!match) return item;
+          return {
+            ...item,
+            behaviorAnchor: match.behaviorAnchor || item.behaviorAnchor,
+            positiveIndicators: match.positiveIndicators?.length ? match.positiveIndicators : item.positiveIndicators,
+            negativeIndicators: match.negativeIndicators?.length ? match.negativeIndicators : item.negativeIndicators,
+          };
+        }),
+      }));
+      toast({ title: "루브릭 행동 기준이 생성되었습니다", description: "생성된 내용을 검토하고 필요에 따라 수정하세요." });
+    },
+    onError: (error: any) => {
+      toast({ title: "AI 생성 실패", description: error.message, variant: "destructive" });
+    },
+  });
+
   const createDimensionMutation = useMutation({
     mutationFn: async ({ criteriaSetId, data }: { criteriaSetId: string; data: any }) => {
       const res = await apiRequest('POST', `/api/admin/evaluation-criteria/${criteriaSetId}/dimensions`, data);
@@ -636,12 +672,14 @@ export function EvaluationCriteriaManager() {
     setSelectedSet(set);
     setSelectedDimension(null);
     resetDimensionFormData();
+    setRubricOverview({ positiveOverview: '', negativeOverview: '' });
     setIsDimensionDialogOpen(true);
   };
 
   const handleEditDimension = (set: EvaluationCriteriaSet, dimension: EvaluationDimension) => {
     setSelectedSet(set);
     setSelectedDimension(dimension);
+    setRubricOverview({ positiveOverview: '', negativeOverview: '' });
     setDimensionFormData({
       key: dimension.key,
       name: dimension.name,
@@ -1183,6 +1221,66 @@ export function EvaluationCriteriaManager() {
                 </div>
               ) : null;
             })()}
+            {dimensionFormData.scoringRubric.length > 0 && (
+              <div className="border border-slate-200 rounded-md p-3 bg-slate-50 space-y-3">
+                <div className="flex items-center gap-1.5">
+                  <Bot className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="text-xs font-semibold text-slate-700">행동 기준 개요 (AI 자동 생성용)</span>
+                </div>
+                <p className="text-[11px] text-slate-500">긍정·부정 행동 개요를 입력한 뒤 AI 생성 버튼을 누르면 각 점수대의 행동 기준·지표가 자동으로 채워집니다.</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-slate-600 font-medium">긍정적 행동 개요</label>
+                    <AutoResizeTextarea
+                      value={rubricOverview.positiveOverview}
+                      onChange={(e) => setRubricOverview(prev => ({ ...prev, positiveOverview: e.target.value }))}
+                      className="text-xs mt-0.5 min-h-[52px]"
+                      placeholder="높은 점수를 받는 사람이 보이는 구체적인 행동 패턴을 설명하세요. (예: 핵심 메시지를 먼저 제시하고 구체적 근거를 들어 논리적으로 설명한다)"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-600 font-medium">부정적 행동 개요</label>
+                    <AutoResizeTextarea
+                      value={rubricOverview.negativeOverview}
+                      onChange={(e) => setRubricOverview(prev => ({ ...prev, negativeOverview: e.target.value }))}
+                      className="text-xs mt-0.5 min-h-[52px]"
+                      placeholder="낮은 점수를 받는 사람이 보이는 구체적인 행동 패턴을 설명하세요. (예: 주장만 반복하고 근거 없이 강압적으로 요구한다)"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="default"
+                  className="w-full gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+                  disabled={
+                    (!rubricOverview.positiveOverview.trim() && !rubricOverview.negativeOverview.trim()) ||
+                    generateRubricAnchorsMutation.isPending
+                  }
+                  onClick={() => generateRubricAnchorsMutation.mutate({
+                    dimensionName: dimensionFormData.name || '평가 차원',
+                    dimensionDescription: dimensionFormData.description,
+                    minScore: dimensionFormData.minScore,
+                    maxScore: dimensionFormData.maxScore,
+                    positiveOverview: rubricOverview.positiveOverview,
+                    negativeOverview: rubricOverview.negativeOverview,
+                    rubricScores: dimensionFormData.scoringRubric.map(r => r.score),
+                  })}
+                >
+                  {generateRubricAnchorsMutation.isPending ? (
+                    <>
+                      <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                      AI가 생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      AI로 루브릭 생성
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
             <RubricItemsEditor
               rubric={dimensionFormData.scoringRubric}
               onChange={(updated) => setDimensionFormData({ ...dimensionFormData, scoringRubric: updated })}

@@ -1307,6 +1307,98 @@ Return JSON: {
     res.json({ success: true, settings: savedSettings });
   }));
 
+  router.post("/api/evaluation-criteria/generate-rubric-anchors", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { dimensionName, dimensionDescription, minScore, maxScore, positiveOverview, negativeOverview, rubricScores } = req.body;
+
+    if (!dimensionName) throw createHttpError(400, "dimensionName is required");
+    if (!positiveOverview && !negativeOverview) throw createHttpError(400, "긍정적 행동 개요 또는 부정적 행동 개요 중 하나 이상을 입력하세요.");
+
+    let scores: number[];
+    if (Array.isArray(rubricScores) && rubricScores.length === 5 && rubricScores.every((s: any) => typeof s === 'number')) {
+      scores = rubricScores;
+    } else {
+      const scoreMin = typeof minScore === 'number' ? minScore : 1;
+      const scoreMax = typeof maxScore === 'number' ? maxScore : 10;
+      const step = (scoreMax - scoreMin) / 4;
+      scores = [];
+      for (let i = 0; i < 5; i++) {
+        scores.push(Math.round(scoreMin + step * i));
+      }
+      scores[4] = scoreMax;
+    }
+
+    const LABELS = ['매우 미흡', '미흡', '보통', '우수', '탁월'];
+
+    const prompt = `You are an expert rubric designer for workplace communication training.
+
+Dimension: ${dimensionName}
+${dimensionDescription ? `Description: ${dimensionDescription}` : ''}
+Score range: ${scores[0]} to ${scores[4]} (5 levels: ${scores.join(', ')})
+
+Positive behavior overview (high performers exhibit):
+${positiveOverview || '(not provided)'}
+
+Negative behavior overview (low performers exhibit):
+${negativeOverview || '(not provided)'}
+
+Generate behavior anchors and indicators for each of the 5 score levels. Each level should describe concrete, observable behaviors a rater would witness during a roleplay conversation.
+
+Return ONLY valid JSON in this exact format:
+[
+  {
+    "score": ${scores[0]},
+    "behaviorAnchor": "Concrete observable behavior description for score ${scores[0]} (${LABELS[0]})",
+    "positiveIndicators": ["specific positive phrase or action 1", "specific positive phrase or action 2"],
+    "negativeIndicators": ["specific problem or missing behavior 1", "specific problem or missing behavior 2"]
+  },
+  {
+    "score": ${scores[1]},
+    "behaviorAnchor": "Concrete observable behavior description for score ${scores[1]} (${LABELS[1]})",
+    "positiveIndicators": ["..."],
+    "negativeIndicators": ["..."]
+  },
+  {
+    "score": ${scores[2]},
+    "behaviorAnchor": "...",
+    "positiveIndicators": ["..."],
+    "negativeIndicators": ["..."]
+  },
+  {
+    "score": ${scores[3]},
+    "behaviorAnchor": "...",
+    "positiveIndicators": ["..."],
+    "negativeIndicators": ["..."]
+  },
+  {
+    "score": ${scores[4]},
+    "behaviorAnchor": "...",
+    "positiveIndicators": ["..."],
+    "negativeIndicators": ["..."]
+  }
+]
+
+Write in Korean. Each behaviorAnchor should be 1-2 sentences with a specific quoted example where appropriate. Each indicators array should have 2-3 items.`;
+
+    const aiService = await getAIServiceForFeature('feedback');
+    const raw = await aiService.generateText(prompt);
+
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw createHttpError(500, "AI가 유효한 JSON을 반환하지 않았습니다. 다시 시도해 주세요.");
+
+    let anchors: any[];
+    try {
+      anchors = JSON.parse(jsonMatch[0]);
+    } catch {
+      throw createHttpError(500, "AI 응답 파싱에 실패했습니다. 다시 시도해 주세요.");
+    }
+
+    if (!Array.isArray(anchors) || anchors.length !== 5) {
+      throw createHttpError(500, "AI가 올바른 형식의 루브릭을 생성하지 못했습니다. 다시 시도해 주세요.");
+    }
+
+    res.json(anchors);
+  }));
+
   router.post("/api/admin/difficulty-settings/reset", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const user = req.user as any;
     const { getDefaultDifficultySettings, invalidateDifficultyCache } = await import('../services/conversationDifficultyPolicy');

@@ -53,10 +53,6 @@ isValidation = true
 [agent]
 integrations = ["javascript_gemini:1.0.0", "javascript_openai:1.0.0", "javascript_mem_db:1.0.0", "javascript_log_in_with_replit:1.0.0", "javascript_object_storage:2.0.0"]
 
-[[ports]]
-localPort = 5000
-externalPort = 80
-
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 30000
