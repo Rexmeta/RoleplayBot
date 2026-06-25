@@ -2629,6 +2629,24 @@ AI: 지연된 이유가 더 있나요?
                   <Download className="h-3 w-3" />
                   텍스트 다운로드
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => {
+                    const blob = new Blob([JSON.stringify(dryRunResult, null, 2)], { type: 'application/json;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `dryrun_result_${Date.now()}.json`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    toast({ title: '다운로드 완료', description: 'JSON 결과 파일이 저장되었습니다.' });
+                  }}
+                >
+                  <Download className="h-3 w-3" />
+                  JSON 다운로드
+                </Button>
               </div>
               <div className="flex items-center gap-3 p-4 rounded-lg border bg-white">
                 <div className="text-center">
