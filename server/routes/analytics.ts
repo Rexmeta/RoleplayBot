@@ -1605,6 +1605,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
 
     const fromStr = (req.query.from as string | undefined) ?? defaultFrom;
     const toStr   = (req.query.to   as string | undefined) ?? defaultTo;
+    const targetUserId = (req.query.userId as string | undefined) ?? null;
 
     const startDate = new Date(`${fromStr}T00:00:00.000Z`);
     const endDate   = new Date(`${toStr}T23:59:59.999Z`);
@@ -1650,6 +1651,14 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
           byUser: [],
         });
       }
+    }
+
+    // If a specific userId drill-down is requested, validate it is in scope then narrow the filter
+    if (targetUserId) {
+      if (userIdFilter !== null && !userIdFilter.includes(targetUserId)) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      userIdFilter = [targetUserId];
     }
 
     // Build WHERE conditions

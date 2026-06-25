@@ -6,6 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ResponsiveContainer,
   BarChart,
   Bar,
@@ -19,7 +25,7 @@ import {
   Cell,
 } from "recharts";
 import { authFetch } from "@/lib/authFetch";
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Zap, DollarSign, AlertCircle, Info, Users } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpFromLine, Zap, DollarSign, AlertCircle, Info, Users, ChevronRight } from "lucide-react";
 
 interface DailyRow {
   date: string;
@@ -113,12 +119,183 @@ interface ApiUsageTabProps {
   userRole?: string;
 }
 
+function UserDrillDownModal({
+  user,
+  from,
+  to,
+  onClose,
+}: {
+  user: UserRow;
+  from: string;
+  to: string;
+  onClose: () => void;
+}) {
+  const { data, isLoading, isError } = useQuery<UsageResponse>({
+    queryKey: ["/api/admin/analytics/ai-usage", from, to, user.userId],
+    queryFn: () =>
+      authFetch(
+        `/api/admin/analytics/ai-usage?from=${from}&to=${to}&userId=${encodeURIComponent(user.userId ?? "")}`
+      ),
+    staleTime: 1000 * 60 * 2,
+    enabled: !!user.userId,
+  });
+
+  const byFeature = (data?.byFeature ?? []).map((r) => ({
+    ...r,
+    feature: featureLabel(r.feature),
+  }));
+  const byModel = data?.byModel ?? [];
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-violet-500" />
+            {user.userName} 상세 사용량
+          </DialogTitle>
+          <p className="text-sm text-slate-500 mt-1">{user.userEmail} · {from} ~ {to}</p>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="space-y-3 py-4">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        ) : isError ? (
+          <div className="flex items-center gap-2 text-red-600 py-8 justify-center">
+            <AlertCircle className="w-5 h-5" />
+            데이터를 불러오는 데 실패했습니다.
+          </div>
+        ) : !user.userId ? (
+          <p className="text-slate-500 text-sm py-6 text-center">사용자 ID가 없어 상세 조회가 불가능합니다.</p>
+        ) : (
+          <div className="space-y-5 mt-2">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-blue-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-500 mb-1">요청 수</p>
+                <p className="text-xl font-bold text-slate-800">{user.requestCount.toLocaleString()}</p>
+              </div>
+              <div className="bg-violet-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-500 mb-1">총 토큰</p>
+                <p className="text-xl font-bold text-slate-800">{fmt(user.totalTokens)}</p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-500 mb-1">추정 비용</p>
+                <p className="text-xl font-bold text-slate-800">{fmtCost(user.totalCostUsd)}</p>
+              </div>
+            </div>
+
+            {byFeature.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">기능별 사용량</h3>
+                <div className="flex flex-col gap-4">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie
+                        data={byFeature}
+                        dataKey="totalTokens"
+                        nameKey="feature"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        label={({ feature, percent }) =>
+                          `${feature}: ${(percent * 100).toFixed(0)}%`
+                        }
+                      >
+                        {byFeature.map((_, i) => (
+                          <Cell key={i} fill={FEATURE_COLORS[i % FEATURE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [
+                          fmt(value),
+                          name === "totalTokens" ? "토큰" : name,
+                        ]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-slate-500">
+                          <th className="text-left py-2 pr-4">기능</th>
+                          <th className="text-right py-2 pr-4">요청 수</th>
+                          <th className="text-right py-2 pr-4">총 토큰</th>
+                          <th className="text-right py-2">추정 비용</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {byFeature.map((r, i) => (
+                          <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                            <td className="py-2 pr-4 font-medium flex items-center gap-2">
+                              <span
+                                className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                style={{ background: FEATURE_COLORS[i % FEATURE_COLORS.length] }}
+                              />
+                              {r.feature}
+                            </td>
+                            <td className="text-right py-2 pr-4">{r.requestCount.toLocaleString()}</td>
+                            <td className="text-right py-2 pr-4">{fmt(r.totalTokens)}</td>
+                            <td className="text-right py-2 text-slate-600">{fmtCost(r.totalCostUsd)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {byModel.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">모델별 사용량</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-slate-500">
+                        <th className="text-left py-2 pr-4">모델</th>
+                        <th className="text-left py-2 pr-4">공급자</th>
+                        <th className="text-right py-2 pr-4">요청 수</th>
+                        <th className="text-right py-2 pr-4">총 토큰</th>
+                        <th className="text-right py-2">추정 비용</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {byModel.map((r, i) => (
+                        <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                          <td className="py-2 pr-4 font-medium">{r.model}</td>
+                          <td className="py-2 pr-4 text-slate-500">{r.provider}</td>
+                          <td className="text-right py-2 pr-4">{r.requestCount.toLocaleString()}</td>
+                          <td className="text-right py-2 pr-4">{fmt(r.totalTokens)}</td>
+                          <td className="text-right py-2 text-slate-600">{fmtCost(r.totalCostUsd)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {byFeature.length === 0 && byModel.length === 0 && (
+              <p className="text-center text-slate-500 py-8 text-sm">해당 기간에 사용 데이터가 없습니다.</p>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ApiUsageTab({ userRole }: ApiUsageTabProps = {}) {
   const defaults = getDefaultDates();
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
   const [appliedFrom, setAppliedFrom] = useState(defaults.from);
   const [appliedTo, setAppliedTo] = useState(defaults.to);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
 
   const {
     data: usageData,
@@ -481,34 +658,61 @@ export function ApiUsageTab({ userRole }: ApiUsageTabProps = {}) {
                   </div>
                 );
               })()}
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-slate-500">
-                      <th className="text-left py-2 pr-4">이름</th>
-                      <th className="text-left py-2 pr-4">이메일</th>
-                      <th className="text-right py-2 pr-4">요청 수</th>
-                      <th className="text-right py-2 pr-4">총 토큰</th>
-                      <th className="text-right py-2">추정 비용</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {byUser.map((r, i) => (
-                      <tr key={r.userId ?? i} className="border-b last:border-0 hover:bg-slate-50">
-                        <td className="py-2 pr-4 font-medium">{r.userName}</td>
-                        <td className="py-2 pr-4 text-slate-500">{r.userEmail || "—"}</td>
-                        <td className="text-right py-2 pr-4">{r.requestCount.toLocaleString()}</td>
-                        <td className="text-right py-2 pr-4">{fmt(r.totalTokens)}</td>
-                        <td className="text-right py-2 text-slate-600">{fmtCost(r.totalCostUsd)}</td>
+              <div>
+                <p className="text-xs text-slate-400 mb-3">행을 클릭하면 기능별 세부 사용량을 볼 수 있습니다.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-slate-500">
+                        <th className="text-left py-2 pr-4">이름</th>
+                        <th className="text-left py-2 pr-4">이메일</th>
+                        <th className="text-right py-2 pr-4">요청 수</th>
+                        <th className="text-right py-2 pr-4">총 토큰</th>
+                        <th className="text-right py-2 pr-4">추정 비용</th>
+                        <th className="w-6" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {byUser.map((r, i) => {
+                        const clickable = !!r.userId;
+                        return (
+                          <tr
+                            key={r.userId ?? i}
+                            className={`border-b last:border-0 transition-colors ${
+                              clickable
+                                ? "hover:bg-violet-50 cursor-pointer"
+                                : "opacity-70"
+                            }`}
+                            onClick={clickable ? () => setSelectedUser(r) : undefined}
+                          >
+                            <td className="py-2 pr-4 font-medium">{r.userName}</td>
+                            <td className="py-2 pr-4 text-slate-500">{r.userEmail || "—"}</td>
+                            <td className="text-right py-2 pr-4">{r.requestCount.toLocaleString()}</td>
+                            <td className="text-right py-2 pr-4">{fmt(r.totalTokens)}</td>
+                            <td className="text-right py-2 pr-4 text-slate-600">{fmtCost(r.totalCostUsd)}</td>
+                            <td className="py-2 text-slate-400">
+                              {clickable && <ChevronRight className="w-4 h-4" />}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {selectedUser && (
+        <UserDrillDownModal
+          user={selectedUser}
+          from={appliedFrom}
+          to={appliedTo}
+          onClose={() => setSelectedUser(null)}
+        />
+      )}
     </div>
   );
 }
