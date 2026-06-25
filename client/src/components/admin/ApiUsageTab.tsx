@@ -92,6 +92,7 @@ function fmtCost(n: number): string {
 
 const FEATURE_COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#ec4899"];
 const MODEL_COLORS   = ["#6366f1", "#14b8a6", "#f97316", "#84cc16", "#e11d48", "#0ea5e9"];
+const USER_BAR_COLOR = "#3b82f6";
 
 const FEATURE_LABELS: Record<string, string> = {
   conversation: "대화",
@@ -422,29 +423,88 @@ export function ApiUsageTab({ userRole }: ApiUsageTabProps = {}) {
               선택한 기간에 사용자별 데이터가 없습니다.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-slate-500">
-                    <th className="text-left py-2 pr-4">이름</th>
-                    <th className="text-left py-2 pr-4">이메일</th>
-                    <th className="text-right py-2 pr-4">요청 수</th>
-                    <th className="text-right py-2 pr-4">총 토큰</th>
-                    <th className="text-right py-2">추정 비용</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {byUser.map((r, i) => (
-                    <tr key={r.userId ?? i} className="border-b last:border-0 hover:bg-slate-50">
-                      <td className="py-2 pr-4 font-medium">{r.userName}</td>
-                      <td className="py-2 pr-4 text-slate-500">{r.userEmail || "—"}</td>
-                      <td className="text-right py-2 pr-4">{r.requestCount.toLocaleString()}</td>
-                      <td className="text-right py-2 pr-4">{fmt(r.totalTokens)}</td>
-                      <td className="text-right py-2 text-slate-600">{fmtCost(r.totalCostUsd)}</td>
+            <div className="space-y-6">
+              {(() => {
+                const top10 = [...byUser]
+                  .sort((a, b) => b.totalTokens - a.totalTokens)
+                  .slice(0, 10)
+                  .map((r) => ({
+                    ...r,
+                    label: r.userName || r.userEmail || "알 수 없음",
+                  }));
+                const chartHeight = Math.max(160, top10.length * 40 + 24);
+                const labelWidth = Math.min(
+                  160,
+                  Math.max(80, ...top10.map((r) => r.label.length * 8))
+                );
+                return (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-2">
+                      상위 {top10.length}명 토큰 사용량
+                    </p>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <BarChart
+                        data={top10}
+                        layout="vertical"
+                        margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          type="number"
+                          tickFormatter={(v) => fmt(v)}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="label"
+                          tick={{ fontSize: 11 }}
+                          width={labelWidth}
+                          tickFormatter={(v: string) =>
+                            v.length > 20 ? v.slice(0, 20) + "…" : v
+                          }
+                        />
+                        <Tooltip
+                          formatter={(value: number, name: string) => [
+                            fmt(value),
+                            name === "totalTokens" ? "총 토큰" : name,
+                          ]}
+                          labelFormatter={(label) => `사용자: ${label}`}
+                        />
+                        <Bar
+                          dataKey="totalTokens"
+                          name="totalTokens"
+                          fill={USER_BAR_COLOR}
+                          radius={[0, 3, 3, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              })()}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-slate-500">
+                      <th className="text-left py-2 pr-4">이름</th>
+                      <th className="text-left py-2 pr-4">이메일</th>
+                      <th className="text-right py-2 pr-4">요청 수</th>
+                      <th className="text-right py-2 pr-4">총 토큰</th>
+                      <th className="text-right py-2">추정 비용</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {byUser.map((r, i) => (
+                      <tr key={r.userId ?? i} className="border-b last:border-0 hover:bg-slate-50">
+                        <td className="py-2 pr-4 font-medium">{r.userName}</td>
+                        <td className="py-2 pr-4 text-slate-500">{r.userEmail || "—"}</td>
+                        <td className="text-right py-2 pr-4">{r.requestCount.toLocaleString()}</td>
+                        <td className="text-right py-2 pr-4">{fmt(r.totalTokens)}</td>
+                        <td className="text-right py-2 text-slate-600">{fmtCost(r.totalCostUsd)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </CardContent>
