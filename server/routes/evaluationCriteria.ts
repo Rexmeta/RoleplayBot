@@ -4,7 +4,9 @@ import { isOperatorOrAdmin, isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { validateEvaluationCriteriaSet, validateEvaluationDimension, calculateRubricQualityScore } from "../services/evaluationEngine";
 import { RUBRIC_TEMPLATES } from "../data/rubricTemplates";
-import { generateFeedback, getAIServiceForFeature } from "../services/aiServiceFactory";
+import { generateFeedback, getAIServiceForFeature, getModelForFeature } from "../services/aiServiceFactory";
+import { trackUsage } from "../services/aiUsageTracker";
+import { checkTokenQuota } from "../middleware/tokenQuotaMiddleware";
 
 function classifyTranslationError(error: unknown): { isFatal: boolean; userMessage: string } {
   const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
@@ -1307,7 +1309,7 @@ Return JSON: {
     res.json({ success: true, settings: savedSettings });
   }));
 
-  router.post("/api/evaluation-criteria/generate-rubric-anchors", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+  router.post("/api/evaluation-criteria/generate-rubric-anchors", isAuthenticated, isOperatorOrAdmin, checkTokenQuota, asyncHandler(async (req, res) => {
     const { dimensionName, dimensionDescription, minScore, maxScore, positiveOverview, negativeOverview, rubricScores } = req.body;
 
     if (!dimensionName) throw createHttpError(400, "dimensionName is required");
@@ -1379,8 +1381,29 @@ Return ONLY valid JSON in this exact format:
 
 Write in Korean. Each behaviorAnchor should be 1-2 sentences with a specific quoted example where appropriate. Each indicators array should have 2-3 items.`;
 
-    const aiService = await getAIServiceForFeature('feedback');
+    const startMs = Date.now();
+    const [aiService, rubricModel] = await Promise.all([
+      getAIServiceForFeature('feedback'),
+      getModelForFeature('feedback'),
+    ]);
     const raw = await aiService.generateText(prompt);
+    const durationMs = Date.now() - startMs;
+
+    const estimatedPromptTokens = Math.ceil(prompt.length / 4);
+    const estimatedCompletionTokens = Math.ceil(raw.length / 4);
+
+    const user = req.user as any;
+    trackUsage({
+      feature: 'feedback',
+      model: rubricModel,
+      provider: rubricModel.startsWith('gpt') ? 'openai' : 'gemini',
+      promptTokens: estimatedPromptTokens,
+      completionTokens: estimatedCompletionTokens,
+      tokensEstimated: true,
+      userId: user?.id,
+      durationMs,
+      metadata: { type: 'rubric_anchor_generation', dimensionName },
+    }).catch(() => {});
 
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw createHttpError(500, "AI가 유효한 JSON을 반환하지 않았습니다. 다시 시도해 주세요.");
