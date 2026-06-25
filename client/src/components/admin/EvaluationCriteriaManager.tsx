@@ -2300,31 +2300,14 @@ AI: 지연된 이유가 더 있나요?
 
                 if (isEditing) {
                   return (
-                    <div key={dim.id}>
-                      <InlineDimensionEditor
-                        dimension={dim}
-                        onSave={(data) => updateDimInlineMutation.mutate({ id: dim.id, data })}
-                        onCancel={() => setEditingDimId(null)}
-                        onDelete={() => setDeleteConfirmDimId(dim.id)}
-                        isSaving={updateDimInlineMutation.isPending}
-                      />
-                      {deleteConfirmDimId === dim.id && (
-                        <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm text-red-700">
-                            <AlertCircle className="h-4 w-4" />
-                            <span>"{dim.name}" 차원을 삭제하시겠습니까?</span>
-                          </div>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDeleteConfirmDimId(null)}>
-                              {t('common.cancel')}
-                            </Button>
-                            <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => deleteDimInlineMutation.mutate(dim.id)} disabled={deleteDimInlineMutation.isPending}>
-                              {deleteDimInlineMutation.isPending ? t('admin.common.loading') : t('common.delete')}
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <InlineDimensionEditor
+                      key={dim.id}
+                      dimension={dim}
+                      onSave={(data) => updateDimInlineMutation.mutate({ id: dim.id, data })}
+                      onCancel={() => setEditingDimId(null)}
+                      onDelete={() => setDeleteConfirmDimId(dim.id)}
+                      isSaving={updateDimInlineMutation.isPending}
+                    />
                   );
                 }
 
@@ -2762,6 +2745,44 @@ AI: 지연된 이유가 더 있나요?
           )}
         </TabsContent>
       </Tabs>
+
+      {/* 평가 차원 삭제 확인 다이얼로그 */}
+      <Dialog open={deleteConfirmDimId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmDimId(null); }}>
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              평가 차원 삭제
+            </DialogTitle>
+            <DialogDescription>
+              이 작업은 되돌릴 수 없습니다. 정말로 삭제하시겠습니까?
+            </DialogDescription>
+          </DialogHeader>
+          {deleteConfirmDimId && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 my-4">
+              <p className="font-medium text-slate-800">
+                {dimensions.find((d) => d.id === deleteConfirmDimId)?.name}
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteConfirmDimId(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteConfirmDimId) {
+                  deleteDimInlineMutation.mutate(deleteConfirmDimId);
+                }
+              }}
+              disabled={deleteDimInlineMutation.isPending}
+            >
+              {deleteDimInlineMutation.isPending ? t('admin.common.loading') : t('common.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
