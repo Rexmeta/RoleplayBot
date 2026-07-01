@@ -4,13 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Plus, Trash2, Upload, ChevronDown, ChevronUp, Edit2, X, Check } from "lucide-react";
+import { Plus, Trash2, Upload, ChevronDown, ChevronUp, Edit2, X, Check, FileJson } from "lucide-react";
 
 interface FewShotExample {
   id: string;
@@ -199,15 +198,26 @@ function SavedExampleCard({
   );
 }
 
+type ImportRow = { context?: string | null; transcript: string; score: string | number; rationale: string };
+
+async function parseJsonFile(file: File): Promise<ImportRow[]> {
+  const text = await file.text();
+  const parsed = JSON.parse(text);
+  if (!Array.isArray(parsed)) throw new Error("JSON 파일은 배열이어야 합니다");
+  return parsed as ImportRow[];
+}
+
 export function FewShotLearningTab({ dimensionId }: { dimensionId: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
   const [drafts, setDrafts] = useState<DraftCard[]>([]);
   const [savingDraftId, setSavingDraftId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<DraftCard | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const queryKey = ["/api/evaluation-dimensions", dimensionId, "few-shot-examples"];
 
@@ -261,6 +271,57 @@ export function FewShotLearningTab({ dimensionId }: { dimensionId: string }) {
       toast({ title: "삭제 실패", description: error.message, variant: "destructive" });
     },
   });
+
+  async function handleImportFile(file: File) {
+    setIsImporting(true);
+    try {
+      const url = `/api/evaluation-dimensions/${dimensionId}/few-shot-examples/bulk`;
+      let res: Response;
+
+      if (file.name.endsWith(".csv")) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const token = localStorage.getItem("authToken");
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        res = await fetch(url, {
+          method: "POST",
+          headers,
+          body: formData,
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({ message: res.statusText }));
+          throw new Error(errBody.message ?? res.statusText);
+        }
+      } else if (file.name.endsWith(".json")) {
+        const rows = await parseJsonFile(file);
+        res = await apiRequest("POST", url, rows);
+      } else {
+        throw new Error("지원하지 않는 파일 형식입니다 (.json 또는 .csv)");
+      }
+
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey });
+      const errorLines =
+        data.errors?.length > 0
+          ? data.errors
+              .slice(0, 3)
+              .map((e: any) => `행 ${e.row}: ${e.message}`)
+              .join("\n") + (data.errors.length > 3 ? `\n외 ${data.errors.length - 3}건` : "")
+          : undefined;
+      toast({
+        title: `${data.created}개 예시가 가져와졌습니다`,
+        description: errorLines,
+        variant: data.created === 0 ? "destructive" : "default",
+      });
+    } catch (err: any) {
+      toast({ title: "가져오기 실패", description: err.message, variant: "destructive" });
+    } finally {
+      setIsImporting(false);
+      if (importFileInputRef.current) importFileInputRef.current.value = "";
+    }
+  }
 
   function addBlankDraft() {
     const id = Math.random().toString(36).slice(2);
@@ -342,17 +403,39 @@ export function FewShotLearningTab({ dimensionId }: { dimensionId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-xs text-slate-500">
             실제 채점 예시를 등록하면 AI 평가 시 참조됩니다. 활성화된 예시만 프롬프트에 주입됩니다.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={addBlankDraft} className="h-7 text-xs shrink-0">
-          <Plus className="h-3.5 w-3.5 mr-1" />
-          직접 입력 추가
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => importFileInputRef.current?.click()}
+            disabled={isImporting}
+            className="h-7 text-xs"
+          >
+            <FileJson className="h-3.5 w-3.5 mr-1" />
+            {isImporting ? "가져오는 중..." : "JSON/CSV 가져오기"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={addBlankDraft} className="h-7 text-xs">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            직접 입력 추가
+          </Button>
+        </div>
       </div>
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".json,.csv"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleImportFile(file);
+        }}
+      />
 
       {/* Drag-and-drop upload zone */}
       <div
