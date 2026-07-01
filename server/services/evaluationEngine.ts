@@ -568,12 +568,12 @@ export function validateEvaluationCriteriaSet(dimensions: Array<{
   isActive?: boolean;
   scoringRubric?: { score: number; label: string; description: string }[] | null;
   evaluationPrompt?: string | null;
-}>, options?: { skipWeightValidation?: boolean }): { valid: boolean; errors: string[] } {
+}>, options?: { skipWeightValidation?: boolean; skipMinDimensions?: boolean }): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   const activeDims = dimensions.filter(d => d.isActive !== false);
 
-  if (activeDims.length < 3) {
+  if (!options?.skipMinDimensions && activeDims.length < 3) {
     errors.push(`평가 차원은 최소 3개 이상 필요합니다 (현재 활성: ${activeDims.length}개)`);
   }
 

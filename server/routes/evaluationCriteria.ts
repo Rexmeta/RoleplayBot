@@ -8,6 +8,12 @@ import { generateFeedback, getAIServiceForFeature, getModelForFeature } from "..
 import { trackUsage } from "../services/aiUsageTracker";
 import { checkTokenQuota } from "../middleware/tokenQuotaMiddleware";
 
+const CREATION_PLACEHOLDER_DIMENSIONS = [
+  { key: 'clarityLogic', name: '명확성 & 논리성', description: '의사 표현의 명확성과 논리적 구성', weight: 20, minScore: 1, maxScore: 10 },
+  { key: 'listeningEmpathy', name: '경청 & 공감', description: '상대방의 말을 듣고 공감하는 능력', weight: 20, minScore: 1, maxScore: 10 },
+  { key: 'appropriatenessAdaptability', name: '적절성 & 상황대응', description: '상황에 맞는 적절한 대응', weight: 20, minScore: 1, maxScore: 10 },
+];
+
 function classifyTranslationError(error: unknown): { isFatal: boolean; userMessage: string } {
   const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
   if (
@@ -361,13 +367,11 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
       throw createHttpError(400, "Name is required");
     }
 
-    // Validate BEFORE persisting anything so we can fail fast without orphaning data or clearing the existing default.
-    // Weight-sum (100%) check is intentionally deferred to the request-review stage so users can freely
-    // add/edit dimensions in any order without mid-stream validation failures.
-    const setValidation = validateEvaluationCriteriaSet(Array.isArray(dimensions) ? dimensions : [], { skipWeightValidation: true });
-    if (!setValidation.valid) {
-      throw createHttpError(400, `평가 기준 유효성 검사 실패:\n${setValidation.errors.join('\n')}`);
-    }
+    // If no dimensions are supplied, auto-seed 3 default placeholders so the set is
+    // immediately usable without blocking the operator with a validation error.
+    const resolvedDimensions = Array.isArray(dimensions) && dimensions.length > 0
+      ? dimensions
+      : CREATION_PLACEHOLDER_DIMENSIONS;
 
     if (isDefault) {
       throw createHttpError(400, "새로 생성된 루브릭은 초안(draft) 상태이므로 기본값으로 설정할 수 없습니다. 루브릭을 승인한 후 기본값으로 지정하세요.");
@@ -405,26 +409,24 @@ export default function createEvaluationCriteriaRouter(isAuthenticated: any) {
     });
 
     const createdDimensions = [];
-    if (dimensions && Array.isArray(dimensions)) {
-      for (let i = 0; i < dimensions.length; i++) {
-        const dim = dimensions[i];
-        const dimension = await storage.createEvaluationDimension({
-          criteriaSetId: criteriaSet.id,
-          key: dim.key,
-          name: dim.name,
-          description: dim.description || null,
-          weight: dim.weight || 1,
-          minScore: dim.minScore ?? 1,
-          maxScore: dim.maxScore ?? 10,
-          icon: dim.icon || '📊',
-          color: dim.color || 'blue',
-          displayOrder: dim.displayOrder ?? i,
-          scoringRubric: dim.scoringRubric || null,
-          evaluationPrompt: dim.evaluationPrompt || null,
-          isActive: dim.isActive !== false,
-        });
-        createdDimensions.push(dimension);
-      }
+    for (let i = 0; i < resolvedDimensions.length; i++) {
+      const dim = resolvedDimensions[i];
+      const dimension = await storage.createEvaluationDimension({
+        criteriaSetId: criteriaSet.id,
+        key: dim.key,
+        name: dim.name,
+        description: (dim as any).description || null,
+        weight: dim.weight || 20,
+        minScore: dim.minScore ?? 1,
+        maxScore: dim.maxScore ?? 10,
+        icon: (dim as any).icon || '📊',
+        color: (dim as any).color || '#6366f1',
+        displayOrder: (dim as any).displayOrder ?? i,
+        scoringRubric: (dim as any).scoringRubric || null,
+        evaluationPrompt: (dim as any).evaluationPrompt || null,
+        isActive: (dim as any).isActive !== false,
+      });
+      createdDimensions.push(dimension);
     }
 
     if (autoTranslate) {
@@ -941,7 +943,7 @@ Return JSON: {
         evaluationPrompt: evaluationPrompt || null,
       },
     ];
-    const postAddSetValidation = validateEvaluationCriteriaSet(postAddDims, { skipWeightValidation: true });
+    const postAddSetValidation = validateEvaluationCriteriaSet(postAddDims, { skipWeightValidation: true, skipMinDimensions: true });
     if (!postAddSetValidation.valid) {
       throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postAddSetValidation.errors.join('\n')}`);
     }
@@ -1044,7 +1046,7 @@ Return JSON: {
           }
         : d
     );
-    const postUpdateSetValidation = validateEvaluationCriteriaSet(postUpdateDims, { skipWeightValidation: true });
+    const postUpdateSetValidation = validateEvaluationCriteriaSet(postUpdateDims, { skipWeightValidation: true, skipMinDimensions: true });
     if (!postUpdateSetValidation.valid) {
       throw createHttpError(400, `세트 전체 유효성 검사 실패:\n${postUpdateSetValidation.errors.join('\n')}`);
     }
@@ -1074,7 +1076,7 @@ Return JSON: {
     // Weight-sum (100%) check is skipped here — deferred to request-review stage.
     const siblings = await storage.getEvaluationDimensionsByCriteriaSet(existing.criteriaSetId);
     const postDeleteDims = siblings.filter((d: any) => d.id !== id);
-    const postDeleteSetValidation = validateEvaluationCriteriaSet(postDeleteDims, { skipWeightValidation: true });
+    const postDeleteSetValidation = validateEvaluationCriteriaSet(postDeleteDims, { skipWeightValidation: true, skipMinDimensions: true });
     if (!postDeleteSetValidation.valid) {
       throw createHttpError(400, `삭제 후 세트 유효성 검사 실패:\n${postDeleteSetValidation.errors.join('\n')}`);
     }
