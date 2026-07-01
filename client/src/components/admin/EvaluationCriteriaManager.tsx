@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, ChevronRight, Info, Bot, Download } from "lucide-react";
 import { FewShotLearningTab } from "./FewShotLearningTab";
+import { CriteriaSetFewShotTab } from "./CriteriaSetFewShotTab";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -1838,7 +1839,7 @@ function CriteriaSetDetail({
   const [deleteConfirmDimId, setDeleteConfirmDimId] = useState<string | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dimensions' | 'quality' | 'dryrun' | 'translation'>('dimensions');
+  const [activeTab, setActiveTab] = useState<'dimensions' | 'quality' | 'dryrun' | 'translation' | 'scoring-examples'>('dimensions');
   const [reviewRequestWeightError, setReviewRequestWeightError] = useState<string | null>(null);
   const [dryRunInputMode, setDryRunInputMode] = useState<'freetext' | 'json'>('freetext');
   const [dryRunFreeText, setDryRunFreeText] = useState(
@@ -2302,6 +2303,10 @@ AI: 지연된 이유가 더 있나요?
             <Languages className="h-3.5 w-3.5 mr-1.5" />
             번역 현황
           </TabsTrigger>
+          <TabsTrigger value="scoring-examples" className="text-xs h-7 px-3">
+            <Brain className="h-3.5 w-3.5 mr-1.5" />
+            채점 예시
+          </TabsTrigger>
         </TabsList>
 
         {/* ── 차원 탭 ── */}
@@ -2761,6 +2766,14 @@ AI: 지연된 이유가 더 있나요?
               })}
             </div>
           )}
+        </TabsContent>
+
+        {/* ── 채점 예시 탭 ── */}
+        <TabsContent value="scoring-examples" className="mt-3">
+          <CriteriaSetFewShotTab
+            criteriaSetId={setId}
+            dimensions={dimensions}
+          />
         </TabsContent>
       </Tabs>
 

@@ -119,4 +119,31 @@ export const insertFewShotExampleSchema = createInsertSchema(fewShotExamples).om
 export type InsertFewShotExample = z.infer<typeof insertFewShotExampleSchema>;
 export type FewShotExample = typeof fewShotExamples.$inferSelect;
 
+export type DimensionScoreEntry = {
+  key: string;
+  name: string;
+  score: number;
+  rationale: string;
+};
+
+export const criteriaSetFewShotExamples = pgTable("criteria_set_few_shot_examples", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  criteriaSetId: varchar("criteria_set_id").notNull().references(() => evaluationCriteriaSets.id, { onDelete: 'cascade' }),
+  sourceFeedbackId: varchar("source_feedback_id").references(() => feedbacks.id, { onDelete: 'set null' }),
+  context: text("context"),
+  transcript: text("transcript").notNull(),
+  dimensionScores: jsonb("dimension_scores").notNull().$type<DimensionScoreEntry[]>(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("idx_criteria_set_few_shot_criteria_set").on(table.criteriaSetId),
+]);
+
+export const insertCriteriaSetFewShotExampleSchema = createInsertSchema(criteriaSetFewShotExamples).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCriteriaSetFewShotExample = z.infer<typeof insertCriteriaSetFewShotExampleSchema>;
+export type CriteriaSetFewShotExample = typeof criteriaSetFewShotExamples.$inferSelect;
+
 export type { EvaluationScore, DetailedFeedback, ActionGuide, ConversationGuide, DevelopmentPlan, PlanItem, ScoringRubric, EvaluationEvidence } from "./types";

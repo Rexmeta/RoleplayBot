@@ -1,4 +1,4 @@
-import { type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type FewShotExample, type InsertFewShotExample, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, fewShotExamples } from "@shared/schema";
+import { type AiUsageLog, type InsertAiUsageLog, type AiUsageSummary, type AiUsageByFeature, type AiUsageByModel, type AiUsageDaily, type EvaluationCriteriaSet, type InsertEvaluationCriteriaSet, type EvaluationDimension, type InsertEvaluationDimension, type EvaluationCriteriaSetWithDimensions, type FewShotExample, type InsertFewShotExample, type CriteriaSetFewShotExample, type InsertCriteriaSetFewShotExample, aiUsageLogs, evaluationCriteriaSets, evaluationDimensions, fewShotExamples, criteriaSetFewShotExamples } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, and, gte, lte, or, isNull, sql } from "drizzle-orm";
 
@@ -36,6 +36,13 @@ export interface IAnalyticsStorage {
   createFewShotExample(data: InsertFewShotExample): Promise<FewShotExample>;
   updateFewShotExample(id: string, patch: Partial<InsertFewShotExample>): Promise<FewShotExample>;
   deleteFewShotExample(id: string): Promise<void>;
+
+  createCriteriaSetFewShotExample(data: InsertCriteriaSetFewShotExample): Promise<CriteriaSetFewShotExample>;
+  getCriteriaSetFewShotExampleById(id: string): Promise<CriteriaSetFewShotExample | undefined>;
+  getCriteriaSetFewShotExamples(criteriaSetId: string): Promise<CriteriaSetFewShotExample[]>;
+  getActiveCriteriaSetFewShotExamples(criteriaSetId: string): Promise<CriteriaSetFewShotExample[]>;
+  updateCriteriaSetFewShotExample(id: string, patch: Partial<InsertCriteriaSetFewShotExample>): Promise<CriteriaSetFewShotExample>;
+  deleteCriteriaSetFewShotExample(id: string): Promise<void>;
 }
 
 type Constructor<T = {}> = new (...args: any[]) => T;
@@ -244,6 +251,42 @@ export function AnalyticsMixin<TBase extends Constructor>(Base: TBase) {
     async deleteFewShotExample(id: string): Promise<void> {
       await db.delete(fewShotExamples).where(eq(fewShotExamples.id, id));
     }
+
+    async createCriteriaSetFewShotExample(data: InsertCriteriaSetFewShotExample): Promise<CriteriaSetFewShotExample> {
+      const [row] = await db.insert(criteriaSetFewShotExamples).values(data as any).returning();
+      return row;
+    }
+
+    async getCriteriaSetFewShotExampleById(id: string): Promise<CriteriaSetFewShotExample | undefined> {
+      const [row] = await db.select().from(criteriaSetFewShotExamples)
+        .where(eq(criteriaSetFewShotExamples.id, id));
+      return row;
+    }
+
+    async getCriteriaSetFewShotExamples(criteriaSetId: string): Promise<CriteriaSetFewShotExample[]> {
+      return db.select().from(criteriaSetFewShotExamples)
+        .where(eq(criteriaSetFewShotExamples.criteriaSetId, criteriaSetId))
+        .orderBy(desc(criteriaSetFewShotExamples.createdAt));
+    }
+
+    async getActiveCriteriaSetFewShotExamples(criteriaSetId: string): Promise<CriteriaSetFewShotExample[]> {
+      return db.select().from(criteriaSetFewShotExamples)
+        .where(and(
+          eq(criteriaSetFewShotExamples.criteriaSetId, criteriaSetId),
+          eq(criteriaSetFewShotExamples.isActive, true)
+        ))
+        .orderBy(desc(criteriaSetFewShotExamples.createdAt));
+    }
+
+    async updateCriteriaSetFewShotExample(id: string, patch: Partial<InsertCriteriaSetFewShotExample>): Promise<CriteriaSetFewShotExample> {
+      const [row] = await db.update(criteriaSetFewShotExamples).set(patch as any).where(eq(criteriaSetFewShotExamples.id, id)).returning();
+      if (!row) throw new Error("CriteriaSetFewShotExample not found");
+      return row;
+    }
+
+    async deleteCriteriaSetFewShotExample(id: string): Promise<void> {
+      await db.delete(criteriaSetFewShotExamples).where(eq(criteriaSetFewShotExamples.id, id));
+    }
   };
 }
 
@@ -277,4 +320,11 @@ export class MemAnalyticsStorage implements IAnalyticsStorage {
   async createFewShotExample(_: InsertFewShotExample): Promise<FewShotExample> { throw new Error("Not implemented in MemStorage"); }
   async updateFewShotExample(_: string, __: Partial<InsertFewShotExample>): Promise<FewShotExample> { throw new Error("Not implemented in MemStorage"); }
   async deleteFewShotExample(_: string): Promise<void> { throw new Error("Not implemented in MemStorage"); }
+
+  async createCriteriaSetFewShotExample(_: InsertCriteriaSetFewShotExample): Promise<CriteriaSetFewShotExample> { throw new Error("Not implemented in MemStorage"); }
+  async getCriteriaSetFewShotExampleById(_: string): Promise<CriteriaSetFewShotExample | undefined> { return undefined; }
+  async getCriteriaSetFewShotExamples(_: string): Promise<CriteriaSetFewShotExample[]> { return []; }
+  async getActiveCriteriaSetFewShotExamples(_: string): Promise<CriteriaSetFewShotExample[]> { return []; }
+  async updateCriteriaSetFewShotExample(_: string, __: Partial<InsertCriteriaSetFewShotExample>): Promise<CriteriaSetFewShotExample> { throw new Error("Not implemented in MemStorage"); }
+  async deleteCriteriaSetFewShotExample(_: string): Promise<void> { throw new Error("Not implemented in MemStorage"); }
 }

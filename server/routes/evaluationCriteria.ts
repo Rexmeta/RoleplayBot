@@ -1438,6 +1438,332 @@ Write in Korean. Each behaviorAnchor should be 1-2 sentences with a specific quo
     res.json(anchors);
   }));
 
+  // ── 세트 수준 퓨샷 예시 CRUD ──
+
+  router.get("/api/admin/evaluation-criteria/:id/set-few-shot-examples", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
+    const examples = await storage.getCriteriaSetFewShotExamples(id);
+    res.json(examples);
+  }));
+
+  router.post("/api/admin/evaluation-criteria/:id/set-few-shot-examples", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
+
+    const { context, transcript, dimensionScores, isActive } = req.body;
+    if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
+      throw createHttpError(400, "transcript is required");
+    }
+    if (!Array.isArray(dimensionScores) || dimensionScores.length === 0) {
+      throw createHttpError(400, "dimensionScores must be a non-empty array");
+    }
+    for (const ds of dimensionScores) {
+      if (!ds.key || !ds.name || typeof ds.score !== 'number' || ds.score < 1 || ds.score > 10) {
+        throw createHttpError(400, "Each dimensionScore must have key, name, score (1-10), and rationale");
+      }
+    }
+
+    const example = await storage.createCriteriaSetFewShotExample({
+      criteriaSetId: id,
+      sourceFeedbackId: null,
+      context: context?.trim() || null,
+      transcript: transcript.trim(),
+      dimensionScores,
+      isActive: isActive !== false,
+    });
+    res.status(201).json(example);
+  }));
+
+  router.post("/api/admin/evaluation-criteria/:id/set-few-shot-examples/from-feedback", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const { feedbackId } = req.body;
+    if (!feedbackId) throw createHttpError(400, "feedbackId is required");
+
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
+
+    // rubricSnapshot.id 기준으로 이 루브릭 계열의 피드백만 허용 (cross-org 방지)
+    const rootId = existing.parentSetId || existing.id;
+    let familyIds = new Set<string>([existing.id]);
+    try {
+      const versionHistory = await storage.getEvaluationCriteriaSetVersionHistory(rootId);
+      for (const v of versionHistory) familyIds.add(v.id);
+    } catch { /* version history optional */ }
+
+    const allFeedbacks = await storage.getAllFeedbacks();
+    const feedback = allFeedbacks.find((f: any) => {
+      if (f.id !== feedbackId) return false;
+      const snapshotId = f.rubricSnapshot?.id;
+      // rubricSnapshot이 있으면 계열 일치 여부 확인
+      if (snapshotId) return familyIds.has(snapshotId);
+      // rubricSnapshot 없는 구형 피드백: 관리자만 허용
+      return req.user?.role === 'admin';
+    });
+    if (!feedback) throw createHttpError(404, "Feedback not found or not accessible for this rubric");
+
+    const snapshot: any[] = feedback.conversationSnapshot || [];
+    const transcriptLines: string[] = [];
+    for (const msg of snapshot) {
+      const role = msg.role === 'user' ? '사용자' : msg.role === 'assistant' ? 'AI' : (msg.speaker || msg.role || '화자');
+      const content = msg.content || msg.text || '';
+      if (content) transcriptLines.push(`${role}: ${content}`);
+    }
+    const transcript = transcriptLines.join('\n') || '(대화 내역 없음)';
+
+    const dimensions = await storage.getEvaluationDimensionsByCriteriaSet(id);
+    const dimMap = new Map(dimensions.map((d: any) => [d.key, d]));
+
+    const scores: any[] = feedback.scores || [];
+    const dimensionScores = scores
+      .map((s: any) => {
+        const dim = dimMap.get(s.category);
+        return {
+          key: s.category,
+          name: dim?.name || s.name || s.category,
+          score: Math.max(1, Math.min(10, Math.round(s.score))),
+          rationale: s.feedback || '',
+        };
+      })
+      .filter((ds: any) => dimMap.has(ds.key));
+
+    if (dimensionScores.length === 0) {
+      throw createHttpError(400, "이 피드백의 차원이 현재 세트의 차원과 일치하지 않습니다. 같은 루브릭으로 채점된 피드백을 선택하세요.");
+    }
+
+    const example = await storage.createCriteriaSetFewShotExample({
+      criteriaSetId: id,
+      sourceFeedbackId: feedbackId,
+      context: null,
+      transcript,
+      dimensionScores,
+      isActive: true,
+    });
+    res.status(201).json(example);
+  }));
+
+  router.patch("/api/admin/evaluation-criteria/set-few-shot-examples/:exampleId", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { exampleId } = req.params;
+
+    const example = await storage.getCriteriaSetFewShotExampleById(exampleId);
+    if (!example) throw createHttpError(404, "Few-shot example not found");
+    const parentSet = await storage.getEvaluationCriteriaSet(example.criteriaSetId);
+    if (!parentSet) throw createHttpError(404, "Parent criteria set not found");
+    await assertOperatorRubricAccess(parentSet, req.user);
+
+    const { isActive, context, transcript, dimensionScores } = req.body;
+    const patch: Record<string, any> = {};
+    if (typeof isActive === 'boolean') patch.isActive = isActive;
+    if (context !== undefined) patch.context = context?.trim() || null;
+    if (transcript !== undefined) {
+      if (!transcript?.trim()) throw createHttpError(400, "transcript cannot be empty");
+      patch.transcript = transcript.trim();
+    }
+    if (dimensionScores !== undefined) {
+      if (!Array.isArray(dimensionScores)) throw createHttpError(400, "dimensionScores must be an array");
+      patch.dimensionScores = dimensionScores;
+    }
+    const updated = await storage.updateCriteriaSetFewShotExample(exampleId, patch);
+    res.json(updated);
+  }));
+
+  router.delete("/api/admin/evaluation-criteria/set-few-shot-examples/:exampleId", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { exampleId } = req.params;
+
+    const example = await storage.getCriteriaSetFewShotExampleById(exampleId);
+    if (!example) throw createHttpError(404, "Few-shot example not found");
+    const parentSet = await storage.getEvaluationCriteriaSet(example.criteriaSetId);
+    if (!parentSet) throw createHttpError(404, "Parent criteria set not found");
+    await assertOperatorRubricAccess(parentSet, req.user);
+
+    await storage.deleteCriteriaSetFewShotExample(exampleId);
+    res.json({ ok: true });
+  }));
+
+  // ── 세트 수준 피드백 목록 조회 (퓨샷 예시 가져오기용) ──
+  // rubricSnapshot.id 기준으로 해당 루브릭으로 채점된 피드백만 반환 (cross-org 노출 방지)
+  router.get("/api/admin/feedbacks", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { criteriaSetId } = req.query;
+    if (!criteriaSetId || typeof criteriaSetId !== 'string') {
+      throw createHttpError(400, "criteriaSetId query parameter is required");
+    }
+
+    const criteriaSet = await storage.getEvaluationCriteriaSet(criteriaSetId);
+    if (!criteriaSet) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(criteriaSet, req.user);
+
+    // 버전 계열 ID 수집 (현재 세트 + 같은 parentSetId를 공유하는 이전 버전들)
+    const rootId = criteriaSet.parentSetId || criteriaSet.id;
+    let familyIds = new Set<string>([criteriaSet.id]);
+    try {
+      const versionHistory = await storage.getEvaluationCriteriaSetVersionHistory(rootId);
+      for (const v of versionHistory) familyIds.add(v.id);
+    } catch { /* version history optional */ }
+
+    const allFeedbacks = await storage.getAllFeedbacks();
+
+    const compatible = allFeedbacks
+      .filter((f: any) => {
+        // 기본: rubricSnapshot.id가 버전 계열에 속하는 경우 (authoritative linkage)
+        const snapshotId = f.rubricSnapshot?.id;
+        if (snapshotId) return familyIds.has(snapshotId);
+        // 구형 피드백(rubricSnapshot 없음): 관리자만 접근, 운영자는 제외
+        return req.user?.role === 'admin';
+      })
+      .slice(0, 200)
+      .map((f: any) => ({
+        id: f.id,
+        overallScore: f.overallScore,
+        createdAt: f.createdAt,
+        conversationId: f.conversationId,
+        scores: f.scores || [],
+      }));
+
+    res.json(compatible);
+  }));
+
+  // ── 채점 로직 역산 → 차원 기준 생성 ──
+  router.post("/api/admin/evaluation-criteria/:id/infer-dimension-criteria", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
+
+    const activeExamples = await storage.getActiveCriteriaSetFewShotExamples(id);
+    if (activeExamples.length === 0) {
+      throw createHttpError(400, "활성 예시가 없습니다. 먼저 채점 예시를 등록하고 활성화하세요.");
+    }
+
+    const dimensions = await storage.getEvaluationDimensionsByCriteriaSet(id);
+    if (dimensions.length === 0) {
+      throw createHttpError(400, "평가 차원이 없습니다.");
+    }
+
+    const aiService = await getAIServiceForFeature('feedback');
+    const model = await getModelForFeature('feedback');
+
+    const results = await Promise.all(
+      dimensions.map(async (dim: any) => {
+        const dimExamples = activeExamples
+          .map((ex: any) => {
+            const ds = (ex.dimensionScores as any[]).find((d: any) => d.key === dim.key);
+            if (!ds) return null;
+            return { transcript: ex.transcript, score: ds.score, rationale: ds.rationale };
+          })
+          .filter(Boolean);
+
+        if (dimExamples.length === 0) {
+          return null;
+        }
+
+        const examplesText = dimExamples.map((ex: any, i: number) =>
+          `예시 ${i + 1} (점수: ${ex.score}/10):\n[대화]\n${ex.transcript}\n[채점 근거] ${ex.rationale}`
+        ).join('\n\n---\n\n');
+
+        const prompt = `당신은 전문 평가 루브릭 설계 전문가입니다.
+
+아래는 "${dim.name}" 차원에 대해 실제 사람이 채점한 대화 예시들입니다.
+${dim.description ? `차원 설명: ${dim.description}\n` : ''}
+각 예시의 점수와 채점 근거를 분석해서:
+1. 높은 점수와 낮은 점수를 결정하는 구체적인 대화 행동 패턴을 역산하세요.
+2. 역산된 패턴을 바탕으로 1·3·5·7·10점 각 수준의 행동 앵커(관찰 가능한 구체적 행동 묘사)를 생성하세요.
+3. 이 차원을 AI가 일관되게 채점하기 위한 평가 판단 프롬프트를 생성하세요.
+
+[채점 예시들]
+${examplesText}
+
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{
+  "scoringRubric": [
+    {"score": 1, "label": "매우 미흡", "description": "간략 설명", "behaviorAnchor": "관찰 가능한 구체적 행동 묘사 (1-2문장, 구체적 예시 포함)"},
+    {"score": 3, "label": "미흡", "description": "간략 설명", "behaviorAnchor": "관찰 가능한 구체적 행동 묘사"},
+    {"score": 5, "label": "보통", "description": "간략 설명", "behaviorAnchor": "관찰 가능한 구체적 행동 묘사"},
+    {"score": 7, "label": "우수", "description": "간략 설명", "behaviorAnchor": "관찰 가능한 구체적 행동 묘사"},
+    {"score": 10, "label": "탁월", "description": "간략 설명", "behaviorAnchor": "관찰 가능한 구체적 행동 묘사"}
+  ],
+  "evaluationPrompt": "AI 채점 시 이 차원을 어떻게 평가해야 하는지 구체적 지침 (2-4문장)"
+}`;
+
+        const startMs = Date.now();
+        const raw = await aiService.generateText(prompt);
+        const durationMs = Date.now() - startMs;
+
+        trackUsage({
+          feature: 'feedback',
+          model,
+          provider: model.startsWith('gpt') ? 'openai' : 'gemini',
+          promptTokens: Math.ceil(prompt.length / 4),
+          completionTokens: Math.ceil(raw.length / 4),
+          tokensEstimated: true,
+          userId: req.user?.id,
+          durationMs,
+          metadata: { type: 'infer_dimension_criteria', dimensionKey: dim.key },
+        }).catch(() => {});
+
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
+        let parsed: any;
+        try { parsed = JSON.parse(jsonMatch[0]); } catch { return null; }
+        if (!parsed?.scoringRubric || !Array.isArray(parsed.scoringRubric)) return null;
+
+        return {
+          dimensionKey: dim.key,
+          dimensionName: dim.name,
+          scoringRubric: parsed.scoringRubric,
+          evaluationPrompt: parsed.evaluationPrompt || '',
+          exampleCount: dimExamples.length,
+        };
+      })
+    );
+
+    const validResults = results.filter(Boolean);
+    if (validResults.length === 0) {
+      throw createHttpError(500, "AI가 기준을 생성하지 못했습니다. 예시를 더 추가하거나 다시 시도해 주세요.");
+    }
+
+    res.json(validResults);
+  }));
+
+  // ── 역산된 차원 기준 적용 ──
+  router.post("/api/admin/evaluation-criteria/:id/apply-inferred-criteria", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { id } = req.params;
+    const { criteria } = req.body;
+
+    if (!Array.isArray(criteria) || criteria.length === 0) {
+      throw createHttpError(400, "criteria 배열이 필요합니다");
+    }
+
+    const existing = await storage.getEvaluationCriteriaSet(id);
+    if (!existing) throw createHttpError(404, "Evaluation criteria set not found");
+    await assertOperatorRubricAccess(existing, req.user);
+
+    if (existing.status === 'archived') {
+      throw createHttpError(409, "보관된 루브릭에는 기준을 적용할 수 없습니다.");
+    }
+
+    const dimensions = await storage.getEvaluationDimensionsByCriteriaSet(id);
+    const dimMap = new Map(dimensions.map((d: any) => [d.key, d]));
+
+    const updated = [];
+    for (const c of criteria) {
+      if (!c.dimensionKey || !c.scoringRubric) continue;
+      const dim = dimMap.get(c.dimensionKey);
+      if (!dim) continue;
+      const updatedDim = await storage.updateEvaluationDimension(dim.id, {
+        scoringRubric: c.scoringRubric,
+        evaluationPrompt: c.evaluationPrompt || dim.evaluationPrompt,
+      });
+      updated.push(updatedDim);
+    }
+
+    res.json({ updated: updated.length, dimensions: updated });
+  }));
+
   router.post("/api/admin/difficulty-settings/reset", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const user = req.user as any;
     const { getDefaultDifficultySettings, invalidateDifficultyCache } = await import('../services/conversationDifficultyPolicy');

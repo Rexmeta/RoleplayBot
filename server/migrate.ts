@@ -1894,6 +1894,26 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to ensure few_shot_examples table:', err);
       }
 
+      // criteria_set_few_shot_examples table
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "criteria_set_few_shot_examples" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "criteria_set_id" varchar NOT NULL REFERENCES "evaluation_criteria_sets"("id") ON DELETE CASCADE,
+            "source_feedback_id" varchar REFERENCES "feedbacks"("id") ON DELETE SET NULL,
+            "context" text,
+            "transcript" text NOT NULL,
+            "dimension_scores" jsonb NOT NULL,
+            "is_active" boolean DEFAULT true NOT NULL,
+            "created_at" timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS "idx_criteria_set_few_shot_criteria_set" ON "criteria_set_few_shot_examples"("criteria_set_id");
+        `);
+        console.log('✅ criteria_set_few_shot_examples table ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to ensure criteria_set_few_shot_examples table:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();
