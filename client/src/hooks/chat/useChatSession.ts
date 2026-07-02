@@ -264,6 +264,10 @@ export function useChatSession({
       await flushInFlightPromiseRef.current;
     }
 
+    // Snapshot the message count before the async request so we can detect
+    // whether new messages arrived while the request was in-flight.
+    const snapshotLength = (localMessagesRef?.current ?? localMessages).length;
+
     let resolveFlight!: () => void;
     flushInFlightPromiseRef.current = new Promise<void>(r => { resolveFlight = r; });
     flushInFlightRef.current = true;
@@ -273,11 +277,16 @@ export function useChatSession({
         isFinal,
       });
       console.log(`✅ [flushRealtimeMessages] Saved ${payload.length} messages, isFinal=${isFinal}`);
-      // Successful save: allow server sync to resume by clearing the pending flag.
+      // Successful save: allow server sync to resume by clearing the pending flag —
+      // but only if no new messages were added while the request was in-flight.
+      // If localMessagesRef grew beyond the snapshot, new user messages arrived
+      // during the request and haven't been flushed yet; keep the flag true so
+      // the sync effect stays blocked until those messages are also saved.
       // hasPendingLocalRef is intentionally NOT cleared on error — local messages
       // that have not yet been acknowledged by the server must not be overwritten
       // by a stale server refetch, regardless of how many flush attempts fail.
-      if (hasPendingLocalRef) {
+      const currentLength = (localMessagesRef?.current ?? localMessages).length;
+      if (hasPendingLocalRef && currentLength <= snapshotLength) {
         hasPendingLocalRef.current = false;
       }
     } catch (error) {
