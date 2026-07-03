@@ -1978,6 +1978,55 @@ describe('handleGeminiMessage', () => {
       expect(audioCalls).toHaveLength(1);
       expect(audioCalls[0][1]).toMatchObject({ delta: 'nextturn==' });
     });
+
+    it('plays inlineData for turn N+1 when a top-level frame ended turn N and turnComplete arrived first (turn-boundary race)', () => {
+      session.isInterrupted = false;
+      session.hasReceivedFirstAIResponse = true;
+
+      // Top-level audio frame at the very end of turn N
+      handleGeminiMessage(session, { data: 'endOfTurnN==' }, sendToClient, null, proactiveReconnect);
+      expect(session.audioSourceThisTurn).toBe('top');
+
+      // turnComplete for turn N arrives, resetting the cross-frame dedup flag
+      handleGeminiMessage(
+        session, { serverContent: { turnComplete: true } }, sendToClient, null, proactiveReconnect
+      );
+      expect(session.audioSourceThisTurn).toBeNull();
+      sendToClient.mockClear();
+
+      // inlineData frame at the very start of turn N+1 — must NOT be suppressed
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'startOfTurnNPlus1==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      const audioCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(1);
+      expect(audioCalls[0][1]).toMatchObject({ delta: 'startOfTurnNPlus1==' });
+    });
+
+    it('suppresses inlineData at the start of turn N+1 when a top-level frame ended turn N WITHOUT an intervening turnComplete', () => {
+      session.isInterrupted = false;
+      session.hasReceivedFirstAIResponse = true;
+
+      // Top-level audio frame at the very end of turn N
+      handleGeminiMessage(session, { data: 'endOfTurnN==' }, sendToClient, null, proactiveReconnect);
+      expect(session.audioSourceThisTurn).toBe('top');
+      sendToClient.mockClear();
+
+      // inlineData frame arrives immediately — no turnComplete was received yet,
+      // so the dedup flag has not been reset and this must be treated as the
+      // same logical turn and suppressed to avoid double playback.
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'raceFrame==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      const audioCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+      // audioSourceThisTurn remains 'top' until an actual turnComplete boundary is seen
+      expect(session.audioSourceThisTurn).toBe('top');
+    });
   });
 
   describe('Fix 3 — suppressAIUntilUserSpeaks lifecycle (deferred to turnComplete when AI started)', () => {
