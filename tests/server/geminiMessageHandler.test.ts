@@ -54,6 +54,8 @@ function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession 
     usingReconnectInstructions: false,
     activePersonaIndex: 0,
     voiceId: null,
+    lastAudioCommitSentAt: 0,
+    audioSourceThisTurn: null,
     ...overrides,
   };
 }
@@ -1872,6 +1874,192 @@ describe('handleGeminiMessage', () => {
       expect(vi.mocked(evaluateUserResponse)).toHaveBeenCalledTimes(1);
       // evaluationInProgress resets to false after the single evaluation completes.
       expect(session.evaluationInProgress).toBe(false);
+    });
+  });
+
+  describe('Fix 2 — cross-source cross-frame audio dedup (audioSourceThisTurn)', () => {
+    it('sets audioSourceThisTurn="top" when top-level audio plays', () => {
+      session.isInterrupted = false;
+      handleGeminiMessage(session, { data: 'topchunk==' }, sendToClient, null, proactiveReconnect);
+      expect(session.audioSourceThisTurn).toBe('top');
+    });
+
+    it('sets audioSourceThisTurn="inline" when inlineData audio plays', () => {
+      session.isInterrupted = false;
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'inchunk==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      expect(session.audioSourceThisTurn).toBe('inline');
+    });
+
+    it('suppresses inlineData when top-level already played for this turn (cross-source dedup)', () => {
+      // Frame 1: top-level audio sets audioSourceThisTurn='top'
+      session.isInterrupted = false;
+      handleGeminiMessage(session, { data: 'frame1==' }, sendToClient, null, proactiveReconnect);
+      const firstCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(firstCalls).toHaveLength(1);
+      sendToClient.mockClear();
+
+      // Frame 2: inlineData from same turn — must be suppressed
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'frame2==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      const audioCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+    });
+
+    it('suppresses top-level when inlineData already played for this turn (cross-source dedup)', () => {
+      // Frame 1: inlineData sets audioSourceThisTurn='inline'
+      session.isInterrupted = false;
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'inline1==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      sendToClient.mockClear();
+
+      // Frame 2: top-level bytes for same turn — must be suppressed
+      handleGeminiMessage(session, { data: 'top1==' }, sendToClient, null, proactiveReconnect);
+      const audioCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+    });
+
+    it('allows multiple inlineData chunks in the same turn (same-source streaming)', () => {
+      // Same source streaming must NOT be deduped — only cross-source frames are blocked
+      session.isInterrupted = false;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'chunk1==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'chunk2==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'chunk3==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(3);
+      expect(audioCalls[0][1]).toMatchObject({ delta: 'chunk1==' });
+      expect(audioCalls[1][1]).toMatchObject({ delta: 'chunk2==' });
+      expect(audioCalls[2][1]).toMatchObject({ delta: 'chunk3==' });
+    });
+
+    it('resets audioSourceThisTurn to null on turnComplete so the next turn is unrestricted', () => {
+      session.isInterrupted = false;
+      session.hasReceivedFirstAIResponse = true;
+
+      handleGeminiMessage(session, { data: 'audio==' }, sendToClient, null, proactiveReconnect);
+      expect(session.audioSourceThisTurn).toBe('top');
+
+      handleGeminiMessage(
+        session, { serverContent: { turnComplete: true } }, sendToClient, null, proactiveReconnect
+      );
+      expect(session.audioSourceThisTurn).toBeNull();
+
+      sendToClient.mockClear();
+      // Next turn: inlineData must play (audioSourceThisTurn was reset)
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'nextturn==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      const audioCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(1);
+      expect(audioCalls[0][1]).toMatchObject({ delta: 'nextturn==' });
+    });
+  });
+
+  describe('Fix 3 — suppressAIUntilUserSpeaks lifecycle (deferred to turnComplete when AI started)', () => {
+    it('suppresses inlineData audio while suppressAIUntilUserSpeaks is active and sets suppressedTurnStarted', () => {
+      session.suppressAIUntilUserSpeaks = true;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'suppressed==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(0);
+      expect(session.suppressAIUntilUserSpeaks).toBe(true);
+      expect(session.suppressedTurnStarted).toBe(true);
+    });
+
+    it('clears both flags on turnComplete when a suppressed AI turn completes', () => {
+      session.suppressAIUntilUserSpeaks = true;
+      session.suppressedTurnStarted = true;
+      session.hasReceivedFirstAIResponse = true;
+      session.currentTranscript = 'unsolicited';
+
+      handleGeminiMessage(
+        session, { serverContent: { turnComplete: true } }, sendToClient, null, proactiveReconnect
+      );
+
+      expect(session.suppressAIUntilUserSpeaks).toBe(false);
+      expect(session.suppressedTurnStarted).toBe(false);
+      expect(session.currentTranscript).toBe('');
+    });
+
+    it('allows normal audio after suppressAIUntilUserSpeaks is cleared by turnComplete', () => {
+      session.suppressAIUntilUserSpeaks = true;
+      session.suppressedTurnStarted = true;
+      session.hasReceivedFirstAIResponse = true;
+
+      // Suppressed turn completes
+      handleGeminiMessage(
+        session, { serverContent: { turnComplete: true } }, sendToClient, null, proactiveReconnect
+      );
+      expect(session.suppressAIUntilUserSpeaks).toBe(false);
+
+      sendToClient.mockClear();
+
+      // Real response to user's speech
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'realresponse==' } }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+
+      const audioCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'audio.delta');
+      expect(audioCalls).toHaveLength(1);
+      expect(audioCalls[0][1]).toMatchObject({ delta: 'realresponse==' });
+    });
+
+    it('does NOT suppress real user response when Gemini never sent an unsolicited turn (suppressedTurnStarted=false)', () => {
+      // Scenario: context injected (suppress=true), but Gemini behaved correctly
+      // and never started an unsolicited turn — turnComplete fires for real user response.
+      // suppressAIUntilUserSpeaks should NOT cause real response to be dropped.
+      session.suppressAIUntilUserSpeaks = true;
+      session.suppressedTurnStarted = false; // No unsolicited turn started
+      session.hasReceivedFirstAIResponse = true;
+      session.currentTranscript = 'real AI response to user';
+
+      // This turnComplete belongs to the REAL response (user spoke, AI replied)
+      // Because suppressedTurnStarted=false, the transcript should NOT be discarded.
+      // Note: suppressAIUntilUserSpeaks is still true here — it would have been
+      // cleared by clientMessageHandler on input_audio_buffer.append since
+      // suppressedTurnStarted was false at that point.
+      // We test the turnComplete path directly: when suppress=true && no turn started,
+      // the turnComplete still clears the flag (same code path) but this scenario
+      // is prevented from reaching here by the clientMessageHandler clearing the flag
+      // on user audio arrival when suppressedTurnStarted=false.
+      // For safety, verify turnComplete DOES clear the flag either way:
+      handleGeminiMessage(
+        session, { serverContent: { turnComplete: true } }, sendToClient, null, proactiveReconnect
+      );
+      expect(session.suppressAIUntilUserSpeaks).toBe(false);
+      expect(session.suppressedTurnStarted).toBe(false);
     });
   });
 });

@@ -79,4 +79,7 @@ export interface RealtimeSession {
   terminationHandled?: boolean;
   evaluationInProgress?: boolean;
   suppressAIUntilUserSpeaks?: boolean;
+  suppressedTurnStarted?: boolean;
+  lastAudioCommitSentAt: number;
+  audioSourceThisTurn: 'top' | 'inline' | null;
 }

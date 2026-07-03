@@ -84,9 +84,14 @@ export function handleClientMessage(
     case 'input_audio_buffer.append': {
       const audioLength = message.audio ? message.audio.length : 0;
       console.log(`🎤 Received audio chunk: ${audioLength} bytes (base64)`);
-      if (session.suppressAIUntilUserSpeaks) {
+      // Fix 3: Conditional suppress-flag clearing on user audio arrival.
+      // If suppressedTurnStarted=true, Gemini is actively streaming audio for an
+      // unsolicited turn — do NOT clear the flag yet; wait for that turn's turnComplete.
+      // If suppressedTurnStarted=false (Gemini never started an unsolicited turn),
+      // it is safe to clear now so the user's real first response is not suppressed.
+      if (session.suppressAIUntilUserSpeaks && !session.suppressedTurnStarted) {
         session.suppressAIUntilUserSpeaks = false;
-        console.log('🔊 User started speaking — lifting suppressAIUntilUserSpeaks');
+        console.log('🔊 User started speaking before any suppressed turn — lifting suppressAIUntilUserSpeaks immediately');
       }
       const audioPayload = {
         audio: { data: message.audio, mimeType: 'audio/pcm;rate=16000' },
@@ -98,11 +103,24 @@ export function handleClientMessage(
 
     case 'input_audio_buffer.commit':
       console.log('📤 User stopped recording, sending END_OF_TURN event');
+      // Fix 1: Record when we send END_OF_TURN via the audio commit path so that a
+      // subsequent response.create (which also sends END_OF_TURN) can be suppressed
+      // within the dedup window and prevent OpenAI from receiving a double response.create.
+      session.lastAudioCommitSentAt = Date.now();
       pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'realtimeInput', data: { event: 'END_OF_TURN' } } });
       session.geminiSession.sendRealtimeInput({ event: 'END_OF_TURN' });
       break;
 
     case 'response.create': {
+      // Fix 1: Guard against double END_OF_TURN when both input_audio_buffer.commit
+      // (recording.stop) and response.create arrive for the same user turn within 800ms.
+      // Without this, OpenAI Realtime API receives response.create twice and generates
+      // the same AI utterance twice.
+      const msSinceAudioCommit = Date.now() - session.lastAudioCommitSentAt;
+      if (session.lastAudioCommitSentAt > 0 && msSinceAudioCommit < 800) {
+        console.log(`⏭️ Skipping redundant response.create (${msSinceAudioCommit}ms after audio commit END_OF_TURN)`);
+        break;
+      }
       // If we just sent clientContent (text input with turnComplete:true), the
       // model will already respond — an extra END_OF_TURN causes a spurious
       // "..." (ctrl46 dots) reply that confuses conversation state. Skip it.

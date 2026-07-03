@@ -341,7 +341,11 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       expect(session.suppressAIUntilUserSpeaks).toBe(false);
     });
 
-    it('suppressAIUntilUserSpeaks is cleared when user sends audio (input_audio_buffer.append)', async () => {
+    it('suppressAIUntilUserSpeaks is NOT cleared by input_audio_buffer.append when Gemini already started a suppressed turn (Fix 3)', async () => {
+      // Fix 3 (deferred path): If Gemini started streaming audio for an unsolicited turn
+      // (suppressedTurnStarted=true), we must NOT clear the flag on user audio arrival —
+      // clearing it early would let in-flight audio from the suppressed turn slip through.
+      // The flag is cleared by geminiMessageHandler only after the suppressed turnComplete.
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
@@ -350,11 +354,38 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       const session = (service as any).sessions.get(SESSION_ID);
       expect(session.suppressAIUntilUserSpeaks).toBe(true);
 
+      // Simulate Gemini having started streaming the unsolicited turn
+      session.suppressedTurnStarted = true;
+
       service.handleClientMessage(SESSION_ID, {
         type: 'input_audio_buffer.append',
         audio: 'AAAA',
       });
 
+      // Flag must remain active — Gemini's unsolicited turn is still in-flight
+      expect(session.suppressAIUntilUserSpeaks).toBe(true);
+    });
+
+    it('suppressAIUntilUserSpeaks IS cleared immediately by input_audio_buffer.append when Gemini never started an unsolicited turn (Fix 3)', async () => {
+      // Fix 3 (early-clear path): If Gemini behaved correctly and never produced audio
+      // for an unsolicited turn (suppressedTurnStarted=false), it is safe to clear the
+      // flag as soon as user audio arrives so the user's real response is not suppressed.
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
+      );
+
+      const session = (service as any).sessions.get(SESSION_ID);
+      expect(session.suppressAIUntilUserSpeaks).toBe(true);
+      // suppressedTurnStarted defaults to false/undefined — Gemini never started
+      expect(session.suppressedTurnStarted).toBeFalsy();
+
+      service.handleClientMessage(SESSION_ID, {
+        type: 'input_audio_buffer.append',
+        audio: 'AAAA',
+      });
+
+      // Flag cleared immediately — safe because no in-flight suppressed audio
       expect(session.suppressAIUntilUserSpeaks).toBe(false);
     });
   });

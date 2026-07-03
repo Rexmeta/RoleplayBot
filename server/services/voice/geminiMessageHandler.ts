@@ -433,17 +433,29 @@ export function handleGeminiMessage(
       }
     }
     if (!session.isInterrupted && !hasInlineDataInModelTurn) {
-      if (!session.hasReceivedFirstAIAudio) {
-        session.hasReceivedFirstAIAudio = true;
-        session.hasReceivedFirstAIResponse = true;
-        console.log(`🔊 [TIMING] 첫 AI 오디오 수신 (top-level): ${new Date().toISOString()}`);
+      if (session.suppressAIUntilUserSpeaks) {
+        // Mark that a suppressed AI turn has started producing audio so the
+        // suppress flag is not cleared early by input_audio_buffer.append.
+        session.suppressedTurnStarted = true;
+        console.log(`🔇 Suppressing top-level audio (awaiting user speech after context injection)`);
+      } else if (session.audioSourceThisTurn === 'inline') {
+        // Fix 2: Cross-source dedup — inlineData already played for this turn
+        // in a prior frame. Skip top-level bytes to avoid double playback.
+        console.log(`🔇 Skipping top-level audio — inlineData source already played for this turn (cross-frame dedup)`);
+      } else {
+        if (!session.hasReceivedFirstAIAudio) {
+          session.hasReceivedFirstAIAudio = true;
+          session.hasReceivedFirstAIResponse = true;
+          console.log(`🔊 [TIMING] 첫 AI 오디오 수신 (top-level): ${new Date().toISOString()}`);
+        }
+        console.log('🔊 Audio data received (top-level)');
+        session.audioSourceThisTurn = 'top';
+        sendToClient(session, {
+          type: 'audio.delta',
+          delta: message.data,
+          turnSeq: session.turnSeq,
+        });
       }
-      console.log('🔊 Audio data received (top-level)');
-      sendToClient(session, {
-        type: 'audio.delta',
-        delta: message.data,
-        turnSeq: session.turnSeq,
-      });
     }
     // Only skip further processing when there is no serverContent attached to this message.
     // gemini-3.1-flash-live-preview may send outputTranscription / turnComplete
@@ -572,6 +584,10 @@ export function handleGeminiMessage(
 
         if (part.inlineData) {
           if (session.suppressAIUntilUserSpeaks) {
+            // Fix 3: Track that a suppressed AI turn is actively producing audio.
+            // This prevents input_audio_buffer.append from clearing the flag early
+            // before the unsolicited turn's turnComplete arrives.
+            session.suppressedTurnStarted = true;
             console.log(`🔇 Suppressing inline audio (awaiting user speech after context injection)`);
             continue;
           }
@@ -593,11 +609,20 @@ export function handleGeminiMessage(
           const mimeType = part.inlineData.mimeType || 'audio/pcm';
           console.log(`🔊 Audio data received (inlineData), mimeType: ${mimeType}, length: ${audioData?.length || 0}`);
           if (audioData) {
+            // Fix 2: Cross-source dedup. If top-level message.data already played audio
+            // for this turn (from a prior frame), skip inlineData — same audio delivered
+            // twice via different paths. Multiple inlineData chunks from the SAME turn
+            // (normal streaming) are allowed through since audioSourceThisTurn stays 'inline'.
+            if (session.audioSourceThisTurn === 'top') {
+              console.log(`🔇 Skipping inlineData audio — top-level source already played for this turn (cross-frame dedup)`);
+              continue;
+            }
             if (!session.hasReceivedFirstAIAudio) {
               session.hasReceivedFirstAIAudio = true;
               session.hasReceivedFirstAIResponse = true;
               console.log(`🔊 [TIMING] 첫 AI 오디오 수신 (inlineData): ${new Date().toISOString()}`);
             }
+            session.audioSourceThisTurn = 'inline';
             sendToClient(session, {
               type: 'audio.delta',
               delta: audioData,
@@ -619,6 +644,9 @@ export function handleGeminiMessage(
       console.log(`🤖 AI transcript delta (raw): ${transcript}`);
 
       if (session.suppressAIUntilUserSpeaks) {
+        // Fix 3: Mark that the suppressed AI turn is producing transcript/audio,
+        // so input_audio_buffer.append knows not to clear the suppress flag early.
+        if (transcript.length > 0) session.suppressedTurnStarted = true;
         console.log(`🔇 Suppressing outputTranscription (awaiting user speech after context injection): "${transcript.substring(0, 80)}"`);
         // Still accumulate so turnComplete can clear it cleanly, but do NOT forward to client
         session.currentTranscript += stripSimulationToolCallText(transcript);
@@ -659,6 +687,9 @@ export function handleGeminiMessage(
       console.log('✅ Turn complete');
 
       session.turnSeq++;
+      // Fix 2: Reset source-aware cross-frame audio dedup on each turn boundary
+      // so the next AI turn can use either source again.
+      session.audioSourceThisTurn = null;
       // Capture counters BEFORE reset so evaluation/fallback gates use actual values
       const toolCallsThisTurn = session.toolCallCountThisTurn;
       // Capture incident flag BEFORE reset so server-rule inference cannot fire when
@@ -918,11 +949,16 @@ export function handleGeminiMessage(
       }
 
       if (session.suppressAIUntilUserSpeaks) {
-        // Gemini generated an unsolicited turn after our turnComplete:false context
-        // injection (a known Gemini Live quirk). Discard transcript + audio silently.
+        // Fix 3: An unsolicited AI turn completed (the one generated in response to our
+        // turnComplete:false context injection). Discard its transcript and clear the flag.
+        // Only this turnComplete path clears the flag when suppressedTurnStarted=true,
+        // guaranteeing all in-flight audio from the unsolicited turn was dropped before
+        // normal playback resumes.
         console.log(`🔇 [turnComplete] Discarding suppressed AI turn (awaiting user speech) — transcript: "${session.currentTranscript.substring(0, 80)}"`);
         session.currentTranscript = '';
-        // Keep suppressAIUntilUserSpeaks=true; it is cleared only when actual user audio arrives.
+        session.suppressAIUntilUserSpeaks = false;
+        session.suppressedTurnStarted = false;
+        console.log('🔊 [turnComplete] suppressAIUntilUserSpeaks cleared — next AI response will play normally');
       } else if (session.currentTranscript) {
         // turnSeq has already been incremented by the time we reach here, so
         // the first completed turn has turnSeq === 1.  Use <= 1 to keep strict
