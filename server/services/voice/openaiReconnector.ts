@@ -109,6 +109,11 @@ export function handleOpenAIClose(
             sess.cancelledTurnSeq = -1;
             sess.currentTranscript = '';
             sess.userSpeechStarted = false;
+            // The dedup window guard (Fix 1) is keyed off a timestamp from the previous
+            // connection. Reset it so a stale value cannot suppress a legitimate
+            // response.create on the new connection.
+            sess.lastAudioCommitSentAt = 0;
+            sess.lastClientContentSentAt = 0;
             console.log('✅ [OpenAI Reconnector] Reconnected!');
             sendToClient(sess, { type: 'session.reconnected' });
 
@@ -137,12 +142,25 @@ export function handleOpenAIClose(
                   skipNextEot = true;
                   continue;
                 }
+                // Drop ANY realtimeInput END_OF_TURN event from replay, not just ones
+                // paired with a greeting trigger. This event was already sent to OpenAI
+                // on the previous connection via `input_audio_buffer.commit` +
+                // `response.create` and may already have started (or finished)
+                // generating a response there. Since a reconnect establishes a
+                // brand-new OpenAI session with no memory of that in-flight response,
+                // blindly replaying END_OF_TURN risks the model responding twice to the
+                // same user turn. Raw audio/context messages are still replayed so the
+                // new session has the right context; the user's next turn will
+                // naturally send its own END_OF_TURN.
+                if (isEndOfTurnInput(msg)) {
+                  continue;
+                }
                 filtered.push(msg);
               }
 
               const removed = sess.pendingMessages.length - filtered.length;
               if (removed > 0) {
-                console.log(`🚫 [OpenAI Reconnector] Filtered ${removed} greeting+EOT messages`);
+                console.log(`🚫 [OpenAI Reconnector] Filtered ${removed} greeting/END_OF_TURN trigger messages from replay`);
               }
 
               if (filtered.length > 0) {

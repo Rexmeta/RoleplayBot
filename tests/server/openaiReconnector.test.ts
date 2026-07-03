@@ -763,6 +763,69 @@ describe('handleOpenAIClose', () => {
       expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledWith(realPayload);
     });
 
+    it('filters standalone END_OF_TURN messages (not just greeting-paired) from replay to prevent duplicate responses', async () => {
+      // Simulates: user finished speaking (input_audio_buffer.commit sent
+      // END_OF_TURN), OpenAI may have already started/finished generating a
+      // response, then the connection dropped before reconnect. On reconnect,
+      // this END_OF_TURN must NOT be replayed to the fresh OpenAI session or
+      // it would trigger a duplicate response.create for the same user turn.
+      const audioChunkPayload = { audio: { data: 'chunk-1' } };
+      const eotPayload = { event: 'END_OF_TURN' };
+      session.pendingMessages = [
+        { index: 0, payload: { type: 'realtimeInput', data: audioChunkPayload } },
+        { index: 1, payload: { type: 'realtimeInput', data: eotPayload } },
+      ];
+      const mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+      connectToOpenAI.mockImplementation(async (sess: RealtimeSession) => {
+        sess.geminiSession = mockGeminiSession;
+      });
+
+      handleOpenAIClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToOpenAI,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledWith(audioChunkPayload);
+      expect(mockGeminiSession.sendRealtimeInput).not.toHaveBeenCalledWith(eotPayload);
+      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledTimes(1);
+    });
+
+    it('resets lastAudioCommitSentAt and lastClientContentSentAt on successful reconnect', async () => {
+      session.lastAudioCommitSentAt = Date.now();
+      session.lastClientContentSentAt = Date.now();
+      session.pendingMessages = [];
+      const mockGeminiSession = {
+        sendClientContent: vi.fn(),
+        sendRealtimeInput: vi.fn(),
+      };
+      connectToOpenAI.mockImplementation(async (sess: RealtimeSession) => {
+        sess.geminiSession = mockGeminiSession;
+      });
+
+      handleOpenAIClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToOpenAI,
+        trackSessionUsage
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(session.lastAudioCommitSentAt).toBe(0);
+      expect(session.lastClientContentSentAt).toBe(0);
+    });
+
     it('falls back to context text when pendingMessages is empty', async () => {
       session.pendingMessages = [];
       session.recentMessages = [
