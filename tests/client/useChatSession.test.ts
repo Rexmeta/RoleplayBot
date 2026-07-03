@@ -281,3 +281,115 @@ describe('flushRealtimeMessages — pending guard preserved on failure', () => {
     expect(hasPendingLocalRef.current).toBe(true);
   });
 });
+
+// ─── flushRealtimeMessages overlap tests (snapshot-before-flush) ──────────────
+
+describe('flushRealtimeMessages — overlapping flush calls (snapshot-before-flush)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps hasPendingLocalRef=true when a new message arrives while the flush request is in-flight', async () => {
+    const hasPendingLocalRef = { current: true };
+    const localMessagesRef = { current: [
+      { sender: 'ai' as const, message: 'Hello', timestamp: '2025-01-01T00:00:00Z' },
+    ]};
+
+    // Control resolution of the in-flight request manually so we can inject a
+    // new message into localMessagesRef while the "network call" is pending.
+    let resolveRequest!: () => void;
+    mockApiRequest.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveRequest = () => resolve({ json: vi.fn().mockResolvedValue({}) });
+    }));
+
+    const { result } = renderHook(() =>
+      useChatSession(buildDefaultOptions({ hasPendingLocalRef, localMessagesRef }))
+    );
+
+    let flushPromise!: Promise<void>;
+    act(() => {
+      flushPromise = result.current.flushRealtimeMessages(false);
+    });
+
+    // Simulate a new user message arriving mid-flight (after the snapshot was
+    // taken but before the request resolves).
+    localMessagesRef.current = [
+      ...localMessagesRef.current,
+      { sender: 'user' as const, message: 'New message during flush', timestamp: '2025-01-01T00:00:01Z' },
+    ];
+
+    // Now let the in-flight request resolve.
+    await act(async () => {
+      resolveRequest();
+      await flushPromise;
+    });
+
+    // Because localMessagesRef grew beyond the snapshot taken at flush start,
+    // the pending guard must remain true so the newly arrived message is not
+    // lost to a stale server refetch before it too gets flushed.
+    expect(hasPendingLocalRef.current).toBe(true);
+  });
+
+  it('clears hasPendingLocalRef=false when no new message arrives during the flush', async () => {
+    const hasPendingLocalRef = { current: true };
+    const localMessagesRef = { current: [
+      { sender: 'ai' as const, message: 'Hello', timestamp: '2025-01-01T00:00:00Z' },
+    ]};
+
+    let resolveRequest!: () => void;
+    mockApiRequest.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveRequest = () => resolve({ json: vi.fn().mockResolvedValue({}) });
+    }));
+
+    const { result } = renderHook(() =>
+      useChatSession(buildDefaultOptions({ hasPendingLocalRef, localMessagesRef }))
+    );
+
+    let flushPromise!: Promise<void>;
+    act(() => {
+      flushPromise = result.current.flushRealtimeMessages(false);
+    });
+
+    // No new messages arrive — localMessagesRef stays exactly as it was at snapshot time.
+    await act(async () => {
+      resolveRequest();
+      await flushPromise;
+    });
+
+    expect(hasPendingLocalRef.current).toBe(false);
+  });
+
+  it('skips a duplicate non-final flush while one is already in-flight', async () => {
+    const hasPendingLocalRef = { current: true };
+    const localMessagesRef = { current: [
+      { sender: 'ai' as const, message: 'Hello', timestamp: '2025-01-01T00:00:00Z' },
+    ]};
+
+    let resolveRequest!: () => void;
+    mockApiRequest.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveRequest = () => resolve({ json: vi.fn().mockResolvedValue({}) });
+    }));
+
+    const { result } = renderHook(() =>
+      useChatSession(buildDefaultOptions({ hasPendingLocalRef, localMessagesRef }))
+    );
+
+    let firstFlush!: Promise<void>;
+    act(() => {
+      firstFlush = result.current.flushRealtimeMessages(false);
+    });
+
+    // A second, duplicate non-final flush call while the first is in-flight
+    // should be skipped immediately (not issue a second apiRequest call).
+    await act(async () => {
+      await result.current.flushRealtimeMessages(false);
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRequest();
+      await firstFlush;
+    });
+  });
+});
