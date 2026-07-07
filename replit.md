@@ -96,7 +96,7 @@ Preferred communication style: Simple, everyday language.
 - **Validation**: Zod.
 - **API Docs**: swagger-ui-express, OpenAPI 3.x spec.
 - **Development Tools**: Vite, TypeScript, Tailwind CSS.
-- **Testing**: Vitest (`npx vitest run`) with happy-dom for client hook tests. 962 tests across 39 test files.
+- **Testing**: Vitest (`npx vitest run`) with happy-dom for client hook tests. 1342 tests across 52 test files.
 
 ## Testing
 
@@ -134,6 +134,7 @@ Test files are organized under `tests/server/`, `tests/client/`, and `tests/` (r
 - `simulationToolHandler.test.ts` — Simulation Gemini tool handler
 - `textFilter.test.ts` — Thinking-tag text filter
 - `benchmarkGroups.test.ts` — HR benchmark group logic
+- `setFewShotExampleFlow.test.ts` — Set-level few-shot example CRUD, from-feedback import (dimension key mapping + transcript serialization), infer-dimension-criteria AI mock parsing, apply-inferred-criteria dimension updates
 
 **Client tests (`tests/client/`):**
 - `useAudioPlayback.test.ts` — Initial state, stopPlayback barge-in, playAudioDelta gating, PCM16 decoding math, AnalyserNode/GainNode lifecycle
