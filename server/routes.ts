@@ -77,6 +77,29 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   }
 
+  // Seed privacy/data_retention_days setting if not present
+  try {
+    const existing = await storage.getSystemSetting('privacy', 'data_retention_days');
+    if (!existing) {
+      await storage.upsertSystemSetting({
+        category: 'privacy',
+        key: 'data_retention_days',
+        value: '365',
+        description: 'Number of days after which inactive users are automatically anonymized (GDPR Art. 5(1)(e), PIPA §21(2))',
+      });
+    }
+  } catch (err) {
+    console.error('[seed] Failed to seed data_retention_days setting:', err);
+  }
+
+  // Start anonymization scheduler (runs on server startup + daily at midnight)
+  try {
+    const { startAnonymizationScheduler } = await import('./services/anonymizationScheduler');
+    startAnonymizationScheduler();
+  } catch (err) {
+    console.error('[seed] Failed to start anonymization scheduler:', err);
+  }
+
   // Public: current default intro video URL (authenticated users only)
   app.get('/api/media/default-intro-video', isAuthenticated, async (req, res) => {
     try {

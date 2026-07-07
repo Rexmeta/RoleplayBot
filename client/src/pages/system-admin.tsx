@@ -35,7 +35,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key, CreditCard, ShoppingBag } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key, CreditCard, ShoppingBag, UserX } from "lucide-react";
 import { LanguageManager } from "@/components/LanguageManager";
 import { HierarchyTreeManager } from "@/components/HierarchyTreeManager";
 import { AgentKeyManager } from "@/components/admin/AgentKeyManager";
@@ -57,6 +57,8 @@ interface UserData {
   assignedCompanyId?: string | null;
   assignedOrganizationId?: string | null;
   assignedCategoryId?: string | null;
+  isAnonymized?: boolean;
+  anonymizedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -614,6 +616,7 @@ export default function SystemAdminPage() {
   const [resetPasswordUser, setResetPasswordUser] = useState<UserData | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [anonymizeUser, setAnonymizeUser] = useState<UserData | null>(null);
 
   // System settings state - per-feature model selection
   const [featureModels, setFeatureModels] = useState<Record<string, string>>({
@@ -785,6 +788,27 @@ export default function SystemAdminPage() {
       toast({
         title: t('systemAdmin.toast.error'),
         description: error.message || t('systemAdmin.toast.updateFailed'),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const anonymizeUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return await apiRequest("POST", `/api/admin/users/${userId}/anonymize`, {});
+    },
+    onSuccess: () => {
+      toast({
+        title: t('systemAdmin.toast.anonymizeSuccess'),
+        description: t('systemAdmin.toast.anonymizeSuccessDesc'),
+      });
+      setAnonymizeUser(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/users"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: t('systemAdmin.toast.error'),
+        description: error.message || t('systemAdmin.toast.anonymizeFailed'),
         variant: "destructive",
       });
     },
@@ -1232,10 +1256,10 @@ export default function SystemAdminPage() {
                           </TableRow>
                         ) : (
                           filteredUsers.map((user) => (
-                            <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+                            <TableRow key={user.id} data-testid={`row-user-${user.id}`} className={user.isAnonymized ? "opacity-60" : ""}>
                               <TableCell>
                                 <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
-                                  {user.profileImage ? (
+                                  {!user.isAnonymized && user.profileImage ? (
                                     <img
                                       src={user.profileImage}
                                       alt={user.name}
@@ -1246,7 +1270,14 @@ export default function SystemAdminPage() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="font-medium">{user.name}</TableCell>
+                              <TableCell className="font-medium">
+                                {user.name}
+                                {user.isAnonymized && (
+                                  <Badge variant="secondary" className="ml-2 text-xs bg-orange-100 text-orange-700">
+                                    {t('systemAdmin.users.anonymized')}
+                                  </Badge>
+                                )}
+                              </TableCell>
                               <TableCell className="text-muted-foreground">{user.email}</TableCell>
                               <TableCell>
                                 <Badge
@@ -1286,23 +1317,41 @@ export default function SystemAdminPage() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openEditUserDialog(user)}
-                                    data-testid={`button-edit-${user.id}`}
-                                  >
-                                    {t('systemAdmin.users.edit')}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setResetPasswordUser(user)}
-                                    data-testid={`button-reset-password-${user.id}`}
-                                    title={t('systemAdmin.users.resetPassword')}
-                                  >
-                                    <KeyRound className="h-4 w-4" />
-                                  </Button>
+                                  {!user.isAnonymized ? (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => openEditUserDialog(user)}
+                                        data-testid={`button-edit-${user.id}`}
+                                      >
+                                        {t('systemAdmin.users.edit')}
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setResetPasswordUser(user)}
+                                        data-testid={`button-reset-password-${user.id}`}
+                                        title={t('systemAdmin.users.resetPassword')}
+                                      >
+                                        <KeyRound className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setAnonymizeUser(user)}
+                                        data-testid={`button-anonymize-${user.id}`}
+                                        title={t('systemAdmin.users.anonymize')}
+                                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                      >
+                                        <UserX className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground italic">
+                                      {user.anonymizedAt ? format(new Date(user.anonymizedAt), "MM/dd HH:mm", { locale: ko }) : "-"}
+                                    </span>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -1745,6 +1794,51 @@ export default function SystemAdminPage() {
             </Card>
 
             <DefaultIntroVideoManager />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserX className="h-5 w-5 text-orange-600" />
+                  {t('systemAdmin.settings.privacyCompliance') || '개인정보 보호 설정'}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {t('systemAdmin.settings.dataRetentionDaysDesc')}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">{t('systemAdmin.settings.dataRetentionDays')}</label>
+                    <div className="flex items-center gap-3 max-w-xs">
+                      <Input
+                        type="number"
+                        min={30}
+                        max={3650}
+                        value={
+                          systemSettings.find(s => s.category === 'privacy' && s.key === 'data_retention_days')?.value ?? '365'
+                        }
+                        onChange={async (e) => {
+                          const value = e.target.value;
+                          if (!value || isNaN(Number(value))) return;
+                          try {
+                            await apiRequest("PUT", "/api/system-admin/settings/batch", { settings: [{
+                              category: "privacy",
+                              key: "data_retention_days",
+                              value,
+                              description: "Days before inactive user data is auto-anonymized",
+                            }] });
+                            queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
+                          } catch {}
+                        }}
+                        className="w-32"
+                      />
+                      <span className="text-sm text-muted-foreground">{t('systemAdmin.settings.days') || '일'}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">GDPR Art. 5(1)(e) · 개인정보보호법 §21(2)</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="ai-usage" className="space-y-6 mt-6">
@@ -2374,6 +2468,58 @@ export default function SystemAdminPage() {
                 </>
               ) : (
                 t('systemAdmin.common.save')
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!anonymizeUser} onOpenChange={(open) => { if (!open) setAnonymizeUser(null); }}>
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-700">
+              <UserX className="h-5 w-5" />
+              {t('systemAdmin.dialogs.anonymize.title')}
+            </DialogTitle>
+            <DialogDescription className="text-destructive font-medium">
+              {t('systemAdmin.dialogs.anonymize.warning')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-md border border-red-200 bg-red-50 p-4 space-y-3 text-sm">
+              <div>
+                <p className="font-semibold text-red-800">{t('systemAdmin.dialogs.anonymize.deletedInfo')}</p>
+                <p className="text-red-700 mt-1">{t('systemAdmin.dialogs.anonymize.deletedItems')}</p>
+              </div>
+              <div>
+                <p className="font-semibold text-green-800">{t('systemAdmin.dialogs.anonymize.preservedInfo')}</p>
+                <p className="text-green-700 mt-1">{t('systemAdmin.dialogs.anonymize.preservedItems')}</p>
+              </div>
+            </div>
+            <div className="rounded-md border border-orange-200 bg-orange-50 p-3 space-y-1 text-sm text-orange-800">
+              <p>⚠ {t('systemAdmin.dialogs.anonymize.loginBlocked')}</p>
+              <p>⚠ {t('systemAdmin.dialogs.anonymize.irreversible')}</p>
+            </div>
+            {anonymizeUser && (
+              <div className="text-sm text-muted-foreground border rounded-md p-3">
+                <span className="font-medium">{anonymizeUser.name}</span>
+                {' '}({anonymizeUser.email})
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnonymizeUser(null)}>
+              {t('systemAdmin.dialogs.anonymize.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => anonymizeUser && anonymizeUserMutation.mutate(anonymizeUser.id)}
+              disabled={anonymizeUserMutation.isPending}
+            >
+              {anonymizeUserMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t('systemAdmin.dialogs.anonymize.processing')}</>
+              ) : (
+                <><UserX className="w-4 h-4 mr-2" />{t('systemAdmin.dialogs.anonymize.confirm')}</>
               )}
             </Button>
           </DialogFooter>

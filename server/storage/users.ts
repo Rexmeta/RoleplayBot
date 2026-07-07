@@ -1,7 +1,8 @@
 import { type User, type UpsertUser, users } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, and, lt, gt, sql as drizzleSql } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { randomBytes } from "crypto";
 
 export interface IUsersStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -13,6 +14,9 @@ export interface IUsersStorage {
   updateUserLastLogin(id: string): Promise<void>;
   getAllUsers(): Promise<User[]>;
   adminUpdateUser(id: string, updates: { role?: string; tier?: string; isActive?: boolean; assignedCompanyId?: string | null; assignedCategoryId?: string | null; assignedOrganizationId?: string | null }): Promise<User>;
+  anonymizeUser(userId: string, performedBy: string | null, triggerType: 'manual' | 'scheduled' | 'self_request'): Promise<User>;
+  getUsersEligibleForAnonymization(retentionDays: number): Promise<User[]>;
+  getUsersApproachingRetention(retentionDays: number, warningDays?: number): Promise<User[]>;
 }
 
 type Constructor<T = {}> = new (...args: any[]) => T;
@@ -77,6 +81,65 @@ export function UsersMixin<TBase extends Constructor>(Base: TBase) {
       if (!user) throw new Error("User not found");
       return user;
     }
+
+    async anonymizeUser(userId: string, performedBy: string | null, triggerType: 'manual' | 'scheduled' | 'self_request'): Promise<User> {
+      const suffix = randomBytes(2).toString('hex').toUpperCase();
+      const anonEmail = `anonymous-${suffix.toLowerCase()}@anonymized.internal`;
+      const anonName = `익명 사용자 #${suffix}`;
+      const invalidPassword = `$ANONYMIZED$${randomBytes(32).toString('hex')}`;
+
+      const [updated] = await db.update(users).set({
+        email: anonEmail,
+        name: anonName,
+        password: invalidPassword,
+        profileImage: null,
+        isActive: false,
+        isAnonymized: true,
+        anonymizedAt: new Date(),
+        anonymizedBy: performedBy,
+        updatedAt: new Date(),
+      }).where(eq(users.id, userId)).returning();
+
+      if (!updated) throw new Error("User not found");
+
+      try {
+        const { sessions } = await import("@shared/schema");
+        await db.delete(sessions).where(
+          drizzleSql`${sessions.sess}->>'userId' = ${userId}`
+        );
+      } catch (err) {
+        console.warn(`[anonymize] Could not delete sessions for user ${userId}:`, err);
+      }
+
+      console.log(`[anonymize] User ${userId} anonymized. trigger=${triggerType}, performedBy=${performedBy ?? 'system'}`);
+      return updated;
+    }
+
+    async getUsersEligibleForAnonymization(retentionDays: number): Promise<User[]> {
+      const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+      return await db.select().from(users).where(
+        and(
+          eq(users.role, 'user'),
+          eq(users.isActive, false),
+          eq(users.isAnonymized, false),
+          lt(users.updatedAt, cutoff)
+        )
+      );
+    }
+
+    async getUsersApproachingRetention(retentionDays: number, warningDays: number = 7): Promise<User[]> {
+      const cutoff = new Date(Date.now() - (retentionDays - warningDays) * 24 * 60 * 60 * 1000);
+      const cutoffEarly = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+      return await db.select().from(users).where(
+        and(
+          eq(users.role, 'user'),
+          eq(users.isActive, false),
+          eq(users.isAnonymized, false),
+          lt(users.updatedAt, cutoff),
+          gt(users.updatedAt, cutoffEarly)
+        )
+      );
+    }
   };
 }
 
@@ -109,6 +172,9 @@ export class MemUsersStorage implements IUsersStorage {
       assignedCategoryId: userData.assignedCategoryId || null,
       assignedOrganizationId: null,
       assignedCompanyId: null,
+      isAnonymized: false,
+      anonymizedAt: null,
+      anonymizedBy: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -157,6 +223,9 @@ export class MemUsersStorage implements IUsersStorage {
       assignedCategoryId: existingUser?.assignedCategoryId || null,
       assignedOrganizationId: existingUser?.assignedOrganizationId || null,
       assignedCompanyId: existingUser?.assignedCompanyId || null,
+      isAnonymized: existingUser?.isAnonymized ?? false,
+      anonymizedAt: existingUser?.anonymizedAt ?? null,
+      anonymizedBy: existingUser?.anonymizedBy ?? null,
       createdAt: existingUser?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -179,5 +248,50 @@ export class MemUsersStorage implements IUsersStorage {
     const updated = { ...user, ...updates, updatedAt: new Date() };
     this._users.set(id, updated);
     return updated;
+  }
+
+  async anonymizeUser(userId: string, performedBy: string | null, triggerType: 'manual' | 'scheduled' | 'self_request'): Promise<User> {
+    const user = this._users.get(userId);
+    if (!user) throw new Error("User not found");
+    const suffix = randomBytes(2).toString('hex').toUpperCase();
+    const updated: User = {
+      ...user,
+      email: `anonymous-${suffix.toLowerCase()}@anonymized.internal`,
+      name: `익명 사용자 #${suffix}`,
+      password: `$ANONYMIZED$${randomBytes(32).toString('hex')}`,
+      profileImage: null,
+      isActive: false,
+      isAnonymized: true,
+      anonymizedAt: new Date(),
+      anonymizedBy: performedBy,
+      updatedAt: new Date(),
+    };
+    this._users.set(userId, updated);
+    console.log(`[anonymize] MemStorage: User ${userId} anonymized. trigger=${triggerType}`);
+    return updated;
+  }
+
+  async getUsersEligibleForAnonymization(retentionDays: number): Promise<User[]> {
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    return Array.from(this._users.values()).filter(u =>
+      u.role === 'user' &&
+      u.isActive === false &&
+      u.isAnonymized === false &&
+      u.updatedAt !== null &&
+      u.updatedAt < cutoff
+    );
+  }
+
+  async getUsersApproachingRetention(retentionDays: number, warningDays: number = 7): Promise<User[]> {
+    const cutoff = new Date(Date.now() - (retentionDays - warningDays) * 24 * 60 * 60 * 1000);
+    const cutoffEarly = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    return Array.from(this._users.values()).filter(u =>
+      u.role === 'user' &&
+      u.isActive === false &&
+      u.isAnonymized === false &&
+      u.updatedAt !== null &&
+      u.updatedAt < cutoff &&
+      u.updatedAt > cutoffEarly
+    );
   }
 }

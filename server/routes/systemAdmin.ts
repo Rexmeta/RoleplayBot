@@ -28,6 +28,8 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
       assignedCompanyId: user.assignedCompanyId,
       assignedOrganizationId: user.assignedOrganizationId,
       assignedCategoryId: user.assignedCategoryId,
+      isAnonymized: user.isAnonymized ?? false,
+      anonymizedAt: user.anonymizedAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }));
@@ -85,6 +87,8 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
       assignedCompanyId: updatedUser.assignedCompanyId,
       assignedOrganizationId: updatedUser.assignedOrganizationId,
       assignedCategoryId: updatedUser.assignedCategoryId,
+      isAnonymized: updatedUser.isAnonymized ?? false,
+      anonymizedAt: updatedUser.anonymizedAt,
       createdAt: updatedUser.createdAt,
       updatedAt: updatedUser.updatedAt,
     });

@@ -122,7 +122,7 @@
   },
   "companyOrg": {
     "title": "Company & Organization Management",
-    "description": "Manage the 3-tier hierarchy (Company > Organization > Category).",
+    "description": "Description",
     "companies": "Companies",
     "organizations": "Organizations",
     "totalCompanies": "Total {{count}} companies",
@@ -141,7 +141,6 @@
     "selectCompany": "Select Company",
     "allCompanies": "All Companies",
     "status": "Status",
-    "description": "Description",
     "descriptionPlaceholder": "Enter a brief description",
     "companyFormDesc": "Enter company information.",
     "orgFormDesc": "Enter organization information.",
@@ -330,31 +329,8 @@
     }
   },
   "feedback": {
-    "title": "Personal Report",
-    "overallScore": "Overall Score",
-    "performanceAnalysis": "Performance Analysis",
-    "behaviorGuide": "Behavior Guide",
-    "conversationGuide": "Conversation Guide",
-    "developmentPlan": "Development Plan",
-    "strategyEvaluation": "Strategy Evaluation",
-    "strengths": "Key Strengths",
-    "improvements": "Areas for Improvement",
-    "nextSteps": "Next Steps",
-    "expertOpinion": "Expert Opinion",
-    "print": "Print",
-    "download": "Download",
-    "generateFeedback": "Generate Feedback",
-    "generating": "Generating feedback...",
-    "notGenerated": "Feedback has not been generated yet",
-    "conversationTimeAnalysis": "Conversation Time Analysis",
-    "totalTime": "Total Time",
-    "avgResponseTime": "Avg Response Time",
-    "timePerformance": {
-      "excellent": "Excellent",
-      "good": "Good",
-      "average": "Average",
-      "slow": "Needs Improvement"
-    }
+    "loading": "Loading feedback...",
+    "scenarioNotFound": "Scenario or persona not found."
   },
   "report": {
     "defaultUser": "User",
@@ -500,7 +476,74 @@
     "personas": "Persona Management",
     "categories": "Category Management",
     "settings": "System Settings",
-    "difficultySettings": "Difficulty Settings",
+    "difficultySettings": {
+      "title": "Difficulty Settings",
+      "description": "Manage difficulty level settings.",
+      "resetToDefault": "Reset to Default",
+      "saveSuccess": "Difficulty settings saved successfully.",
+      "tabDescription": "Configure AI character's conversation style for each difficulty level. These settings apply to text, TTS, and real-time voice modes.",
+      "saveComplete": "Save Complete",
+      "saveCompleteDesc": "Difficulty settings have been saved.",
+      "saveFailed": "Save Failed",
+      "saveFailedDesc": "Failed to save difficulty settings.",
+      "resetComplete": "Reset Complete",
+      "resetCompleteDesc": "Difficulty settings have been restored to defaults.",
+      "resetFailed": "Reset Failed",
+      "resetFailedDesc": "Failed to reset settings.",
+      "form": {
+        "description": "Description",
+        "responseLength": "Response Length",
+        "tone": "Tone/Style",
+        "pressure": "Pressure Level",
+        "feedback": "Feedback Style",
+        "constraints": "Constraints",
+        "constraintsCount": "Constraints ({{count}})",
+        "addConstraint": "Add Constraint",
+        "moreConstraints": "+{{count}} more..."
+      },
+      "guide": {
+        "title": "Difficulty Settings Guide",
+        "level1": "Friendly tutorial mode for first-time users",
+        "level2": "Basic conversation practice (default difficulty)",
+        "level3": "Challenge mode requiring logical arguments and persuasion",
+        "level4": "Advanced mode with real-world pressure requiring quick responses",
+        "applyNote": "Changed settings will apply to new conversations."
+      },
+      "levels": {
+        "1": {
+          "name": "Beginner Difficulty",
+          "description": "Very friendly and safe practice conversation. Helps users feel comfortable even when making mistakes, suggesting correct answers or better expressions first.",
+          "responseLength": "2-3 sentences. Explain key points simply, rephrasing difficult expressions in easier terms.",
+          "tone": "Gentle and encouraging. Praise first even for mistakes, then softly suggest corrections.",
+          "pressure": "Almost no conflict or pressure. Only present everyday or low-risk situations.",
+          "feedback": "Explain first, then gently encourage participation."
+        },
+        "2": {
+          "name": "Basic Difficulty",
+          "description": "Friendly but realistic conversation. Users experience workplace-level feedback and light conflicts while practicing independent thinking.",
+          "responseLength": "2-4 sentences, clear and realistic.",
+          "tone": "Basically friendly but honestly points out issues when needed.",
+          "pressure": "Mild conflicts and pressure exist. Constantly reminds of realistic constraints.",
+          "feedback": "Provides explanations but accompanies questions to encourage self-reflection."
+        },
+        "3": {
+          "name": "Challenge Difficulty",
+          "description": "Conversation with workplace-level pressure and conflicts. Users must present in-depth judgment and logic to resolve situations.",
+          "responseLength": "3-5 sentences. Includes situation explanation + problem identification + additional demands.",
+          "tone": "Polite but objective and results-focused. Demands logic and evidence.",
+          "pressure": "Clear conflicts and moderate to high pressure.",
+          "feedback": "Specifically points out mistakes and omissions, requiring corrections and improvements."
+        },
+        "4": {
+          "name": "Extreme Difficulty",
+          "description": "Includes near-extreme crisis and conflict situations. Users must respond coolly under high pressure.",
+          "responseLength": "1-5 sentences. Direct when short, detailed strong demands when long.",
+          "tone": "Very demanding and direct, may feel cold at times.",
+          "pressure": "Maximum pressure and emotional tension.",
+          "feedback": "Immediate strong feedback on mistakes and contradictions. Retry demands are delivered with pressure."
+        }
+      }
+    },
     "aiUsage": "AI Usage",
     "translations": "Translation Management",
     "translationDashboard": {
@@ -902,74 +945,6 @@
         "expertisePrefix": "Expertise: "
       }
     },
-    "difficultySettings": {
-      "title": "Difficulty Settings",
-      "description": "Manage difficulty level settings.",
-      "resetToDefault": "Reset to Default",
-      "saveSuccess": "Difficulty settings saved successfully.",
-      "tabDescription": "Configure AI character's conversation style for each difficulty level. These settings apply to text, TTS, and real-time voice modes.",
-      "saveComplete": "Save Complete",
-      "saveCompleteDesc": "Difficulty settings have been saved.",
-      "saveFailed": "Save Failed",
-      "saveFailedDesc": "Failed to save difficulty settings.",
-      "resetComplete": "Reset Complete",
-      "resetCompleteDesc": "Difficulty settings have been restored to defaults.",
-      "resetFailed": "Reset Failed",
-      "resetFailedDesc": "Failed to reset settings.",
-      "form": {
-        "description": "Description",
-        "responseLength": "Response Length",
-        "tone": "Tone/Style",
-        "pressure": "Pressure Level",
-        "feedback": "Feedback Style",
-        "constraints": "Constraints",
-        "constraintsCount": "Constraints ({{count}})",
-        "addConstraint": "Add Constraint",
-        "moreConstraints": "+{{count}} more..."
-      },
-      "guide": {
-        "title": "Difficulty Settings Guide",
-        "level1": "Friendly tutorial mode for first-time users",
-        "level2": "Basic conversation practice (default difficulty)",
-        "level3": "Challenge mode requiring logical arguments and persuasion",
-        "level4": "Advanced mode with real-world pressure requiring quick responses",
-        "applyNote": "Changed settings will apply to new conversations."
-      },
-      "levels": {
-        "1": {
-          "name": "Beginner Difficulty",
-          "description": "Very friendly and safe practice conversation. Helps users feel comfortable even when making mistakes, suggesting correct answers or better expressions first.",
-          "responseLength": "2-3 sentences. Explain key points simply, rephrasing difficult expressions in easier terms.",
-          "tone": "Gentle and encouraging. Praise first even for mistakes, then softly suggest corrections.",
-          "pressure": "Almost no conflict or pressure. Only present everyday or low-risk situations.",
-          "feedback": "Explain first, then gently encourage participation."
-        },
-        "2": {
-          "name": "Basic Difficulty",
-          "description": "Friendly but realistic conversation. Users experience workplace-level feedback and light conflicts while practicing independent thinking.",
-          "responseLength": "2-4 sentences, clear and realistic.",
-          "tone": "Basically friendly but honestly points out issues when needed.",
-          "pressure": "Mild conflicts and pressure exist. Constantly reminds of realistic constraints.",
-          "feedback": "Provides explanations but accompanies questions to encourage self-reflection."
-        },
-        "3": {
-          "name": "Challenge Difficulty",
-          "description": "Conversation with workplace-level pressure and conflicts. Users must present in-depth judgment and logic to resolve situations.",
-          "responseLength": "3-5 sentences. Includes situation explanation + problem identification + additional demands.",
-          "tone": "Polite but objective and results-focused. Demands logic and evidence.",
-          "pressure": "Clear conflicts and moderate to high pressure.",
-          "feedback": "Specifically points out mistakes and omissions, requiring corrections and improvements."
-        },
-        "4": {
-          "name": "Extreme Difficulty",
-          "description": "Includes near-extreme crisis and conflict situations. Users must respond coolly under high pressure.",
-          "responseLength": "1-5 sentences. Direct when short, detailed strong demands when long.",
-          "tone": "Very demanding and direct, may feel cold at times.",
-          "pressure": "Maximum pressure and emotional tension.",
-          "feedback": "Immediate strong feedback on mistakes and contradictions. Retry demands are delivered with pressure."
-        }
-      }
-    },
     "aiGenerator": {
       "title": "AI Scenario Generator",
       "generateWithAI": "Generate with AI",
@@ -1182,10 +1157,6 @@
     "noMessagesHint": "This conversation has no saved messages or hasn't started yet.",
     "emotion": "Emotion"
   },
-  "feedback": {
-    "loading": "Loading feedback...",
-    "scenarioNotFound": "Scenario or persona not found."
-  },
   "voice": {
     "connectionError": "Voice connection error",
     "sessionEnded": "Voice session ended",
@@ -1259,7 +1230,9 @@
       "edit": "Edit",
       "resetPassword": "Reset Password",
       "active": "Active",
-      "inactive": "Inactive"
+      "inactive": "Inactive",
+      "anonymize": "Anonymize",
+      "anonymized": "Anonymized"
     },
     "roles": {
       "admin": "System Admin",
@@ -1337,7 +1310,11 @@
       "elevenlabsApiDesc": "Used for TTS voice synthesis",
       "configured": "Configured",
       "notConfigured": "Not Configured",
-      "apiKeySecurityNote": "API keys are managed in the Secrets tab for security. Use Replit's Secrets menu to make changes."
+      "apiKeySecurityNote": "API keys are managed in the Secrets tab for security. Use Replit's Secrets menu to make changes.",
+      "dataRetentionDays": "Data Retention Period (days)",
+      "dataRetentionDaysDesc": "Number of days until inactive users are automatically anonymized (GDPR Art. 5(1)(e), PIPA §21(2))",
+      "privacyCompliance": "Privacy & Compliance",
+      "days": "days"
     },
     "aiUsage": {
       "dateRange": "Date Range",
@@ -1400,6 +1377,19 @@
         "hint": "Please inform the user of the temporary password after setting it.",
         "resetting": "Resetting...",
         "reset": "Reset Password"
+      },
+      "anonymize": {
+        "title": "Anonymize User Data",
+        "warning": "This action cannot be undone.",
+        "deletedInfo": "Information to be deleted",
+        "deletedItems": "Name, email address, profile image, login credentials",
+        "preservedInfo": "Information to be preserved",
+        "preservedItems": "Conversation history, evaluation scores, feedback, statistics (userId link maintained)",
+        "loginBlocked": "After anonymization, login to this account will be structurally impossible.",
+        "irreversible": "Anonymization is a permanent and irreversible operation.",
+        "confirm": "Anonymize",
+        "cancel": "Cancel",
+        "processing": "Processing..."
       }
     },
     "toast": {
@@ -1421,7 +1411,10 @@
       "categoryDeleteFailed": "Delete Failed",
       "categoryDeleteFailedDesc": "Failed to delete category.",
       "noChanges": "Notice",
-      "noChangesDesc": "No changes were made."
+      "noChangesDesc": "No changes were made.",
+      "anonymizeSuccess": "Anonymization complete",
+      "anonymizeSuccessDesc": "User personal information has been anonymized.",
+      "anonymizeFailed": "Anonymization failed"
     },
     "common": {
       "cancel": "Cancel",

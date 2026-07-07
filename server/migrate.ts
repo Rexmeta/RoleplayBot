@@ -1914,6 +1914,25 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to ensure criteria_set_few_shot_examples table:', err);
       }
 
+      try {
+        await client.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'is_anonymized'
+            ) THEN
+              ALTER TABLE "users"
+                ADD COLUMN "is_anonymized" boolean DEFAULT false NOT NULL,
+                ADD COLUMN "anonymized_at" timestamp,
+                ADD COLUMN "anonymized_by" varchar;
+            END IF;
+          END $$;
+        `);
+        console.log('✅ users anonymization columns ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to ensure users anonymization columns:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();

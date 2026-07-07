@@ -56,6 +56,9 @@ export const users = pgTable("users", {
   assignedCompanyId: varchar("assigned_company_id").references(() => companies.id),
   assignedOrganizationId: varchar("assigned_organization_id").references(() => organizations.id),
   assignedCategoryId: varchar("assigned_category_id").references(() => categories.id),
+  isAnonymized: boolean("is_anonymized").notNull().default(false),
+  anonymizedAt: timestamp("anonymized_at"),
+  anonymizedBy: varchar("anonymized_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

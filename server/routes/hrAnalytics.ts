@@ -22,7 +22,23 @@ async function checkHrAnalyticsAccess(user: any): Promise<boolean> {
 
 async function getOrgUsers(orgId: string) {
   const allUsers = await storage.getAllUsers();
-  return allUsers.filter(u => u.organizationId === orgId && u.isActive !== false);
+  return allUsers.filter(u =>
+    u.organizationId === orgId &&
+    (u.isActive !== false || (u as any).isAnonymized === true)
+  );
+}
+
+function maskMember(member: { id: string; name: string; email: string; profileImage: string | null; isAnonymized?: boolean | null; [key: string]: any }) {
+  if (member.isAnonymized) {
+    const suffix = member.name.match(/#([A-F0-9]{4})$/i)?.[1] ?? member.id.slice(-4).toUpperCase();
+    return {
+      ...member,
+      name: `익명 사용자 #${suffix}`,
+      email: '***@anonymized.internal',
+      profileImage: null,
+    };
+  }
+  return member;
 }
 
 async function getOrgBenchmarkTargets(orgId: string): Promise<Record<string, { targetScore: number; dimensionName: string }>> {
@@ -102,11 +118,13 @@ export default function createHrAnalyticsRouter(isAuthenticated: any) {
         dimensionAverages[key] = stats.count > 0 ? Number((stats.total / stats.count).toFixed(2)) : null;
       }
 
+      const masked = maskMember({ id: member.id, name: member.name, email: member.email, profileImage: member.profileImage, isAnonymized: member.isAnonymized });
       memberData.push({
         userId: member.id,
-        name: member.name,
-        email: member.email,
-        profileImage: member.profileImage,
+        name: masked.name,
+        email: masked.email,
+        profileImage: masked.profileImage,
+        isAnonymized: member.isAnonymized ?? false,
         sessionCount: validFeedbacks.length,
         dimensionAverages,
         overallAverage: validFeedbacks.filter(f => f.overallScore != null).length > 0
@@ -319,11 +337,13 @@ export default function createHrAnalyticsRouter(isAuthenticated: any) {
         };
       });
 
+      const masked = maskMember({ id: member.id, name: member.name, email: member.email, profileImage: member.profileImage, isAnonymized: member.isAnonymized });
       memberStats.push({
         userId: member.id,
-        name: member.name,
-        email: member.email,
-        profileImage: member.profileImage,
+        name: masked.name,
+        email: masked.email,
+        profileImage: masked.profileImage,
+        isAnonymized: member.isAnonymized ?? false,
         recentAverage: Number(recentAvg.toFixed(1)),
         overallAverage: Number(allAvg.toFixed(1)),
         sessionCount: validFeedbacks.length,

@@ -3,6 +3,8 @@ import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { isOperatorOrAdmin, isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
+import { db } from "../storage/db";
+import { auditLogs } from "@shared/schema";
 
 export default function createAdminOrganizationsRouter(isAuthenticated: any) {
   const router = Router();
@@ -441,6 +443,63 @@ export default function createAdminOrganizationsRouter(isAuthenticated: any) {
 
     await storage.deleteCategory(id);
     res.json({ success: true });
+  }));
+
+  router.post("/api/admin/users/:userId/anonymize", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { userId } = req.params;
+    const actor = req.user;
+
+    const target = await storage.getUser(userId);
+    if (!target) throw createHttpError(404, "User not found");
+
+    if (target.isAnonymized) {
+      throw createHttpError(409, "User is already anonymized");
+    }
+
+    if (target.role !== 'user') {
+      throw createHttpError(400, "Only trainee (user role) accounts can be anonymized");
+    }
+
+    if (actor.role === 'operator') {
+      const operatorCompanyId = actor.assignedCompanyId;
+      const operatorOrgId = actor.assignedOrganizationId;
+      const operatorCatId = actor.assignedCategoryId;
+
+      let hasAccess = false;
+      if (operatorCatId) {
+        hasAccess = target.assignedCategoryId === operatorCatId;
+      } else if (operatorOrgId) {
+        hasAccess = target.organizationId === operatorOrgId;
+      } else if (operatorCompanyId) {
+        hasAccess = target.companyId === operatorCompanyId;
+      }
+
+      if (!hasAccess) {
+        throw createHttpError(403, "You can only anonymize users within your jurisdiction");
+      }
+    }
+
+    const anonymized = await storage.anonymizeUser(userId, actor.id, 'manual');
+
+    await db.insert(auditLogs).values({
+      actorUserId: actor.id,
+      organizationId: target.organizationId ?? null,
+      action: 'anonymize_user',
+      targetType: 'user',
+      targetId: userId,
+      metadata: {
+        triggerType: 'manual',
+        actorRole: actor.role,
+      },
+    });
+
+    res.json({
+      id: anonymized.id,
+      name: anonymized.name,
+      email: anonymized.email,
+      isAnonymized: anonymized.isAnonymized,
+      anonymizedAt: anonymized.anonymizedAt,
+    });
   }));
 
   router.get("/api/public/companies", asyncHandler(async (req, res) => {

@@ -236,6 +236,14 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
       return res.status(401).json({ message: "사용자를 찾을 수 없습니다" });
     }
 
+    if ((user as any).isAnonymized) {
+      return res.status(401).json({ message: "익명화된 계정은 접근할 수 없습니다" });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({ message: "비활성화된 계정입니다" });
+    }
+
     req.user = user;
     next();
   } catch (error) {
@@ -501,6 +509,41 @@ export function setupAuth(app: Express) {
     } catch (error) {
       console.error("Language update error:", error);
       res.status(500).json({ message: "언어 설정 업데이트 중 오류가 발생했습니다" });
+    }
+  });
+
+  // 정보 주체 삭제 요구 (self-request anonymization, GDPR Art. 17)
+  app.post("/api/auth/anonymize-self", isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+
+      if (user.role !== 'user') {
+        return res.status(403).json({ message: "Trainee accounts only can request self-anonymization" });
+      }
+
+      if (user.isAnonymized) {
+        return res.status(409).json({ message: "Account is already anonymized" });
+      }
+
+      await storage.anonymizeUser(user.id, user.id, 'self_request');
+
+      const { db } = await import("./storage/db");
+      const { auditLogs } = await import("@shared/schema");
+      await db.insert(auditLogs).values({
+        actorUserId: user.id,
+        action: 'anonymize_user',
+        targetType: 'user',
+        targetId: user.id,
+        metadata: {
+          triggerType: 'self_request',
+        },
+      });
+
+      res.clearCookie('token');
+      res.json({ success: true, message: "계정이 익명화되었습니다" });
+    } catch (error) {
+      console.error("Self-anonymization error:", error);
+      res.status(500).json({ message: "익명화 처리 중 오류가 발생했습니다" });
     }
   });
 

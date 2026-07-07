@@ -122,7 +122,7 @@
   },
   "companyOrg": {
     "title": "会社・組織管理",
-    "description": "3階層構造（会社 > 組織 > カテゴリ）を管理します。",
+    "description": "説明",
     "companies": "会社",
     "organizations": "組織",
     "totalCompanies": "合計{{count}}社",
@@ -141,7 +141,6 @@
     "selectCompany": "会社を選択",
     "allCompanies": "すべての会社",
     "status": "状態",
-    "description": "説明",
     "descriptionPlaceholder": "簡単な説明を入力してください",
     "companyFormDesc": "会社情報を入力してください。",
     "orgFormDesc": "組織情報を入力してください。",
@@ -330,31 +329,8 @@
     }
   },
   "feedback": {
-    "title": "カスタムレポート",
-    "overallScore": "総合スコア",
-    "performanceAnalysis": "パフォーマンス分析",
-    "behaviorGuide": "行動ガイド",
-    "conversationGuide": "会話ガイド",
-    "developmentPlan": "開発計画",
-    "strategyEvaluation": "戦略評価",
-    "strengths": "主な強み",
-    "improvements": "改善ポイント",
-    "nextSteps": "次のステップ",
-    "expertOpinion": "専門家の意見",
-    "print": "印刷",
-    "download": "ダウンロード",
-    "generateFeedback": "フィードバック生成",
-    "generating": "フィードバック生成中...",
-    "notGenerated": "フィードバックはまだ生成されていません",
-    "conversationTimeAnalysis": "会話時間分析",
-    "totalTime": "総会話時間",
-    "avgResponseTime": "平均応答時間",
-    "timePerformance": {
-      "excellent": "優秀",
-      "good": "良好",
-      "average": "普通",
-      "slow": "改善必要"
-    }
+    "loading": "フィードバックを読み込み中...",
+    "scenarioNotFound": "シナリオまたはペルソナが見つかりません。"
   },
   "report": {
     "defaultUser": "ユーザー",
@@ -500,7 +476,74 @@
     "personas": "ペルソナ管理",
     "categories": "カテゴリー管理",
     "settings": "システム設定",
-    "difficultySettings": "難易度設定",
+    "difficultySettings": {
+      "title": "難易度設定",
+      "description": "難易度別の設定を管理できます。",
+      "resetToDefault": "デフォルトに戻す",
+      "saveSuccess": "難易度設定が保存されました。",
+      "tabDescription": "AIキャラクターの会話スタイルを難易度別に設定します。この設定はテキスト、TTS、リアルタイム音声すべての会話モードに適用されます。",
+      "saveComplete": "保存完了",
+      "saveCompleteDesc": "会話難易度設定が保存されました。",
+      "saveFailed": "保存失敗",
+      "saveFailedDesc": "会話難易度設定の保存に失敗しました。",
+      "resetComplete": "初期化完了",
+      "resetCompleteDesc": "会話難易度設定がデフォルトに復元されました。",
+      "resetFailed": "初期化失敗",
+      "resetFailedDesc": "初期化に失敗しました。",
+      "form": {
+        "description": "説明",
+        "responseLength": "応答の長さ",
+        "tone": "話し方/トーン",
+        "pressure": "プレッシャー",
+        "feedback": "フィードバック方式",
+        "constraints": "制約事項",
+        "constraintsCount": "制約事項 ({{count}}個)",
+        "addConstraint": "制約事項追加",
+        "moreConstraints": "+{{count}}個..."
+      },
+      "guide": {
+        "title": "難易度設定ガイド",
+        "level1": "初めてのユーザー向けの親切なチュートリアルモード",
+        "level2": "基本的な会話練習（デフォルト難易度）",
+        "level3": "論理的根拠と説得力を求めるチャレンジモード",
+        "level4": "実戦のようなプレッシャー、迅速な対応が必要な上級モード",
+        "applyNote": "変更された設定は新しく始まる会話から適用されます。"
+      },
+      "levels": {
+        "1": {
+          "name": "入門難易度",
+          "description": "非常に親切で安全な練習用会話。ユーザーが間違えても負担を感じないようにサポートし、正解やより良い表現を先に提案するレベルの会話。",
+          "responseLength": "2-3文。要点のみ簡潔に説明し、難しい表現は分かりやすく言い換える。",
+          "tone": "優しく励まし中心。間違えても先に褒めて、柔らかく修正を提案。",
+          "pressure": "葛藤・プレッシャーはほぼなし。日常的な状況や低リスクの状況のみ提示。",
+          "feedback": "先に説明してから、気軽に参加を促す。"
+        },
+        "2": {
+          "name": "基本難易度",
+          "description": "親切だが現実的な会話。ユーザーが実際の職場で経験するレベルのフィードバックと軽い葛藤を経験しながら、自分で考える練習ができる会話。",
+          "responseLength": "2-4文、明確で現実的に。",
+          "tone": "基本的に親切だが、必要な部分は正直に指摘するトーン。",
+          "pressure": "軽い葛藤とプレッシャーが存在。現実的な制約を常に意識させる。",
+          "feedback": "説明はするが、ユーザー自身が考えるように質問を伴う。"
+        },
+        "3": {
+          "name": "チャレンジ難易度",
+          "description": "実際の業務現場と同様のプレッシャーと葛藤がある会話。ユーザーが深い判断と論理を示さないと状況が解決しない難易度。",
+          "responseLength": "3-5文。状況説明＋問題指摘＋追加要求を含む。",
+          "tone": "丁寧だが冷静で結果重視。論理と根拠を求めるトーン。",
+          "pressure": "明確な葛藤と中程度以上のプレッシャー。",
+          "feedback": "間違いや不足を具体的に指摘し、修正・補完を要求。"
+        },
+        "4": {
+          "name": "極限難易度",
+          "description": "感情的にも極端に近い危機・葛藤状況を含む会話。ユーザーが冷静に対応しなければならないレベルの難易度。",
+          "responseLength": "1-5文。短い時は直接的に、長い時は強い要求事項を詳細に列挙。",
+          "tone": "非常に厳しく直接的で、時に冷たく感じることも。",
+          "pressure": "最高レベルのプレッシャーと感情的緊張。",
+          "feedback": "ミス・矛盾に対して即座に強くフィードバック。再試行要求もプレッシャーを込めて伝達。"
+        }
+      }
+    },
     "aiUsage": "AI使用量",
     "translations": "翻訳管理",
     "translationDashboard": {
@@ -902,74 +945,6 @@
         "expertisePrefix": "専門分野："
       }
     },
-    "difficultySettings": {
-      "title": "難易度設定",
-      "description": "難易度別の設定を管理できます。",
-      "resetToDefault": "デフォルトに戻す",
-      "saveSuccess": "難易度設定が保存されました。",
-      "tabDescription": "AIキャラクターの会話スタイルを難易度別に設定します。この設定はテキスト、TTS、リアルタイム音声すべての会話モードに適用されます。",
-      "saveComplete": "保存完了",
-      "saveCompleteDesc": "会話難易度設定が保存されました。",
-      "saveFailed": "保存失敗",
-      "saveFailedDesc": "会話難易度設定の保存に失敗しました。",
-      "resetComplete": "初期化完了",
-      "resetCompleteDesc": "会話難易度設定がデフォルトに復元されました。",
-      "resetFailed": "初期化失敗",
-      "resetFailedDesc": "初期化に失敗しました。",
-      "form": {
-        "description": "説明",
-        "responseLength": "応答の長さ",
-        "tone": "話し方/トーン",
-        "pressure": "プレッシャー",
-        "feedback": "フィードバック方式",
-        "constraints": "制約事項",
-        "constraintsCount": "制約事項 ({{count}}個)",
-        "addConstraint": "制約事項追加",
-        "moreConstraints": "+{{count}}個..."
-      },
-      "guide": {
-        "title": "難易度設定ガイド",
-        "level1": "初めてのユーザー向けの親切なチュートリアルモード",
-        "level2": "基本的な会話練習（デフォルト難易度）",
-        "level3": "論理的根拠と説得力を求めるチャレンジモード",
-        "level4": "実戦のようなプレッシャー、迅速な対応が必要な上級モード",
-        "applyNote": "変更された設定は新しく始まる会話から適用されます。"
-      },
-      "levels": {
-        "1": {
-          "name": "入門難易度",
-          "description": "非常に親切で安全な練習用会話。ユーザーが間違えても負担を感じないようにサポートし、正解やより良い表現を先に提案するレベルの会話。",
-          "responseLength": "2-3文。要点のみ簡潔に説明し、難しい表現は分かりやすく言い換える。",
-          "tone": "優しく励まし中心。間違えても先に褒めて、柔らかく修正を提案。",
-          "pressure": "葛藤・プレッシャーはほぼなし。日常的な状況や低リスクの状況のみ提示。",
-          "feedback": "先に説明してから、気軽に参加を促す。"
-        },
-        "2": {
-          "name": "基本難易度",
-          "description": "親切だが現実的な会話。ユーザーが実際の職場で経験するレベルのフィードバックと軽い葛藤を経験しながら、自分で考える練習ができる会話。",
-          "responseLength": "2-4文、明確で現実的に。",
-          "tone": "基本的に親切だが、必要な部分は正直に指摘するトーン。",
-          "pressure": "軽い葛藤とプレッシャーが存在。現実的な制約を常に意識させる。",
-          "feedback": "説明はするが、ユーザー自身が考えるように質問を伴う。"
-        },
-        "3": {
-          "name": "チャレンジ難易度",
-          "description": "実際の業務現場と同様のプレッシャーと葛藤がある会話。ユーザーが深い判断と論理を示さないと状況が解決しない難易度。",
-          "responseLength": "3-5文。状況説明＋問題指摘＋追加要求を含む。",
-          "tone": "丁寧だが冷静で結果重視。論理と根拠を求めるトーン。",
-          "pressure": "明確な葛藤と中程度以上のプレッシャー。",
-          "feedback": "間違いや不足を具体的に指摘し、修正・補完を要求。"
-        },
-        "4": {
-          "name": "極限難易度",
-          "description": "感情的にも極端に近い危機・葛藤状況を含む会話。ユーザーが冷静に対応しなければならないレベルの難易度。",
-          "responseLength": "1-5文。短い時は直接的に、長い時は強い要求事項を詳細に列挙。",
-          "tone": "非常に厳しく直接的で、時に冷たく感じることも。",
-          "pressure": "最高レベルのプレッシャーと感情的緊張。",
-          "feedback": "ミス・矛盾に対して即座に強くフィードバック。再試行要求もプレッシャーを込めて伝達。"
-        }
-      }
-    },
     "aiGenerator": {
       "title": "AIシナリオ生成",
       "generateWithAI": "AIで生成",
@@ -1179,10 +1154,6 @@
     "noMessagesHint": "この会話にはメッセージが保存されていないか、まだ開始されていません。",
     "emotion": "感情"
   },
-  "feedback": {
-    "loading": "フィードバックを読み込み中...",
-    "scenarioNotFound": "シナリオまたはペルソナが見つかりません。"
-  },
   "voice": {
     "connectionError": "音声接続エラー",
     "sessionEnded": "音声セッション終了",
@@ -1255,7 +1226,9 @@
       "edit": "編集",
       "resetPassword": "パスワードリセット",
       "active": "アクティブ",
-      "inactive": "非アクティブ"
+      "inactive": "非アクティブ",
+      "anonymize": "匿名化",
+      "anonymized": "匿名処理済み"
     },
     "roles": {
       "admin": "システム管理者",
@@ -1333,7 +1306,11 @@
       "elevenlabsApiDesc": "TTS音声合成に使用",
       "configured": "設定済み",
       "notConfigured": "未設定",
-      "apiKeySecurityNote": "APIキーはセキュリティのためSecretsタブで管理されています。変更が必要な場合はReplitのSecretsメニューをご利用ください。"
+      "apiKeySecurityNote": "APIキーはセキュリティのためSecretsタブで管理されています。変更が必要な場合はReplitのSecretsメニューをご利用ください。",
+      "dataRetentionDays": "データ保持期間（日）",
+      "dataRetentionDaysDesc": "非アクティブなユーザーが自動的に匿名化されるまでの日数（GDPR Art. 5(1)(e)、個人情報保護法§21(2)）",
+      "privacyCompliance": "プライバシー設定",
+      "days": "日"
     },
     "aiUsage": {
       "dateRange": "期間",
@@ -1396,6 +1373,19 @@
         "hint": "仮パスワード設定後、ユーザーに直接お知らせください。",
         "resetting": "リセット中...",
         "reset": "パスワードリセット"
+      },
+      "anonymize": {
+        "title": "受講者の個人情報を匿名化",
+        "warning": "この操作は取り消せません。",
+        "deletedInfo": "削除される情報",
+        "deletedItems": "氏名、メールアドレス、プロフィール画像、ログイン認証情報",
+        "preservedInfo": "保持される情報",
+        "preservedItems": "会話履歴、評価スコア、フィードバック、統計（userId参照は維持）",
+        "loginBlocked": "匿名化後、このアカウントへのログインは構造的に不可能になります。",
+        "irreversible": "匿名化は永久的かつ不可逆的な操作です。",
+        "confirm": "匿名化を実行",
+        "cancel": "キャンセル",
+        "processing": "処理中..."
       }
     },
     "toast": {
@@ -1417,7 +1407,10 @@
       "categoryDeleteFailed": "削除失敗",
       "categoryDeleteFailedDesc": "カテゴリの削除に失敗しました。",
       "noChanges": "お知らせ",
-      "noChangesDesc": "変更はありませんでした。"
+      "noChangesDesc": "変更はありませんでした。",
+      "anonymizeSuccess": "匿名化完了",
+      "anonymizeSuccessDesc": "受講者の個人情報が匿名処理されました。",
+      "anonymizeFailed": "匿名化に失敗しました"
     },
     "common": {
       "cancel": "キャンセル",
