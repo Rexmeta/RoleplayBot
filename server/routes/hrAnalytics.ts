@@ -85,7 +85,7 @@ export default function createHrAnalyticsRouter(isAuthenticated: any) {
   router.get("/api/analytics/hr/team-competency", ...hrRoleGate, asyncHandler(async (req: any, res) => {
     const user = req.user;
     const orgId = (user.role === "admin" ? req.query.orgId : null) || user.organizationId || user.assignedOrganizationId;
-    if (!orgId) return res.json({ members: [], dimensions: [] });
+    if (!orgId) return res.json({ members: [], dimensions: [], anonymizedCount: 0 });
 
     const orgUsers = await getOrgUsers(orgId);
     const memberData: any[] = [];
@@ -134,7 +134,8 @@ export default function createHrAnalyticsRouter(isAuthenticated: any) {
     }
 
     const dimensions = Object.entries(dimensionSet).map(([key, name]) => ({ key, name }));
-    res.json({ members: memberData, dimensions, orgId });
+    const anonymizedCount = memberData.filter(m => m.isAnonymized).length;
+    res.json({ members: memberData, dimensions, orgId, anonymizedCount });
   }));
 
   router.get("/api/analytics/hr/member-feedbacks", ...hrRoleGate, asyncHandler(async (req: any, res) => {
@@ -295,7 +296,7 @@ export default function createHrAnalyticsRouter(isAuthenticated: any) {
     const orgId = (user.role === "admin" ? req.query.orgId : null) || user.organizationId || user.assignedOrganizationId;
     const threshold = parseFloat((req.query.threshold as string) || "60");
     const lookbackN = parseInt((req.query.lookback as string) || "5");
-    if (!orgId) return res.json({ atRisk: [], highPerformers: [] });
+    if (!orgId) return res.json({ atRisk: [], highPerformers: [], anonymizedCount: 0 });
 
     const orgUsers = await getOrgUsers(orgId);
     const memberStats: any[] = [];
@@ -360,7 +361,8 @@ export default function createHrAnalyticsRouter(isAuthenticated: any) {
       .filter(m => m.recentAverage >= threshold)
       .sort((a, b) => b.recentAverage - a.recentAverage);
 
-    res.json({ atRisk, highPerformers });
+    const anonymizedCount = memberStats.filter(m => m.isAnonymized).length;
+    res.json({ atRisk, highPerformers, anonymizedCount });
   }));
 
   router.get("/api/analytics/hr/benchmark-targets", ...hrRoleGate, asyncHandler(async (req: any, res) => {

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Download, TrendingUp, TrendingDown, Minus, Users, Target, BarChart3, AlertTriangle, Star, Settings, ArrowUpRight, BookOpen } from "lucide-react";
+import { Loader2, Download, TrendingUp, TrendingDown, Minus, Users, Target, BarChart3, AlertTriangle, Star, Settings, ArrowUpRight, BookOpen, Lock } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -22,6 +22,7 @@ interface MemberCompetency {
   name: string;
   email: string;
   profileImage?: string | null;
+  isAnonymized?: boolean;
   sessionCount: number;
   dimensionAverages: Record<string, number | null>;
   overallAverage: number | null;
@@ -33,6 +34,7 @@ interface TeamCompetencyData {
   members: MemberCompetency[];
   dimensions: Dimension[];
   orgId: string;
+  anonymizedCount: number;
 }
 
 interface RadarPoint {
@@ -62,6 +64,7 @@ interface MemberRisk {
   name: string;
   email: string;
   profileImage?: string | null;
+  isAnonymized?: boolean;
   recentAverage: number;
   overallAverage: number;
   sessionCount: number;
@@ -69,7 +72,7 @@ interface MemberRisk {
   scenarioBreakdown: any[];
 }
 
-interface AtRiskData { atRisk: MemberRisk[]; highPerformers: MemberRisk[]; }
+interface AtRiskData { atRisk: MemberRisk[]; highPerformers: MemberRisk[]; anonymizedCount: number; }
 
 interface PlanStatus { enabled: boolean; planName: string; orgId?: string; userRole?: string; isAuthorized?: boolean; }
 
@@ -414,7 +417,15 @@ function CompetencyHeatmap({ orgId }: { orgId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-sm text-muted-foreground">{data.members.length} team members · {data.dimensions.length} dimensions · click a cell to drill down</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm text-muted-foreground">{data.members.length} team members · {data.dimensions.length} dimensions · click a cell to drill down</p>
+          {data.anonymizedCount > 0 && (
+            <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-gray-100 text-gray-600 border border-gray-200">
+              <Lock className="h-3 w-3" />
+              {data.anonymizedCount} anonymized
+            </Badge>
+          )}
+        </div>
         <div className="flex gap-2 flex-shrink-0">
           <Button variant="outline" size="sm" onClick={() => downloadFile(`/api/analytics/hr/export/team-competency?format=csv&orgId=${orgId}`, "team-competency.csv")}>
             <Download className="h-4 w-4 mr-1" />CSV
@@ -438,14 +449,17 @@ function CompetencyHeatmap({ orgId }: { orgId: string }) {
           </TableHeader>
           <TableBody>
             {data.members.map(member => (
-              <TableRow key={member.userId}>
+              <TableRow key={member.userId} className={member.isAnonymized ? "opacity-60 bg-gray-50/50" : ""}>
                 <TableCell className="sticky left-0 bg-background z-10 font-medium text-sm">
-                  <div>{member.name}</div>
+                  <div className="flex items-center gap-1.5">
+                    {member.isAnonymized && <Lock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />}
+                    <span className={member.isAnonymized ? "text-gray-500" : ""}>{member.name}</span>
+                  </div>
                   <div className="text-xs text-muted-foreground">{member.email}</div>
                 </TableCell>
                 <TableCell className="text-center text-sm">{member.sessionCount}</TableCell>
                 <TableCell className="text-center">
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${scoreColor(member.overallAverage)}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${member.isAnonymized ? "bg-gray-100 text-gray-500" : scoreColor(member.overallAverage)}`}>
                     {member.overallAverage ?? "—"}
                   </span>
                 </TableCell>
@@ -454,7 +468,7 @@ function CompetencyHeatmap({ orgId }: { orgId: string }) {
                   return (
                     <TableCell key={d.key} className="text-center">
                       <button
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-semibold cursor-pointer hover:opacity-75 transition-opacity ${scoreColor(score)}`}
+                        className={`inline-block px-2 py-0.5 rounded text-xs font-semibold cursor-pointer hover:opacity-75 transition-opacity ${member.isAnonymized ? "bg-gray-100 text-gray-500" : scoreColor(score)}`}
                         onClick={() => setDrillCell({ member, dimension: d })}
                         title={`Click to see ${member.name}'s sessions for ${d.name}`}
                       >
@@ -723,18 +737,20 @@ function AtRiskPanel({ orgId }: { orgId: string }) {
 
   const MemberCard = ({ member, variant }: { member: MemberRisk; variant: "risk" | "high" }) => (
     <div
-      className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${member.isAnonymized ? "opacity-60 bg-gray-50 hover:bg-gray-100/80" : "hover:bg-muted/50"}`}
       onClick={() => setDrillDown(member)}
     >
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${variant === "risk" ? "bg-red-500" : "bg-green-500"}`}>
-        {member.name.charAt(0).toUpperCase()}
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${member.isAnonymized ? "bg-gray-300 text-gray-500" : `text-white ${variant === "risk" ? "bg-red-500" : "bg-green-500"}`}`}>
+        {member.isAnonymized ? <Lock className="h-4 w-4" /> : member.name.charAt(0).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm truncate">{member.name}</div>
+        <div className={`font-medium text-sm truncate flex items-center gap-1 ${member.isAnonymized ? "text-gray-500" : ""}`}>
+          {member.name}
+        </div>
         <div className="text-xs text-muted-foreground">{member.sessionCount} sessions</div>
       </div>
       <div className="flex items-center gap-2">
-        <span className={`text-sm font-bold ${variant === "risk" ? "text-red-600" : "text-green-600"}`}>
+        <span className={`text-sm font-bold ${member.isAnonymized ? "text-gray-500" : variant === "risk" ? "text-red-600" : "text-green-600"}`}>
           {member.recentAverage}
         </span>
         <TrendArrow trend={member.trend} />
@@ -747,7 +763,7 @@ function AtRiskPanel({ orgId }: { orgId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm flex-wrap">
           <label className="text-muted-foreground">Score threshold:</label>
           <Input
             type="number" min="0" max="100" className="w-20 h-8"
@@ -755,6 +771,12 @@ function AtRiskPanel({ orgId }: { orgId: string }) {
             onChange={e => setThreshold(e.target.value)}
           />
           <span className="text-muted-foreground text-xs">(below = at risk)</span>
+          {data && data.anonymizedCount > 0 && (
+            <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-gray-100 text-gray-600 border border-gray-200">
+              <Lock className="h-3 w-3" />
+              {data.anonymizedCount} anonymized
+            </Badge>
+          )}
         </div>
         <div className="flex gap-2 ml-auto">
           <Button variant="outline" size="sm" onClick={() => downloadFile(`/api/analytics/hr/export/at-risk?format=csv&${exportParams}`, "at-risk.csv")}>
