@@ -407,7 +407,12 @@ export function setupAuth(app: Express) {
         await recordLoginAttempt(rateLimitKey);
         return res.status(400).json({ message: "이메일 또는 비밀번호가 일치하지 않습니다" });
       }
-      
+
+      // 익명화된 계정 또는 비활성화된 계정은 자격증명이 유출되더라도 로그인 불가
+      if ((user as any).isAnonymized || !user.isActive) {
+        return res.status(401).json({ message: "이 계정은 로그인할 수 없습니다" });
+      }
+
       // 로그인 성공 시 실패 횟수 초기화
       await clearLoginAttempts(rateLimitKey);
 

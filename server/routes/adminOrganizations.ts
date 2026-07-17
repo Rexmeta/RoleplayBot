@@ -453,7 +453,7 @@ export default function createAdminOrganizationsRouter(isAuthenticated: any) {
     if (!target) throw createHttpError(404, "User not found");
 
     if (target.isAnonymized) {
-      throw createHttpError(409, "User is already anonymized");
+      throw createHttpError(400, "User is already anonymized");
     }
 
     if (target.role !== 'user') {
