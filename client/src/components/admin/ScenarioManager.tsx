@@ -2695,7 +2695,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   
                   <div>
                     <Label htmlFor="stakes" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.stakes')}</Label>
-                    <Input
+                    <AutoResizeTextarea
                       id="stakes"
                       value={formData.context.stakes}
                       onChange={(e) => setFormData(prev => ({ 
@@ -2704,7 +2704,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       }))}
                       placeholder={t('admin.scenarioManager.form.stakesPlaceholder')}
                       data-testid="input-stakes"
-                      className="bg-white"
+                      className="min-h-[80px] bg-white whitespace-pre-wrap"
                     />
                   </div>
                 </div>
