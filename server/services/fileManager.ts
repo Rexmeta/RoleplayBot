@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ComplexScenario, ScenarioPersona } from '@/lib/scenario-system';
+import { NpcBehaviorHarness } from '../../shared/schema/scenarios';
 import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbtiLoader';
 import { storage } from '../storage';
 import { assertSafePathSegment, assertSafeJoinedPath } from '../utils/htmlEscape';
@@ -48,6 +49,7 @@ function normalisePersonaForDb(persona: ScenarioPersona): {
   currentSituation?: object;
   concerns?: string[];
   image?: string;
+  npcBehaviorHarness?: NpcBehaviorHarness;
 } {
   return {
     id: persona.id,
@@ -68,6 +70,7 @@ function normalisePersonaForDb(persona: ScenarioPersona): {
     ...(persona.currentSituation !== undefined && { currentSituation: persona.currentSituation }),
     ...(persona.currentSituation?.concerns !== undefined && { concerns: persona.currentSituation.concerns }),
     ...(persona.image !== undefined && { image: persona.image }),
+    ...(persona.npcBehaviorHarness !== undefined && { npcBehaviorHarness: persona.npcBehaviorHarness }),
   };
 }
 
