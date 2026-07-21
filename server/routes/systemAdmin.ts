@@ -456,5 +456,14 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
     res.json(logs);
   }));
 
+  router.get("/retention-preview", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
+    const days = parseInt(req.query.days as string, 10);
+    if (isNaN(days) || days < 30 || days > 3650) {
+      throw createHttpError(400, "Invalid days parameter: must be between 30 and 3650");
+    }
+    const eligible = await storage.getUsersEligibleForAnonymization(days);
+    res.json({ affectedCount: eligible.length });
+  }));
+
   return router;
 }

@@ -596,6 +596,165 @@ function StorageSyncPanel() {
   );
 }
 
+const SAFE_RETENTION_THRESHOLD = 90;
+
+function RetentionSettingCard({ systemSettings }: { systemSettings: Array<{ category: string; key: string; value: string }> }) {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const currentValue = systemSettings.find(s => s.category === 'privacy' && s.key === 'data_retention_days')?.value ?? '365';
+  const [inputValue, setInputValue] = useState(currentValue);
+  const [pendingValue, setPendingValue] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setInputValue(currentValue);
+  }, [currentValue]);
+
+  const { data: previewData, isFetching: isLoadingPreview } = useQuery<{ affectedCount: number }>({
+    queryKey: ["/api/system-admin/retention-preview", pendingValue],
+    queryFn: async () => {
+      const res = await fetch(`/api/system-admin/retention-preview?days=${pendingValue}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch retention preview");
+      return res.json();
+    },
+    enabled: dialogOpen && pendingValue !== null,
+  });
+
+  const saveRetention = async (value: string) => {
+    setIsSaving(true);
+    try {
+      await apiRequest("PUT", "/api/system-admin/settings/batch", {
+        settings: [{
+          category: "privacy",
+          key: "data_retention_days",
+          value,
+          description: "Days before inactive user data is auto-anonymized",
+        }],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
+      toast({ title: t('systemAdmin.settings.saved') || '저장되었습니다' });
+    } catch {
+      toast({ title: t('common.error') || '오류가 발생했습니다', variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleChange = (value: string) => {
+    setInputValue(value);
+  };
+
+  const handleBlur = async () => {
+    const num = Number(inputValue);
+    if (!inputValue || isNaN(num) || num < 30 || num > 3650) return;
+    if (num < SAFE_RETENTION_THRESHOLD) {
+      setPendingValue(inputValue);
+      setDialogOpen(true);
+    } else {
+      await saveRetention(inputValue);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!pendingValue) return;
+    setDialogOpen(false);
+    await saveRetention(pendingValue);
+    setPendingValue(null);
+  };
+
+  const handleCancel = () => {
+    setDialogOpen(false);
+    setInputValue(currentValue);
+    setPendingValue(null);
+  };
+
+  const days = Number(pendingValue);
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserX className="h-5 w-5 text-orange-600" />
+            {t('systemAdmin.settings.privacyCompliance') || '개인정보 보호 설정'}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {t('systemAdmin.settings.dataRetentionDaysDesc')}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t('systemAdmin.settings.dataRetentionDays')}</label>
+              <div className="flex items-center gap-3 max-w-xs">
+                <Input
+                  type="number"
+                  min={30}
+                  max={3650}
+                  value={inputValue}
+                  onChange={(e) => handleChange(e.target.value)}
+                  onBlur={handleBlur}
+                  className="w-32"
+                  disabled={isSaving}
+                />
+                <span className="text-sm text-muted-foreground">{t('systemAdmin.settings.days') || '일'}</span>
+                {isSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              </div>
+              {Number(inputValue) < SAFE_RETENTION_THRESHOLD && Number(inputValue) >= 30 && (
+                <div className="flex items-center gap-2 text-amber-600 text-xs mt-1">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('systemAdmin.settings.retentionShortWarning') || `${SAFE_RETENTION_THRESHOLD}일 미만은 활성 사용자 데이터에 영향을 줄 수 있습니다.`}</span>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">GDPR Art. 5(1)(e) · 개인정보보호법 §21(2)</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleCancel(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertCircle className="h-5 w-5" />
+              {t('systemAdmin.settings.retentionWarningTitle') || '짧은 보존 기간 확인'}
+            </DialogTitle>
+            <DialogDescription className="space-y-3 pt-2">
+              <p>
+                {t('systemAdmin.settings.retentionWarningBody', { days }) ||
+                  `보존 기간을 ${days}일로 설정하면 비활성 사용자 데이터가 예상보다 일찍 익명 처리될 수 있습니다.`}
+              </p>
+              <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-amber-800 text-sm">
+                {isLoadingPreview ? (
+                  <span className="flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> 영향 받는 사용자 수 계산 중...</span>
+                ) : previewData !== undefined ? (
+                  previewData.affectedCount === 0
+                    ? (t('systemAdmin.settings.retentionNoUsersAffected') || '현재 즉시 영향 받는 사용자가 없습니다.')
+                    : (t('systemAdmin.settings.retentionUsersAffected', { count: previewData.affectedCount }) ||
+                       `⚠️ 현재 ${previewData.affectedCount}명의 사용자가 즉시 익명 처리 대상이 됩니다.`)
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('systemAdmin.settings.retentionIrreversible') || '익명 처리는 되돌릴 수 없습니다. 계속하시겠습니까?'}
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+              {t('common.cancel') || '취소'}
+            </Button>
+            <Button variant="destructive" onClick={handleConfirm} disabled={isSaving || isLoadingPreview}>
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {t('systemAdmin.settings.retentionConfirm') || '확인하고 저장'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function SystemAdminPage() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
@@ -1894,50 +2053,8 @@ export default function SystemAdminPage() {
 
             <DefaultIntroVideoManager />
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserX className="h-5 w-5 text-orange-600" />
-                  {t('systemAdmin.settings.privacyCompliance') || '개인정보 보호 설정'}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {t('systemAdmin.settings.dataRetentionDaysDesc')}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">{t('systemAdmin.settings.dataRetentionDays')}</label>
-                    <div className="flex items-center gap-3 max-w-xs">
-                      <Input
-                        type="number"
-                        min={30}
-                        max={3650}
-                        value={
-                          systemSettings.find(s => s.category === 'privacy' && s.key === 'data_retention_days')?.value ?? '365'
-                        }
-                        onChange={async (e) => {
-                          const value = e.target.value;
-                          if (!value || isNaN(Number(value))) return;
-                          try {
-                            await apiRequest("PUT", "/api/system-admin/settings/batch", { settings: [{
-                              category: "privacy",
-                              key: "data_retention_days",
-                              value,
-                              description: "Days before inactive user data is auto-anonymized",
-                            }] });
-                            queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
-                          } catch {}
-                        }}
-                        className="w-32"
-                      />
-                      <span className="text-sm text-muted-foreground">{t('systemAdmin.settings.days') || '일'}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">GDPR Art. 5(1)(e) · 개인정보보호법 §21(2)</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <RetentionSettingCard systemSettings={systemSettings} />
+
           </TabsContent>
 
           <TabsContent value="ai-usage" className="space-y-6 mt-6">
