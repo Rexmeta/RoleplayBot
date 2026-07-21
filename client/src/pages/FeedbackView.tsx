@@ -272,6 +272,21 @@ export default function FeedbackView() {
     retry: false,
   });
 
+  const isAdminOrOperatorUser = currentUser?.role === 'admin' || currentUser?.role === 'operator';
+  const targetUserId = isAdminOrOperatorUser && conversation?.userId && conversation.userId !== currentUser?.id
+    ? conversation.userId
+    : null;
+
+  const { data: targetUserProfile } = useQuery<any>({
+    queryKey: ["/api/admin/users", targetUserId],
+    enabled: !!targetUserId,
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30,
+    retry: false,
+  });
+
+  const targetUserName: string | undefined = targetUserId ? (targetUserProfile?.name ?? undefined) : undefined;
+
   const personaSegmentFeedbacks: PersonaSegmentFeedback[] =
     Array.isArray(feedbackResult?.detailedFeedback?.personaSegmentFeedbacks)
       ? feedbackResult.detailedFeedback.personaSegmentFeedbacks
@@ -413,6 +428,7 @@ export default function FeedbackView() {
               onRetry={() => window.location.reload()}
               onSelectNewScenario={() => window.location.href = '/home'}
               isAdminView={isAdminView}
+              targetUserName={targetUserName}
             />
           </TabsContent>
           <TabsContent value="per-persona" className="mt-0">
@@ -427,6 +443,7 @@ export default function FeedbackView() {
           onRetry={() => window.location.reload()}
           onSelectNewScenario={() => window.location.href = '/home'}
           isAdminView={isAdminView}
+          targetUserName={targetUserName}
         />
       )}
     </div>

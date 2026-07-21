@@ -234,6 +234,7 @@ interface PersonalDevelopmentReportProps {
   onReady?: () => void;
   isAdminView?: boolean;
   autoGenerateFeedback?: boolean;
+  targetUserName?: string;
 }
 
 export default function PersonalDevelopmentReport({
@@ -248,7 +249,8 @@ export default function PersonalDevelopmentReport({
   onFeedbackGeneratingChange,
   onReady,
   isAdminView = false,
-  autoGenerateFeedback = false
+  autoGenerateFeedback = false,
+  targetUserName
 }: PersonalDevelopmentReportProps) {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -407,8 +409,10 @@ export default function PersonalDevelopmentReport({
     }
   }, [feedback, isLoading, error, isFeedbackError, onReady]);
 
-  const { data: userProfile } = useQuery<any>({ queryKey: ['/api/auth/user'] });
-  const userName = userProfile?.name || t('report.defaultUser', '사용자');
+  const { data: userProfile } = useQuery<any>({ queryKey: ['/api/auth/user'], enabled: !isAdminView });
+  const userName = isAdminView
+    ? (targetUserName ?? t('report.defaultUser', '사용자'))
+    : (userProfile?.name ?? t('report.defaultUser', '사용자'));
 
   const { data: feedbackHistory = [] } = useQuery<any[]>({
     queryKey: ['/api/users/me/feedback-history', scenario.id, persona.id],

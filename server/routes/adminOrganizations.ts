@@ -451,6 +451,35 @@ export default function createAdminOrganizationsRouter(isAuthenticated: any) {
     res.json({ success: true });
   }));
 
+  router.get("/api/admin/users/:userId", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const { userId } = req.params;
+    const actor = req.user;
+
+    const target = await storage.getUser(userId);
+    if (!target) throw createHttpError(404, "User not found");
+
+    if (actor.role === 'operator') {
+      const operatorCompanyId = actor.assignedCompanyId;
+      const operatorOrgId = actor.assignedOrganizationId;
+      const operatorCatId = actor.assignedCategoryId;
+
+      let hasAccess = false;
+      if (operatorCatId) {
+        hasAccess = target.assignedCategoryId === operatorCatId;
+      } else if (operatorOrgId) {
+        hasAccess = target.organizationId === operatorOrgId;
+      } else if (operatorCompanyId) {
+        hasAccess = target.companyId === operatorCompanyId;
+      }
+
+      if (!hasAccess) {
+        throw createHttpError(403, "Access denied: user is outside your jurisdiction");
+      }
+    }
+
+    res.json({ id: target.id, name: target.name });
+  }));
+
   router.post("/api/admin/users/:userId/anonymize", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
     const { userId } = req.params;
     const actor = req.user;
