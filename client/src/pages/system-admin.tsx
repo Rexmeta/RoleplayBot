@@ -1571,7 +1571,9 @@ export default function SystemAdminPage() {
                               <TableCell className="font-medium">
                                 {user.name.replace(/^익명 사용자 /, '')}
                               </TableCell>
-                              <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {user.isAnonymized ? '—' : user.email}
+                              </TableCell>
                               <TableCell>
                                 <TooltipProvider>
                                   <Tooltip>

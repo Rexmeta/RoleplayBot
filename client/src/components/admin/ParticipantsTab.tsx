@@ -573,7 +573,9 @@ export function ParticipantsTab({ participantsData, participantsLoading }: Parti
                           <ExternalLink className="w-3 h-3 opacity-50" />
                         </Link>
                       </td>
-                      <td className="p-3 text-slate-500 text-xs hidden md:table-cell">{p.email}</td>
+                      <td className="p-3 text-slate-500 text-xs hidden md:table-cell">
+                        {p.email.endsWith('@anonymized.internal') ? '—' : p.email}
+                      </td>
                       <td className="p-3 hidden md:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {p.categories.length > 0
