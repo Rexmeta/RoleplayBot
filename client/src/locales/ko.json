@@ -1411,7 +1411,11 @@
       "bulkAnonymize": {
         "title": "일괄 익명화",
         "targetCount": "선택된 교육생 {{count}}명을 익명화합니다.",
-        "confirm": "일괄 익명화 실행"
+        "confirm": "일괄 익명화 실행",
+        "resultTitleFailed": "전체 익명화 실패",
+        "resultTitlePartial": "일부 익명화 완료",
+        "failedList": "실패한 교육생 {{count}}명",
+        "failedStillSelected": "실패한 사용자는 목록에서 선택 상태로 유지됩니다. 원인을 확인 후 다시 시도하세요."
       },
       "anonymize": {
         "title": "교육생 개인정보 익명화",
@@ -1461,7 +1465,8 @@
       "saving": "저장 중...",
       "add": "추가",
       "delete": "삭제",
-      "deleting": "삭제 중..."
+      "deleting": "삭제 중...",
+      "close": "닫기"
     },
     "features": {
       "conversation": {

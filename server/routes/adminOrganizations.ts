@@ -1,10 +1,16 @@
 import { Router } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { isOperatorOrAdmin, isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { db } from "../storage/db";
 import { auditLogs } from "@shared/schema";
+
+const BULK_ANONYMIZE_MAX = 500;
+const bulkAnonymizeSchema = z.object({
+  userIds: z.array(z.string().uuid("Each userId must be a valid UUID")).min(1, "userIds must be non-empty").max(BULK_ANONYMIZE_MAX, `Cannot anonymize more than ${BULK_ANONYMIZE_MAX} users at once`),
+});
 
 export default function createAdminOrganizationsRouter(isAuthenticated: any) {
   const router = Router();
@@ -504,11 +510,11 @@ export default function createAdminOrganizationsRouter(isAuthenticated: any) {
 
   router.post("/api/admin/users/bulk-anonymize", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
     const actor = req.user;
-    const { userIds } = req.body;
-
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-      throw createHttpError(400, "userIds must be a non-empty array");
+    const parsed = bulkAnonymizeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw createHttpError(400, parsed.error.errors[0]?.message ?? "Invalid request body");
     }
+    const { userIds } = parsed.data;
 
     const succeeded: string[] = [];
     const failed: { userId: string; reason: string }[] = [];
@@ -532,15 +538,21 @@ export default function createAdminOrganizationsRouter(isAuthenticated: any) {
         }
 
         await storage.anonymizeUser(userId, actor.id, 'manual');
-        await db.insert(auditLogs).values({
-          actorUserId: actor.id,
-          organizationId: target.organizationId ?? null,
-          action: 'anonymize_user',
-          targetType: 'user',
-          targetId: userId,
-          metadata: { triggerType: 'manual_bulk', actorRole: actor.role },
-        });
         succeeded.push(userId);
+
+        // Audit log failure must NOT count as anonymization failure — user is already anonymized
+        try {
+          await db.insert(auditLogs).values({
+            actorUserId: actor.id,
+            organizationId: target.organizationId ?? null,
+            action: 'anonymize_user',
+            targetType: 'user',
+            targetId: userId,
+            metadata: { triggerType: 'manual_bulk', actorRole: actor.role },
+          });
+        } catch (auditErr: any) {
+          console.error(`[bulk-anonymize] Audit log failed for ${userId}:`, auditErr?.message);
+        }
       } catch (err: any) {
         failed.push({ userId, reason: err?.message || "Unknown error" });
       }

@@ -1380,7 +1380,11 @@
       "bulkAnonymize": {
         "title": "批量匿名化",
         "targetCount": "将对已选择的 {{count}} 名学员进行匿名化处理。",
-        "confirm": "批量匿名化执行"
+        "confirm": "批量匿名化执行",
+        "resultTitleFailed": "匿名化全部失败",
+        "resultTitlePartial": "部分完成",
+        "failedList": "{{count}} 名学员匿名化失败",
+        "failedStillSelected": "失败的用户在列表中保持选中状态，请确认原因后重试。"
       },
       "anonymize": {
         "title": "匿名化学员个人信息",
@@ -1430,7 +1434,8 @@
       "saving": "保存中...",
       "add": "添加",
       "delete": "删除",
-      "deleting": "删除中..."
+      "deleting": "删除中...",
+      "close": "关闭"
     },
     "features": {
       "conversation": {

@@ -1380,7 +1380,11 @@
       "bulkAnonymize": {
         "title": "一括匿名化",
         "targetCount": "選択された受講者{{count}}名を匿名化します。",
-        "confirm": "一括匿名化を実行"
+        "confirm": "一括匿名化を実行",
+        "resultTitleFailed": "匿名化が全て失敗",
+        "resultTitlePartial": "一部完了",
+        "failedList": "{{count}}名の匿名化に失敗しました",
+        "failedStillSelected": "失敗したユーザーはリストで選択状態のままです。原因を確認して再試行してください。"
       },
       "anonymize": {
         "title": "受講者の個人情報を匿名化",
@@ -1430,7 +1434,8 @@
       "saving": "保存中...",
       "add": "追加",
       "delete": "削除",
-      "deleting": "削除中..."
+      "deleting": "削除中...",
+      "close": "閉じる"
     },
     "features": {
       "conversation": {

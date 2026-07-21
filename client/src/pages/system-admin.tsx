@@ -779,6 +779,7 @@ export default function SystemAdminPage() {
   const [anonymizeUser, setAnonymizeUser] = useState<UserData | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [bulkAnonymizeOpen, setBulkAnonymizeOpen] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ succeeded: string[]; failed: { userId: string; reason: string }[] } | null>(null);
 
   // System settings state - per-feature model selection
   const [featureModels, setFeatureModels] = useState<Record<string, string>>({
@@ -982,22 +983,29 @@ export default function SystemAdminPage() {
     },
     onSuccess: (data) => {
       const { succeeded, failed } = data;
-      if (succeeded.length > 0) {
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/users"] });
+
+      if (failed.length === 0) {
+        // All succeeded — close cleanly
         toast({
           title: t('systemAdmin.toast.bulkAnonymizeSuccess'),
           description: t('systemAdmin.toast.bulkAnonymizeSuccessDesc', { count: succeeded.length }),
         });
+        setSelectedUserIds(new Set());
+        setBulkAnonymizeOpen(false);
+        setBulkResult(null);
+      } else {
+        // Partial or full failure — show result panel inside dialog
+        // Keep only the failed users selected so admin can inspect / retry
+        setSelectedUserIds(new Set(failed.map(f => f.userId)));
+        setBulkResult({ succeeded, failed });
+        if (succeeded.length > 0) {
+          toast({
+            title: t('systemAdmin.toast.bulkAnonymizeSuccess'),
+            description: t('systemAdmin.toast.bulkAnonymizeSuccessDesc', { count: succeeded.length }),
+          });
+        }
       }
-      if (failed.length > 0) {
-        toast({
-          title: t('systemAdmin.toast.bulkAnonymizePartial'),
-          description: t('systemAdmin.toast.bulkAnonymizePartialDesc', { count: failed.length }),
-          variant: "destructive",
-        });
-      }
-      setSelectedUserIds(new Set());
-      setBulkAnonymizeOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/users"] });
     },
     onError: (error: any) => {
       toast({
@@ -2690,52 +2698,98 @@ export default function SystemAdminPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={bulkAnonymizeOpen} onOpenChange={(open) => { if (!open) setBulkAnonymizeOpen(false); }}>
+      <Dialog open={bulkAnonymizeOpen} onOpenChange={(open) => { if (!open) { setBulkAnonymizeOpen(false); setBulkResult(null); } }}>
         <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-orange-700">
-              <UserX className="h-5 w-5" />
-              {t('systemAdmin.dialogs.bulkAnonymize.title')}
-            </DialogTitle>
-            <DialogDescription className="text-destructive font-medium">
-              {t('systemAdmin.dialogs.anonymize.warning')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
-              <p className="font-semibold">{t('systemAdmin.dialogs.bulkAnonymize.targetCount', { count: selectedUserIds.size })}</p>
-            </div>
-            <div className="rounded-md border border-red-200 bg-red-50 p-4 space-y-3 text-sm">
-              <div>
-                <p className="font-semibold text-red-800">{t('systemAdmin.dialogs.anonymize.deletedInfo')}</p>
-                <p className="text-red-700 mt-1">{t('systemAdmin.dialogs.anonymize.deletedItems')}</p>
+          {bulkResult ? (
+            /* ── Phase 2: Results panel ── */
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  {bulkResult.failed.length > 0 && bulkResult.succeeded.length === 0 ? (
+                    <><XCircle className="h-5 w-5 text-destructive" />{t('systemAdmin.dialogs.bulkAnonymize.resultTitleFailed')}</>
+                  ) : (
+                    <><CheckCircle className="h-5 w-5 text-orange-600" />{t('systemAdmin.dialogs.bulkAnonymize.resultTitlePartial')}</>
+                  )}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                {bulkResult.succeeded.length > 0 && (
+                  <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                    <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>{t('systemAdmin.toast.bulkAnonymizeSuccessDesc', { count: bulkResult.succeeded.length })}</span>
+                  </div>
+                )}
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                  <p className="font-semibold mb-2">{t('systemAdmin.dialogs.bulkAnonymize.failedList', { count: bulkResult.failed.length })}</p>
+                  <ul className="space-y-1 max-h-48 overflow-y-auto">
+                    {bulkResult.failed.map(f => {
+                      const u = users.find((u: UserData) => u.id === f.userId);
+                      return (
+                        <li key={f.userId} className="flex items-start gap-2">
+                          <span className="font-medium truncate max-w-[160px]">{u?.name ?? f.userId.slice(0, 8) + '…'}</span>
+                          <span className="text-red-600 text-xs flex-shrink-0">— {f.reason}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                <p className="text-xs text-muted-foreground">{t('systemAdmin.dialogs.bulkAnonymize.failedStillSelected')}</p>
               </div>
-              <div>
-                <p className="font-semibold text-green-800">{t('systemAdmin.dialogs.anonymize.preservedInfo')}</p>
-                <p className="text-green-700 mt-1">{t('systemAdmin.dialogs.anonymize.preservedItems')}</p>
+              <DialogFooter>
+                <Button onClick={() => { setBulkAnonymizeOpen(false); setBulkResult(null); }}>
+                  {t('systemAdmin.common.close')}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            /* ── Phase 1: Confirmation ── */
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-orange-700">
+                  <UserX className="h-5 w-5" />
+                  {t('systemAdmin.dialogs.bulkAnonymize.title')}
+                </DialogTitle>
+                <DialogDescription className="text-destructive font-medium">
+                  {t('systemAdmin.dialogs.anonymize.warning')}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
+                  <p className="font-semibold">{t('systemAdmin.dialogs.bulkAnonymize.targetCount', { count: selectedUserIds.size })}</p>
+                </div>
+                <div className="rounded-md border border-red-200 bg-red-50 p-4 space-y-3 text-sm">
+                  <div>
+                    <p className="font-semibold text-red-800">{t('systemAdmin.dialogs.anonymize.deletedInfo')}</p>
+                    <p className="text-red-700 mt-1">{t('systemAdmin.dialogs.anonymize.deletedItems')}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-green-800">{t('systemAdmin.dialogs.anonymize.preservedInfo')}</p>
+                    <p className="text-green-700 mt-1">{t('systemAdmin.dialogs.anonymize.preservedItems')}</p>
+                  </div>
+                </div>
+                <div className="rounded-md border border-orange-200 bg-orange-50 p-3 space-y-1 text-sm text-orange-800">
+                  <p>⚠ {t('systemAdmin.dialogs.anonymize.loginBlocked')}</p>
+                  <p>⚠ {t('systemAdmin.dialogs.anonymize.irreversible')}</p>
+                </div>
               </div>
-            </div>
-            <div className="rounded-md border border-orange-200 bg-orange-50 p-3 space-y-1 text-sm text-orange-800">
-              <p>⚠ {t('systemAdmin.dialogs.anonymize.loginBlocked')}</p>
-              <p>⚠ {t('systemAdmin.dialogs.anonymize.irreversible')}</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkAnonymizeOpen(false)}>
-              {t('systemAdmin.dialogs.anonymize.cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => bulkAnonymizeMutation.mutate([...selectedUserIds])}
-              disabled={bulkAnonymizeMutation.isPending}
-            >
-              {bulkAnonymizeMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t('systemAdmin.dialogs.anonymize.processing')}</>
-              ) : (
-                <><UserX className="w-4 h-4 mr-2" />{t('systemAdmin.dialogs.bulkAnonymize.confirm')}</>
-              )}
-            </Button>
-          </DialogFooter>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setBulkAnonymizeOpen(false)}>
+                  {t('systemAdmin.dialogs.anonymize.cancel')}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => bulkAnonymizeMutation.mutate([...selectedUserIds])}
+                  disabled={bulkAnonymizeMutation.isPending}
+                >
+                  {bulkAnonymizeMutation.isPending ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t('systemAdmin.dialogs.anonymize.processing')}</>
+                  ) : (
+                    <><UserX className="w-4 h-4 mr-2" />{t('systemAdmin.dialogs.bulkAnonymize.confirm')}</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

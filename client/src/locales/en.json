@@ -1384,7 +1384,11 @@
       "bulkAnonymize": {
         "title": "Bulk Anonymize",
         "targetCount": "{{count}} trainees will be anonymized.",
-        "confirm": "Anonymize All Selected"
+        "confirm": "Anonymize All Selected",
+        "resultTitleFailed": "Anonymization Failed",
+        "resultTitlePartial": "Partially Complete",
+        "failedList": "{{count}} users could not be anonymized",
+        "failedStillSelected": "Failed users remain selected in the list so you can review or retry them."
       },
       "anonymize": {
         "title": "Anonymize User Data",
@@ -1434,7 +1438,8 @@
       "saving": "Saving...",
       "add": "Add",
       "delete": "Delete",
-      "deleting": "Deleting..."
+      "deleting": "Deleting...",
+      "close": "Close"
     },
     "features": {
       "conversation": {
