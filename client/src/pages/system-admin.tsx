@@ -45,6 +45,7 @@ import { StorePackManager } from "@/components/admin/StorePackManager";
 import { DefaultIntroVideoManager } from "@/components/admin/DefaultIntroVideoManager";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface UserData {
   id: string;
@@ -1569,19 +1570,19 @@ export default function SystemAdminPage() {
                               </TableCell>
                               <TableCell className="font-medium">
                                 {user.name}
-                                {user.isAnonymized && (
-                                  <Badge variant="secondary" className="ml-2 text-xs bg-orange-100 text-orange-700">
-                                    {t('systemAdmin.users.anonymized')}
-                                  </Badge>
-                                )}
                               </TableCell>
                               <TableCell className="text-muted-foreground">{user.email}</TableCell>
                               <TableCell>
-                                <Badge
-                                  className={`${roleColorConfig[user.role]?.bgColor} ${roleColorConfig[user.role]?.color}`}
-                                >
-                                  {t(`systemAdmin.roles.${user.role}`)}
-                                </Badge>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`inline-block w-3 h-3 rounded-full cursor-default ${roleColorConfig[user.role]?.bgColor ?? 'bg-slate-100'} border ${roleColorConfig[user.role]?.color?.replace('text-', 'border-') ?? 'border-slate-300'}`} />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      {t(`systemAdmin.roles.${user.role}`)}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               </TableCell>
                               <TableCell className="text-sm">
                                 {user.role === "operator" ? (
@@ -1593,11 +1594,16 @@ export default function SystemAdminPage() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                <Badge
-                                  className={`${tierColorConfig[user.tier]?.bgColor} ${tierColorConfig[user.tier]?.color}`}
-                                >
-                                  {t(`systemAdmin.tiers.${user.tier}`)}
-                                </Badge>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`inline-block w-3 h-3 rounded-full cursor-default ${tierColorConfig[user.tier]?.bgColor ?? 'bg-slate-100'} border ${tierColorConfig[user.tier]?.color?.replace('text-', 'border-') ?? 'border-slate-300'}`} />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      {t(`systemAdmin.tiers.${user.tier}`)}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               </TableCell>
                               <TableCell>
                                 <Badge
