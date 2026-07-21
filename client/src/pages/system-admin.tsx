@@ -1569,7 +1569,7 @@ export default function SystemAdminPage() {
                                 </div>
                               </TableCell>
                               <TableCell className="font-medium">
-                                {user.name}
+                                {user.name.replace(/^익명 사용자 /, '')}
                               </TableCell>
                               <TableCell className="text-muted-foreground">{user.email}</TableCell>
                               <TableCell>

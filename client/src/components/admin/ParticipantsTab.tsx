@@ -569,7 +569,7 @@ export function ParticipantsTab({ participantsData, participantsLoading }: Parti
                       </td>
                       <td className="p-3">
                         <Link href={`/admin/participant/${p.userId}`} className="font-medium text-corporate-600 hover:text-corporate-700 hover:underline flex items-center gap-1">
-                          {p.name}
+                          {p.name.replace(/^익명 사용자 /, '')}
                           <ExternalLink className="w-3 h-3 opacity-50" />
                         </Link>
                       </td>
