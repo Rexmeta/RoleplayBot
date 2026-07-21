@@ -1317,7 +1317,11 @@
       "dataRetentionDays": "Data Retention Period (days)",
       "dataRetentionDaysDesc": "Number of days until inactive users are automatically anonymized (GDPR Art. 5(1)(e), PIPA §21(2))",
       "privacyCompliance": "Privacy & Compliance",
-      "days": "days"
+      "days": "days",
+      "anonymizationPreviewNextRun": "Next scheduled run",
+      "anonymizationPreviewEligible": "Users to be anonymized",
+      "anonymizationPreviewLoading": "Calculating...",
+      "anonymizationPreviewNone": "No users currently eligible"
     },
     "aiUsage": {
       "dateRange": "Date Range",

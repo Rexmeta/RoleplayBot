@@ -1313,6 +1313,10 @@
       "dataRetentionDays": "数据保留期限（天）",
       "dataRetentionDaysDesc": "非活跃用户被自动匿名化前的天数（GDPR Art. 5(1)(e)，个人信息保护法§21(2)）",
       "privacyCompliance": "隐私合规设置",
+      "anonymizationPreviewNextRun": "下次计划运行",
+      "anonymizationPreviewEligible": "待匿名化用户",
+      "anonymizationPreviewLoading": "计算中...",
+      "anonymizationPreviewNone": "当前无待处理用户",
       "days": "天"
     },
     "aiUsage": {

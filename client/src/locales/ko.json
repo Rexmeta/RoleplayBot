@@ -1340,7 +1340,11 @@
       "dataRetentionDays": "데이터 보유 기간 (일)",
       "dataRetentionDaysDesc": "비활성 사용자의 개인정보를 자동 익명화하기까지의 기간 (GDPR Art. 5(1)(e), 개인정보보호법 §21(2))",
       "privacyCompliance": "개인정보 보호 설정",
-      "days": "일"
+      "days": "일",
+      "anonymizationPreviewNextRun": "다음 예정 실행",
+      "anonymizationPreviewEligible": "익명화 대상 사용자",
+      "anonymizationPreviewLoading": "계산 중...",
+      "anonymizationPreviewNone": "현재 익명화 대상 사용자 없음"
     },
     "aiUsage": {
       "dateRange": "조회 기간",

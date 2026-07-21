@@ -621,6 +621,14 @@ function RetentionSettingCard({ systemSettings }: { systemSettings: Array<{ cate
     enabled: dialogOpen && pendingValue !== null,
   });
 
+  const { data: anonymizationPreview, isLoading: anonymizationPreviewLoading } = useQuery<{
+    nextRunAt: string;
+    eligibleCount: number;
+    retentionDays: number;
+  }>({
+    queryKey: ["/api/system-admin/anonymization-preview"],
+  });
+
   const saveRetention = async (value: string) => {
     setIsSaving(true);
     try {
@@ -633,6 +641,7 @@ function RetentionSettingCard({ systemSettings }: { systemSettings: Array<{ cate
         }],
       });
       queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/anonymization-preview"] });
       toast({ title: t('systemAdmin.settings.saved') || '저장되었습니다' });
     } catch {
       toast({ title: t('common.error') || '오류가 발생했습니다', variant: "destructive" });
@@ -708,6 +717,28 @@ function RetentionSettingCard({ systemSettings }: { systemSettings: Array<{ cate
                 </div>
               )}
               <p className="text-xs text-muted-foreground">GDPR Art. 5(1)(e) · 개인정보보호법 §21(2)</p>
+            </div>
+            <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm space-y-1.5">
+              {anonymizationPreviewLoading ? (
+                <p className="text-muted-foreground">{t('systemAdmin.settings.anonymizationPreviewLoading')}</p>
+              ) : anonymizationPreview ? (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground">{t('systemAdmin.settings.anonymizationPreviewNextRun')}</span>
+                    <span className="font-medium tabular-nums">
+                      {new Date(anonymizationPreview.nextRunAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground">{t('systemAdmin.settings.anonymizationPreviewEligible')}</span>
+                    <span className={`font-medium tabular-nums ${anonymizationPreview.eligibleCount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                      {anonymizationPreview.eligibleCount > 0
+                        ? anonymizationPreview.eligibleCount
+                        : t('systemAdmin.settings.anonymizationPreviewNone')}
+                    </span>
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
         </CardContent>
@@ -2062,7 +2093,6 @@ export default function SystemAdminPage() {
             <DefaultIntroVideoManager />
 
             <RetentionSettingCard systemSettings={systemSettings} />
-
           </TabsContent>
 
           <TabsContent value="ai-usage" className="space-y-6 mt-6">

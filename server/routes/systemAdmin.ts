@@ -443,6 +443,23 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
     res.json(dailyUsage);
   }));
 
+  router.get("/anonymization-preview", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
+    const setting = await storage.getSystemSetting('privacy', 'data_retention_days');
+    const retentionDays = setting?.value ? (parseInt(setting.value, 10) || 365) : 365;
+
+    const eligible = await storage.getUsersEligibleForAnonymization(retentionDays);
+
+    const now = new Date();
+    const nextRun = new Date(now);
+    nextRun.setHours(24, 0, 0, 0);
+
+    res.json({
+      nextRunAt: nextRun.toISOString(),
+      eligibleCount: eligible.length,
+      retentionDays,
+    });
+  }));
+
   router.get("/ai-usage/logs", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
     const { startDate, endDate, limit } = req.query;
 

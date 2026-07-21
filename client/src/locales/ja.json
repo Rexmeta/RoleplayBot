@@ -1313,6 +1313,10 @@
       "dataRetentionDays": "データ保持期間（日）",
       "dataRetentionDaysDesc": "非アクティブなユーザーが自動的に匿名化されるまでの日数（GDPR Art. 5(1)(e)、個人情報保護法§21(2)）",
       "privacyCompliance": "プライバシー設定",
+      "anonymizationPreviewNextRun": "次回スケジュール実行",
+      "anonymizationPreviewEligible": "匿名化対象ユーザー",
+      "anonymizationPreviewLoading": "計算中...",
+      "anonymizationPreviewNone": "現在対象ユーザーなし",
       "days": "日"
     },
     "aiUsage": {
