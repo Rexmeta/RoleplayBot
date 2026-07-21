@@ -759,7 +759,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                               <i className="fas fa-file-alt mr-2 text-blue-300"></i>
                               {t('scenario.overview')}
                             </h4>
-                            <p className="text-gray-300 text-xs leading-relaxed">
+                            <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap">
                               {isTruncated ? desc.substring(0, 150) + '...' : desc}
                             </p>
                           </div>
@@ -773,7 +773,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                             <i className="fas fa-exclamation-triangle mr-2 text-yellow-300"></i>
                             {t('scenario.situation')}
                           </h4>
-                          <p className="text-gray-300 text-xs leading-relaxed line-clamp-3">
+                          <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap line-clamp-3">
                             {getTranslatedSituation(scenario.id, scenario.context?.situation)}
                           </p>
                         </div>
@@ -911,7 +911,7 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
                       </h4>
                       <div className="bg-corporate-50 rounded-lg p-3 border border-corporate-100">
                         {detailScenario.context?.playerRoleText ? (
-                          <p className="text-sm text-slate-700 leading-relaxed">{detailScenario.context.playerRoleText}</p>
+                          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{detailScenario.context.playerRoleText}</p>
                         ) : (
                           <>
                             <p className="text-sm font-medium text-slate-700">{detailScenario.context?.playerRole?.position}</p>
