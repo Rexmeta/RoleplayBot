@@ -1228,7 +1228,10 @@
       "active": "アクティブ",
       "inactive": "非アクティブ",
       "anonymize": "匿名化",
-      "anonymized": "匿名処理済み"
+      "anonymized": "匿名処理済み",
+      "bulkAnonymize": "一括匿名化",
+      "selectedCount": "{{count}}件選択中",
+      "clearSelection": "選択解除"
     },
     "roles": {
       "admin": "システム管理者",
@@ -1374,6 +1377,11 @@
         "resetting": "リセット中...",
         "reset": "パスワードリセット"
       },
+      "bulkAnonymize": {
+        "title": "一括匿名化",
+        "targetCount": "選択された受講者{{count}}名を匿名化します。",
+        "confirm": "一括匿名化を実行"
+      },
       "anonymize": {
         "title": "受講者の個人情報を匿名化",
         "warning": "この操作は取り消せません。",
@@ -1410,7 +1418,11 @@
       "noChangesDesc": "変更はありませんでした。",
       "anonymizeSuccess": "匿名化完了",
       "anonymizeSuccessDesc": "受講者の個人情報が匿名処理されました。",
-      "anonymizeFailed": "匿名化に失敗しました"
+      "anonymizeFailed": "匿名化に失敗しました",
+      "bulkAnonymizeSuccess": "一括匿名化完了",
+      "bulkAnonymizeSuccessDesc": "{{count}}名の個人情報が匿名処理されました。",
+      "bulkAnonymizePartial": "一部の匿名化が失敗",
+      "bulkAnonymizePartialDesc": "{{count}}名の匿名化に失敗しました。"
     },
     "common": {
       "cancel": "キャンセル",

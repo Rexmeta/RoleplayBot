@@ -33,6 +33,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key, CreditCard, ShoppingBag, UserX } from "lucide-react";
@@ -617,6 +618,8 @@ export default function SystemAdminPage() {
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [anonymizeUser, setAnonymizeUser] = useState<UserData | null>(null);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [bulkAnonymizeOpen, setBulkAnonymizeOpen] = useState(false);
 
   // System settings state - per-feature model selection
   const [featureModels, setFeatureModels] = useState<Record<string, string>>({
@@ -803,6 +806,38 @@ export default function SystemAdminPage() {
         description: t('systemAdmin.toast.anonymizeSuccessDesc'),
       });
       setAnonymizeUser(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/users"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: t('systemAdmin.toast.error'),
+        description: error.message || t('systemAdmin.toast.anonymizeFailed'),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkAnonymizeMutation = useMutation({
+    mutationFn: async (userIds: string[]) => {
+      return await apiRequest("POST", `/api/admin/users/bulk-anonymize`, { userIds }) as { succeeded: string[]; failed: { userId: string; reason: string }[] };
+    },
+    onSuccess: (data) => {
+      const { succeeded, failed } = data;
+      if (succeeded.length > 0) {
+        toast({
+          title: t('systemAdmin.toast.bulkAnonymizeSuccess'),
+          description: t('systemAdmin.toast.bulkAnonymizeSuccessDesc', { count: succeeded.length }),
+        });
+      }
+      if (failed.length > 0) {
+        toast({
+          title: t('systemAdmin.toast.bulkAnonymizePartial'),
+          description: t('systemAdmin.toast.bulkAnonymizePartialDesc', { count: failed.length }),
+          variant: "destructive",
+        });
+      }
+      setSelectedUserIds(new Set());
+      setBulkAnonymizeOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/system-admin/users"] });
     },
     onError: (error: any) => {
@@ -1227,6 +1262,30 @@ export default function SystemAdminPage() {
                   </Select>
                 </div>
 
+                {selectedUserIds.size > 0 && (
+                  <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-orange-50 border border-orange-200">
+                    <span className="text-sm font-medium text-orange-800">
+                      {t('systemAdmin.users.selectedCount', { count: selectedUserIds.size })}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="bg-orange-600 hover:bg-orange-700"
+                      onClick={() => setBulkAnonymizeOpen(true)}
+                    >
+                      <UserX className="w-4 h-4 mr-1.5" />
+                      {t('systemAdmin.users.bulkAnonymize')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedUserIds(new Set())}
+                    >
+                      {t('systemAdmin.users.clearSelection')}
+                    </Button>
+                  </div>
+                )}
+
                 {usersLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1236,6 +1295,30 @@ export default function SystemAdminPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[44px]">
+                            {(() => {
+                              const selectableIds = filteredUsers.filter(u => !u.isAnonymized && u.role === 'user').map(u => u.id);
+                              const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedUserIds.has(id));
+                              const someSelected = selectableIds.some(id => selectedUserIds.has(id));
+                              return (
+                                <Checkbox
+                                  checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedUserIds(prev => new Set([...prev, ...selectableIds]));
+                                    } else {
+                                      setSelectedUserIds(prev => {
+                                        const next = new Set(prev);
+                                        selectableIds.forEach(id => next.delete(id));
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                  aria-label="Select all"
+                                />
+                              );
+                            })()}
+                          </TableHead>
                           <TableHead className="w-[60px]">{t('systemAdmin.users.table.profile')}</TableHead>
                           <TableHead>{t('systemAdmin.users.table.name')}</TableHead>
                           <TableHead>{t('systemAdmin.users.table.email')}</TableHead>
@@ -1250,13 +1333,29 @@ export default function SystemAdminPage() {
                       <TableBody>
                         {filteredUsers.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                            <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                               {t('systemAdmin.users.noResults')}
                             </TableCell>
                           </TableRow>
                         ) : (
                           filteredUsers.map((user) => (
-                            <TableRow key={user.id} data-testid={`row-user-${user.id}`} className={user.isAnonymized ? "opacity-60" : ""}>
+                            <TableRow key={user.id} data-testid={`row-user-${user.id}`} className={user.isAnonymized ? "opacity-60" : selectedUserIds.has(user.id) ? "bg-orange-50" : ""}>
+                              <TableCell>
+                                {!user.isAnonymized && user.role === 'user' && (
+                                  <Checkbox
+                                    checked={selectedUserIds.has(user.id)}
+                                    onCheckedChange={(checked) => {
+                                      setSelectedUserIds(prev => {
+                                        const next = new Set(prev);
+                                        if (checked) next.add(user.id);
+                                        else next.delete(user.id);
+                                        return next;
+                                      });
+                                    }}
+                                    aria-label={`Select ${user.name}`}
+                                  />
+                                )}
+                              </TableCell>
                               <TableCell>
                                 <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
                                   {!user.isAnonymized && user.profileImage ? (
@@ -2468,6 +2567,55 @@ export default function SystemAdminPage() {
                 </>
               ) : (
                 t('systemAdmin.common.save')
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkAnonymizeOpen} onOpenChange={(open) => { if (!open) setBulkAnonymizeOpen(false); }}>
+        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-700">
+              <UserX className="h-5 w-5" />
+              {t('systemAdmin.dialogs.bulkAnonymize.title')}
+            </DialogTitle>
+            <DialogDescription className="text-destructive font-medium">
+              {t('systemAdmin.dialogs.anonymize.warning')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
+              <p className="font-semibold">{t('systemAdmin.dialogs.bulkAnonymize.targetCount', { count: selectedUserIds.size })}</p>
+            </div>
+            <div className="rounded-md border border-red-200 bg-red-50 p-4 space-y-3 text-sm">
+              <div>
+                <p className="font-semibold text-red-800">{t('systemAdmin.dialogs.anonymize.deletedInfo')}</p>
+                <p className="text-red-700 mt-1">{t('systemAdmin.dialogs.anonymize.deletedItems')}</p>
+              </div>
+              <div>
+                <p className="font-semibold text-green-800">{t('systemAdmin.dialogs.anonymize.preservedInfo')}</p>
+                <p className="text-green-700 mt-1">{t('systemAdmin.dialogs.anonymize.preservedItems')}</p>
+              </div>
+            </div>
+            <div className="rounded-md border border-orange-200 bg-orange-50 p-3 space-y-1 text-sm text-orange-800">
+              <p>⚠ {t('systemAdmin.dialogs.anonymize.loginBlocked')}</p>
+              <p>⚠ {t('systemAdmin.dialogs.anonymize.irreversible')}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkAnonymizeOpen(false)}>
+              {t('systemAdmin.dialogs.anonymize.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => bulkAnonymizeMutation.mutate([...selectedUserIds])}
+              disabled={bulkAnonymizeMutation.isPending}
+            >
+              {bulkAnonymizeMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t('systemAdmin.dialogs.anonymize.processing')}</>
+              ) : (
+                <><UserX className="w-4 h-4 mr-2" />{t('systemAdmin.dialogs.bulkAnonymize.confirm')}</>
               )}
             </Button>
           </DialogFooter>

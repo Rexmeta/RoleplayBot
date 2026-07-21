@@ -502,6 +502,53 @@ export default function createAdminOrganizationsRouter(isAuthenticated: any) {
     });
   }));
 
+  router.post("/api/admin/users/bulk-anonymize", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
+    const actor = req.user;
+    const { userIds } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      throw createHttpError(400, "userIds must be a non-empty array");
+    }
+
+    const succeeded: string[] = [];
+    const failed: { userId: string; reason: string }[] = [];
+
+    for (const userId of userIds) {
+      try {
+        const target = await storage.getUser(userId);
+        if (!target) { failed.push({ userId, reason: "User not found" }); continue; }
+        if (target.isAnonymized) { failed.push({ userId, reason: "Already anonymized" }); continue; }
+        if (target.role !== 'user') { failed.push({ userId, reason: "Only trainee accounts can be anonymized" }); continue; }
+
+        if (actor.role === 'operator') {
+          const operatorCatId = actor.assignedCategoryId;
+          const operatorOrgId = actor.assignedOrganizationId;
+          const operatorCompanyId = actor.assignedCompanyId;
+          let hasAccess = false;
+          if (operatorCatId) { hasAccess = target.assignedCategoryId === operatorCatId; }
+          else if (operatorOrgId) { hasAccess = target.organizationId === operatorOrgId; }
+          else if (operatorCompanyId) { hasAccess = target.companyId === operatorCompanyId; }
+          if (!hasAccess) { failed.push({ userId, reason: "Outside your jurisdiction" }); continue; }
+        }
+
+        await storage.anonymizeUser(userId, actor.id, 'manual');
+        await db.insert(auditLogs).values({
+          actorUserId: actor.id,
+          organizationId: target.organizationId ?? null,
+          action: 'anonymize_user',
+          targetType: 'user',
+          targetId: userId,
+          metadata: { triggerType: 'manual_bulk', actorRole: actor.role },
+        });
+        succeeded.push(userId);
+      } catch (err: any) {
+        failed.push({ userId, reason: err?.message || "Unknown error" });
+      }
+    }
+
+    res.json({ succeeded, failed });
+  }));
+
   router.get("/api/public/companies", asyncHandler(async (req, res) => {
     const companies = await storage.getAllCompanies();
     res.json(companies.map((c: any) => ({ id: c.id, name: c.name })));

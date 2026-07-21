@@ -1255,7 +1255,10 @@
       "active": "활성",
       "inactive": "비활성",
       "anonymize": "익명화",
-      "anonymized": "익명처리됨"
+      "anonymized": "익명처리됨",
+      "bulkAnonymize": "일괄 익명화",
+      "selectedCount": "{{count}}명 선택됨",
+      "clearSelection": "선택 해제"
     },
     "roles": {
       "admin": "시스템관리자",
@@ -1405,6 +1408,11 @@
         "resetting": "재설정 중...",
         "reset": "비밀번호 재설정"
       },
+      "bulkAnonymize": {
+        "title": "일괄 익명화",
+        "targetCount": "선택된 교육생 {{count}}명을 익명화합니다.",
+        "confirm": "일괄 익명화 실행"
+      },
       "anonymize": {
         "title": "교육생 개인정보 익명화",
         "warning": "이 작업은 되돌릴 수 없습니다.",
@@ -1441,7 +1449,11 @@
       "noChangesDesc": "변경된 내용이 없습니다.",
       "anonymizeSuccess": "익명화 완료",
       "anonymizeSuccessDesc": "교육생 개인정보가 익명 처리되었습니다.",
-      "anonymizeFailed": "익명화 실패"
+      "anonymizeFailed": "익명화 실패",
+      "bulkAnonymizeSuccess": "일괄 익명화 완료",
+      "bulkAnonymizeSuccessDesc": "{{count}}명의 개인정보가 익명 처리되었습니다.",
+      "bulkAnonymizePartial": "일부 익명화 실패",
+      "bulkAnonymizePartialDesc": "{{count}}명의 익명화가 실패했습니다."
     },
     "common": {
       "cancel": "취소",

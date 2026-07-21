@@ -1228,7 +1228,10 @@
       "active": "活跃",
       "inactive": "非活跃",
       "anonymize": "匿名化",
-      "anonymized": "已匿名处理"
+      "anonymized": "已匿名处理",
+      "bulkAnonymize": "批量匿名化",
+      "selectedCount": "已选择 {{count}} 人",
+      "clearSelection": "取消选择"
     },
     "roles": {
       "admin": "系统管理员",
@@ -1374,6 +1377,11 @@
         "resetting": "重置中...",
         "reset": "重置密码"
       },
+      "bulkAnonymize": {
+        "title": "批量匿名化",
+        "targetCount": "将对已选择的 {{count}} 名学员进行匿名化处理。",
+        "confirm": "批量匿名化执行"
+      },
       "anonymize": {
         "title": "匿名化学员个人信息",
         "warning": "此操作无法撤销。",
@@ -1410,7 +1418,11 @@
       "noChangesDesc": "没有进行任何更改。",
       "anonymizeSuccess": "匿名化完成",
       "anonymizeSuccessDesc": "学员个人信息已完成匿名处理。",
-      "anonymizeFailed": "匿名化失败"
+      "anonymizeFailed": "匿名化失败",
+      "bulkAnonymizeSuccess": "批量匿名化完成",
+      "bulkAnonymizeSuccessDesc": "已匿名处理 {{count}} 名学员的个人信息。",
+      "bulkAnonymizePartial": "部分匿名化失败",
+      "bulkAnonymizePartialDesc": "{{count}} 名学员的匿名化处理失败。"
     },
     "common": {
       "cancel": "取消",

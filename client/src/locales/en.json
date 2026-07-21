@@ -1232,7 +1232,10 @@
       "active": "Active",
       "inactive": "Inactive",
       "anonymize": "Anonymize",
-      "anonymized": "Anonymized"
+      "anonymized": "Anonymized",
+      "bulkAnonymize": "Bulk Anonymize",
+      "selectedCount": "{{count}} selected",
+      "clearSelection": "Clear selection"
     },
     "roles": {
       "admin": "System Admin",
@@ -1378,6 +1381,11 @@
         "resetting": "Resetting...",
         "reset": "Reset Password"
       },
+      "bulkAnonymize": {
+        "title": "Bulk Anonymize",
+        "targetCount": "{{count}} trainees will be anonymized.",
+        "confirm": "Anonymize All Selected"
+      },
       "anonymize": {
         "title": "Anonymize User Data",
         "warning": "This action cannot be undone.",
@@ -1414,7 +1422,11 @@
       "noChangesDesc": "No changes were made.",
       "anonymizeSuccess": "Anonymization complete",
       "anonymizeSuccessDesc": "User personal information has been anonymized.",
-      "anonymizeFailed": "Anonymization failed"
+      "anonymizeFailed": "Anonymization failed",
+      "bulkAnonymizeSuccess": "Bulk anonymization complete",
+      "bulkAnonymizeSuccessDesc": "{{count}} users have been anonymized.",
+      "bulkAnonymizePartial": "Some anonymizations failed",
+      "bulkAnonymizePartialDesc": "{{count}} users could not be anonymized."
     },
     "common": {
       "cancel": "Cancel",
