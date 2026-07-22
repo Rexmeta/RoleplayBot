@@ -18,22 +18,17 @@
 export function stripSimulationToolCallText(text: string): string {
   if (!text) return text;
 
-  // 1. Remove complete calls: update_npc_emotion{...}
-  let result = text.replace(/update_npc_\w+\s*\{[^}]*\}\s*/g, '');
+  // 1. Remove complete brace-enclosed calls: toolname{...}
+  let result = text.replace(/(?:update_npc_\w+|update_scenario_state|trigger_incident|switch_persona)\s*\{[^}]*\}\s*/g, '');
 
-  // 2. Remove complete parenthetical calls: Call update_npc_emotion(...)
-  result = result.replace(/Call\s+update_npc_\w+\s*\([^)]*\)\s*/g, '');
+  // 2. Remove complete parenthetical calls: Call toolname(...)
+  result = result.replace(/Call\s+(?:update_npc_\w+|update_scenario_state|trigger_incident|switch_persona)\s*\([^)]*\)\s*/g, '');
 
-  // 3. Remove "Call update_npc_..." where the format uses = instead of {
-  //    e.g. "Call update_npc_=20,confusionDelta=15,..."
-  result = result.replace(/Call\s+update_npc_[^\n]*/g, '');
+  // 3. Remove "Call toolname..." where the format uses = instead of { (e.g. "Call update_npc_=20,...")
+  result = result.replace(/Call\s+(?:update_npc_\w+|update_scenario_state|trigger_incident|switch_persona)[^\n]*/g, '');
 
-  // 4. Handle truncated calls: update_npc_emotion{ ... (no closing brace)
-  //    Strip from the call name up to the next sentence boundary.
-  //    A "sentence boundary" here means: a newline, or a period/comma followed
-  //    by a CJK character, or the pattern "},<speech>" (where the closing brace
-  //    was accidentally appended to the speech).
-  result = result.replace(/update_npc_\w+\s*\{[^}]*/g, '');
+  // 4. Handle truncated calls: toolname{ ... (no closing brace)
+  result = result.replace(/(?:update_npc_\w+|update_scenario_state|trigger_incident|switch_persona)\s*\{[^}]*/g, '');
 
   return result.trim();
 }

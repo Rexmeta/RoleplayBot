@@ -9,7 +9,7 @@ import type { ScenarioPersona, SupportedLanguage } from "./aiService";
 export type { ScenarioPersona, SupportedLanguage, StrategyReflectionEvaluation, RoleplayScenario, EvaluationCriteriaWithDimensions };
 
 // 기능별 설정 키 매핑
-export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario' | 'translation' | 'emotion' | 'image' | 'video';
+export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario' | 'translation' | 'emotion' | 'image' | 'video' | 'evaluation' | 'summarization';
 
 const FEATURE_SETTING_KEYS: Record<AIFeature, string> = {
   conversation: 'model_conversation',
@@ -20,6 +20,8 @@ const FEATURE_SETTING_KEYS: Record<AIFeature, string> = {
   emotion: 'model_emotion',
   image: 'model_image',
   video: 'model_video',
+  evaluation: 'model_evaluation',
+  summarization: 'model_summarization',
 };
 
 // 기능별 환경변수 키 매핑
@@ -32,6 +34,8 @@ const FEATURE_ENV_KEYS: Record<AIFeature, string> = {
   emotion: 'AI_MODEL_EMOTION',
   image: 'AI_MODEL_IMAGE',
   video: 'AI_MODEL_VIDEO',
+  evaluation: 'AI_MODEL_EVALUATION',
+  summarization: 'AI_MODEL_SUMMARIZATION',
 };
 
 const FEATURE_DEFAULTS: Partial<Record<AIFeature, string>> = {

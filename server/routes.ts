@@ -59,12 +59,14 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     console.error('[seed] Failed to seed model_translation setting:', err);
   }
 
-  // Seed model_emotion, model_image, model_video, model_realtime settings if not present
+  // Seed model_emotion, model_image, model_video, model_realtime, model_evaluation, model_summarization settings if not present
   const aiModelSeeds = [
     { key: 'model_emotion', value: 'gemini-2.5-flash', description: 'AI model used for real-time emotion analysis' },
     { key: 'model_image', value: 'gemini-2.5-flash-image', description: 'AI model used for image generation (personas, scenarios)' },
     { key: 'model_video', value: 'veo-3.1-generate-preview', description: 'AI model used for intro video generation' },
     { key: 'model_realtime', value: 'gemini-2.0-flash-live-001', description: 'AI model used for real-time voice conversations' },
+    { key: 'model_evaluation', value: 'gemini-2.5-flash', description: 'AI model used for per-turn LLM evaluation during voice conversations' },
+    { key: 'model_summarization', value: 'gemini-2.5-flash', description: 'AI model used to summarize older messages in long voice sessions' },
   ];
   for (const seed of aiModelSeeds) {
     try {

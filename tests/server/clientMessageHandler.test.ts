@@ -91,12 +91,12 @@ describe('summarizeOlderMessages', () => {
       expect(result).toBe('이전 대화 요약 내용');
     });
 
-    it('calls generateContent with gemini-2.0-flash model', async () => {
+    it('calls generateContent with gemini-2.5-flash model by default', async () => {
       const messages = makeMessages(3);
       await summarizeOlderMessages(messages, 'en');
 
       expect(mockGenerateContent).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'gemini-2.0-flash' })
+        expect.objectContaining({ model: 'gemini-2.5-flash' })
       );
     });
 

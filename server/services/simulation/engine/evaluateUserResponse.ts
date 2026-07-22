@@ -7,6 +7,7 @@ import {
 import { inferEmotionPatchFromEvaluation, applyNpcBehaviorHarnessModifiers } from '../simulationRules';
 import { buildSimulationStateBlock } from '../simulationPrompt';
 import type { EvaluationHarness, NpcBehaviorHarness } from '../../../../shared/schema/scenarios';
+import { storage } from '../../../storage';
 
 const EVAL_TIMEOUT_MS = 8000;
 
@@ -21,6 +22,7 @@ export interface EvaluationInput {
   evaluationMode?: 'fast' | 'quality';
   evaluationHarness?: EvaluationHarness | null;
   npcBehaviorHarness?: NpcBehaviorHarness | null;
+  model?: string;
 }
 
 export interface EvaluationResult {
@@ -66,19 +68,33 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
   return { turnScore: ruleScore, emotionDelta, skipped: false, method: 'rule' };
 }
 
+const EVAL_MODEL_FALLBACK = 'gemini-2.5-flash';
+
+async function resolveEvaluationModel(overrideModel?: string): Promise<string> {
+  if (overrideModel) return overrideModel;
+  try {
+    const setting = await storage.getSystemSetting('ai', 'model_evaluation');
+    if (setting?.value) return setting.value;
+  } catch {
+    // ignore — use fallback
+  }
+  return EVAL_MODEL_FALLBACK;
+}
+
 async function runLLMEvaluation(input: EvaluationInput): Promise<TurnScore | null> {
   const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!geminiApiKey) return null;
 
   const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
   const prompt = buildEvaluationPrompt(input);
+  const model = await resolveEvaluationModel(input.model);
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('LLM evaluation timeout')), EVAL_TIMEOUT_MS)
     );
     const llmPromise = genAI.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model,
       config: {
         responseMimeType: 'application/json',
         maxOutputTokens: 512,

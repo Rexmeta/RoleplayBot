@@ -2,6 +2,7 @@ import WebSocket from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import { RealtimeSession, PendingOutgoingMessage, MAX_PENDING_MESSAGES } from './types';
 import { filterThinkingText } from './textFilter';
+import { storage } from '../../storage';
 
 function pushPending(session: RealtimeSession, msg: PendingOutgoingMessage): void {
   session.pendingMessages.push(msg);
@@ -13,6 +14,18 @@ function pushPending(session: RealtimeSession, msg: PendingOutgoingMessage): voi
 type SendToClient = (session: RealtimeSession, message: any) => void;
 
 const CONTEXT_WINDOW_SIZE = 30;
+
+const SUMMARIZATION_MODEL_FALLBACK = 'gemini-2.5-flash';
+
+async function resolveSummarizationModel(): Promise<string> {
+  try {
+    const setting = await storage.getSystemSetting('ai', 'model_summarization');
+    if (setting?.value) return setting.value;
+  } catch {
+    // ignore — use fallback
+  }
+  return SUMMARIZATION_MODEL_FALLBACK;
+}
 
 export async function summarizeOlderMessages(
   messages: Array<{ role: 'user' | 'ai'; content: string }>,
@@ -39,9 +52,11 @@ export async function summarizeOlderMessages(
 
   const prompt = `다음 대화 내용을 핵심 맥락 중심으로 간결하게 요약해 주세요. AI가 이전 대화를 기억하는 데 필요한 핵심 사실, 감정 흐름, 주요 합의나 갈등 포인트만 포함하세요. ${langInstruction}\n\n대화:\n${conversationText}`;
 
+  const model = await resolveSummarizationModel();
+
   try {
     const response = await genAI.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
     });
     const summary = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
