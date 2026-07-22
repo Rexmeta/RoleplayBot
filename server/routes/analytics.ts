@@ -971,6 +971,64 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     res.json({ difficultyStats: difficultyWithDetails });
   }));
 
+  router.get("/api/admin/analytics/emotions/by-persona", isAuthenticated, asyncHandler(async (req: any, res) => {
+    const user = req.user;
+
+    if (user.role !== 'admin' && user.role !== 'operator') {
+      throw createHttpError(403, "관리자 또는 운영자만 접근할 수 있습니다");
+    }
+
+    const categoryIdParam = req.query.categoryId as string | undefined;
+
+    const allScenarios = await fileManager.getAllScenarios();
+    let scenarioIds: string[] | undefined = undefined;
+
+    if (user.role === 'admin') {
+      if (categoryIdParam) {
+        scenarioIds = allScenarios
+          .filter((s: any) => String(s.categoryId) === String(categoryIdParam))
+          .map((s: any) => s.id as string);
+      }
+    } else if (user.role === 'operator') {
+      const accessible = await getOperatorAccessibleCategoryIds(user);
+      if (accessible.length > 0) {
+        scenarioIds = allScenarios
+          .filter((s: any) => accessible.includes(String(s.categoryId)))
+          .map((s: any) => s.id as string);
+      } else {
+        scenarioIds = [];
+      }
+    }
+
+    if (scenarioIds && scenarioIds.length === 0) {
+      return res.json({ personaStats: [] });
+    }
+
+    const personaStats = await storage.getEmotionStatsByPersona(scenarioIds);
+
+    const emotionEmojis: Record<string, string> = {
+      '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
+      '호기심': '🤔', '불안': '😰', '피로': '😫', '실망': '😞', '당혹': '😕', '단호': '😤'
+    };
+
+    const personaWithDetails = personaStats.map(persona => ({
+      ...persona,
+      emotions: persona.emotions.map(e => ({
+        ...e,
+        emoji: emotionEmojis[e.emotion] || '❓',
+        percentage: persona.totalCount > 0 ? Math.round((e.count / persona.totalCount) * 100) : 0
+      })),
+      topEmotion: persona.emotions[0] ? {
+        emotion: persona.emotions[0].emotion,
+        emoji: emotionEmojis[persona.emotions[0].emotion] || '❓',
+        count: persona.emotions[0].count,
+        percentage: persona.totalCount > 0 ? Math.round((persona.emotions[0].count / persona.totalCount) * 100) : 0
+      } : null
+    }));
+
+    res.json({ personaStats: personaWithDetails });
+  }));
+
   router.get("/api/admin/analytics/emotions/timeline/:personaRunId", isAuthenticated, asyncHandler(async (req, res) => {
     const { personaRunId } = req.params;
 

@@ -1,4 +1,8 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   PieChart,
   Pie,
@@ -12,17 +16,44 @@ import {
   Tooltip,
 } from "recharts";
 import { CardInfo } from "./AdminCardInfo";
-import type { EmotionData, ScenarioEmotionData, DifficultyEmotionData } from "./adminTypes";
+import type { EmotionData, ScenarioEmotionData, DifficultyEmotionData, PersonaEmotionData } from "./adminTypes";
 
 const EMOTION_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1', '#84cc16', '#14b8a6'];
+
+const INSIGHT_THRESHOLD = 15;
+
+function computeInsightBadges(
+  personaEmotions: Array<{ emotion: string; percentage: number }>,
+  globalAverages: Record<string, number>
+): Array<{ emotion: string; diff: number }> {
+  return personaEmotions
+    .filter(e => {
+      const avg = globalAverages[e.emotion] ?? 0;
+      return e.percentage - avg >= INSIGHT_THRESHOLD;
+    })
+    .map(e => ({ emotion: e.emotion, diff: e.percentage - (globalAverages[e.emotion] ?? 0) }))
+    .sort((a, b) => b.diff - a.diff);
+}
 
 interface EmotionsTabProps {
   emotions: EmotionData | undefined;
   scenarioEmotions: ScenarioEmotionData | undefined;
   difficultyEmotions: DifficultyEmotionData | undefined;
+  personaEmotions: PersonaEmotionData | undefined;
 }
 
-export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions }: EmotionsTabProps) {
+export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, personaEmotions }: EmotionsTabProps) {
+  const [, navigate] = useLocation();
+  const [expandedPersonaId, setExpandedPersonaId] = useState<string | null>(null);
+
+  const globalAverages: Record<string, number> = {};
+  if (emotions?.emotions) {
+    const total = emotions.totalEmotions || 1;
+    emotions.emotions.forEach(e => {
+      globalAverages[e.emotion] = Math.round((e.count / total) * 100);
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -236,6 +267,125 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions }: 
               </CardContent>
             </Card>
           </>
+        )}
+      </div>
+
+      <div className="border-t pt-6">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <i className="fas fa-user-circle text-indigo-500"></i>
+          페르소나별 감정 분석
+        </h3>
+
+        {!personaEmotions?.personaStats?.length ? (
+          <div className="text-center py-8 text-slate-500">페르소나 감정 데이터가 없습니다.</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {personaEmotions.personaStats.map((persona) => {
+              const insights = computeInsightBadges(persona.emotions, globalAverages);
+              const isExpanded = expandedPersonaId === persona.personaId;
+              const top5 = persona.emotions.slice(0, 5);
+
+              return (
+                <div
+                  key={persona.personaId}
+                  className="border rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => setExpandedPersonaId(isExpanded ? null : persona.personaId)}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="font-semibold text-slate-900 text-base">{persona.personaName}</h4>
+                      {persona.mbtiType && (
+                        <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                          {persona.mbtiType}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500">총 {persona.totalCount}회</p>
+                      {persona.topEmotion && (
+                        <span className="text-xl" title={persona.topEmotion.emotion}>{persona.topEmotion.emoji}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {insights.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {insights.map(ins => (
+                        <Badge key={ins.emotion} variant="destructive" className="text-xs px-2 py-0.5">
+                          ⚠️ {ins.emotion} 빈번 → 설정 검토 권장
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {persona.topEmotion && (
+                    <p className="text-sm text-slate-600 mb-3">
+                      최다: <span className="font-medium">{persona.topEmotion.emoji} {persona.topEmotion.emotion}</span>
+                      <span className="text-slate-400 ml-1">({persona.topEmotion.percentage}%)</span>
+                    </p>
+                  )}
+
+                  <div className="space-y-1.5 mb-3">
+                    {top5.map((e, i) => (
+                      <div key={e.emotion} className="flex items-center gap-2 text-xs">
+                        <span className="w-14 text-right text-slate-500 shrink-0">{e.emoji} {e.emotion}</span>
+                        <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-2 rounded-full"
+                            style={{ width: `${e.percentage}%`, backgroundColor: EMOTION_COLORS[i % EMOTION_COLORS.length] }}
+                          />
+                        </div>
+                        <span className="w-8 text-slate-500 shrink-0">{e.percentage}%</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {isExpanded && (
+                    <div className="mt-3 border-t pt-3" onClick={e => e.stopPropagation()}>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie
+                            data={persona.emotions.map((e, i) => ({
+                              name: `${e.emoji} ${e.emotion}`,
+                              value: e.count,
+                              fill: EMOTION_COLORS[i % EMOTION_COLORS.length]
+                            }))}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={70}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            labelLine={false}
+                          >
+                            {persona.emotions.map((_, i) => (
+                              <Cell key={`cell-${i}`} fill={EMOTION_COLORS[i % EMOTION_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => [`${value}회`, '빈도']} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex justify-between items-center" onClick={e => e.stopPropagation()}>
+                    <span className="text-xs text-slate-400">
+                      {isExpanded ? '▲ 접기' : '▼ 상세 보기'}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => navigate(`/persona/${persona.personaId}`)}
+                    >
+                      <i className="fas fa-external-link-alt mr-1"></i>
+                      페르소나 설정으로 이동
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

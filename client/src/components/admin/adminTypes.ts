@@ -113,6 +113,17 @@ export interface DifficultyEmotionData {
   }>;
 }
 
+export interface PersonaEmotionData {
+  personaStats: Array<{
+    personaId: string;
+    personaName: string;
+    mbtiType: string | null;
+    emotions: Array<{ emotion: string; emoji: string; count: number; percentage: number }>;
+    totalCount: number;
+    topEmotion: { emotion: string; emoji: string; count: number; percentage: number } | null;
+  }>;
+}
+
 export interface Participant {
   userId: string;
   name: string;
