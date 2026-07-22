@@ -1196,13 +1196,13 @@
     "title": "System Admin",
     "subtitle": "Manage user accounts, permissions, and categories",
     "tabs": {
-      "users": "User Management",
+      "users": "Users",
       "companies": "Companies/Orgs",
-      "categories": "Category Management",
-      "languages": "Language Management",
-      "settings": "System Settings",
+      "categories": "Categories",
+      "languages": "Languages",
+      "settings": "Settings",
       "aiUsage": "AI Usage",
-      "agentApi": "Agent API"
+      "agentApi": "Agent"
     },
     "users": {
       "title": "User Management",

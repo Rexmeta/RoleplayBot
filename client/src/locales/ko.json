@@ -1218,14 +1218,14 @@
     "title": "시스템 관리자",
     "subtitle": "사용자 계정, 권한 및 카테고리 관리",
     "tabs": {
-      "users": "사용자 관리",
+      "users": "사용자",
       "companies": "회사/조직",
-      "hierarchy": "조직 구조",
-      "categories": "카테고리 관리",
-      "languages": "언어 관리",
-      "settings": "시스템 설정",
-      "aiUsage": "AI 사용량",
-      "agentApi": "Agent API"
+      "hierarchy": "조직",
+      "categories": "카테고리",
+      "languages": "언어",
+      "settings": "설정",
+      "aiUsage": "AI 사용",
+      "agentApi": "Agent"
     },
     "users": {
       "title": "사용자 관리",

@@ -1364,23 +1364,23 @@ export default function SystemAdminPage() {
             </TabsTrigger>
             <TabsTrigger value="agent-keys" className="flex items-center gap-2" data-testid="tab-agent-keys">
               <KeyRound className="h-4 w-4" />
-              {t('systemAdmin.tabs.agentKeys', 'API Keys')}
+              {t('systemAdmin.tabs.agentKeys', 'API키')}
             </TabsTrigger>
             <TabsTrigger value="storage-sync" className="flex items-center gap-2" data-testid="tab-storage-sync">
               <HardDrive className="h-4 w-4" />
-              {t('systemAdmin.tabs.storageSync', 'Storage Sync')}
+              {t('systemAdmin.tabs.storageSync', '스토리지')}
             </TabsTrigger>
             <TabsTrigger value="agent-api" className="flex items-center gap-2" data-testid="tab-agent-api">
               <Key className="h-4 w-4" />
-              {t('systemAdmin.tabs.agentApi', 'Agent API')}
+              {t('systemAdmin.tabs.agentApi')}
             </TabsTrigger>
             <TabsTrigger value="billing" className="flex items-center gap-2" data-testid="tab-billing">
               <CreditCard className="h-4 w-4" />
-              {t('systemAdmin.tabs.billing', 'Plans & Billing')}
+              {t('systemAdmin.tabs.billing', '결제')}
             </TabsTrigger>
             <TabsTrigger value="store" className="flex items-center gap-2" data-testid="tab-store">
               <ShoppingBag className="h-4 w-4" />
-              Store
+              {t('systemAdmin.tabs.store', '스토어')}
             </TabsTrigger>
           </TabsList>
 

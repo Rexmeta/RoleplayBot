@@ -1193,12 +1193,13 @@
     "title": "システム管理者",
     "subtitle": "ユーザーアカウント、権限、カテゴリの管理",
     "tabs": {
-      "users": "ユーザー管理",
+      "users": "ユーザー",
       "companies": "会社/組織",
-      "categories": "カテゴリ管理",
-      "languages": "言語管理",
-      "settings": "システム設定",
-      "aiUsage": "AI使用量"
+      "categories": "カテゴリ",
+      "languages": "言語",
+      "settings": "設定",
+      "aiUsage": "AI使用",
+      "agentApi": "Agent"
     },
     "users": {
       "title": "ユーザー管理",

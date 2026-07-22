@@ -1193,12 +1193,13 @@
     "title": "系统管理员",
     "subtitle": "管理用户账户、权限和分类",
     "tabs": {
-      "users": "用户管理",
+      "users": "用户",
       "companies": "公司/组织",
-      "categories": "分类管理",
-      "languages": "语言管理",
-      "settings": "系统设置",
-      "aiUsage": "AI使用量"
+      "categories": "分类",
+      "languages": "语言",
+      "settings": "设置",
+      "aiUsage": "AI使用",
+      "agentApi": "Agent"
     },
     "users": {
       "title": "用户管理",
