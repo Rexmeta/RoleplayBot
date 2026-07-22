@@ -36,7 +36,14 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key, CreditCard, ShoppingBag, UserX } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key, CreditCard, ShoppingBag, UserX, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { LanguageManager } from "@/components/LanguageManager";
 import { HierarchyTreeManager } from "@/components/HierarchyTreeManager";
 import { AgentKeyManager } from "@/components/admin/AgentKeyManager";
@@ -1195,6 +1202,9 @@ export default function SystemAdminPage() {
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
     const matchesTier = tierFilter === "all" || user.tier === tierFilter;
     return matchesSearch && matchesRole && matchesTier;
+  }).sort((a, b) => {
+    if (a.isAnonymized === b.isAnonymized) return 0;
+    return a.isAnonymized ? 1 : -1;
   });
 
   const openEditUserDialog = (user: UserData) => {
@@ -1608,12 +1618,16 @@ export default function SystemAdminPage() {
                                 </TooltipProvider>
                               </TableCell>
                               <TableCell>
-                                <Badge
-                                  variant={user.isActive ? "default" : "secondary"}
-                                  className={user.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}
-                                >
-                                  {user.isActive ? t('systemAdmin.users.active') : t('systemAdmin.users.inactive')}
-                                </Badge>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={`inline-block w-3 h-3 rounded-full cursor-default border ${user.isActive ? 'bg-green-500 border-green-600' : 'bg-red-400 border-red-500'}`} />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      {user.isActive ? t('systemAdmin.users.active') : t('systemAdmin.users.inactive')}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {user.lastLoginAt
@@ -1621,43 +1635,46 @@ export default function SystemAdminPage() {
                                   : "-"}
                               </TableCell>
                               <TableCell>
-                                <div className="flex gap-1">
-                                  {!user.isAnonymized ? (
-                                    <>
+                                {!user.isAnonymized ? (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
                                       <Button
-                                        variant="outline"
+                                        variant="ghost"
                                         size="sm"
-                                        onClick={() => openEditUserDialog(user)}
+                                        className="h-8 w-8 p-0"
                                         data-testid={`button-edit-${user.id}`}
                                       >
-                                        {t('systemAdmin.users.edit')}
+                                        <MoreHorizontal className="h-4 w-4" />
                                       </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => openEditUserDialog(user)}>
+                                        <Pencil className="h-4 w-4 mr-2" />
+                                        {t('systemAdmin.users.edit')}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
                                         onClick={() => setResetPasswordUser(user)}
                                         data-testid={`button-reset-password-${user.id}`}
-                                        title={t('systemAdmin.users.resetPassword')}
                                       >
-                                        <KeyRound className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
+                                        <KeyRound className="h-4 w-4 mr-2" />
+                                        {t('systemAdmin.users.resetPassword')}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
                                         onClick={() => setAnonymizeUser(user)}
                                         data-testid={`button-anonymize-${user.id}`}
-                                        title={t('systemAdmin.users.anonymize')}
-                                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                        className="text-orange-600 focus:text-orange-700 focus:bg-orange-50"
                                       >
-                                        <UserX className="h-4 w-4" />
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground italic">
-                                      {user.anonymizedAt ? format(new Date(user.anonymizedAt), "MM/dd HH:mm", { locale: ko }) : "-"}
-                                    </span>
-                                  )}
-                                </div>
+                                        <UserX className="h-4 w-4 mr-2" />
+                                        {t('systemAdmin.users.anonymize')}
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground italic">
+                                    {user.anonymizedAt ? format(new Date(user.anonymizedAt), "MM/dd HH:mm", { locale: ko }) : "-"}
+                                  </span>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))
