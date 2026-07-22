@@ -1,4 +1,4 @@
-import { type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type SimulationEvent, type InsertSimulationEvent, scenarioRuns, personaRuns, chatMessages, simulationEvents } from "@shared/schema";
+import { type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type SimulationEvent, type InsertSimulationEvent, scenarioRuns, personaRuns, chatMessages, simulationEvents, userPersonas } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, inArray, and, isNotNull, ne, sql, gte, like, notLike } from "drizzle-orm";
 
@@ -240,14 +240,24 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
 
     async getEmotionStatsByPersona(scenarioIds?: string[], personaType: 'mbti' | 'user' | 'all' = 'mbti', since?: Date): Promise<EmotionStatByPersona[]> {
       const USER_PERSONA_PREFIX = '__user_persona__%';
-      const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), isNotNull(personaRuns.personaName), ne(scenarioRuns.status, 'abandoned')];
+      // Length of the sentinel prefix "__user_persona__:" is 17 characters; SUBSTRING FROM 18 yields the UUID.
+      const SENTINEL_OFFSET = 18;
+      const whereConditions: any[] = [
+        eq(chatMessages.sender, 'ai'),
+        isNotNull(chatMessages.emotion),
+        // Require that at least one of user_personas.name (for PersonaX rows joined via LEFT JOIN)
+        // or persona_runs.persona_name is non-null — this allows persona_runs with a NULL
+        // personaName to still resolve a display name from user_personas.
+        sql`COALESCE(${userPersonas.name}, ${personaRuns.personaName}) IS NOT NULL`,
+        ne(scenarioRuns.status, 'abandoned'),
+      ];
       if (personaType === 'mbti') whereConditions.push(notLike(personaRuns.personaId, USER_PERSONA_PREFIX));
       else if (personaType === 'user') whereConditions.push(like(personaRuns.personaId, USER_PERSONA_PREFIX));
       if (scenarioIds && scenarioIds.length > 0) whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
       if (since) whereConditions.push(gte(chatMessages.createdAt, since));
       const result = await db.select({
         personaId: personaRuns.personaId,
-        personaName: personaRuns.personaName,
+        personaName: sql<string>`COALESCE(${userPersonas.name}, ${personaRuns.personaName})`,
         mbtiType: personaRuns.mbtiType,
         emotion: chatMessages.emotion,
         count: sql<number>`count(*)::int`,
@@ -255,8 +265,9 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
         .from(chatMessages)
         .innerJoin(personaRuns, eq(chatMessages.personaRunId, personaRuns.id))
         .innerJoin(scenarioRuns, eq(personaRuns.scenarioRunId, scenarioRuns.id))
+        .leftJoin(userPersonas, sql`${personaRuns.personaId} LIKE '__user_persona__%' AND ${userPersonas.id} = SUBSTRING(${personaRuns.personaId} FROM ${SENTINEL_OFFSET})`)
         .where(and(...whereConditions))
-        .groupBy(personaRuns.personaId, personaRuns.personaName, personaRuns.mbtiType, chatMessages.emotion)
+        .groupBy(personaRuns.personaId, personaRuns.personaName, personaRuns.mbtiType, chatMessages.emotion, userPersonas.name)
         .orderBy(personaRuns.personaId, desc(sql`count(*)`));
       const personaMap = new Map<string, EmotionStatByPersona>();
       for (const row of result) {
