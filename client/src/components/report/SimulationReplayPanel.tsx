@@ -175,6 +175,175 @@ function computeEmotionDeltasByTurn(events: SimulationEventRecord[]): Map<number
   return result;
 }
 
+// ── Emotion trend (absolute values per turn) ───────────────────────────────
+
+interface EmotionTrendPoint {
+  turnIndex: number;
+  trust: number;
+  anger: number;
+  confusion: number;
+  interest: number;
+}
+
+/**
+ * Extract absolute NPC emotion values from stateAfter of auto_evaluation events,
+ * one point per turn (latest entry wins when a turn has duplicates).
+ */
+function computeEmotionTrend(events: SimulationEventRecord[]): EmotionTrendPoint[] {
+  const byTurn = new Map<number, EmotionTrendPoint>();
+  for (const ev of events) {
+    if (ev.eventType !== "auto_evaluation") continue;
+    if (!isSimulationState(ev.stateAfter)) continue;
+    const { anger, trust, confusion, interest } = ev.stateAfter.npcEmotions;
+    byTurn.set(ev.turnIndex, { turnIndex: ev.turnIndex, trust, anger, confusion, interest });
+  }
+  return Array.from(byTurn.values()).sort((a, b) => a.turnIndex - b.turnIndex);
+}
+
+// ── Emotion trend chart (SVG sparkline) ────────────────────────────────────
+
+interface EmotionTrendChartProps {
+  trend: EmotionTrendPoint[];
+}
+
+function EmotionTrendChart({ trend }: EmotionTrendChartProps) {
+  if (trend.length < 3) return null;
+
+  const W = 560;
+  const H = 96;
+  const PAD = { top: 8, right: 12, bottom: 20, left: 28 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  const n = trend.length;
+  const xStep = n > 1 ? innerW / (n - 1) : 0;
+  const toX = (i: number) => PAD.left + i * xStep;
+  const toY = (v: number) => PAD.top + innerH - (Math.max(0, Math.min(100, v)) / 100) * innerH;
+
+  // Build path strings for trust and anger
+  const buildLinePath = (vals: number[]) =>
+    vals.map((v, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
+
+  const buildAreaPath = (vals: number[]) => {
+    const line = buildLinePath(vals);
+    const lastX = toX(vals.length - 1).toFixed(1);
+    const baseY = toY(0).toFixed(1);
+    return `${line} L ${lastX},${baseY} L ${toX(0).toFixed(1)},${baseY} Z`;
+  };
+
+  const trustVals = trend.map((p) => p.trust);
+  const angerVals = trend.map((p) => p.anger);
+
+  // Y-axis tick labels: 0, 50, 100
+  const yTicks = [0, 50, 100];
+
+  return (
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader className="pb-1 pt-3 px-4">
+        <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i className="fas fa-chart-area text-indigo-400 text-xs" />
+          대화 전체 감정 추이
+          <div className="ml-auto flex items-center gap-3 text-xs font-normal text-slate-500">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-0.5 rounded bg-emerald-500" />
+              신뢰
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-0.5 rounded bg-red-400" />
+              분노
+            </span>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-3">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full h-auto"
+          style={{ maxHeight: "96px" }}
+          aria-label="NPC 신뢰·분노 추이 차트"
+        >
+          <defs>
+            <linearGradient id="trustGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="angerGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f87171" stopOpacity="0.20" />
+              <stop offset="100%" stopColor="#f87171" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+
+          {/* Y-axis grid lines & labels */}
+          {yTicks.map((tick) => (
+            <g key={tick}>
+              <line
+                x1={PAD.left}
+                y1={toY(tick)}
+                x2={W - PAD.right}
+                y2={toY(tick)}
+                stroke="#e2e8f0"
+                strokeWidth="0.75"
+                strokeDasharray={tick === 0 ? "none" : "3,3"}
+              />
+              <text
+                x={PAD.left - 4}
+                y={toY(tick) + 4}
+                fontSize="7"
+                fill="#94a3b8"
+                textAnchor="end"
+              >
+                {tick}
+              </text>
+            </g>
+          ))}
+
+          {/* Trust area + line */}
+          <path d={buildAreaPath(trustVals)} fill="url(#trustGrad)" />
+          <path
+            d={buildLinePath(trustVals)}
+            fill="none"
+            stroke="#10b981"
+            strokeWidth="1.75"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {/* Anger area + line */}
+          <path d={buildAreaPath(angerVals)} fill="url(#angerGrad)" />
+          <path
+            d={buildLinePath(angerVals)}
+            fill="none"
+            stroke="#f87171"
+            strokeWidth="1.75"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {/* Dots and X-axis turn labels */}
+          {trend.map((point, i) => (
+            <g key={point.turnIndex}>
+              {/* Trust dot */}
+              <circle cx={toX(i)} cy={toY(point.trust)} r="2.5" fill="#10b981" />
+              {/* Anger dot */}
+              <circle cx={toX(i)} cy={toY(point.anger)} r="2.5" fill="#f87171" />
+              {/* Turn label on X axis */}
+              <text
+                x={toX(i)}
+                y={H - 4}
+                fontSize="7"
+                fill="#94a3b8"
+                textAnchor="middle"
+              >
+                T{point.turnIndex + 1}
+              </text>
+            </g>
+          ))}
+        </svg>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Config ────────────────────────────────────────────────────────────────
 
 interface ScoreDimension {
@@ -515,6 +684,7 @@ export default function SimulationReplayPanel({ conversationId, conversationMode
 
   const incidentsByTurn = collectIncidentsByTurn(allEvents);
   const emotionDeltasByTurn = computeEmotionDeltasByTurn(allEvents);
+  const emotionTrend = computeEmotionTrend(allEvents);
 
   // Gate on turnScores only: incidents without scores have no turn card to attach to,
   // so showing only incidents would leave the panel blank. Empty-state handles that path.
@@ -551,6 +721,9 @@ export default function SimulationReplayPanel({ conversationId, conversationMode
 
   return (
     <div className="space-y-6">
+
+      {/* Emotion trend chart — only shown when 3+ turns of data are available */}
+      <EmotionTrendChart trend={emotionTrend} />
 
       {/* Session insights card */}
       <SessionInsightsCard insights={insights} />
