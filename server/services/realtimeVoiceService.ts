@@ -77,7 +77,6 @@ function geminiLiveApiVersion(_model: string): 'v1beta' {
 export class RealtimeVoiceService {
   private sessions: Map<string, RealtimeSession> = new Map();
   private genAI: GoogleGenAI | null = null;
-  private genAILiveAlpha: GoogleGenAI | null = null;
   private genAILiveBeta: GoogleGenAI | null = null;
   private isAvailable: boolean = false;
   private cleanupInterval: NodeJS.Timeout | null = null;
@@ -88,18 +87,12 @@ export class RealtimeVoiceService {
 
     if (geminiApiKey) {
       this.genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-      // Preview models (e.g. gemini-3.1-flash-live-preview) require v1alpha.
-      this.genAILiveAlpha = new GoogleGenAI({
-        apiKey: geminiApiKey,
-        httpOptions: { apiVersion: 'v1alpha' },
-      });
-      // GA models (e.g. gemini-2.0-flash-live-001) require v1beta.
       this.genAILiveBeta = new GoogleGenAI({
         apiKey: geminiApiKey,
         httpOptions: { apiVersion: 'v1beta' },
       });
       this.isAvailable = true;
-      console.log('✅ Gemini Live API Service initialized (live: v1alpha + v1beta, other: v1beta)');
+      console.log('✅ Gemini Live API Service initialized (v1beta)');
     } else if (openaiApiKey) {
       // OpenAI Realtime-only environment — Gemini not needed for voice sessions
       this.isAvailable = true;
@@ -585,7 +578,7 @@ export class RealtimeVoiceService {
     gender: 'male' | 'female' = 'male',
     options?: { isResume?: boolean }
   ): Promise<void> {
-    if (!this.genAILiveAlpha || !this.genAILiveBeta) throw new Error('Gemini AI not initialized');
+    if (!this.genAILiveBeta) throw new Error('Gemini AI not initialized');
 
     const connectStartTime = Date.now();
     console.log(`⏱️ [TIMING] connectToGemini 시작: ${new Date(connectStartTime).toISOString()}`);
@@ -644,11 +637,9 @@ export class RealtimeVoiceService {
       }
 
       const realtimeModel = session.realtimeModel || await this.getRealtimeModel();
-      const apiVersion = geminiLiveApiVersion(realtimeModel);
-      const genAILive = apiVersion === 'v1alpha' ? this.genAILiveAlpha : this.genAILiveBeta;
-      console.log(`🔌 Connecting to Gemini Live API for session: ${session.id} using model: ${realtimeModel} (${apiVersion})`);
+      console.log(`🔌 Connecting to Gemini Live API for session: ${session.id} using model: ${realtimeModel} (${geminiLiveApiVersion(realtimeModel)})`);
 
-      const geminiSession = await genAILive.live.connect({
+      const geminiSession = await this.genAILiveBeta.live.connect({
         model: realtimeModel,
         callbacks: {
           onopen: () => {
