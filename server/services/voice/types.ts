@@ -80,6 +80,7 @@ export interface RealtimeSession {
   evaluationInProgress?: boolean;
   suppressAIUntilUserSpeaks?: boolean;
   suppressedTurnStarted?: boolean;
+  suppressTimeoutId?: ReturnType<typeof setTimeout>;
   lastAudioCommitSentAt: number;
   audioSourceThisTurn: 'top' | 'inline' | null;
 }

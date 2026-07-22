@@ -631,10 +631,28 @@ export class RealtimeVoiceService {
         },
       };
 
-      if (!options?.isResume) {
-        session.suppressAIUntilUserSpeaks = true;
-        console.log('🔇 suppressAIUntilUserSpeaks=true (fresh Gemini session — waiting for user to speak first)');
+      // Always suppress until user speaks on every connectToGemini path.
+      // For fresh sessions: prevents an unsolicited greeting before the user speaks.
+      // For resume sessions: closes the race window between Gemini connecting and
+      // injectReconnectContext being called, which was causing double greetings.
+      // injectReconnectContext will re-set the flag anyway, so resume paths are unaffected.
+      if (session.suppressTimeoutId) {
+        clearTimeout(session.suppressTimeoutId);
+        session.suppressTimeoutId = undefined;
       }
+      session.suppressAIUntilUserSpeaks = true;
+      console.log(`🔇 suppressAIUntilUserSpeaks=true (connectToGemini — isResume=${options?.isResume ?? false})`);
+
+      // Safety timeout: if no turnComplete arrives within 15 s to clear the flag,
+      // force-clear it so the session cannot freeze permanently.
+      session.suppressTimeoutId = setTimeout(() => {
+        if (session.suppressAIUntilUserSpeaks) {
+          console.warn(`⚠️ [suppress-timeout] suppressAIUntilUserSpeaks was still true after 15 s — force-clearing to prevent freeze`);
+          session.suppressAIUntilUserSpeaks = false;
+          session.suppressedTurnStarted = false;
+          session.suppressTimeoutId = undefined;
+        }
+      }, 15_000);
 
       const realtimeModel = session.realtimeModel || await this.getRealtimeModel();
       console.log(`🔌 Connecting to Gemini Live API for session: ${session.id} using model: ${realtimeModel} (${geminiLiveApiVersion(realtimeModel)})`);

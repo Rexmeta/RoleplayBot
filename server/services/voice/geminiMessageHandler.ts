@@ -764,11 +764,14 @@ export function handleGeminiMessage(
           // Off-topic / ambiguous: stay in awaitingPersonaSwitch=true, keep waiting
         }
 
-        // Soft-close: send a one-time wrapping-up instruction when 80% of targetTurns is reached
+        // Soft-close: send a one-time wrapping-up instruction when 80% of targetTurns is reached.
+        // Guard: skip if suppress is active to avoid stacking two consecutive turnComplete:false
+        // injections that could leave the suppress flag permanently stuck.
         if (
           session.targetTurns &&
           !session.softCloseSent &&
-          session.geminiSession
+          session.geminiSession &&
+          !session.suppressAIUntilUserSpeaks
         ) {
           const softClose = getSoftClosingInstruction(session.userTurnsCompleted, session.targetTurns, session.userLanguage);
           if (softClose) {
@@ -780,6 +783,16 @@ export function handleGeminiMessage(
             };
             session.geminiSession.sendClientContent(softClosePayload);
           }
+        }
+
+        // Conversation complete: notify client so it transitions to 'ended' phase
+        // and does not attempt to reconnect when the WebSocket closes.
+        if (session.targetTurns && session.userTurnsCompleted >= session.targetTurns) {
+          console.log(`🏁 [GeminiHandler] Conversation completed (${session.userTurnsCompleted}/${session.targetTurns} turns) — emitting conversation.completed`);
+          sendToClient(session, {
+            type: 'conversation.completed',
+            personaRunId: session.personaRunId,
+          });
         }
 
         const isPersonaXSession = session.scenarioId.startsWith('__user_persona__:') ||
@@ -949,15 +962,19 @@ export function handleGeminiMessage(
       }
 
       if (session.suppressAIUntilUserSpeaks) {
-        // Fix 3: An unsolicited AI turn completed (the one generated in response to our
+        // An unsolicited AI turn completed (the one generated in response to our
         // turnComplete:false context injection). Discard its transcript and clear the flag.
-        // Only this turnComplete path clears the flag when suppressedTurnStarted=true,
-        // guaranteeing all in-flight audio from the unsolicited turn was dropped before
-        // normal playback resumes.
-        console.log(`🔇 [turnComplete] Discarding suppressed AI turn (awaiting user speech) — transcript: "${session.currentTranscript.substring(0, 80)}"`);
+        // Safety fallback: also clears the flag when suppressedTurnStarted=false (Gemini
+        // completed a turn without ever sending audio — e.g. a silent context ACK).
+        console.log(`🔇 [turnComplete] Discarding suppressed AI turn (awaiting user speech, suppressedTurnStarted=${session.suppressedTurnStarted}) — transcript: "${session.currentTranscript.substring(0, 80)}"`);
         session.currentTranscript = '';
         session.suppressAIUntilUserSpeaks = false;
         session.suppressedTurnStarted = false;
+        // Clear any pending suppress timeout — the flag was released normally
+        if (session.suppressTimeoutId) {
+          clearTimeout(session.suppressTimeoutId);
+          session.suppressTimeoutId = undefined;
+        }
         console.log('🔊 [turnComplete] suppressAIUntilUserSpeaks cleared — next AI response will play normally');
       } else if (session.currentTranscript) {
         // turnSeq has already been incremented by the time we reach here, so

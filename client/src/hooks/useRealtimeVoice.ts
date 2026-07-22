@@ -691,6 +691,12 @@ export function useRealtimeVoice({
               if (!hasConversationStartedRef.current) setGreetingFailed(true);
               break;
 
+            case 'conversation.completed':
+              setConversationPhase('ended');
+              if (onSessionTerminatedRef.current) onSessionTerminatedRef.current('conversation_completed');
+              disconnect();
+              break;
+
             case 'session.terminated':
               setConversationPhase('ended');
               if (onSessionTerminatedRef.current) onSessionTerminatedRef.current(data.reason || 'Session ended');

@@ -322,7 +322,12 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       expect(session.suppressAIUntilUserSpeaks).toBe(true);
     });
 
-    it('does NOT set suppressAIUntilUserSpeaks on resume (isResume=true)', async () => {
+    it('ALSO sets suppressAIUntilUserSpeaks=true on resume (isResume=true) to close the double-greeting race window', async () => {
+      // Intentional behaviour change: suppress is now set unconditionally on every
+      // connectToGemini path (fresh AND resume) so there is no window between Gemini
+      // connecting and injectReconnectContext being called where Gemini can send an
+      // unsolicited greeting. injectReconnectContext re-sets the flag anyway, so
+      // the resume conversation path is otherwise unaffected.
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any
@@ -338,7 +343,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
 
       await (service as any).connectToGemini(session, 'mock instructions', 'female', { isResume: true });
 
-      expect(session.suppressAIUntilUserSpeaks).toBe(false);
+      expect(session.suppressAIUntilUserSpeaks).toBe(true);
     });
 
     it('suppressAIUntilUserSpeaks is NOT cleared by input_audio_buffer.append when Gemini already started a suppressed turn (Fix 3)', async () => {
