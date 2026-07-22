@@ -24,6 +24,8 @@ const EMOTION_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#3b82f6', '
 
 const INSIGHT_THRESHOLD = 15;
 
+type PersonaType = 'mbti' | 'user' | 'all';
+
 function computeInsightBadges(
   personaEmotions: Array<{ emotion: string; percentage: number }>,
   globalAverages: Record<string, number>
@@ -41,34 +43,40 @@ interface EmotionsTabProps {
   emotions: EmotionData | undefined;
   scenarioEmotions: ScenarioEmotionData | undefined;
   difficultyEmotions: DifficultyEmotionData | undefined;
-  personaEmotions: PersonaEmotionData | undefined;
   selectedCategoryId?: string;
 }
 
 type TimeWindow = 'all' | '30d';
 
-export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, personaEmotions, selectedCategoryId }: EmotionsTabProps) {
+export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, selectedCategoryId = 'all' }: EmotionsTabProps) {
   const [, navigate] = useLocation();
   const [expandedPersonaId, setExpandedPersonaId] = useState<string | null>(null);
+  const [personaType, setPersonaType] = useState<PersonaType>('mbti');
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('all');
 
-  const categoryParam = selectedCategoryId && selectedCategoryId !== 'all' ? `categoryId=${selectedCategoryId}&` : '';
+  const buildPersonaUrl = () => {
+    const params = new URLSearchParams();
+    if (selectedCategoryId && selectedCategoryId !== 'all') params.set('categoryId', selectedCategoryId);
+    params.set('personaType', personaType);
+    if (timeWindow === '30d') params.set('since', '30d');
+    const qs = params.toString();
+    return `/api/admin/analytics/emotions/by-persona${qs ? `?${qs}` : ''}`;
+  };
 
-  const { data: personaEmotions30d, isFetching: fetching30d } = useQuery<PersonaEmotionData>({
-    queryKey: ["/api/admin/analytics/emotions/by-persona", selectedCategoryId, "30d"],
-    queryFn: () => authFetch(`/api/admin/analytics/emotions/by-persona?${categoryParam}since=30d`),
-    staleTime: 1000 * 60 * 5,
+  const { data: personaEmotions, isFetching: personaEmotionsFetching } = useQuery<PersonaEmotionData>({
+    queryKey: ["/api/admin/analytics/emotions/by-persona", selectedCategoryId, personaType, timeWindow],
+    queryFn: () => authFetch(buildPersonaUrl()),
+    staleTime: 1000 * 60 * 2,
     gcTime: 1000 * 60 * 30,
-    enabled: timeWindow === '30d',
   });
 
-  const activePersonaEmotions = timeWindow === '30d' ? personaEmotions30d : personaEmotions;
+  const activePersonaEmotions = personaEmotions;
 
   const globalAverages: Record<string, number> = {};
-  if (timeWindow === '30d' && personaEmotions30d?.personaStats?.length) {
+  if (timeWindow === '30d' && personaEmotions?.personaStats?.length) {
     const aggregated: Record<string, number> = {};
     let total = 0;
-    for (const persona of personaEmotions30d.personaStats) {
+    for (const persona of personaEmotions.personaStats) {
       for (const e of persona.emotions) {
         aggregated[e.emotion] = (aggregated[e.emotion] ?? 0) + e.count;
         total += e.count;
@@ -85,6 +93,12 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, pe
       globalAverages[e.emotion] = Math.round((e.count / total) * 100);
     });
   }
+
+  const personaTypeLabels: Record<PersonaType, string> = {
+    mbti: 'MBTI 페르소나',
+    user: '사용자 생성 (PersonaX)',
+    all: '전체',
+  };
 
   return (
     <div className="space-y-6">
@@ -303,32 +317,52 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, pe
       </div>
 
       <div className="border-t pt-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
             <i className="fas fa-user-circle text-indigo-500"></i>
             페르소나별 감정 분석
           </h3>
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-            <button
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${timeWindow === 'all' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-              onClick={() => setTimeWindow('all')}
-            >
-              전체 기간
-            </button>
-            <button
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${timeWindow === '30d' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-              onClick={() => setTimeWindow('30d')}
-            >
-              최근 30일
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+              {(['mbti', 'user', 'all'] as PersonaType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => { setPersonaType(type); setExpandedPersonaId(null); }}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    personaType === type
+                      ? 'bg-white text-indigo-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {personaTypeLabels[type]}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+              <button
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${timeWindow === 'all' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setTimeWindow('all')}
+              >
+                전체 기간
+              </button>
+              <button
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${timeWindow === '30d' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setTimeWindow('30d')}
+              >
+                최근 30일
+              </button>
+            </div>
           </div>
         </div>
 
-        {timeWindow === '30d' && fetching30d ? (
+        {personaEmotionsFetching && !activePersonaEmotions ? (
           <div className="text-center py-8 text-slate-400 text-sm">불러오는 중...</div>
         ) : !activePersonaEmotions?.personaStats?.length ? (
           <div className="text-center py-8 text-slate-500">
-            {timeWindow === '30d' ? '최근 30일간 페르소나 감정 데이터가 없습니다.' : '페르소나 감정 데이터가 없습니다.'}
+            {personaType === 'user'
+              ? 'PersonaX 사용자 생성 페르소나의 감정 데이터가 없습니다.'
+              : timeWindow === '30d' ? '최근 30일간 페르소나 감정 데이터가 없습니다.'
+              : '페르소나 감정 데이터가 없습니다.'}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -336,6 +370,7 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, pe
               const insights = computeInsightBadges(persona.emotions, globalAverages);
               const isExpanded = expandedPersonaId === persona.personaId;
               const top5 = persona.emotions.slice(0, 5);
+              const isUserPersona = persona.personaId.startsWith('__user_persona__');
 
               return (
                 <div
@@ -346,11 +381,18 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, pe
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h4 className="font-semibold text-slate-900 text-base">{persona.personaName}</h4>
-                      {persona.mbtiType && (
-                        <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                          {persona.mbtiType}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {persona.mbtiType && (
+                          <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded inline-block">
+                            {persona.mbtiType}
+                          </span>
+                        )}
+                        {isUserPersona && (
+                          <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-1.5 py-0.5 rounded inline-block">
+                            PersonaX
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-slate-500">총 {persona.totalCount}회</p>
@@ -424,15 +466,17 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, pe
                     <span className="text-xs text-slate-400">
                       {isExpanded ? '▲ 접기' : '▼ 상세 보기'}
                     </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-7"
-                      onClick={() => navigate(`/persona/${persona.personaId}`)}
-                    >
-                      <i className="fas fa-external-link-alt mr-1"></i>
-                      페르소나 설정으로 이동
-                    </Button>
+                    {!isUserPersona && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => navigate(`/persona/${persona.personaId}`)}
+                      >
+                        <i className="fas fa-external-link-alt mr-1"></i>
+                        페르소나 설정으로 이동
+                      </Button>
+                    )}
                   </div>
                 </div>
               );

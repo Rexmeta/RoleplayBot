@@ -25,7 +25,6 @@ import type {
   EmotionData,
   ScenarioEmotionData,
   DifficultyEmotionData,
-  PersonaEmotionData,
   Participant,
 } from "@/components/admin/adminTypes";
 
@@ -126,14 +125,6 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: personaEmotions, isFetching: personaEmotionsFetching, dataUpdatedAt: personaEmotionsUpdatedAt } = useQuery<PersonaEmotionData>({
-    queryKey: ["/api/admin/analytics/emotions/by-persona", selectedCategoryId],
-    queryFn: () => authFetch(`/api/admin/analytics/emotions/by-persona${categoryParam}`),
-    staleTime: ANALYTICS_STALE_TIME,
-    gcTime: 1000 * 60 * 30,
-    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
-  });
-
   const { data: scenarios = [] } = useQuery({
     queryKey: ['/api/scenarios', selectedCategoryId],
     queryFn: () => authFetch(`/api/scenarios${categoryParam}`),
@@ -221,12 +212,11 @@ export default function AdminDashboard() {
     emotionsUpdatedAt,
     scenarioEmotionsUpdatedAt,
     difficultyEmotionsUpdatedAt,
-    personaEmotionsUpdatedAt,
   ].filter(t => t > 0);
   const oldestUpdatedAt = analyticsTimestamps.length > 0 ? Math.min(...analyticsTimestamps) : 0;
   const anyAnalyticsFetching =
     overviewFetching || performanceFetching || trendsFetching || emotionsFetching ||
-    scenarioEmotionsFetching || difficultyEmotionsFetching || personaEmotionsFetching;
+    scenarioEmotionsFetching || difficultyEmotionsFetching;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -384,7 +374,6 @@ export default function AdminDashboard() {
               emotions={emotions}
               scenarioEmotions={scenarioEmotions}
               difficultyEmotions={difficultyEmotions}
-              personaEmotions={personaEmotions}
               selectedCategoryId={selectedCategoryId}
             />
           </TabsContent>
