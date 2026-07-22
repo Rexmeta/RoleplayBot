@@ -102,14 +102,6 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     console.error('[seed] Failed to start anonymization scheduler:', err);
   }
 
-  // Start model catalog scheduler (runs on server startup + daily interval)
-  try {
-    const { startCatalogScheduler } = await import('./services/modelCatalogService');
-    startCatalogScheduler();
-  } catch (err) {
-    console.error('[seed] Failed to start model catalog scheduler:', err);
-  }
-
   // Public: current default intro video URL (authenticated users only)
   app.get('/api/media/default-intro-video', isAuthenticated, async (req, res) => {
     try {
