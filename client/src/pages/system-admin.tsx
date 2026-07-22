@@ -1661,7 +1661,7 @@ export default function SystemAdminPage() {
                             {item.configurable && 'settingKey' in item ? (
                               <Badge variant="outline" className="text-blue-600 border-blue-200">
                                 {(() => {
-                                  const allModels = modelCatalog?.models ?? [];
+                                  const allModels = [...AI_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS, ...GEMINI_LIVE_MODELS];
                                   const selectedModel = allModels.find(m => m.value === featureModels[item.settingKey!]);
                                   return selectedModel ? t(`systemAdmin.models.${selectedModel.modelKey}.label`) : (item as any).defaultModel;
                                 })()}
