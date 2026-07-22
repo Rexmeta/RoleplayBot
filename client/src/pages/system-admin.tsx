@@ -268,7 +268,7 @@ const FEATURE_MODEL_INFO = [
   {
     id: "realtime",
     settingKey: "model_realtime",
-    defaultModel: "gemini-2.0-flash-live-001",
+    defaultModel: "gemini-3.1-flash-live-preview",
     configurable: true,
     supportedProviders: ["Google Live", "OpenAI Realtime"]
   },
@@ -776,7 +776,7 @@ export default function SystemAdminPage() {
     model_feedback: "gemini-2.5-flash",
     model_strategy: "gemini-2.5-flash",
     model_scenario: "gemini-2.5-flash",
-    model_realtime: "gemini-2.0-flash-live-001",
+    model_realtime: "gemini-3.1-flash-live-preview",
     model_emotion: "gemini-2.5-flash",
     model_translation: "gemini-2.5-flash",
     model_image: "gemini-2.5-flash-image",
