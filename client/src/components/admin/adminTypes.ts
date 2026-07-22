@@ -61,6 +61,7 @@ export interface PerformanceData {
     scenarioName: string;
     mbti: string;
     userId: string;
+    userName?: string;
     completedAt: string;
     difficulty: number;
     criteriaSetVersion?: number | null;

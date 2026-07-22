@@ -1212,6 +1212,8 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const allScenarioRuns = await storage.getAllScenarioRuns();
     const allScenarios = await fileManager.getAllScenarios();
     const allCategories = await storage.getAllCategories();
+    const allUsers = await storage.getAllUsers();
+    const userMap = new Map(allUsers.map(u => [u.id, u.name || u.email || u.id]));
 
     let accessibleCategoryIds: string[] = [];
     if (user.role === 'admin') {
@@ -1322,6 +1324,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         scenarioName: (scenario as any).title || scenId,
         mbti,
         userId: scenarioRun.userId,
+        userName: userMap.get(scenarioRun.userId) || scenarioRun.userId,
         completedAt: scenarioRun.completedAt || scenarioRun.startedAt,
         difficulty: (scenario as any).difficulty || 4,
         criteriaSetVersion: fb.criteriaSetVersion ?? null,

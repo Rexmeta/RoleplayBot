@@ -230,7 +230,7 @@ export function PerformanceTab({ performance, trends, scoreDistributionData, cat
                   return (
                     <tr key={session.id} className="border-b hover:bg-slate-50" data-testid={`session-row-${index}`}>
                       <td className={`p-3 font-bold ${scoreColor}`}>{Number(session.score).toFixed(1)}점</td>
-                      <td className="p-3 truncate max-w-[150px]">{session.scenarioName}</td>
+                      <td className="p-3 truncate max-w-[260px]">{session.scenarioName}</td>
                       <td className="p-3">
                         <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-bold">
                           {session.mbti}
@@ -269,7 +269,9 @@ export function PerformanceTab({ performance, trends, scoreDistributionData, cat
                           <span className="text-slate-300 text-xs">—</span>
                         )}
                       </td>
-                      <td className="p-3 text-slate-500">{session.userId}...</td>
+                      <td className="p-3 text-slate-500 max-w-[100px] truncate" title={session.userId}>
+                        {session.userName || session.userId.slice(0, 8)}
+                      </td>
                       <td className="p-3 text-slate-500">
                         {new Date(session.completedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </td>
