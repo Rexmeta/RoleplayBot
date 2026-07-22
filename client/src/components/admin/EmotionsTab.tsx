@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
   Tooltip,
 } from "recharts";
 import { CardInfo } from "./AdminCardInfo";
+import { authFetch } from "@/lib/authFetch";
 import type { EmotionData, ScenarioEmotionData, DifficultyEmotionData, PersonaEmotionData } from "./adminTypes";
 
 const EMOTION_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1', '#84cc16', '#14b8a6'];
@@ -40,14 +42,44 @@ interface EmotionsTabProps {
   scenarioEmotions: ScenarioEmotionData | undefined;
   difficultyEmotions: DifficultyEmotionData | undefined;
   personaEmotions: PersonaEmotionData | undefined;
+  selectedCategoryId?: string;
 }
 
-export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, personaEmotions }: EmotionsTabProps) {
+type TimeWindow = 'all' | '30d';
+
+export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, personaEmotions, selectedCategoryId }: EmotionsTabProps) {
   const [, navigate] = useLocation();
   const [expandedPersonaId, setExpandedPersonaId] = useState<string | null>(null);
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>('all');
+
+  const categoryParam = selectedCategoryId && selectedCategoryId !== 'all' ? `categoryId=${selectedCategoryId}&` : '';
+
+  const { data: personaEmotions30d, isFetching: fetching30d } = useQuery<PersonaEmotionData>({
+    queryKey: ["/api/admin/analytics/emotions/by-persona", selectedCategoryId, "30d"],
+    queryFn: () => authFetch(`/api/admin/analytics/emotions/by-persona?${categoryParam}since=30d`),
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
+    enabled: timeWindow === '30d',
+  });
+
+  const activePersonaEmotions = timeWindow === '30d' ? personaEmotions30d : personaEmotions;
 
   const globalAverages: Record<string, number> = {};
-  if (emotions?.emotions) {
+  if (timeWindow === '30d' && personaEmotions30d?.personaStats?.length) {
+    const aggregated: Record<string, number> = {};
+    let total = 0;
+    for (const persona of personaEmotions30d.personaStats) {
+      for (const e of persona.emotions) {
+        aggregated[e.emotion] = (aggregated[e.emotion] ?? 0) + e.count;
+        total += e.count;
+      }
+    }
+    if (total > 0) {
+      for (const [emotion, count] of Object.entries(aggregated)) {
+        globalAverages[emotion] = Math.round((count / total) * 100);
+      }
+    }
+  } else if (emotions?.emotions) {
     const total = emotions.totalEmotions || 1;
     emotions.emotions.forEach(e => {
       globalAverages[e.emotion] = Math.round((e.count / total) * 100);
@@ -271,16 +303,36 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, pe
       </div>
 
       <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-          <i className="fas fa-user-circle text-indigo-500"></i>
-          페르소나별 감정 분석
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <i className="fas fa-user-circle text-indigo-500"></i>
+            페르소나별 감정 분석
+          </h3>
+          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+            <button
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${timeWindow === 'all' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setTimeWindow('all')}
+            >
+              전체 기간
+            </button>
+            <button
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${timeWindow === '30d' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setTimeWindow('30d')}
+            >
+              최근 30일
+            </button>
+          </div>
+        </div>
 
-        {!personaEmotions?.personaStats?.length ? (
-          <div className="text-center py-8 text-slate-500">페르소나 감정 데이터가 없습니다.</div>
+        {timeWindow === '30d' && fetching30d ? (
+          <div className="text-center py-8 text-slate-400 text-sm">불러오는 중...</div>
+        ) : !activePersonaEmotions?.personaStats?.length ? (
+          <div className="text-center py-8 text-slate-500">
+            {timeWindow === '30d' ? '최근 30일간 페르소나 감정 데이터가 없습니다.' : '페르소나 감정 데이터가 없습니다.'}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {personaEmotions.personaStats.map((persona) => {
+            {activePersonaEmotions.personaStats.map((persona) => {
               const insights = computeInsightBadges(persona.emotions, globalAverages);
               const isExpanded = expandedPersonaId === persona.personaId;
               const top5 = persona.emotions.slice(0, 5);

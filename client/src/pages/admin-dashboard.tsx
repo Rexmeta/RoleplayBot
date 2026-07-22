@@ -385,6 +385,7 @@ export default function AdminDashboard() {
               scenarioEmotions={scenarioEmotions}
               difficultyEmotions={difficultyEmotions}
               personaEmotions={personaEmotions}
+              selectedCategoryId={selectedCategoryId}
             />
           </TabsContent>
 

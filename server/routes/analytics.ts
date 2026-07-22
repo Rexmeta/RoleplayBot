@@ -979,6 +979,13 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     }
 
     const categoryIdParam = req.query.categoryId as string | undefined;
+    const sinceParam = req.query.since as string | undefined;
+
+    let since: Date | undefined;
+    if (sinceParam === '30d') {
+      since = new Date();
+      since.setDate(since.getDate() - 30);
+    }
 
     const allScenarios = await fileManager.getAllScenarios();
     let scenarioIds: string[] | undefined = undefined;
@@ -1004,7 +1011,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       return res.json({ personaStats: [] });
     }
 
-    const personaStats = await storage.getEmotionStatsByPersona(scenarioIds);
+    const personaStats = await storage.getEmotionStatsByPersona(scenarioIds, since);
 
     const emotionEmojis: Record<string, string> = {
       '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',

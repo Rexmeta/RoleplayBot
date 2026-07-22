@@ -1,6 +1,6 @@
 import { type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type SimulationEvent, type InsertSimulationEvent, scenarioRuns, personaRuns, chatMessages, simulationEvents } from "@shared/schema";
 import { db } from "./db";
-import { eq, asc, desc, inArray, and, isNotNull, ne, sql } from "drizzle-orm";
+import { eq, asc, desc, inArray, and, isNotNull, ne, sql, gte } from "drizzle-orm";
 
 export type ScenarioRunWithPersonaRuns = ScenarioRun & { personaRuns: PersonaRun[] };
 export type EmotionStat = { emotion: string; count: number };
@@ -35,7 +35,7 @@ export interface ISessionsStorage {
   getEmotionStatsByScenario(scenarioIds?: string[]): Promise<EmotionStatByScenario[]>;
   getEmotionStatsByMbti(scenarioIds?: string[]): Promise<EmotionStatByMbti[]>;
   getEmotionStatsByDifficulty(scenarioIds?: string[]): Promise<EmotionStatByDifficulty[]>;
-  getEmotionStatsByPersona(scenarioIds?: string[]): Promise<EmotionStatByPersona[]>;
+  getEmotionStatsByPersona(scenarioIds?: string[], since?: Date): Promise<EmotionStatByPersona[]>;
   getEmotionTimelineByPersonaRun(personaRunId: string): Promise<EmotionTimeline[]>;
 
   deleteScenarioRun(id: string): Promise<void>;
@@ -238,9 +238,10 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
       return Array.from(difficultyMap.values()).sort((a, b) => a.difficulty - b.difficulty);
     }
 
-    async getEmotionStatsByPersona(scenarioIds?: string[]): Promise<EmotionStatByPersona[]> {
+    async getEmotionStatsByPersona(scenarioIds?: string[], since?: Date): Promise<EmotionStatByPersona[]> {
       const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), isNotNull(personaRuns.personaName), ne(scenarioRuns.status, 'abandoned')];
       if (scenarioIds && scenarioIds.length > 0) whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
+      if (since) whereConditions.push(gte(chatMessages.createdAt, since));
       const result = await db.select({
         personaId: personaRuns.personaId,
         personaName: personaRuns.personaName,
