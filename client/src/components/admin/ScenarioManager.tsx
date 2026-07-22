@@ -4352,15 +4352,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             >
                               {displayText}
                             </Badge>
-                            {p.npcBehaviorHarness && (
-                              <div className="mt-1.5">
-                                <NpcBehaviorHarnessBuilder
-                                  value={p.npcBehaviorHarness}
-                                  onChange={() => {}}
-                                  readOnly
-                                />
-                              </div>
-                            )}
                           </div>
                         );
                       })}
