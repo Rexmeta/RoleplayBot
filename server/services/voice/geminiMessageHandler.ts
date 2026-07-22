@@ -730,6 +730,19 @@ export function handleGeminiMessage(
         session.userTranscriptBuffer = '';
         session.userTurnsCompleted++;
 
+        // Update timer elapsed and enforce time limit
+        if (session.simulationState?.timer?.enabled && session.simulationState.timer.startedAt) {
+          const elapsedSec = Math.floor(
+            (Date.now() - new Date(session.simulationState.timer.startedAt).getTime()) / 1000
+          );
+          session.simulationState.timer.elapsedSec = elapsedSec;
+          if (elapsedSec >= session.simulationState.timer.timeLimitSec) {
+            console.log(`⏱️ [Timer] Time limit reached: ${elapsedSec}s >= ${session.simulationState.timer.timeLimitSec}s — terminating voice session`);
+            sendToClient(session, { type: 'session.terminated', reason: 'time_limit_reached' });
+            return;
+          }
+        }
+
         // If the AI announced a pending switch, analyze user's response for consent.
         // Positive consent → allow the next switch_persona tool call.
         // Clear decline → cancel the pending switch and notify the client.
@@ -1034,6 +1047,10 @@ export function handleGeminiMessage(
                   emotion,
                   emotionReason,
                 });
+                if (session.targetTurns && session.userTurnsCompleted >= session.targetTurns) {
+                  console.log(`🏁 [targetTurns] Hard stop: ${session.userTurnsCompleted}/${session.targetTurns} turns reached — sending conversation.completed`);
+                  sendToClient(session, { type: 'conversation.completed', reason: 'target_turns_reached' });
+                }
               })
               .catch(error => {
                 console.error('❌ Failed to analyze emotion:', error);
@@ -1043,6 +1060,10 @@ export function handleGeminiMessage(
                   emotion: '중립',
                   emotionReason: '감정 분석 실패',
                 });
+                if (session.targetTurns && session.userTurnsCompleted >= session.targetTurns) {
+                  console.log(`🏁 [targetTurns] Hard stop: ${session.userTurnsCompleted}/${session.targetTurns} turns reached — sending conversation.completed`);
+                  sendToClient(session, { type: 'conversation.completed', reason: 'target_turns_reached' });
+                }
               });
           });
         } else if (session.hasReceivedFirstAIAudio) {
