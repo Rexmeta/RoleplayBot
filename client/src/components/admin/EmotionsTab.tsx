@@ -40,19 +40,45 @@ function computeInsightBadges(
 }
 
 interface EmotionsTabProps {
-  emotions: EmotionData | undefined;
-  scenarioEmotions: ScenarioEmotionData | undefined;
-  difficultyEmotions: DifficultyEmotionData | undefined;
   selectedCategoryId?: string;
 }
 
 type TimeWindow = 'all' | '30d';
 
-export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, selectedCategoryId = 'all' }: EmotionsTabProps) {
+export function EmotionsTab({ selectedCategoryId = 'all' }: EmotionsTabProps) {
   const [, navigate] = useLocation();
   const [expandedPersonaId, setExpandedPersonaId] = useState<string | null>(null);
   const [personaType, setPersonaType] = useState<PersonaType>('mbti');
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('all');
+
+  const categoryParam = selectedCategoryId !== 'all' ? `categoryId=${selectedCategoryId}` : '';
+  const personaTypeParam = `personaType=${personaType}`;
+
+  const buildUrl = (base: string) => {
+    const parts = [categoryParam, personaTypeParam].filter(Boolean);
+    return `${base}${parts.length ? `?${parts.join('&')}` : ''}`;
+  };
+
+  const { data: emotions } = useQuery<EmotionData>({
+    queryKey: ["/api/admin/analytics/emotions", selectedCategoryId, personaType],
+    queryFn: () => authFetch(buildUrl('/api/admin/analytics/emotions')),
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 30,
+  });
+
+  const { data: scenarioEmotions } = useQuery<ScenarioEmotionData>({
+    queryKey: ["/api/admin/analytics/emotions/by-scenario", selectedCategoryId, personaType],
+    queryFn: () => authFetch(buildUrl('/api/admin/analytics/emotions/by-scenario')),
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 30,
+  });
+
+  const { data: difficultyEmotions } = useQuery<DifficultyEmotionData>({
+    queryKey: ["/api/admin/analytics/emotions/by-difficulty", selectedCategoryId, personaType],
+    queryFn: () => authFetch(buildUrl('/api/admin/analytics/emotions/by-difficulty')),
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 30,
+  });
 
   const buildPersonaUrl = () => {
     const params = new URLSearchParams();
@@ -102,6 +128,24 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, se
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+          {(['mbti', 'user', 'all'] as PersonaType[]).map((type) => (
+            <button
+              key={type}
+              onClick={() => { setPersonaType(type); setExpandedPersonaId(null); }}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                personaType === type
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {personaTypeLabels[type]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="card-enhanced" data-testid="card-total-emotions">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -322,36 +366,19 @@ export function EmotionsTab({ emotions, scenarioEmotions, difficultyEmotions, se
             <i className="fas fa-user-circle text-indigo-500"></i>
             페르소나별 감정 분석
           </h3>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-              {(['mbti', 'user', 'all'] as PersonaType[]).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => { setPersonaType(type); setExpandedPersonaId(null); }}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                    personaType === type
-                      ? 'bg-white text-indigo-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {personaTypeLabels[type]}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-              <button
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${timeWindow === 'all' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-                onClick={() => setTimeWindow('all')}
-              >
-                전체 기간
-              </button>
-              <button
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${timeWindow === '30d' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-                onClick={() => setTimeWindow('30d')}
-              >
-                최근 30일
-              </button>
-            </div>
+          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+            <button
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${timeWindow === 'all' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setTimeWindow('all')}
+            >
+              전체 기간
+            </button>
+            <button
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${timeWindow === '30d' ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setTimeWindow('30d')}
+            >
+              최근 30일
+            </button>
           </div>
         </div>
 

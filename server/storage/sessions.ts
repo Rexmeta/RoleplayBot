@@ -31,10 +31,10 @@ export interface ISessionsStorage {
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]>;
   deleteChatMessagesByPersonaRun(personaRunId: string): Promise<void>;
-  getAllEmotionStats(scenarioIds?: string[]): Promise<EmotionStat[]>;
-  getEmotionStatsByScenario(scenarioIds?: string[]): Promise<EmotionStatByScenario[]>;
+  getAllEmotionStats(scenarioIds?: string[], personaType?: 'mbti' | 'user' | 'all'): Promise<EmotionStat[]>;
+  getEmotionStatsByScenario(scenarioIds?: string[], personaType?: 'mbti' | 'user' | 'all'): Promise<EmotionStatByScenario[]>;
   getEmotionStatsByMbti(scenarioIds?: string[]): Promise<EmotionStatByMbti[]>;
-  getEmotionStatsByDifficulty(scenarioIds?: string[]): Promise<EmotionStatByDifficulty[]>;
+  getEmotionStatsByDifficulty(scenarioIds?: string[], personaType?: 'mbti' | 'user' | 'all'): Promise<EmotionStatByDifficulty[]>;
   getEmotionStatsByPersona(scenarioIds?: string[], personaType?: 'mbti' | 'user' | 'all', since?: Date): Promise<EmotionStatByPersona[]>;
   getEmotionTimelineByPersonaRun(personaRunId: string): Promise<EmotionTimeline[]>;
 
@@ -155,8 +155,11 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
       await db.delete(chatMessages).where(eq(chatMessages.personaRunId, personaRunId));
     }
 
-    async getAllEmotionStats(scenarioIds?: string[]): Promise<{ emotion: string; count: number }[]> {
+    async getAllEmotionStats(scenarioIds?: string[], personaType: 'mbti' | 'user' | 'all' = 'all'): Promise<{ emotion: string; count: number }[]> {
+      const USER_PERSONA_PREFIX = '__user_persona__%';
       const baseConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), ne(scenarioRuns.status, 'abandoned')];
+      if (personaType === 'mbti') baseConditions.push(notLike(personaRuns.personaId, USER_PERSONA_PREFIX));
+      else if (personaType === 'user') baseConditions.push(like(personaRuns.personaId, USER_PERSONA_PREFIX));
       if (scenarioIds && scenarioIds.length > 0) baseConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
       const result = await db.select({ emotion: chatMessages.emotion, count: sql<number>`count(*)::int` })
         .from(chatMessages)
@@ -168,8 +171,11 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
       return result.filter(r => r.emotion !== null) as { emotion: string; count: number }[];
     }
 
-    async getEmotionStatsByScenario(scenarioIds?: string[]): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    async getEmotionStatsByScenario(scenarioIds?: string[], personaType: 'mbti' | 'user' | 'all' = 'all'): Promise<{ scenarioId: string; scenarioName: string; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+      const USER_PERSONA_PREFIX = '__user_persona__%';
       const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), ne(scenarioRuns.status, 'abandoned')];
+      if (personaType === 'mbti') whereConditions.push(notLike(personaRuns.personaId, USER_PERSONA_PREFIX));
+      else if (personaType === 'user') whereConditions.push(like(personaRuns.personaId, USER_PERSONA_PREFIX));
       if (scenarioIds && scenarioIds.length > 0) whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
       const result = await db.select({
         scenarioId: scenarioRuns.scenarioId,
@@ -217,8 +223,11 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
       return Array.from(mbtiMap.values()).sort((a, b) => b.totalCount - a.totalCount);
     }
 
-    async getEmotionStatsByDifficulty(scenarioIds?: string[]): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+    async getEmotionStatsByDifficulty(scenarioIds?: string[], personaType: 'mbti' | 'user' | 'all' = 'all'): Promise<{ difficulty: number; emotions: { emotion: string; count: number }[]; totalCount: number }[]> {
+      const USER_PERSONA_PREFIX = '__user_persona__%';
       const whereConditions: any[] = [eq(chatMessages.sender, 'ai'), isNotNull(chatMessages.emotion), isNotNull(personaRuns.difficulty), ne(scenarioRuns.status, 'abandoned')];
+      if (personaType === 'mbti') whereConditions.push(notLike(personaRuns.personaId, USER_PERSONA_PREFIX));
+      else if (personaType === 'user') whereConditions.push(like(personaRuns.personaId, USER_PERSONA_PREFIX));
       if (scenarioIds && scenarioIds.length > 0) whereConditions.push(inArray(scenarioRuns.scenarioId, scenarioIds));
       const result = await db.select({ difficulty: personaRuns.difficulty, emotion: chatMessages.emotion, count: sql<number>`count(*)::int` })
         .from(chatMessages)
@@ -348,10 +357,10 @@ export class MemSessionsStorage implements ISessionsStorage {
   async createChatMessage(_: InsertChatMessage): Promise<ChatMessage> { throw new Error("MemStorage does not support Chat Messages"); }
   async getChatMessagesByPersonaRun(_: string): Promise<ChatMessage[]> { throw new Error("MemStorage does not support Chat Messages"); }
   async deleteChatMessagesByPersonaRun(_: string): Promise<void> { throw new Error("MemStorage does not support Chat Messages"); }
-  async getAllEmotionStats(_?: string[]): Promise<EmotionStat[]> { throw new Error("MemStorage does not support emotion stats"); }
-  async getEmotionStatsByScenario(_?: string[]): Promise<EmotionStatByScenario[]> { throw new Error("MemStorage does not support emotion stats by scenario"); }
+  async getAllEmotionStats(_?: string[], __?: 'mbti' | 'user' | 'all'): Promise<EmotionStat[]> { throw new Error("MemStorage does not support emotion stats"); }
+  async getEmotionStatsByScenario(_?: string[], __?: 'mbti' | 'user' | 'all'): Promise<EmotionStatByScenario[]> { throw new Error("MemStorage does not support emotion stats by scenario"); }
   async getEmotionStatsByMbti(_?: string[]): Promise<EmotionStatByMbti[]> { throw new Error("MemStorage does not support emotion stats by MBTI"); }
-  async getEmotionStatsByDifficulty(_?: string[]): Promise<EmotionStatByDifficulty[]> { throw new Error("MemStorage does not support emotion stats by difficulty"); }
+  async getEmotionStatsByDifficulty(_?: string[], __?: 'mbti' | 'user' | 'all'): Promise<EmotionStatByDifficulty[]> { throw new Error("MemStorage does not support emotion stats by difficulty"); }
   async getEmotionStatsByPersona(_?: string[], __?: 'mbti' | 'user' | 'all'): Promise<EmotionStatByPersona[]> { throw new Error("MemStorage does not support emotion stats by persona"); }
   async getEmotionTimelineByPersonaRun(_: string): Promise<EmotionTimeline[]> { throw new Error("MemStorage does not support emotion timeline"); }
   async deleteScenarioRun(_: string): Promise<void> { throw new Error("MemStorage does not support deleteScenarioRun"); }

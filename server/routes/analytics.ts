@@ -743,6 +743,9 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     }
 
     const categoryIdParam = req.query.categoryId as string | undefined;
+    const personaTypeParam = (req.query.personaType as string | undefined);
+    const personaType: 'mbti' | 'user' | 'all' =
+      personaTypeParam === 'user' ? 'user' : personaTypeParam === 'mbti' ? 'mbti' : 'all';
 
     const allScenarios = await fileManager.getAllScenarios();
     let scenarioIds: string[] | undefined = undefined;
@@ -772,7 +775,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       });
     }
 
-    const emotionStats = await storage.getAllEmotionStats(scenarioIds);
+    const emotionStats = await storage.getAllEmotionStats(scenarioIds, personaType);
 
     const emotionEmojis: Record<string, string> = {
       '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
@@ -803,6 +806,9 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     }
 
     const categoryIdParam = req.query.categoryId as string | undefined;
+    const personaTypeParam = (req.query.personaType as string | undefined);
+    const personaType: 'mbti' | 'user' | 'all' =
+      personaTypeParam === 'user' ? 'user' : personaTypeParam === 'mbti' ? 'mbti' : 'all';
 
     const allScenarios = await fileManager.getAllScenarios();
     let scenarioIds: string[] | undefined = undefined;
@@ -828,7 +834,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       return res.json({ scenarios: [] });
     }
 
-    const scenarioStats = await storage.getEmotionStatsByScenario(scenarioIds);
+    const scenarioStats = await storage.getEmotionStatsByScenario(scenarioIds, personaType);
 
     const emotionEmojis: Record<string, string> = {
       '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',
@@ -917,6 +923,9 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     }
 
     const categoryIdParam = req.query.categoryId as string | undefined;
+    const personaTypeParam = (req.query.personaType as string | undefined);
+    const personaType: 'mbti' | 'user' | 'all' =
+      personaTypeParam === 'user' ? 'user' : personaTypeParam === 'mbti' ? 'mbti' : 'all';
 
     const allScenarios = await fileManager.getAllScenarios();
     let scenarioIds: string[] | undefined = undefined;
@@ -942,7 +951,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
       return res.json({ difficultyStats: [] });
     }
 
-    const difficultyStats = await storage.getEmotionStatsByDifficulty(scenarioIds);
+    const difficultyStats = await storage.getEmotionStatsByDifficulty(scenarioIds, personaType);
 
     const emotionEmojis: Record<string, string> = {
       '기쁨': '😊', '슬픔': '😢', '분노': '😠', '놀람': '😲', '중립': '😐',

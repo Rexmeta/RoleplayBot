@@ -22,9 +22,6 @@ import type {
   AnalyticsOverview,
   PerformanceData,
   TrendsData,
-  EmotionData,
-  ScenarioEmotionData,
-  DifficultyEmotionData,
   Participant,
 } from "@/components/admin/adminTypes";
 
@@ -101,30 +98,6 @@ export default function AdminDashboard() {
     refetchInterval: ANALYTICS_REFETCH_INTERVAL,
   });
 
-  const { data: emotions, isLoading: emotionsLoading, isFetching: emotionsFetching, dataUpdatedAt: emotionsUpdatedAt } = useQuery<EmotionData>({
-    queryKey: ["/api/admin/analytics/emotions", selectedCategoryId],
-    queryFn: () => authFetch(`/api/admin/analytics/emotions${categoryParam}`),
-    staleTime: ANALYTICS_STALE_TIME,
-    gcTime: 1000 * 60 * 30,
-    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
-  });
-
-  const { data: scenarioEmotions, isFetching: scenarioEmotionsFetching, dataUpdatedAt: scenarioEmotionsUpdatedAt } = useQuery<ScenarioEmotionData>({
-    queryKey: ["/api/admin/analytics/emotions/by-scenario", selectedCategoryId],
-    queryFn: () => authFetch(`/api/admin/analytics/emotions/by-scenario${categoryParam}`),
-    staleTime: ANALYTICS_STALE_TIME,
-    gcTime: 1000 * 60 * 30,
-    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
-  });
-
-  const { data: difficultyEmotions, isFetching: difficultyEmotionsFetching, dataUpdatedAt: difficultyEmotionsUpdatedAt } = useQuery<DifficultyEmotionData>({
-    queryKey: ["/api/admin/analytics/emotions/by-difficulty", selectedCategoryId],
-    queryFn: () => authFetch(`/api/admin/analytics/emotions/by-difficulty${categoryParam}`),
-    staleTime: ANALYTICS_STALE_TIME,
-    gcTime: 1000 * 60 * 30,
-    refetchInterval: ANALYTICS_REFETCH_INTERVAL,
-  });
-
   const { data: scenarios = [] } = useQuery({
     queryKey: ['/api/scenarios', selectedCategoryId],
     queryFn: () => authFetch(`/api/scenarios${categoryParam}`),
@@ -146,7 +119,7 @@ export default function AdminDashboard() {
     gcTime: 1000 * 60 * 15,
   });
 
-  if (overviewLoading || performanceLoading || trendsLoading || emotionsLoading) {
+  if (overviewLoading || performanceLoading || trendsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600"></div>
@@ -209,14 +182,10 @@ export default function AdminDashboard() {
     overviewUpdatedAt,
     performanceUpdatedAt,
     trendsUpdatedAt,
-    emotionsUpdatedAt,
-    scenarioEmotionsUpdatedAt,
-    difficultyEmotionsUpdatedAt,
   ].filter(t => t > 0);
   const oldestUpdatedAt = analyticsTimestamps.length > 0 ? Math.min(...analyticsTimestamps) : 0;
   const anyAnalyticsFetching =
-    overviewFetching || performanceFetching || trendsFetching || emotionsFetching ||
-    scenarioEmotionsFetching || difficultyEmotionsFetching;
+    overviewFetching || performanceFetching || trendsFetching;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -370,12 +339,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="emotions" className="space-y-6">
-            <EmotionsTab
-              emotions={emotions}
-              scenarioEmotions={scenarioEmotions}
-              difficultyEmotions={difficultyEmotions}
-              selectedCategoryId={selectedCategoryId}
-            />
+            <EmotionsTab selectedCategoryId={selectedCategoryId} />
           </TabsContent>
 
           <TabsContent value="trends" className="space-y-6">
