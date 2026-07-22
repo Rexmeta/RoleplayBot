@@ -283,17 +283,17 @@ export default function AdminDashboard() {
 
         <Tabs defaultValue="participants" className="space-y-6" onValueChange={() => setShowMobileTabMenu(false)}>
           <TabsList className="hidden md:grid w-full grid-cols-11">
-            <TabsTrigger value="participants" data-testid="tab-participants">참석자 관리</TabsTrigger>
+            <TabsTrigger value="participants" data-testid="tab-participants">참석자</TabsTrigger>
             <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
-            <TabsTrigger value="performance" data-testid="tab-performance">성과 분석</TabsTrigger>
-            <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오 분석</TabsTrigger>
-            <TabsTrigger value="mbti" data-testid="tab-mbti">MBTI 분석</TabsTrigger>
-            <TabsTrigger value="emotions" data-testid="tab-emotions">감정 분석</TabsTrigger>
-            <TabsTrigger value="trends" data-testid="tab-trends">트렌드 분석</TabsTrigger>
-            <TabsTrigger value="content" data-testid="tab-content">컨텐츠 현황</TabsTrigger>
-            <TabsTrigger value="api-usage" data-testid="tab-api-usage">API 사용량</TabsTrigger>
-            <TabsTrigger value="store-revenue" data-testid="tab-store-revenue">스토어 매출</TabsTrigger>
-            <TabsTrigger value="translations" data-testid="tab-translations">번역 관리</TabsTrigger>
+            <TabsTrigger value="performance" data-testid="tab-performance">성과</TabsTrigger>
+            <TabsTrigger value="scenarios" data-testid="tab-scenarios">시나리오</TabsTrigger>
+            <TabsTrigger value="mbti" data-testid="tab-mbti">MBTI</TabsTrigger>
+            <TabsTrigger value="emotions" data-testid="tab-emotions">감정</TabsTrigger>
+            <TabsTrigger value="trends" data-testid="tab-trends">트렌드</TabsTrigger>
+            <TabsTrigger value="content" data-testid="tab-content">컨텐츠</TabsTrigger>
+            <TabsTrigger value="api-usage" data-testid="tab-api-usage">API 사용</TabsTrigger>
+            <TabsTrigger value="store-revenue" data-testid="tab-store-revenue">스토어</TabsTrigger>
+            <TabsTrigger value="translations" data-testid="tab-translations">번역</TabsTrigger>
           </TabsList>
 
           <div className="md:hidden space-y-2">
@@ -320,8 +320,8 @@ export default function AdminDashboard() {
                   <TabsTrigger value="emotions" className="bg-white" data-testid="mobile-tab-emotions">감정</TabsTrigger>
                   <TabsTrigger value="trends" className="bg-white" data-testid="mobile-tab-trends">트렌드</TabsTrigger>
                   <TabsTrigger value="content" className="bg-white" data-testid="mobile-tab-content">컨텐츠</TabsTrigger>
-                  <TabsTrigger value="api-usage" className="bg-white" data-testid="mobile-tab-api-usage">API 사용량</TabsTrigger>
-                  <TabsTrigger value="store-revenue" className="bg-white" data-testid="mobile-tab-store-revenue">스토어 매출</TabsTrigger>
+                  <TabsTrigger value="api-usage" className="bg-white" data-testid="mobile-tab-api-usage">API 사용</TabsTrigger>
+                  <TabsTrigger value="store-revenue" className="bg-white" data-testid="mobile-tab-store-revenue">스토어</TabsTrigger>
                   <TabsTrigger value="translations" className="bg-white" data-testid="mobile-tab-translations">번역</TabsTrigger>
                 </TabsList>
               </div>
