@@ -47,6 +47,7 @@ interface SimulationEventRecord {
   turnIndex: number;
   result: Record<string, unknown> | null;
   args: Record<string, unknown> | null;
+  stateBefore: Record<string, unknown> | null;
   stateAfter: Record<string, unknown> | null;
   stateVersionAfter: number | null;
   includeInReport: boolean;
@@ -112,30 +113,18 @@ function toSeverity(v: unknown): "low" | "medium" | "high" {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /**
- * Collect all unique incidents from simulation events.
- *
- * Incidents surface in two ways:
- * 1. As stateAfter.recentIncidents on any event type (text/TTS mode: they
- *    are folded into the state by applySimulationPatch on the same turn as
- *    the auto_evaluation event).
- * 2. As result.incident on tool_call events (voice mode: trigger_incident
- *    tool called by Gemini is stored inline alongside the tool call result).
- *
- * We union both sources and deduplicate by ID so neither path is missed.
+ * Collect all unique incidents from simulation events, keyed by turnIndex.
  */
-function collectIncidents(events: SimulationEventRecord[]): Incident[] {
+function collectIncidentsByTurn(events: SimulationEventRecord[]): Map<number, Incident[]> {
   const seen = new Map<string, Incident>();
 
   for (const ev of events) {
-    // Source 1 – result.incident on tool_call events (voice mode)
     if (ev.eventType === "tool_call" && ev.result) {
       const candidate = ev.result["incident"];
       if (isIncident(candidate) && !seen.has(candidate.id)) {
         seen.set(candidate.id, candidate);
       }
     }
-
-    // Source 2 – stateAfter.recentIncidents on any event (text/TTS + voice)
     if (isSimulationState(ev.stateAfter)) {
       const recentIncidents = Array.isArray(ev.stateAfter.recentIncidents)
         ? ev.stateAfter.recentIncidents
@@ -148,26 +137,41 @@ function collectIncidents(events: SimulationEventRecord[]): Incident[] {
     }
   }
 
-  return Array.from(seen.values()).sort((a, b) => a.turnIndex - b.turnIndex);
+  const byTurn = new Map<number, Incident[]>();
+  for (const inc of seen.values()) {
+    const list = byTurn.get(inc.turnIndex) ?? [];
+    list.push(inc);
+    byTurn.set(inc.turnIndex, list);
+  }
+  return byTurn;
+}
+
+interface EmotionDelta {
+  trust: number;
+  interest: number;
+  anger: number;
+  confusion: number;
 }
 
 /**
- * Return the NPC emotion state from the event with the highest
- * stateVersionAfter (true terminal state, not merely the last eval event).
+ * For each turn, compute NPC emotion delta = stateAfter - stateBefore
+ * from auto_evaluation events.
  */
-function deriveFinalNpcEmotions(events: SimulationEventRecord[]): NpcEmotions | null {
-  let bestVersion = -1;
-  let result: NpcEmotions | null = null;
-
+function computeEmotionDeltasByTurn(events: SimulationEventRecord[]): Map<number, EmotionDelta> {
+  const result = new Map<number, EmotionDelta>();
   for (const ev of events) {
-    const version = ev.stateVersionAfter ?? -1;
-    if (version <= bestVersion) continue;
-    if (isSimulationState(ev.stateAfter)) {
-      bestVersion = version;
-      result = ev.stateAfter.npcEmotions;
-    }
+    if (ev.eventType !== "auto_evaluation") continue;
+    if (!isSimulationState(ev.stateAfter)) continue;
+    const after = ev.stateAfter.npcEmotions;
+    const before = isSimulationState(ev.stateBefore) ? ev.stateBefore.npcEmotions : null;
+    if (!before) continue;
+    result.set(ev.turnIndex, {
+      trust: after.trust - before.trust,
+      interest: after.interest - before.interest,
+      anger: after.anger - before.anger,
+      confusion: after.confusion - before.confusion,
+    });
   }
-
   return result;
 }
 
@@ -176,65 +180,279 @@ function deriveFinalNpcEmotions(events: SimulationEventRecord[]): NpcEmotions | 
 interface ScoreDimension {
   key: keyof Pick<TurnScore, "clarity" | "empathy" | "logic" | "ownership" | "actionPlan">;
   label: string;
-  color: string;
 }
 
 const SCORE_DIMENSIONS: ScoreDimension[] = [
-  { key: "clarity", label: "명확성", color: "bg-blue-500" },
-  { key: "empathy", label: "공감", color: "bg-pink-500" },
-  { key: "logic", label: "논리", color: "bg-violet-500" },
-  { key: "ownership", label: "책임감", color: "bg-amber-500" },
-  { key: "actionPlan", label: "행동계획", color: "bg-emerald-500" },
+  { key: "clarity", label: "명확성" },
+  { key: "empathy", label: "공감" },
+  { key: "logic", label: "논리" },
+  { key: "ownership", label: "책임감" },
+  { key: "actionPlan", label: "행동계획" },
 ];
 
-interface EmotionBarConfig {
-  key: keyof NpcEmotions;
-  label: string;
-  positiveColor: string;
-  icon: string;
+// ── Session insights computation ───────────────────────────────────────────
+
+interface SessionInsights {
+  turningPoint: {
+    turnIndex: number;
+    emotionKey: "trust" | "anger";
+    delta: number;
+    direction: "drop" | "rise";
+  } | null;
+  repeatedWeakness: {
+    dimensionLabel: string;
+    affectedTurns: number;
+    totalTurns: number;
+  } | null;
+  bestMoment: {
+    turnIndex: number;
+    dimensionLabel: string;
+    score: number;
+    hint?: string;
+  } | null;
 }
 
-const EMOTION_BARS: EmotionBarConfig[] = [
-  { key: "trust", label: "신뢰", positiveColor: "bg-emerald-500", icon: "fa-handshake" },
-  { key: "interest", label: "관심", positiveColor: "bg-blue-500", icon: "fa-eye" },
-  { key: "anger", label: "분노", positiveColor: "bg-red-500", icon: "fa-fire" },
-  { key: "confusion", label: "혼란", positiveColor: "bg-amber-500", icon: "fa-question-circle" },
-];
+function computeSessionInsights(
+  turnScores: TurnScore[],
+  emotionDeltasByTurn: Map<number, EmotionDelta>
+): SessionInsights {
+  // 1. Turning point — largest NPC emotion change (trust drop or anger rise)
+  let turningPoint: SessionInsights["turningPoint"] = null;
+  let maxMagnitude = 0;
+  for (const [turnIndex, delta] of emotionDeltasByTurn) {
+    // Trust drop is most impactful
+    if (delta.trust < 0 && Math.abs(delta.trust) > maxMagnitude) {
+      maxMagnitude = Math.abs(delta.trust);
+      turningPoint = { turnIndex, emotionKey: "trust", delta: delta.trust, direction: "drop" };
+    }
+    // Anger rise (treat as negative signal)
+    if (delta.anger > 0 && delta.anger > maxMagnitude) {
+      maxMagnitude = delta.anger;
+      turningPoint = { turnIndex, emotionKey: "anger", delta: delta.anger, direction: "rise" };
+    }
+  }
 
-const SEVERITY_CONFIG: Record<"low" | "medium" | "high", { label: string; className: string }> = {
-  low: { label: "낮음", className: "bg-yellow-100 text-yellow-800 border-yellow-300" },
-  medium: { label: "중간", className: "bg-orange-100 text-orange-800 border-orange-300" },
-  high: { label: "높음", className: "bg-red-100 text-red-800 border-red-300" },
-};
+  // 2. Repeated weakness — dimension low on 3+ consecutive turns OR majority of turns
+  let repeatedWeakness: SessionInsights["repeatedWeakness"] = null;
+  if (turnScores.length >= 2) {
+    const WEAK_THRESHOLD = 50;
+    let worstDim: ScoreDimension | null = null;
+    let worstCount = 0;
+
+    for (const dim of SCORE_DIMENSIONS) {
+      const weakCount = turnScores.filter((s) => s[dim.key] < WEAK_THRESHOLD).length;
+      const isMajority = weakCount >= Math.ceil(turnScores.length / 2);
+
+      // Check for 3+ consecutive weak turns
+      let maxConsecutive = 0;
+      let consecutive = 0;
+      for (const s of turnScores) {
+        if (s[dim.key] < WEAK_THRESHOLD) {
+          consecutive++;
+          if (consecutive > maxConsecutive) maxConsecutive = consecutive;
+        } else {
+          consecutive = 0;
+        }
+      }
+      const hasConsecutive = maxConsecutive >= 3;
+
+      if ((isMajority || hasConsecutive) && weakCount > worstCount) {
+        worstCount = weakCount;
+        worstDim = dim;
+      }
+    }
+    if (worstDim) {
+      repeatedWeakness = {
+        dimensionLabel: worstDim.label,
+        affectedTurns: worstCount,
+        totalTurns: turnScores.length,
+      };
+    }
+  }
+
+  // 3. Best moment — turn with highest single-dimension score
+  let bestMoment: SessionInsights["bestMoment"] = null;
+  let bestScore = -1;
+  for (const score of turnScores) {
+    for (const dim of SCORE_DIMENSIONS) {
+      const val = score[dim.key];
+      if (val > bestScore) {
+        bestScore = val;
+        bestMoment = {
+          turnIndex: score.turnIndex,
+          dimensionLabel: dim.label,
+          score: val,
+          hint: score.hint,
+        };
+      }
+    }
+  }
+
+  return { turningPoint, repeatedWeakness, bestMoment };
+}
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-function ScoreBar({ value, color }: { value: number; color: string }) {
-  const pct = Math.max(0, Math.min(100, value));
+function DeltaBadge({
+  value,
+  label,
+  invertPositive = false,
+  alwaysShow = false,
+}: {
+  value: number;
+  label: string;
+  invertPositive?: boolean;
+  alwaysShow?: boolean;
+}) {
+  const rounded = Math.round(value);
+  const isZero = Math.abs(rounded) < 1;
+
+  if (isZero && !alwaysShow) return null;
+
+  if (isZero) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
+        <i className="fas fa-minus text-[9px]" />
+        {label} 변화 없음
+      </span>
+    );
+  }
+
+  const sign = rounded > 0 ? "+" : "";
+  const isGood = invertPositive ? rounded < 0 : rounded > 0;
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${color}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-xs font-semibold text-slate-700 w-8 text-right">{Math.round(value)}</span>
+    <span
+      className={`inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full ${
+        isGood
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-red-50 text-red-700"
+      }`}
+    >
+      {isGood ? (
+        <i className="fas fa-arrow-up text-[9px]" />
+      ) : (
+        <i className="fas fa-arrow-down text-[9px]" />
+      )}
+      {label} {sign}{rounded}
+    </span>
+  );
+}
+
+function EmotionImpactRow({ delta }: { delta: EmotionDelta }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {/* Trust and anger always shown per spec: "NPC 신뢰 +12 / 분노 변화 없음" */}
+      <DeltaBadge value={delta.trust} label="신뢰" alwaysShow />
+      <DeltaBadge value={delta.anger} label="분노" invertPositive alwaysShow />
+      {/* Interest and confusion only shown when non-zero */}
+      <DeltaBadge value={delta.interest} label="관심" />
+      <DeltaBadge value={delta.confusion} label="혼란" invertPositive />
     </div>
   );
 }
 
-function EmotionBar({ value, label, icon, positiveColor }: { value: number; label: string; icon: string; positiveColor: string }) {
-  const pct = Math.max(0, Math.min(100, value));
+function StrengthWeaknessBadges({ score }: { score: TurnScore }) {
+  const dims = SCORE_DIMENSIONS.map((d) => ({ ...d, value: score[d.key] }));
+  dims.sort((a, b) => b.value - a.value);
+  const best = dims[0];
+  const worst = dims[dims.length - 1];
   return (
-    <div className="flex items-center gap-2">
-      <i className={`fas ${icon} text-slate-400 w-4 text-center text-xs`} />
-      <span className="text-xs text-slate-600 w-10">{label}</span>
-      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${positiveColor}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs text-slate-500 w-6 text-right">{Math.round(value)}</span>
+    <div className="flex flex-wrap gap-1.5">
+      {best && (
+        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <i className="fas fa-check text-[9px]" />
+          잘함 · {best.label}
+        </span>
+      )}
+      {worst && worst.key !== best?.key && (
+        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+          <i className="fas fa-wrench text-[9px]" />
+          보완 필요 · {worst.label}
+        </span>
+      )}
     </div>
+  );
+}
+
+function IncidentInlineBanner({ incident }: { incident: Incident }) {
+  const severityClass = {
+    low: "bg-yellow-50 border-yellow-300 text-yellow-800",
+    medium: "bg-orange-50 border-orange-300 text-orange-800",
+    high: "bg-red-50 border-red-300 text-red-800",
+  }[toSeverity(incident.severity)];
+  return (
+    <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs leading-relaxed ${severityClass}`}>
+      <i className="fas fa-triangle-exclamation text-[10px] mt-0.5 shrink-0" />
+      <span>{incident.message || "인시던트가 발생했습니다."}</span>
+    </div>
+  );
+}
+
+function SessionInsightsCard({ insights }: { insights: SessionInsights }) {
+  const hasAny = insights.turningPoint || insights.repeatedWeakness || insights.bestMoment;
+  if (!hasAny) return null;
+
+  return (
+    <Card className="border-indigo-200 shadow-sm bg-gradient-to-br from-indigo-50 to-white">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-xs">
+            <i className="fas fa-lightbulb" />
+          </span>
+          세션 인사이트
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {insights.turningPoint && (
+            <div className="flex gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+              <div className="shrink-0 w-7 h-7 rounded-full bg-red-100 flex items-center justify-center">
+                <i className="fas fa-rotate text-red-500 text-xs" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-red-700 mb-0.5">결정적 순간</p>
+                <p className="text-sm text-red-800 leading-relaxed">
+                  {insights.turningPoint.direction === "drop"
+                    ? `턴 ${insights.turningPoint.turnIndex + 1}에서 NPC 신뢰가 ${Math.abs(Math.round(insights.turningPoint.delta))}점 급격히 하락했습니다.`
+                    : `턴 ${insights.turningPoint.turnIndex + 1}에서 NPC 분노가 ${Math.round(insights.turningPoint.delta)}점 상승했습니다.`}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {insights.repeatedWeakness && (
+            <div className="flex gap-3 p-3 rounded-lg bg-orange-50 border border-orange-100">
+              <div className="shrink-0 w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
+                <i className="fas fa-repeat text-orange-500 text-xs" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-orange-700 mb-0.5">반복된 약점 패턴</p>
+                <p className="text-sm text-orange-800 leading-relaxed">
+                  이번 대화 전반에 걸쳐 <strong>{insights.repeatedWeakness.dimensionLabel}</strong>이(가) 부족했습니다.
+                  ({insights.repeatedWeakness.affectedTurns}/{insights.repeatedWeakness.totalTurns} 턴)
+                </p>
+              </div>
+            </div>
+          )}
+
+          {insights.bestMoment && (
+            <div className="flex gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+              <div className="shrink-0 w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center">
+                <i className="fas fa-star text-emerald-500 text-xs" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-emerald-700 mb-0.5">잘한 순간</p>
+                <p className="text-sm text-emerald-800 leading-relaxed">
+                  턴 {insights.bestMoment.turnIndex + 1}에서 <strong>{insights.bestMoment.dimensionLabel}</strong>이(가)
+                  {" "}{Math.round(insights.bestMoment.score)}점으로 가장 높았습니다.
+                  {insights.bestMoment.hint && " 코칭 힌트를 잘 활용했습니다."}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -277,10 +495,7 @@ export default function SimulationReplayPanel({ conversationId, conversationMode
   const allEvents = data.events ?? [];
   const userMessagesByTurn: Record<number, string> = data.userMessagesByTurn ?? {};
 
-  // Turn scores from auto_evaluation events with includeInReport=true.
-  // Deduplicate by turnIndex: when both a 'quality' and a 'fast' event exist for the
-  // same turn (e.g. quality succeeded then a fast fallback also ran, or a retry occurred),
-  // prefer the 'quality' event so the richer LLM-based score wins.
+  // Turn scores — deduplicate by turnIndex, prefer 'quality' over 'fast'
   const turnScores: TurnScore[] = (() => {
     const byTurnIndex = new Map<number, { score: TurnScore; evalMode: string }>();
     for (const e of allEvents) {
@@ -298,13 +513,12 @@ export default function SimulationReplayPanel({ conversationId, conversationMode
       .sort((a, b) => a.turnIndex - b.turnIndex);
   })();
 
-  // Incidents from all sources (tool_call result.incident + stateAfter.recentIncidents)
-  const incidents = collectIncidents(allEvents);
+  const incidentsByTurn = collectIncidentsByTurn(allEvents);
+  const emotionDeltasByTurn = computeEmotionDeltasByTurn(allEvents);
 
-  // Final NPC emotions from the event with the highest state version
-  const finalNpcEmotions = deriveFinalNpcEmotions(allEvents);
-
-  const hasSimData = turnScores.length > 0 || incidents.length > 0 || finalNpcEmotions !== null;
+  // Gate on turnScores only: incidents without scores have no turn card to attach to,
+  // so showing only incidents would leave the panel blank. Empty-state handles that path.
+  const hasSimData = turnScores.length > 0;
 
   if (!hasSimData) {
     const isVoice = conversationMode === "realtime_voice";
@@ -333,161 +547,95 @@ export default function SimulationReplayPanel({ conversationId, conversationMode
     );
   }
 
-  const avgScores = SCORE_DIMENSIONS.reduce<Record<string, number>>((acc, dim) => {
-    const vals = turnScores.map((s) => s[dim.key]);
-    acc[dim.key] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-    return acc;
-  }, {});
+  const insights = computeSessionInsights(turnScores, emotionDeltasByTurn);
 
   return (
     <div className="space-y-6">
 
-      {/* Final NPC emotion state */}
-      {finalNpcEmotions && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-xs">
-                <i className="fas fa-face-smile" />
-              </span>
-              세션 종료 시 NPC 감정 상태
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {EMOTION_BARS.map((bar) => (
-                <EmotionBar
-                  key={bar.key}
-                  value={finalNpcEmotions[bar.key]}
-                  label={bar.label}
-                  icon={bar.icon}
-                  positiveColor={bar.positiveColor}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Session insights card */}
+      <SessionInsightsCard insights={insights} />
 
-      {/* Turn-by-turn scores */}
+      {/* Timeline of turn cards */}
       {turnScores.length > 0 && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-xs">
-                <i className="fas fa-chart-line" />
-              </span>
-              턴별 역량 점수
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Average summary */}
-            <div className="mb-4 p-3 bg-slate-50 rounded-lg">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">평균 점수</p>
-              <div className="space-y-1.5">
-                {SCORE_DIMENSIONS.map((dim) => (
-                  <div key={dim.key} className="flex items-center gap-2">
-                    <span className="text-xs text-slate-600 w-14">{dim.label}</span>
-                    <ScoreBar value={avgScores[dim.key] ?? 0} color={dim.color} />
+        <div className="relative">
+          {/* Timeline vertical line */}
+          <div className="absolute left-3.5 top-4 bottom-4 w-0.5 bg-slate-200" />
+
+          <div className="space-y-4">
+            {turnScores.map((score, idx) => {
+              const userMessage = userMessagesByTurn[score.turnIndex];
+              const delta = emotionDeltasByTurn.get(score.turnIndex);
+              const turnIncidents = incidentsByTurn.get(score.turnIndex) ?? [];
+
+              return (
+                <div key={score.turnId ?? idx} className="relative flex gap-4">
+                  {/* Timeline dot */}
+                  <div className="shrink-0 z-10 flex items-center justify-center w-7 h-7 rounded-full bg-corporate-600 text-white text-xs font-bold shadow-sm">
+                    {score.turnIndex + 1}
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* Per-turn breakdown */}
-            <div className="space-y-4">
-              {turnScores.map((score, idx) => {
-                const userMessage = userMessagesByTurn[score.turnIndex];
-                return (
-                  <div key={score.turnId ?? idx} className="border border-slate-200 rounded-lg overflow-hidden">
-                    {/* User message bubble */}
-                    {userMessage && (
-                      <div className="bg-slate-50 border-b border-slate-200 px-3 py-2 flex gap-2 items-start">
-                        <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-corporate-600 text-white mt-0.5">
-                          <i className="fas fa-user text-[9px]" />
-                        </span>
+                  {/* Turn card */}
+                  <div className="flex-1 border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                    {/* User utterance */}
+                    <div className="bg-slate-50 border-b border-slate-200 px-3 py-2.5 flex gap-2 items-start">
+                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-corporate-600 text-white mt-0.5">
+                        <i className="fas fa-user text-[9px]" />
+                      </span>
+                      {userMessage ? (
                         <p className="text-sm text-slate-700 leading-relaxed">{userMessage}</p>
-                      </div>
-                    )}
+                      ) : (
+                        <p className="text-sm text-slate-400 italic">발화 기록 없음</p>
+                      )}
+                    </div>
 
-                    {/* Score card */}
-                    <div className="p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-slate-600">턴 {score.turnIndex + 1}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400">{score.evaluationMethod}</span>
-                          <span className="text-sm font-bold text-corporate-700">
-                            종합 {Math.round(score.total)}점
-                          </span>
-                        </div>
+                    {/* Turn body */}
+                    <div className="p-3 space-y-3">
+                      {/* Emotion impact */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                          이 턴의 영향
+                        </p>
+                        {delta ? (
+                          <EmotionImpactRow delta={delta} />
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">감정 데이터 없음</span>
+                        )}
                       </div>
-                      <div className="space-y-1">
-                        {SCORE_DIMENSIONS.map((dim) => (
-                          <div key={dim.key} className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 w-14">{dim.label}</span>
-                            <ScoreBar value={score[dim.key]} color={dim.color} />
-                          </div>
-                        ))}
+
+                      {/* Strength / weakness badges */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                          역량 평가
+                        </p>
+                        <StrengthWeaknessBadges score={score} />
                       </div>
+
+                      {/* Coaching hint */}
                       {score.hint && (
-                        <div className="mt-3 flex gap-2 items-start rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                        <div className="flex gap-2 items-start rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                           <i className="fas fa-lightbulb text-amber-500 text-xs mt-0.5 shrink-0" />
-                          <p className="text-xs text-amber-800 leading-relaxed">{score.hint}</p>
+                          <div>
+                            <p className="text-[10px] font-semibold text-amber-600 mb-0.5">이렇게 해보세요</p>
+                            <p className="text-xs text-amber-800 leading-relaxed">{score.hint}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Inline incidents */}
+                      {turnIncidents.length > 0 && (
+                        <div className="space-y-1.5">
+                          {turnIncidents.map((inc, iidx) => (
+                            <IncidentInlineBanner key={inc.id ?? iidx} incident={inc} />
+                          ))}
                         </div>
                       )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Incident timeline */}
-      {incidents.length > 0 && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-orange-500 text-white text-xs">
-                <i className="fas fa-bolt" />
-              </span>
-              발생한 인시던트 ({incidents.length}건)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="relative pl-4 border-l-2 border-slate-200 space-y-4">
-              {incidents.map((incident, idx) => {
-                const sev = SEVERITY_CONFIG[toSeverity(incident.severity)];
-                return (
-                  <div key={incident.id ?? idx} className="relative">
-                    <div className="absolute -left-[17px] top-1 w-3 h-3 rounded-full bg-orange-400 border-2 border-white" />
-                    <div className="flex items-start gap-2">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0.5 shrink-0 ${sev.className}`}
-                      >
-                        {sev.label}
-                      </Badge>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-xs font-semibold text-slate-700">
-                            턴 {incident.turnIndex + 1}
-                          </span>
-                          <span className="text-xs text-slate-400">·</span>
-                          <span className="text-xs text-slate-500 font-mono">{incident.type}</span>
-                        </div>
-                        {incident.message && (
-                          <p className="text-sm text-slate-700 leading-relaxed">{incident.message}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
