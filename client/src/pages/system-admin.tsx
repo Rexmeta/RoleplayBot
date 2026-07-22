@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { REALTIME_MODELS } from "../../../shared/realtimeModels";
+import type { ModelCategory } from "../../../shared/modelRegistry";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AppHeader } from "@/components/AppHeader";
@@ -191,100 +191,25 @@ interface AgentKey {
   monthlyEstimatedRequestCount: number;
 }
 
-const AI_MODELS = [
-  { 
-    value: "gemini-2.5-flash", 
-    modelKey: "gemini25flash",
-    provider: "Google",
-    recommended: true
-  },
-  { 
-    value: "gemini-2.5-flash-lite", 
-    modelKey: "gemini25flashLite",
-    provider: "Google",
-    recommended: false
-  },
-  { 
-    value: "gemini-2.5-pro", 
-    modelKey: "gemini25pro",
-    provider: "Google",
-    recommended: false
-  },
-  { 
-    value: "gemini-3-flash-preview", 
-    modelKey: "gemini3flashPreview",
-    provider: "Google",
-    recommended: false
-  },
-  { 
-    value: "gemini-3.1-pro-preview", 
-    modelKey: "gemini31proPreview",
-    provider: "Google",
-    recommended: false
-  },
-  { 
-    value: "gemini-3.1-flash-lite-preview", 
-    modelKey: "gemini31flashLitePreview",
-    provider: "Google",
-    recommended: false
-  },
-  { 
-    value: "gpt-4o", 
-    modelKey: "gpt4o",
-    provider: "OpenAI",
-    recommended: false
-  },
-  { 
-    value: "gpt-4o-mini", 
-    modelKey: "gpt4omini",
-    provider: "OpenAI",
-    recommended: false
-  },
-  { 
-    value: "gpt-4.1", 
-    modelKey: "gpt41",
-    provider: "OpenAI",
-    recommended: false
-  },
-  { 
-    value: "gpt-4.1-mini", 
-    modelKey: "gpt41mini",
-    provider: "OpenAI",
-    recommended: false
-  },
-  { 
-    value: "o3", 
-    modelKey: "o3",
-    provider: "OpenAI",
-    recommended: false
-  },
-  { 
-    value: "o4-mini", 
-    modelKey: "o4mini",
-    provider: "OpenAI",
-    recommended: false
-  },
-];
+interface CatalogEntry {
+  value: string;
+  modelKey: string;
+  provider: string;
+  recommended: boolean;
+  categories: ModelCategory[];
+  status: 'active' | 'deprecated' | 'removed';
+  description?: string;
+  deprecatedAt?: string;
+  sunsetAt?: string;
+  replacedBy?: string;
+  disabled?: boolean;
+  confirmedByProvider: boolean;
+}
 
-const GEMINI_LIVE_MODELS = REALTIME_MODELS;
-
-const IMAGE_MODELS = [
-  {
-    value: "gemini-2.5-flash-image",
-    modelKey: "geminiFlashImage",
-    provider: "Google",
-    recommended: true,
-  },
-];
-
-const VIDEO_MODELS = [
-  {
-    value: "veo-3.1-generate-preview",
-    modelKey: "geminiVeo31",
-    provider: "Google",
-    recommended: true,
-  },
-];
+interface ModelCatalog {
+  models: CatalogEntry[];
+  refreshedAt: string;
+}
 
 const FEATURE_MODEL_INFO = [
   {
@@ -869,6 +794,32 @@ export default function SystemAdminPage() {
     queryKey: ["/api/system-admin/settings"],
   });
 
+  const { data: modelCatalog, isLoading: catalogLoading, refetch: refetchCatalog } = useQuery<ModelCatalog>({
+    queryKey: ["/api/system-admin/model-catalog"],
+    staleTime: 5 * 60 * 1000,
+    enabled: activeTab === "settings",
+  });
+
+  const refreshCatalogMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/system-admin/model-catalog/refresh");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/model-catalog"] });
+      toast({ title: t("systemAdmin.settings.catalogRefreshed", "Model catalog refreshed") });
+    },
+    onError: (err: any) => {
+      toast({ title: t("systemAdmin.settings.catalogRefreshFailed", "Refresh failed"), description: err.message, variant: "destructive" });
+    },
+  });
+
+  const getCatalogModelsForFeature = (featureId: string): CatalogEntry[] => {
+    if (!modelCatalog) return [];
+    const cat = featureId as ModelCategory;
+    return modelCatalog.models.filter(m => m.categories.includes(cat));
+  };
+
   const { data: apiKeyStatus, isLoading: apiKeyStatusLoading } = useQuery<ApiKeyStatus>({
     queryKey: ["/api/system-admin/api-keys-status"],
   });
@@ -1108,10 +1059,20 @@ export default function SystemAdminPage() {
     setHasSettingsChanges(true);
   };
 
+  const handleSwitchToRecommended = (settingKey: string, replacementValue: string) => {
+    setFeatureModels(prev => ({ ...prev, [settingKey]: replacementValue }));
+    saveSettingsMutation.mutate([{ category: "ai", key: settingKey, value: replacementValue, description: "" }], {
+      onSuccess: () => {
+        setHasSettingsChanges(false);
+      },
+    });
+  };
+
   const handleSaveSettings = () => {
+    const allCatalogModels = modelCatalog?.models ?? [];
     for (const [key, value] of Object.entries(featureModels)) {
-      const modelInfo = [...AI_MODELS, ...GEMINI_LIVE_MODELS].find(m => m.value === value);
-      if (modelInfo && 'disabled' in modelInfo && modelInfo.disabled) {
+      const modelInfo = allCatalogModels.find(m => m.value === value);
+      if (modelInfo && (modelInfo.status === 'removed' || modelInfo.disabled)) {
         toast({
           title: t('systemAdmin.settings.cannotSave'),
           description: t('systemAdmin.settings.unsupportedModel'),
@@ -1723,7 +1684,7 @@ export default function SystemAdminPage() {
                             {item.configurable && 'settingKey' in item ? (
                               <Badge variant="outline" className="text-blue-600 border-blue-200">
                                 {(() => {
-                                  const allModels = [...AI_MODELS, ...GEMINI_LIVE_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS];
+                                  const allModels = modelCatalog?.models ?? [];
                                   const selectedModel = allModels.find(m => m.value === featureModels[item.settingKey!]);
                                   return selectedModel ? t(`systemAdmin.models.${selectedModel.modelKey}.label`) : (item as any).defaultModel;
                                 })()}
@@ -1749,13 +1710,37 @@ export default function SystemAdminPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>{t('systemAdmin.settings.aiModelConfig')}</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {t('systemAdmin.settings.aiModelConfigDesc')}
-                </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle>{t('systemAdmin.settings.aiModelConfig')}</CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {t('systemAdmin.settings.aiModelConfigDesc')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {modelCatalog?.refreshedAt && new Date(modelCatalog.refreshedAt).getTime() > 0 && (
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {t('systemAdmin.settings.catalogLastUpdated', 'Updated')}: {new Date(modelCatalog.refreshedAt).toLocaleString()}
+                      </span>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => refreshCatalogMutation.mutate()}
+                      disabled={refreshCatalogMutation.isPending || catalogLoading}
+                    >
+                      {refreshCatalogMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                      <span className="ml-1.5 text-xs">{t('systemAdmin.settings.catalogRefreshNow', 'Refresh now')}</span>
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                {settingsLoading ? (
+                {settingsLoading || catalogLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
@@ -1763,7 +1748,11 @@ export default function SystemAdminPage() {
                   <div className="space-y-6">
                     {FEATURE_MODEL_INFO.filter(f => f.configurable && 'settingKey' in f).map((feature) => {
                       const supportedProviders: string[] = 'supportedProviders' in feature && feature.supportedProviders ? feature.supportedProviders : [];
-                      const modelsToShow = feature.id === 'realtime' ? GEMINI_LIVE_MODELS : feature.id === 'image' ? IMAGE_MODELS : feature.id === 'video' ? VIDEO_MODELS : AI_MODELS;
+                      const modelsToShow = getCatalogModelsForFeature(feature.id);
+                      const currentModelValue = featureModels[feature.settingKey!];
+                      const currentModelEntry = modelsToShow.find(m => m.value === currentModelValue);
+                      const isCurrentDeprecated = currentModelEntry?.status === 'deprecated';
+                      const replacementModel = isCurrentDeprecated ? modelsToShow.find(m => m.value === currentModelEntry?.replacedBy) : undefined;
                       
                       return (
                       <div key={feature.id} className="space-y-3">
@@ -1776,10 +1765,40 @@ export default function SystemAdminPage() {
                             </Badge>
                           )}
                         </div>
+
+                        {isCurrentDeprecated && currentModelEntry && (
+                          <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+                            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium">
+                                {t('systemAdmin.settings.deprecatedWarning', 'This model is deprecated')}{currentModelEntry.sunsetAt ? ` — ${t('systemAdmin.settings.sunsetDate', 'removal date')}: ${new Date(currentModelEntry.sunsetAt).toLocaleDateString()}` : ''}
+                              </p>
+                              {replacementModel && (
+                                <p className="text-xs mt-0.5">
+                                  {t('systemAdmin.settings.recommendedReplacement', 'Recommended replacement')}: <span className="font-mono">{replacementModel.value}</span>
+                                </p>
+                              )}
+                            </div>
+                            {replacementModel && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 border-amber-400 text-amber-800 hover:bg-amber-100 text-xs h-7 px-2"
+                                disabled={saveSettingsMutation.isPending}
+                                onClick={() => handleSwitchToRecommended(feature.settingKey!, replacementModel.value)}
+                              >
+                                {t('systemAdmin.settings.switchToRecommended', 'Switch to')} {replacementModel.value}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
                         <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4">
                           {modelsToShow.map((model) => {
                             const isProviderSupported = supportedProviders.length === 0 || supportedProviders.includes(model.provider);
-                            const isModelDisabled = 'disabled' in model && model.disabled;
+                            const isModelDisabled = Boolean(model.disabled) || model.status === 'removed';
+                            const isDeprecated = model.status === 'deprecated';
+                            const isRemoved = model.status === 'removed';
                             const isDisabled = isModelDisabled || !isProviderSupported;
                             const isSelected = featureModels[feature.settingKey!] === model.value;
                             
@@ -1789,9 +1808,13 @@ export default function SystemAdminPage() {
                                 className={`p-3 border rounded-lg transition-colors ${
                                   isDisabled 
                                     ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60 pointer-events-none"
-                                    : isSelected
-                                      ? "border-blue-500 bg-blue-50 cursor-pointer"
-                                      : "border-gray-200 hover:border-gray-300 cursor-pointer"
+                                    : isDeprecated
+                                      ? isSelected
+                                        ? "border-amber-400 bg-amber-50 cursor-pointer"
+                                        : "border-amber-200 bg-amber-50/40 hover:border-amber-300 cursor-pointer"
+                                      : isSelected
+                                        ? "border-blue-500 bg-blue-50 cursor-pointer"
+                                        : "border-gray-200 hover:border-gray-300 cursor-pointer"
                                 }`}
                                 onClick={() => !isDisabled && handleFeatureModelChange(feature.settingKey!, model.value)}
                                 data-testid={`model-option-${feature.id}-${model.value}`}
@@ -1802,33 +1825,49 @@ export default function SystemAdminPage() {
                                     isDisabled 
                                       ? "border-gray-300"
                                       : isSelected 
-                                        ? "border-blue-500" 
+                                        ? isDeprecated ? "border-amber-500" : "border-blue-500"
                                         : "border-gray-300"
                                   }`}>
                                     {isSelected && !isDisabled && (
-                                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                      <div className={`w-2 h-2 rounded-full ${isDeprecated ? 'bg-amber-500' : 'bg-blue-500'}`} />
                                     )}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1 flex-wrap">
                                       <span className="font-medium text-sm truncate max-w-[120px]">{t(`systemAdmin.models.${model.modelKey}.label`)}</span>
-                                      {'recommended' in model && model.recommended && (
+                                      {model.recommended && !isDeprecated && !isRemoved && (
                                         <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
                                       )}
-                                      {Boolean(isModelDisabled) && (
+                                      {isRemoved && (
+                                        <Badge className="text-[10px] px-1 py-0 bg-red-100 text-red-700 hover:bg-red-100">✕ {t('systemAdmin.settings.removed', 'Removed')}</Badge>
+                                      )}
+                                      {isDeprecated && !isRemoved && (
+                                        <Badge className="text-[10px] px-1 py-0 bg-amber-100 text-amber-700 hover:bg-amber-100">⚠ {t('systemAdmin.settings.deprecated', 'Deprecated')}</Badge>
+                                      )}
+                                      {Boolean(model.disabled) && !isDeprecated && !isRemoved && (
                                         <Badge variant="secondary" className="text-[10px] px-1 py-0">{t('systemAdmin.settings.preparing')}</Badge>
                                       )}
-                                      {!isProviderSupported && !isModelDisabled && (
+                                      {!isProviderSupported && !model.disabled && !isDeprecated && !isRemoved && (
                                         <Badge variant="outline" className="text-[10px] px-1 py-0 text-gray-500">{t('systemAdmin.settings.unsupported')}</Badge>
                                       )}
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{t(`systemAdmin.models.${model.modelKey}.description`)}</p>
                                     <p className="text-[10px] text-blue-600 font-mono mt-1 truncate">{t(`systemAdmin.models.${model.modelKey}.pricing`)}</p>
+                                    {isDeprecated && model.sunsetAt && (
+                                      <p className="text-[10px] text-amber-600 mt-1">
+                                        {t('systemAdmin.settings.sunsetDate', 'Removal')}: {new Date(model.sunsetAt).toLocaleDateString()}
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
                               </div>
                             );
                           })}
+                          {modelsToShow.length === 0 && (
+                            <div className="col-span-4 py-4 text-center text-sm text-muted-foreground">
+                              {t('systemAdmin.settings.noCatalogModels', 'No models available — refresh the catalog')}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

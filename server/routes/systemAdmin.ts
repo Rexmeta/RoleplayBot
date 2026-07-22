@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { VALID_REALTIME_MODEL_VALUES } from "../../shared/realtimeModels";
+import { getCatalog, refreshCatalog } from "../services/modelCatalogService";
 
 export default function createSystemAdminRouter(isAuthenticated: any) {
   const router = Router();
@@ -480,6 +481,17 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
     }
     const eligible = await storage.getUsersEligibleForAnonymization(days);
     res.json({ affectedCount: eligible.length });
+  }));
+
+  router.get("/model-catalog", isAuthenticated, isSystemAdmin, asyncHandler(async (_req, res) => {
+    const catalog = await getCatalog();
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.json(catalog);
+  }));
+
+  router.post("/model-catalog/refresh", isAuthenticated, isSystemAdmin, asyncHandler(async (_req, res) => {
+    const catalog = await refreshCatalog();
+    res.json(catalog);
   }));
 
   return router;
