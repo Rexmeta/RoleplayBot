@@ -995,27 +995,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   )}
 
-                  {/* Desktop NPC status toggle button */}
-                  {isSimulationEnabled && simulationState && (
-                    <div className={`hidden lg:flex absolute left-4 z-20 ${inputMode === 'realtime-voice' ? 'bottom-52' : 'bottom-24'}`}>
-                      {hasActiveIncident && !isDesktopSimOpen && (
-                        <span className="absolute inset-0 rounded-full animate-ping bg-orange-400 opacity-40 pointer-events-none" />
-                      )}
-                      <button
-                        onClick={() => setIsDesktopSimOpen(v => !v)}
-                        className={`relative flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs px-2.5 py-1.5 rounded-full shadow-lg transition-colors ${hasActiveIncident && !isDesktopSimOpen ? 'border-2 border-orange-400' : 'border border-white/20'}`}
-                      >
-                        <Brain className="h-3.5 w-3.5" />
-                        <span>{isDesktopSimOpen ? t('chat.npcStatusHide', { defaultValue: 'Hide NPC Panel' }) : t('chat.npcStatusButton')}</span>
-                        {hasActiveIncident && <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />}
-                        {incidentCount > 0 && !isDesktopSimOpen && (
-                          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold leading-none px-1 shadow-md">
-                            {incidentCount > 99 ? '99+' : incidentCount}
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  )}
 
                   <div className={inputMode !== 'realtime-voice' ? "absolute inset-0 z-20 flex flex-col" : "absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4"}>
                     <Card className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
