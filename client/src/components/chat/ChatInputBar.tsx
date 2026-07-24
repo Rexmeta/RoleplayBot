@@ -271,10 +271,23 @@ export function ChatInputBar({
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors shrink-0"
+                    className="relative flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors shrink-0"
                     title={t('vad.settingsTitle', { defaultValue: '마이크 감도 설정' })}
                   >
                     <i className="fas fa-sliders-h text-[11px]"></i>
+                    {rv.vadSensitivity !== undefined && (
+                      <span
+                        className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white leading-none ${
+                          rv.vadSensitivity <= 2
+                            ? 'bg-blue-400'
+                            : rv.vadSensitivity >= 4
+                            ? 'bg-amber-400'
+                            : 'bg-slate-400'
+                        }`}
+                      >
+                        {rv.vadSensitivity}
+                      </span>
+                    )}
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="top" align="end" className="w-52 p-3">
