@@ -269,11 +269,13 @@ export function ChatInputBar({
             {/* VAD sensitivity popover */}
             {rv.onVadSensitivityChange && (
               <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    className="relative flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors shrink-0"
-                    title={t('vad.settingsTitle', { defaultValue: '마이크 감도 설정' })}
-                  >
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="relative flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors shrink-0"
+                        >
                     <i className="fas fa-sliders-h text-[11px]"></i>
                     {rv.vadSensitivity !== undefined && (
                       <span
@@ -288,8 +290,22 @@ export function ChatInputBar({
                         {rv.vadSensitivity}
                       </span>
                     )}
-                  </button>
-                </PopoverTrigger>
+                        </button>
+                      </PopoverTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {t('vad.sensitivityTooltip', {
+                        defaultValue: '마이크 감도: {{level}} ({{value}})',
+                        level: rv.vadSensitivity === 1 ? t('vad.sensitivity.1', { defaultValue: '매우 낮음' })
+                          : rv.vadSensitivity === 2 ? t('vad.sensitivity.2', { defaultValue: '낮음' })
+                          : rv.vadSensitivity === 4 ? t('vad.sensitivity.4', { defaultValue: '높음' })
+                          : rv.vadSensitivity === 5 ? t('vad.sensitivity.5', { defaultValue: '매우 높음' })
+                          : t('vad.sensitivity.3', { defaultValue: '중간' }),
+                        value: rv.vadSensitivity ?? 3,
+                      })}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <PopoverContent side="top" align="end" className="w-52 p-3">
                   <p className="text-xs font-medium text-slate-600 mb-2">
                     {t('vad.settingsTitle', { defaultValue: '마이크 감도' })}
