@@ -293,7 +293,7 @@ export function ChatInputBar({
                         </button>
                       </PopoverTrigger>
                     </TooltipTrigger>
-                    <TooltipContent side="top">
+                    <TooltipContent side="top" avoidCollisions={false} sideOffset={8}>
                       {t('vad.sensitivityTooltip', {
                         defaultValue: '마이크 감도: {{level}} ({{value}})',
                         level: rv.vadSensitivity === 1 ? t('vad.sensitivity.1', { defaultValue: '매우 낮음' })
