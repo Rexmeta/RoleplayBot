@@ -997,7 +997,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
                   {/* Desktop NPC status toggle button */}
                   {isSimulationEnabled && simulationState && (
-                    <div className="hidden lg:flex absolute bottom-24 left-4 z-20">
+                    <div className={`hidden lg:flex absolute left-4 z-20 ${inputMode === 'realtime-voice' ? 'bottom-52' : 'bottom-24'}`}>
                       {hasActiveIncident && !isDesktopSimOpen && (
                         <span className="absolute inset-0 rounded-full animate-ping bg-orange-400 opacity-40 pointer-events-none" />
                       )}
