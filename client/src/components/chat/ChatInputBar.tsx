@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getProgressInfo } from "@/lib/conversationProgress";
 
 interface ChatInputBarProps {
@@ -43,6 +44,9 @@ interface ChatInputBarProps {
     onVadSensitivityChange?: (level: number) => void;
     isSwitchingMode?: boolean;
   };
+  historyCount?: number;
+  onHistoryClick?: () => void;
+  inlineHint?: 'silence' | 'saving' | null;
 }
 
 export function ChatInputBar({
@@ -57,6 +61,9 @@ export function ChatInputBar({
   mode = 'text',
   onTextModeToggle,
   realtimeVoiceProps,
+  historyCount,
+  onHistoryClick,
+  inlineHint,
 }: ChatInputBarProps) {
   const { t } = useTranslation();
 
@@ -138,8 +145,6 @@ export function ChatInputBar({
         )}
 
         {rv.status === 'connected' && rv.isWaitingForGreeting && (
-          /* This block is kept for backward-compat (e.g. text-to-voice resume).
-             In fresh voice starts isWaitingForGreeting is always false now. */
           <div className="flex flex-col items-center justify-center gap-3 py-4">
             <div className="flex items-center justify-center space-x-2">
               <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
@@ -153,15 +158,17 @@ export function ChatInputBar({
         )}
 
         {rv.status === 'connected' && rv.greetingFailed && (
-          <div className="flex items-center justify-center py-4">
+          <div className="flex items-center justify-center py-2">
             <span className="text-orange-600 text-sm font-medium">
               {rv.userName || t('chat.member')}{t('chat.sayHelloFirst', { name: rv.personaName })}
             </span>
           </div>
         )}
 
+        {/* Compact connected control row */}
         {rv.status === 'connected' && !rv.isWaitingForGreeting && (
-          <div className="flex items-center justify-center gap-4 py-2">
+          <div className="flex items-center gap-2 py-1.5 px-2">
+            {/* End conversation button */}
             {(() => {
               const progressPct = rv.currentTurn !== undefined && rv.targetTurns
                 ? Math.min((rv.currentTurn / rv.targetTurns) * 100, 100)
@@ -178,7 +185,7 @@ export function ChatInputBar({
                         onClick={rv.onEndConversation}
                         disabled={rv.isRecording || rv.isAISpeaking}
                         data-testid="button-end-conversation-realtime"
-                        className={`shrink-0 min-h-[44px] min-w-[44px] border transition-all duration-300 ${
+                        className={`shrink-0 min-h-[36px] min-w-[36px] h-9 border transition-all duration-300 text-xs px-2 ${
                           pi.isGreen
                             ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
                             : pi.isAmber
@@ -211,6 +218,7 @@ export function ChatInputBar({
               );
             })()}
 
+            {/* Mic button — color encodes state: red=recording, blue=AI speaking */}
             <button
               onClick={() => {
                 if (rv.isRecording) {
@@ -220,7 +228,7 @@ export function ChatInputBar({
                 }
               }}
               disabled={rv.isAISpeaking}
-              className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${
+              className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 shadow-md shrink-0 ${
                 rv.isRecording
                   ? 'bg-red-500 text-white scale-110'
                   : rv.isAISpeaking
@@ -238,7 +246,7 @@ export function ChatInputBar({
                   <span className="absolute -inset-2 rounded-full bg-current opacity-10 blur-md animate-pulse"></span>
                 </>
               )}
-              <i className={`fas text-xl ${
+              <i className={`fas text-base ${
                 rv.isRecording
                   ? 'fa-stop'
                   : rv.isAISpeaking
@@ -247,64 +255,86 @@ export function ChatInputBar({
               }`}></i>
             </button>
 
+            {/* Text mode toggle */}
             <button
               onClick={onTextModeToggle}
               disabled={rv.isAISpeaking || rv.isSwitchingMode}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               data-testid="button-text-mode-toggle"
             >
-              <i className="fas fa-keyboard text-slate-500 text-xs"></i>
-              <span className="text-slate-600">{t('chat.switchToText', { defaultValue: '텍스트로 대화' })}</span>
+              <i className="fas fa-keyboard text-slate-500 text-[11px]"></i>
+              <span className="text-slate-600">{t('chat.switchToText', { defaultValue: '텍스트' })}</span>
             </button>
-          </div>
-        )}
 
-        {rv.status === 'connected' && (rv.isRecording || rv.isAISpeaking) && (
-          <div className="text-center mt-2">
-            {rv.isRecording && (
-              <p className="text-sm text-red-600 font-medium animate-pulse">
-                🔴 {t('chat.recording')}
-              </p>
+            {/* VAD sensitivity popover */}
+            {rv.onVadSensitivityChange && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors shrink-0"
+                    title={t('vad.settingsTitle', { defaultValue: '마이크 감도 설정' })}
+                  >
+                    <i className="fas fa-sliders-h text-[11px]"></i>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="top" align="end" className="w-52 p-3">
+                  <p className="text-xs font-medium text-slate-600 mb-2">
+                    {t('vad.settingsTitle', { defaultValue: '마이크 감도' })}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400 text-xs shrink-0">🔇</span>
+                    <Slider
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={[rv.vadSensitivity ?? 3]}
+                      onValueChange={([v]) => rv.onVadSensitivityChange!(v)}
+                      className="flex-1 h-1"
+                    />
+                    <span className="text-slate-400 text-xs shrink-0">🎤</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1.5 text-center">
+                    {rv.vadSensitivity === 1 ? t('vad.sensitivity.1', { defaultValue: '매우 낮음' })
+                      : rv.vadSensitivity === 2 ? t('vad.sensitivity.2', { defaultValue: '낮음' })
+                      : rv.vadSensitivity === 4 ? t('vad.sensitivity.4', { defaultValue: '높음' })
+                      : rv.vadSensitivity === 5 ? t('vad.sensitivity.5', { defaultValue: '매우 높음' })
+                      : t('vad.sensitivity.3', { defaultValue: '중간' })}
+                  </p>
+                </PopoverContent>
+              </Popover>
             )}
-            {rv.isAISpeaking && (
-              <p className="text-sm text-blue-600 font-medium animate-pulse">
-                🔵 {t('chat.aiResponding')}
-              </p>
-            )}
-          </div>
-        )}
 
-        {rv.status === 'connected' && !rv.isWaitingForGreeting && rv.onVadSensitivityChange && (
-          <div className="flex items-center gap-3 mt-2 px-1">
-            <span className="text-slate-400 text-xs shrink-0">🔇</span>
-            <Slider
-              min={1}
-              max={5}
-              step={1}
-              value={[rv.vadSensitivity ?? 3]}
-              onValueChange={([v]) => rv.onVadSensitivityChange!(v)}
-              className="flex-1 h-1"
-            />
-            <span className="text-slate-400 text-xs shrink-0">🎤</span>
-            <span className="text-xs text-slate-500 shrink-0 w-16 text-right">
-              {rv.vadSensitivity === 1 ? t('vad.sensitivity.1', { defaultValue: '매우 낮음' })
-                : rv.vadSensitivity === 2 ? t('vad.sensitivity.2', { defaultValue: '낮음' })
-                : rv.vadSensitivity === 4 ? t('vad.sensitivity.4', { defaultValue: '높음' })
-                : rv.vadSensitivity === 5 ? t('vad.sensitivity.5', { defaultValue: '매우 높음' })
-                : t('vad.sensitivity.3', { defaultValue: '중간' })}
-            </span>
+            {/* Right-side inline hints + history */}
+            <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+              {rv.sessionWarning && (
+                <span className="text-[10px] text-amber-600 truncate">🔄</span>
+              )}
+              {rv.error && (
+                <span className="text-[10px] text-red-500 truncate" title={rv.error}>⚠</span>
+              )}
+              {inlineHint === 'saving' && (
+                <span className="text-[10px] text-slate-400 animate-pulse truncate">
+                  {t('voice.savingMessages', { defaultValue: '저장 중…' })}
+                </span>
+              )}
+              {inlineHint === 'silence' && (
+                <span className="text-[10px] text-slate-400 truncate" style={{ animation: 'silenceBreathe 3s ease-in-out infinite' }}>
+                  🎤 {t('chat.speakPrompt', { defaultValue: '말씀해 주세요…' })}
+                </span>
+              )}
+              {historyCount !== undefined && historyCount > 0 && onHistoryClick && (
+                <button
+                  onClick={onHistoryClick}
+                  className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-700 transition-colors shrink-0"
+                >
+                  <i className="fas fa-history text-[10px]" />
+                  <span className="bg-slate-200 text-slate-600 rounded-full px-1.5 leading-4 text-[10px] font-medium">
+                    {historyCount}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
-        )}
-
-        {rv.sessionWarning && (
-          <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
-            <span className="text-amber-500 text-sm">🔄</span>
-            <p className="text-sm text-amber-700">{rv.sessionWarning}</p>
-          </div>
-        )}
-
-        {rv.error && (
-          <p className="text-sm text-red-600 text-center mt-2">{rv.error}</p>
         )}
 
         {onTextModeToggle && !(rv.status === 'connected' && !rv.isWaitingForGreeting) && (

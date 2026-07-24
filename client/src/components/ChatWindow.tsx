@@ -1070,7 +1070,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                               </div>
                             </div>
                           )}
-                          <div className="p-4 bg-[#ffffff9c]">
+                          <div className="py-1.5 px-3 bg-[#ffffff9c]">
                             <ChatInputBar userInput={userInput} onUserInputChange={setUserInput} onSendMessage={handleSendMessage}
                               onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
                               isRecording={isRecording} speechSupported={speechSupported}
@@ -1080,35 +1080,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                                   handleSwitchToTextModeRef.current();
                                 }
                               }}
-                               />
+                              historyCount={localMessages.length > 0 && !isInlineTextOpen ? localMessages.length : undefined}
+                              onHistoryClick={() => setIsHistoryDrawerOpen(true)}
+                              inlineHint={
+                                isSwitchingMode ? 'saving'
+                                : isSilenceIdle && realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && !isInlineTextOpen ? 'silence'
+                                : null
+                              }
+                            />
                           </div>
-                          {localMessages.length > 0 && !isInlineTextOpen && (
-                            <div className="border-t border-slate-200/30 px-4 py-2 flex justify-center">
-                              <button
-                                onClick={() => setIsHistoryDrawerOpen(true)}
-                                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
-                              >
-                                <i className="fas fa-history text-[11px]" />
-                                {t('chat.viewHistory', { defaultValue: 'View chat history' })}
-                                <span className="bg-slate-200 text-slate-600 rounded-full px-1.5 py-0 text-[10px] font-medium">
-                                  {localMessages.length}
-                                </span>
-                              </button>
-                            </div>
-                          )}
-                          {isSwitchingMode && (
-                            <div className="border-t border-slate-200/30 px-4 py-2 text-center">
-                              <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
-                                <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                                <span>{t('voice.savingMessages', { defaultValue: '대화 내용 저장 중...' })}</span>
-                              </div>
-                            </div>
-                          )}
-                          {isSilenceIdle && realtimeVoice.status === 'connected' && !realtimeVoice.isWaitingForGreeting && !realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && !isInlineTextOpen && (
-                            <div className="border-t border-slate-200/30 px-4 py-2 text-center">
-                              <p className="text-xs text-slate-400" style={{ animation: 'silenceBreathe 3s ease-in-out infinite' }}>🎤 말씀해 주세요...</p>
-                            </div>
-                          )}
                         </>
                       ) : (
                         <>
