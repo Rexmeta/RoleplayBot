@@ -996,7 +996,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   )}
 
 
-                  <div className={inputMode !== 'realtime-voice' ? "absolute inset-0 z-20 flex flex-col" : "absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4"}>
+                  <div
+                    className={inputMode !== 'realtime-voice' ? "absolute inset-0 z-20 flex flex-col" : "absolute left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4"}
+                    style={inputMode === 'realtime-voice' ? { bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' } : undefined}
+                  >
                     <Card className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
                       {inputMode === 'realtime-voice' ? (
                         <>
