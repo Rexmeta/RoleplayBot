@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
-import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getProgressInfo } from "@/lib/conversationProgress";
@@ -267,71 +266,68 @@ export function ChatInputBar({
             </button>
 
             {/* VAD sensitivity popover */}
-            {rv.onVadSensitivityChange && (
-              <Popover>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <PopoverTrigger asChild>
+            {rv.onVadSensitivityChange && (() => {
+              const cur = rv.vadSensitivity ?? 3;
+              const VAD_LEVELS = [
+                { value: 1, icon: '🔇', label: t('vad.sensitivity.1', { defaultValue: '매우 낮음' }), desc: t('vad.sensitivity.1.desc', { defaultValue: '아주 큰 소리만 인식 — 소음 많은 환경' }) },
+                { value: 2, icon: '🔈', label: t('vad.sensitivity.2', { defaultValue: '낮음' }),     desc: t('vad.sensitivity.2.desc', { defaultValue: '큰 목소리에 반응 — 잡음이 많을 때' }) },
+                { value: 3, icon: '🔉', label: t('vad.sensitivity.3', { defaultValue: '중간' }),     desc: t('vad.sensitivity.3.desc', { defaultValue: '일반 환경에 적합 (기본값)' }) },
+                { value: 4, icon: '🔊', label: t('vad.sensitivity.4', { defaultValue: '높음' }),     desc: t('vad.sensitivity.4.desc', { defaultValue: '작은 소리도 감지 — 조용한 환경' }) },
+                { value: 5, icon: '🎤', label: t('vad.sensitivity.5', { defaultValue: '매우 높음' }), desc: t('vad.sensitivity.5.desc', { defaultValue: '매우 민감 — 배경소음 주의' }) },
+              ] as const;
+              const active = VAD_LEVELS.find(l => l.value === cur) ?? VAD_LEVELS[2];
+              return (
+                <Popover>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PopoverTrigger asChild>
+                          <button className="relative flex items-center gap-1 h-8 px-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors shrink-0 text-[11px] font-medium">
+                            <span>{active.icon}</span>
+                            <span className="hidden sm:inline max-w-[48px] truncate">{active.label}</span>
+                          </button>
+                        </PopoverTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {t('vad.sensitivityTooltip', {
+                          defaultValue: '마이크 감도 — 클릭해서 변경',
+                        })}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <PopoverContent side="top" align="end" className="w-64 p-3">
+                    <p className="text-xs font-semibold text-slate-700 mb-0.5">
+                      {t('vad.settingsTitle', { defaultValue: '마이크 감도' })}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mb-2.5">
+                      {t('vad.settingsHint', { defaultValue: '주변 환경에 맞게 선택하세요' })}
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {VAD_LEVELS.map(level => (
                         <button
-                          className="relative flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors shrink-0"
+                          key={level.value}
+                          onClick={() => rv.onVadSensitivityChange!(level.value)}
+                          className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-left transition-colors ${
+                            cur === level.value
+                              ? 'bg-purple-50 border border-purple-200 text-purple-800'
+                              : 'hover:bg-slate-50 border border-transparent text-slate-700'
+                          }`}
                         >
-                    <i className="fas fa-sliders-h text-[11px]"></i>
-                    {rv.vadSensitivity !== undefined && (
-                      <span
-                        className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white leading-none ${
-                          rv.vadSensitivity <= 2
-                            ? 'bg-blue-400'
-                            : rv.vadSensitivity >= 4
-                            ? 'bg-amber-400'
-                            : 'bg-slate-400'
-                        }`}
-                      >
-                        {rv.vadSensitivity}
-                      </span>
-                    )}
+                          <span className="text-base shrink-0">{level.icon}</span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium leading-tight">{level.label}</p>
+                            <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{level.desc}</p>
+                          </div>
+                          {cur === level.value && (
+                            <i className="fas fa-check text-purple-500 text-[10px] ml-auto shrink-0" />
+                          )}
                         </button>
-                      </PopoverTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      {t('vad.sensitivityTooltip', {
-                        defaultValue: '마이크 감도: {{level}} ({{value}})',
-                        level: rv.vadSensitivity === 1 ? t('vad.sensitivity.1', { defaultValue: '매우 낮음' })
-                          : rv.vadSensitivity === 2 ? t('vad.sensitivity.2', { defaultValue: '낮음' })
-                          : rv.vadSensitivity === 4 ? t('vad.sensitivity.4', { defaultValue: '높음' })
-                          : rv.vadSensitivity === 5 ? t('vad.sensitivity.5', { defaultValue: '매우 높음' })
-                          : t('vad.sensitivity.3', { defaultValue: '중간' }),
-                        value: rv.vadSensitivity ?? 3,
-                      })}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <PopoverContent side="top" align="end" className="w-52 p-3">
-                  <p className="text-xs font-medium text-slate-600 mb-2">
-                    {t('vad.settingsTitle', { defaultValue: '마이크 감도' })}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 text-xs shrink-0">🔇</span>
-                    <Slider
-                      min={1}
-                      max={5}
-                      step={1}
-                      value={[rv.vadSensitivity ?? 3]}
-                      onValueChange={([v]) => rv.onVadSensitivityChange!(v)}
-                      className="flex-1 h-1"
-                    />
-                    <span className="text-slate-400 text-xs shrink-0">🎤</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1.5 text-center">
-                    {rv.vadSensitivity === 1 ? t('vad.sensitivity.1', { defaultValue: '매우 낮음' })
-                      : rv.vadSensitivity === 2 ? t('vad.sensitivity.2', { defaultValue: '낮음' })
-                      : rv.vadSensitivity === 4 ? t('vad.sensitivity.4', { defaultValue: '높음' })
-                      : rv.vadSensitivity === 5 ? t('vad.sensitivity.5', { defaultValue: '매우 높음' })
-                      : t('vad.sensitivity.3', { defaultValue: '중간' })}
-                  </p>
-                </PopoverContent>
-              </Popover>
-            )}
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              );
+            })()}
 
             {/* Right-side inline hints + history */}
             <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
