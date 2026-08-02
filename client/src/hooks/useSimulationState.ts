@@ -9,6 +9,25 @@ export interface NpcEmotions {
   interest: number;
 }
 
+export interface NpcAffectiveState {
+  affective: {
+    intensity: number;
+    valence: number;
+  };
+  cognitive: {
+    confusion: number;
+    load: number;
+  };
+  relational: {
+    trust: number;
+    rapport: number;
+  };
+  motivational: {
+    interest: number;
+    cooperativeness: number;
+  };
+}
+
 export interface TurnScore {
   turnId: string;
   turnIndex: number;
@@ -39,6 +58,8 @@ export interface SimulationState {
   stage: 'intro' | 'conflict' | 'negotiation' | 'escalation' | 'resolution';
   pressureLevel: number;
   npcEmotions: NpcEmotions;
+  /** New 4-layer structured state — present alongside npcEmotions during gradual migration */
+  npcAffectiveState?: NpcAffectiveState;
   timer: {
     enabled: boolean;
     timeLimitSec: number;

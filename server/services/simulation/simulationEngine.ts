@@ -3,11 +3,13 @@ import {
   SimulationStatePatch,
   SimulationStatePatchRequest,
   NpcEmotions,
+  NpcAffectiveState,
   TurnScore,
   Incident,
   ScenarioStage,
   SimulationDirective,
   createDefaultSimulationState,
+  DEFAULT_NPC_AFFECTIVE_STATE,
   calcTurnScoreTotal,
 } from './simulationTypes';
 import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator, TerminationRules, TerminationConditionGroup, TerminationOutcome, DifficultyProfile, NpcBehaviorHarness, EvaluationHarness } from '../../../shared/schema/scenarios';
@@ -214,6 +216,28 @@ function checkTerminationConditionGroup(
       results.push(compareOp(actual, cond.operator, cond.value));
     }
   }
+  // New 4-layer affective-state conditions — safe no-op when state.npcAffectiveState is absent
+  if (group.cognitive && state.npcAffectiveState) {
+    for (const [key, cond] of Object.entries(group.cognitive)) {
+      if (!cond) continue;
+      const actual = state.npcAffectiveState.cognitive[key as 'confusion' | 'load'] ?? 0;
+      results.push(compareOp(actual, cond.operator, cond.value));
+    }
+  }
+  if (group.relational && state.npcAffectiveState) {
+    for (const [key, cond] of Object.entries(group.relational)) {
+      if (!cond) continue;
+      const actual = state.npcAffectiveState.relational[key as 'trust' | 'rapport'] ?? 0;
+      results.push(compareOp(actual, cond.operator, cond.value));
+    }
+  }
+  if (group.motivational && state.npcAffectiveState) {
+    for (const [key, cond] of Object.entries(group.motivational)) {
+      if (!cond) continue;
+      const actual = state.npcAffectiveState.motivational[key as 'interest' | 'cooperativeness'] ?? 0;
+      results.push(compareOp(actual, cond.operator, cond.value));
+    }
+  }
   if (group.currentScore !== undefined) {
     results.push(compareOp(state.currentScore, group.currentScore.operator, group.currentScore.value));
   }
@@ -380,11 +404,77 @@ export function applySimulationPatch(
   const totalIncidents = prev.summary.totalIncidents + (patch.incidentsToAdd?.length ?? 0);
   const totalTurns = prev.summary.totalTurns + (patch.turnScoresToAdd?.length ?? 0);
 
+  // Sync npcAffectiveState from emotion delta (flat → layered mapping)
+  let newAffectiveState: NpcAffectiveState | undefined = prev.npcAffectiveState
+    ? {
+        affective: { ...prev.npcAffectiveState.affective },
+        cognitive: { ...prev.npcAffectiveState.cognitive },
+        relational: { ...prev.npcAffectiveState.relational },
+        motivational: { ...prev.npcAffectiveState.motivational },
+      }
+    : {
+        affective: { ...DEFAULT_NPC_AFFECTIVE_STATE.affective },
+        cognitive: { ...DEFAULT_NPC_AFFECTIVE_STATE.cognitive },
+        relational: { ...DEFAULT_NPC_AFFECTIVE_STATE.relational },
+        motivational: { ...DEFAULT_NPC_AFFECTIVE_STATE.motivational },
+      };
+
+  if (patch.npcEmotionDelta) {
+    // Mirror the ACTUAL applied deltas (post-capping/cap logic) into the affective-state layers
+    // so both representations always stay in sync.
+    if (patch.npcEmotionDelta.anger !== undefined) {
+      const actualDelta = newEmotions.anger - prev.npcEmotions.anger;
+      newAffectiveState.affective.intensity = clamp(newAffectiveState.affective.intensity + actualDelta);
+    }
+    if (patch.npcEmotionDelta.confusion !== undefined) {
+      const actualDelta = newEmotions.confusion - prev.npcEmotions.confusion;
+      newAffectiveState.cognitive.confusion = clamp(newAffectiveState.cognitive.confusion + actualDelta);
+    }
+    if (patch.npcEmotionDelta.trust !== undefined) {
+      const actualDelta = newEmotions.trust - prev.npcEmotions.trust;
+      newAffectiveState.relational.trust = clamp(newAffectiveState.relational.trust + actualDelta);
+    }
+    if (patch.npcEmotionDelta.interest !== undefined) {
+      const actualDelta = newEmotions.interest - prev.npcEmotions.interest;
+      newAffectiveState.motivational.interest = clamp(newAffectiveState.motivational.interest + actualDelta);
+    }
+  }
+
+  // Apply direct npcAffectiveStateDelta if provided
+  if (patch.npcAffectiveStateDelta) {
+    const d = patch.npcAffectiveStateDelta;
+    if (d.affective) {
+      if (d.affective.intensity !== undefined)
+        newAffectiveState.affective.intensity = clamp(newAffectiveState.affective.intensity + d.affective.intensity);
+      if (d.affective.valence !== undefined)
+        newAffectiveState.affective.valence = Math.max(-100, Math.min(100, newAffectiveState.affective.valence + d.affective.valence));
+    }
+    if (d.cognitive) {
+      if (d.cognitive.confusion !== undefined)
+        newAffectiveState.cognitive.confusion = clamp(newAffectiveState.cognitive.confusion + d.cognitive.confusion);
+      if (d.cognitive.load !== undefined)
+        newAffectiveState.cognitive.load = clamp(newAffectiveState.cognitive.load + d.cognitive.load);
+    }
+    if (d.relational) {
+      if (d.relational.trust !== undefined)
+        newAffectiveState.relational.trust = clamp(newAffectiveState.relational.trust + d.relational.trust);
+      if (d.relational.rapport !== undefined)
+        newAffectiveState.relational.rapport = clamp(newAffectiveState.relational.rapport + d.relational.rapport);
+    }
+    if (d.motivational) {
+      if (d.motivational.interest !== undefined)
+        newAffectiveState.motivational.interest = clamp(newAffectiveState.motivational.interest + d.motivational.interest);
+      if (d.motivational.cooperativeness !== undefined)
+        newAffectiveState.motivational.cooperativeness = clamp(newAffectiveState.motivational.cooperativeness + d.motivational.cooperativeness);
+    }
+  }
+
   const intermediateState: SimulationState = {
     version: prev.version + 1,
     stage: newStage,
     pressureLevel: newPressure,
     npcEmotions: newEmotions,
+    npcAffectiveState: newAffectiveState,
     timer: newTimer,
     currentScore,
     recentTurnScores: trimmedTurnScores,

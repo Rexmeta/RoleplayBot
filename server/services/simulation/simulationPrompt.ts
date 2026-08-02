@@ -79,6 +79,12 @@ export function buildSimulationStateBlock(state: {
   stage: string;
   pressureLevel: number;
   npcEmotions: { anger: number; trust: number; confusion: number; interest: number };
+  npcAffectiveState?: {
+    affective?: { intensity?: number; valence?: number };
+    cognitive?: { confusion?: number; load?: number };
+    relational?: { trust?: number; rapport?: number };
+    motivational?: { interest?: number; cooperativeness?: number };
+  };
   currentScore: number;
   recentTurnScores?: Array<{ clarity: number; empathy: number; actionPlan: number }>;
   behaviorInstruction?: string;
@@ -92,6 +98,15 @@ export function buildSimulationStateBlock(state: {
     `anger=${state.npcEmotions.anger}, trust=${state.npcEmotions.trust}, confusion=${state.npcEmotions.confusion}, interest=${state.npcEmotions.interest}`,
     `currentScore=${state.currentScore}`,
   ];
+  if (state.npcAffectiveState) {
+    const aff = state.npcAffectiveState;
+    const parts: string[] = [];
+    if (aff.affective) parts.push(`affective(intensity=${aff.affective.intensity ?? '?'}, valence=${aff.affective.valence ?? '?'})`);
+    if (aff.cognitive) parts.push(`cognitive(confusion=${aff.cognitive.confusion ?? '?'}, load=${aff.cognitive.load ?? '?'})`);
+    if (aff.relational) parts.push(`relational(trust=${aff.relational.trust ?? '?'}, rapport=${aff.relational.rapport ?? '?'})`);
+    if (aff.motivational) parts.push(`motivational(interest=${aff.motivational.interest ?? '?'}, cooperativeness=${aff.motivational.cooperativeness ?? '?'})`);
+    if (parts.length > 0) lines.push(`npcAffectiveState: ${parts.join(' | ')}`);
+  }
   if (lastScore) {
     lines.push(`latestTurnScore: clarity=${lastScore.clarity}, empathy=${lastScore.empathy}, actionPlan=${lastScore.actionPlan}`);
   }

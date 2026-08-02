@@ -206,6 +206,26 @@ export const agentNpcEmotionsSchema = z.object({
   interest: z.number(),
 });
 
+export const agentNpcAffectiveStateSchema = z.object({
+  affective: z.object({
+    intensity: z.number().min(0).max(100),
+    valence: z.number().min(-100).max(100),
+  }),
+  cognitive: z.object({
+    confusion: z.number().min(0).max(100),
+    load: z.number().min(0).max(100),
+  }),
+  relational: z.object({
+    trust: z.number().min(0).max(100),
+    rapport: z.number().min(0).max(100),
+  }),
+  motivational: z.object({
+    interest: z.number().min(0).max(100),
+    cooperativeness: z.number().min(0).max(100),
+  }),
+});
+export type AgentNpcAffectiveState = z.infer<typeof agentNpcAffectiveStateSchema>;
+
 export const agentTurnScoreSchema = z.object({
   turnId: z.string(),
   turnIndex: z.number(),
@@ -226,6 +246,8 @@ export const agentSimulationStateSchema = z.object({
   stage: z.enum(["intro", "conflict", "negotiation", "escalation", "resolution"]),
   pressureLevel: z.number(),
   npcEmotions: agentNpcEmotionsSchema,
+  /** New 4-layer structured state — present alongside npcEmotions during gradual migration */
+  npcAffectiveState: agentNpcAffectiveStateSchema.optional(),
   currentScore: z.number(),
   recentTurnScores: z.array(agentTurnScoreSchema),
   summary: z.object({

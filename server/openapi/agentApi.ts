@@ -202,6 +202,49 @@ All errors follow a consistent envelope:
           interest: { type: "number", minimum: 0, maximum: 100, example: 60 },
         },
       },
+      NpcAffectiveState: {
+        type: "object",
+        required: ["affective", "cognitive", "relational", "motivational"],
+        description: "Structured 4-layer NPC state model. Introduced alongside `npcEmotions` for gradual migration to a richer emotional model.",
+        properties: {
+          affective: {
+            type: "object",
+            required: ["intensity", "valence"],
+            description: "Raw emotional / affective layer.",
+            properties: {
+              intensity: { type: "number", minimum: 0, maximum: 100, example: 45, description: "Emotional intensity / anger proxy." },
+              valence: { type: "number", minimum: -100, maximum: 100, example: -10, description: "Emotional valence: positive = pleasant, negative = unpleasant." },
+            },
+          },
+          cognitive: {
+            type: "object",
+            required: ["confusion", "load"],
+            description: "Perceptual and epistemic state.",
+            properties: {
+              confusion: { type: "number", minimum: 0, maximum: 100, example: 20, description: "Confusion / uncertainty level." },
+              load: { type: "number", minimum: 0, maximum: 100, example: 25, description: "Cognitive load / overwhelm." },
+            },
+          },
+          relational: {
+            type: "object",
+            required: ["trust", "rapport"],
+            description: "Interpersonal relationship quality.",
+            properties: {
+              trust: { type: "number", minimum: 0, maximum: 100, example: 50, description: "Trust in the conversation partner." },
+              rapport: { type: "number", minimum: 0, maximum: 100, example: 40, description: "Perceived rapport / closeness." },
+            },
+          },
+          motivational: {
+            type: "object",
+            required: ["interest", "cooperativeness"],
+            description: "Engagement and goal-seeking drive.",
+            properties: {
+              interest: { type: "number", minimum: 0, maximum: 100, example: 55, description: "Interest / engagement with the topic." },
+              cooperativeness: { type: "number", minimum: 0, maximum: 100, example: 50, description: "Willingness to cooperate." },
+            },
+          },
+        },
+      },
       TurnScore: {
         type: "object",
         required: [
@@ -307,6 +350,11 @@ All errors follow a consistent envelope:
             description: "Overall tension in the conversation (0 = calm, 100 = critical).",
           },
           npcEmotions: { $ref: "#/components/schemas/NpcEmotions" },
+          npcAffectiveState: {
+            nullable: true,
+            allOf: [{ $ref: "#/components/schemas/NpcAffectiveState" }],
+            description: "New 4-layer structured NPC state. Present alongside `npcEmotions` during gradual migration. `null` for older sessions.",
+          },
           currentScore: {
             type: "number",
             minimum: 1,

@@ -18,6 +18,41 @@ export interface NpcEmotions {
   interest: number;
 }
 
+/**
+ * NpcAffectiveState — 4-layer structured NPC state model.
+ * Introduced alongside NpcEmotions for gradual migration.
+ * - affective: raw emotional responses
+ * - cognitive: perceptual/epistemic state
+ * - relational: interpersonal relationship quality
+ * - motivational: engagement and goal-seeking drive
+ */
+export interface NpcAffectiveState {
+  affective: {
+    /** Emotional intensity / anger proxy (0-100) */
+    intensity: number;
+    /** Valence: positive = pleasant, negative = unpleasant (-100 to 100) */
+    valence: number;
+  };
+  cognitive: {
+    /** Confusion / uncertainty level (0-100) */
+    confusion: number;
+    /** Cognitive load / overwhelm (0-100) */
+    load: number;
+  };
+  relational: {
+    /** Trust in the conversation partner (0-100) */
+    trust: number;
+    /** Perceived rapport / closeness (0-100) */
+    rapport: number;
+  };
+  motivational: {
+    /** Interest / engagement with the topic (0-100) */
+    interest: number;
+    /** Willingness to cooperate (0-100) */
+    cooperativeness: number;
+  };
+}
+
 export interface TimerState {
   enabled: boolean;
   timeLimitSec: number;
@@ -56,6 +91,8 @@ export interface SimulationState {
   stage: ScenarioStage;
   pressureLevel: number;
   npcEmotions: NpcEmotions;
+  /** New 4-layer structured state — lives alongside npcEmotions for gradual migration */
+  npcAffectiveState?: NpcAffectiveState;
   timer: TimerState;
   currentScore: number;
   recentTurnScores: TurnScore[];
@@ -78,8 +115,15 @@ export interface SimulationState {
   };
 }
 
+/** DeepPartial utility for nested patch types */
+export type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
+};
+
 export interface SimulationStatePatch {
   npcEmotionDelta?: Partial<Record<keyof NpcEmotions, number>>;
+  /** Delta patch for the new 4-layer affective state — merged alongside npcEmotionDelta */
+  npcAffectiveStateDelta?: DeepPartial<NpcAffectiveState>;
   targetStage?: ScenarioStage;
   pressureDelta?: -1 | 0 | 1;
   timerDelta?: { elapsedSecDelta?: number };
@@ -162,12 +206,37 @@ export const DEFAULT_NPC_EMOTIONS: NpcEmotions = {
   interest: 50,
 };
 
+export const DEFAULT_NPC_AFFECTIVE_STATE: NpcAffectiveState = {
+  affective: {
+    intensity: 30,
+    valence: 0,
+  },
+  cognitive: {
+    confusion: 20,
+    load: 20,
+  },
+  relational: {
+    trust: 50,
+    rapport: 40,
+  },
+  motivational: {
+    interest: 50,
+    cooperativeness: 50,
+  },
+};
+
 export function createDefaultSimulationState(): SimulationState {
   return {
     version: 0,
     stage: 'intro',
     pressureLevel: 1,
     npcEmotions: { ...DEFAULT_NPC_EMOTIONS },
+    npcAffectiveState: {
+      affective: { ...DEFAULT_NPC_AFFECTIVE_STATE.affective },
+      cognitive: { ...DEFAULT_NPC_AFFECTIVE_STATE.cognitive },
+      relational: { ...DEFAULT_NPC_AFFECTIVE_STATE.relational },
+      motivational: { ...DEFAULT_NPC_AFFECTIVE_STATE.motivational },
+    },
     timer: {
       enabled: false,
       timeLimitSec: 0,

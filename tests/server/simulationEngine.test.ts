@@ -9,12 +9,14 @@ import {
   getOrCreateSessionContext,
   evaluateFlowGraph,
   setSessionFlowConfig,
+  evaluateTerminationRules,
 } from '../../server/services/simulation/simulationEngine';
 import {
   createDefaultSimulationState,
   SimulationStatePatch,
+  DEFAULT_NPC_AFFECTIVE_STATE,
 } from '../../server/services/simulation/simulationTypes';
-import type { FlowGraph } from '../../shared/schema/scenarios';
+import type { FlowGraph, TerminationRules } from '../../shared/schema/scenarios';
 
 const RUN_ID = 'test-run-001';
 
@@ -870,5 +872,154 @@ describe('applySimulationPatch — state immutability', () => {
 
     expect(emotionsRef.anger).toBe(30);
     expect(emotionsRef.trust).toBe(50);
+  });
+});
+
+describe('npcAffectiveState sync', () => {
+  it('initialises npcAffectiveState with defaults on first patch', () => {
+    const state = applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1', patch: {},
+    });
+    expect(state.npcAffectiveState).toBeDefined();
+    expect(state.npcAffectiveState!.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity);
+    expect(state.npcAffectiveState!.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust);
+    expect(state.npcAffectiveState!.cognitive.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion);
+    expect(state.npcAffectiveState!.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest);
+  });
+
+  it('mirrors server_evaluation emotion deltas into affective layers', () => {
+    const state = applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { anger: 15, trust: -10, confusion: 5, interest: 8 } },
+    });
+    // anger → affective.intensity
+    expect(state.npcAffectiveState!.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 15);
+    // trust → relational.trust
+    expect(state.npcAffectiveState!.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 10);
+    // confusion → cognitive.confusion
+    expect(state.npcAffectiveState!.cognitive.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 5);
+    // interest → motivational.interest
+    expect(state.npcAffectiveState!.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest + 8);
+  });
+
+  it('applies same capped delta to both flat and layered state for gemini_tool after server_evaluation', () => {
+    // server_evaluation moves anger by +30 first
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { anger: 30 } },
+    });
+
+    // gemini_tool tries to move anger by +25, but is capped to 10 (GEMINI_TOOL_MAX_DELTA_AFTER_SERVER_EVAL)
+    const state = applySimulationPatch(RUN_ID, {
+      source: 'gemini_tool', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { anger: 25 } },
+    });
+
+    const flatAnger = state.npcEmotions.anger;
+    const layeredIntensity = state.npcAffectiveState!.affective.intensity;
+    // Both should reflect the same capped 10-point delta on top of the 30 already applied
+    // Flat starts at 30, +30 = 60, then +10 capped = 70
+    expect(flatAnger).toBe(70);
+    // Layered starts at DEFAULT (30), +30 = 60, then +10 capped = 70
+    expect(layeredIntensity).toBe(70);
+    // They must match regardless of capping
+    expect(flatAnger).toBe(layeredIntensity);
+  });
+
+  it('applies npcAffectiveStateDelta directly without affecting flat emotions', () => {
+    const state = applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: {
+        npcAffectiveStateDelta: {
+          relational: { rapport: 10 },
+          motivational: { cooperativeness: 5 },
+        },
+      },
+    });
+    // Affective-only fields updated
+    expect(state.npcAffectiveState!.relational.rapport).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport + 10);
+    expect(state.npcAffectiveState!.motivational.cooperativeness).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness + 5);
+    // Flat emotions untouched
+    expect(state.npcEmotions.anger).toBe(30);
+    expect(state.npcEmotions.trust).toBe(50);
+  });
+});
+
+describe('checkTerminationConditionGroup — affective layer conditions', () => {
+  it('evaluates relational.trust termination condition against npcAffectiveState', () => {
+    // Drive relational.trust below 30
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { trust: -30 } }, // trust: 50 → 20
+    });
+    const state = getSessionState(RUN_ID)!;
+
+    const rules: TerminationRules = {
+      failure: {
+        relational: { trust: { operator: 'lte', value: 25 } },
+      },
+    };
+    expect(evaluateTerminationRules(state, rules)).toBe('failure');
+  });
+
+  it('does not trigger relational.trust condition when trust is above threshold', () => {
+    // trust stays at default 50
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1', patch: {},
+    });
+    const state = getSessionState(RUN_ID)!;
+
+    const rules: TerminationRules = {
+      failure: {
+        relational: { trust: { operator: 'lte', value: 25 } },
+      },
+    };
+    expect(evaluateTerminationRules(state, rules)).toBeNull();
+  });
+
+  it('evaluates cognitive.confusion termination condition', () => {
+    // Drive confusion high
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { confusion: 60 } }, // confusion: 20 → 80
+    });
+    const state = getSessionState(RUN_ID)!;
+
+    const rules: TerminationRules = {
+      failure: {
+        cognitive: { confusion: { operator: 'gte', value: 75 } },
+      },
+    };
+    expect(evaluateTerminationRules(state, rules)).toBe('failure');
+  });
+
+  it('evaluates motivational.interest success condition', () => {
+    // Drive interest high
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { interest: 40 } }, // interest: 50 → 90
+    });
+    const state = getSessionState(RUN_ID)!;
+
+    const rules: TerminationRules = {
+      success: {
+        motivational: { interest: { operator: 'gte', value: 85 } },
+      },
+    };
+    expect(evaluateTerminationRules(state, rules)).toBe('success');
+  });
+
+  it('silently ignores layer conditions when npcAffectiveState is absent (backward compat)', () => {
+    const state = {
+      ...createDefaultSimulationState(),
+      npcAffectiveState: undefined,
+    };
+    const rules: TerminationRules = {
+      failure: {
+        relational: { trust: { operator: 'lte', value: 100 } }, // would always fire if evaluated
+      },
+    };
+    // Should not fire because npcAffectiveState is absent
+    expect(evaluateTerminationRules(state, rules)).toBeNull();
   });
 });

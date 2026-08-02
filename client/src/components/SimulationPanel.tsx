@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle, TrendingUp, Heart, Eye, Brain, Zap, Timer, ChevronDown, SkipForward, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import type { SimulationState, Incident, TurnScore } from '@/hooks/useSimulationState';
+import type { SimulationState, Incident, TurnScore, NpcAffectiveState } from '@/hooks/useSimulationState';
 
 interface SimulationPanelProps {
   state: SimulationState | null;
@@ -335,6 +335,81 @@ function SimulationTimer({ timer }: { timer: SimulationState['timer'] }) {
   );
 }
 
+function AffectiveStatePanel({ affectiveState }: { affectiveState: NpcAffectiveState }) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="border-t border-border/40 pt-2">
+      <button
+        className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span className="font-medium">{t('simulation.affectiveState.title', { defaultValue: 'Affective Layers' })}</span>
+        <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-2 text-xs">
+          {/* Cognitive layer */}
+          <div>
+            <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.cognitive', { defaultValue: 'Cognitive' })}</p>
+            <div className="space-y-1">
+              <EmotionBar
+                label={t('simulation.affectiveState.confusion', { defaultValue: 'Confusion' })}
+                value={affectiveState.cognitive.confusion}
+                icon={<Brain className="h-3 w-3 text-yellow-400" />}
+                colorClass="bg-yellow-400"
+              />
+              <EmotionBar
+                label={t('simulation.affectiveState.load', { defaultValue: 'Load' })}
+                value={affectiveState.cognitive.load}
+                icon={<Brain className="h-3 w-3 text-amber-400" />}
+                colorClass="bg-amber-400"
+              />
+            </div>
+          </div>
+          {/* Relational layer */}
+          <div>
+            <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.relational', { defaultValue: 'Relational' })}</p>
+            <div className="space-y-1">
+              <EmotionBar
+                label={t('simulation.affectiveState.trust', { defaultValue: 'Trust' })}
+                value={affectiveState.relational.trust}
+                icon={<Heart className="h-3 w-3 text-blue-400" />}
+                colorClass="bg-blue-400"
+              />
+              <EmotionBar
+                label={t('simulation.affectiveState.rapport', { defaultValue: 'Rapport' })}
+                value={affectiveState.relational.rapport}
+                icon={<Heart className="h-3 w-3 text-indigo-400" />}
+                colorClass="bg-indigo-400"
+              />
+            </div>
+          </div>
+          {/* Motivational layer */}
+          <div>
+            <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.motivational', { defaultValue: 'Motivational' })}</p>
+            <div className="space-y-1">
+              <EmotionBar
+                label={t('simulation.affectiveState.interest', { defaultValue: 'Interest' })}
+                value={affectiveState.motivational.interest}
+                icon={<Eye className="h-3 w-3 text-green-400" />}
+                colorClass="bg-green-400"
+              />
+              <EmotionBar
+                label={t('simulation.affectiveState.cooperativeness', { defaultValue: 'Coop.' })}
+                value={affectiveState.motivational.cooperativeness}
+                icon={<Eye className="h-3 w-3 text-teal-400" />}
+                colorClass="bg-teal-400"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SimulationPanel = memo(function SimulationPanel({
   state,
   newIncident,
@@ -445,6 +520,10 @@ const SimulationPanel = memo(function SimulationPanel({
 
           {state.recentTurnScores && state.recentTurnScores.length > 0 && (
             <ScoreHistory scores={state.recentTurnScores} />
+          )}
+
+          {state.npcAffectiveState && (
+            <AffectiveStatePanel affectiveState={state.npcAffectiveState} />
           )}
         </CardContent>
       </div>
