@@ -1100,3 +1100,136 @@ describe('checkTerminationConditionGroup — affective layer conditions', () => 
     expect(evaluateTerminationRules(state, rules)).toBeNull();
   });
 });
+
+// ─── npcAffectiveState — full 4-layer delta and session-restore coverage ──────
+
+describe('npcAffectiveState — npcAffectiveStateDelta covers all 4 sub-layers', () => {
+  beforeEach(() => {
+    clearSessionContext(RUN_ID);
+  });
+
+  it('applies npcAffectiveStateDelta to all 4 sub-layers and keeps flat emotions unchanged', () => {
+    const state = applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation',
+      priority: 'normal',
+      turnId: 't1',
+      patch: {
+        npcAffectiveStateDelta: {
+          affective:     { intensity: 10, valence: -20 },
+          cognitive:     { confusion: 15, load: 8 },
+          relational:    { trust: -5, rapport: 12 },
+          motivational:  { interest: 7, cooperativeness: -3 },
+        },
+      },
+    });
+
+    const aff = state.npcAffectiveState!;
+    // affective layer
+    expect(aff.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 10);
+    expect(aff.affective.valence).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.valence - 20);
+    // cognitive layer
+    expect(aff.cognitive.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 15);
+    expect(aff.cognitive.load).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.load + 8);
+    // relational layer
+    expect(aff.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 5);
+    expect(aff.relational.rapport).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport + 12);
+    // motivational layer
+    expect(aff.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest + 7);
+    expect(aff.motivational.cooperativeness).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness - 3);
+
+    // flat npcEmotions must be unaffected by npcAffectiveStateDelta
+    expect(state.npcEmotions.anger).toBe(30);
+    expect(state.npcEmotions.trust).toBe(50);
+    expect(state.npcEmotions.confusion).toBe(20);
+    expect(state.npcEmotions.interest).toBe(50);
+  });
+});
+
+describe('npcAffectiveState — session restore preserves all 4 sub-fields', () => {
+  beforeEach(() => {
+    clearSessionContext(RUN_ID);
+  });
+
+  it('restoring a session from persisted state preserves all 4 affective-layer sub-fields', () => {
+    // Build up a state with non-default affective values via both delta types
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation',
+      priority: 'normal',
+      turnId: 't1',
+      patch: {
+        npcEmotionDelta: { anger: 20, trust: -15, confusion: 10, interest: 5 },
+        npcAffectiveStateDelta: {
+          affective:    { valence: -30 },
+          cognitive:    { load: 25 },
+          relational:   { rapport: 18 },
+          motivational: { cooperativeness: -12 },
+        },
+      },
+    });
+
+    const snapshot = getSessionState(RUN_ID)!;
+    const savedAff = snapshot.npcAffectiveState!;
+
+    // Snapshot records the right values before we clear anything
+    expect(savedAff.affective.intensity).toBeGreaterThan(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity);
+    expect(savedAff.affective.valence).toBeLessThan(DEFAULT_NPC_AFFECTIVE_STATE.affective.valence);
+    expect(savedAff.cognitive.confusion).toBeGreaterThan(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion);
+    expect(savedAff.cognitive.load).toBeGreaterThan(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.load);
+    expect(savedAff.relational.trust).toBeLessThan(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust);
+    expect(savedAff.relational.rapport).toBeGreaterThan(DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport);
+    expect(savedAff.motivational.interest).toBeGreaterThan(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest);
+    expect(savedAff.motivational.cooperativeness).toBeLessThan(DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness);
+
+    // Simulate server restart: drop in-memory context and restore from the DB-loaded snapshot
+    clearSessionContext(RUN_ID);
+    const restoredCtx = getOrCreateSessionContext(RUN_ID, snapshot);
+    const restoredAff = restoredCtx.simulationState.npcAffectiveState!;
+
+    // All 4 sub-fields must round-trip exactly
+    expect(restoredAff.affective.intensity).toBe(savedAff.affective.intensity);
+    expect(restoredAff.affective.valence).toBe(savedAff.affective.valence);
+    expect(restoredAff.cognitive.confusion).toBe(savedAff.cognitive.confusion);
+    expect(restoredAff.cognitive.load).toBe(savedAff.cognitive.load);
+    expect(restoredAff.relational.trust).toBe(savedAff.relational.trust);
+    expect(restoredAff.relational.rapport).toBe(savedAff.relational.rapport);
+    expect(restoredAff.motivational.interest).toBe(savedAff.motivational.interest);
+    expect(restoredAff.motivational.cooperativeness).toBe(savedAff.motivational.cooperativeness);
+  });
+
+  it('setSessionState path also preserves all 4 affective-layer sub-fields (pre-created context)', () => {
+    // Build snapshot
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation',
+      priority: 'normal',
+      turnId: 't1',
+      patch: {
+        npcAffectiveStateDelta: {
+          affective:    { intensity: 8, valence: 15 },
+          cognitive:    { confusion: -5, load: 30 },
+          relational:   { trust: 12, rapport: 7 },
+          motivational: { interest: -10, cooperativeness: 20 },
+        },
+      },
+    });
+    const snapshot = getSessionState(RUN_ID)!;
+    const savedAff = snapshot.npcAffectiveState!;
+
+    // Simulate the applyHarnessToSession pattern: context is pre-created without state,
+    // then setSessionState is called with the persisted snapshot.
+    clearSessionContext(RUN_ID);
+    getOrCreateSessionContext(RUN_ID);          // pre-create with defaults
+    setSessionState(RUN_ID, snapshot);          // overwrite with DB snapshot
+
+    const reloaded = getSessionState(RUN_ID)!;
+    const reloadedAff = reloaded.npcAffectiveState!;
+
+    expect(reloadedAff.affective.intensity).toBe(savedAff.affective.intensity);
+    expect(reloadedAff.affective.valence).toBe(savedAff.affective.valence);
+    expect(reloadedAff.cognitive.confusion).toBe(savedAff.cognitive.confusion);
+    expect(reloadedAff.cognitive.load).toBe(savedAff.cognitive.load);
+    expect(reloadedAff.relational.trust).toBe(savedAff.relational.trust);
+    expect(reloadedAff.relational.rapport).toBe(savedAff.relational.rapport);
+    expect(reloadedAff.motivational.interest).toBe(savedAff.motivational.interest);
+    expect(reloadedAff.motivational.cooperativeness).toBe(savedAff.motivational.cooperativeness);
+  });
+});
