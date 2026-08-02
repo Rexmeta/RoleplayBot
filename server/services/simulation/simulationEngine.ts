@@ -467,6 +467,13 @@ export function applySimulationPatch(
       if (d.motivational.cooperativeness !== undefined)
         newAffectiveState.motivational.cooperativeness = clamp(newAffectiveState.motivational.cooperativeness + d.motivational.cooperativeness);
     }
+
+    // Re-derive npcEmotions from the authoritative affective-state values so the two
+    // representations never diverge after a direct npcAffectiveStateDelta patch.
+    newEmotions.anger = newAffectiveState.affective.intensity;
+    newEmotions.confusion = newAffectiveState.cognitive.confusion;
+    newEmotions.trust = newAffectiveState.relational.trust;
+    newEmotions.interest = newAffectiveState.motivational.interest;
   }
 
   const intermediateState: SimulationState = {

@@ -939,9 +939,86 @@ describe('npcAffectiveState sync', () => {
     // Affective-only fields updated
     expect(state.npcAffectiveState!.relational.rapport).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport + 10);
     expect(state.npcAffectiveState!.motivational.cooperativeness).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness + 5);
-    // Flat emotions untouched
+    // Flat emotions untouched (rapport and cooperativeness have no flat counterpart)
     expect(state.npcEmotions.anger).toBe(30);
     expect(state.npcEmotions.trust).toBe(50);
+  });
+
+  it('re-derives flat npcEmotions from affective state when npcAffectiveStateDelta changes mapped keys', () => {
+    // Direct npcAffectiveStateDelta with trust/confusion/interest/intensity changes
+    // should propagate back into the flat npcEmotions so UI bars stay accurate.
+    const state = applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: {
+        npcAffectiveStateDelta: {
+          relational: { trust: 20 },        // maps to npcEmotions.trust
+          cognitive: { confusion: 15 },     // maps to npcEmotions.confusion
+          motivational: { interest: -10 },  // maps to npcEmotions.interest
+          affective: { intensity: 25 },     // maps to npcEmotions.anger
+        },
+      },
+    });
+
+    const flat = state.npcEmotions;
+    const layered = state.npcAffectiveState!;
+
+    // Flat values must equal their affective-layer counterparts
+    expect(flat.trust).toBe(layered.relational.trust);
+    expect(flat.confusion).toBe(layered.cognitive.confusion);
+    expect(flat.interest).toBe(layered.motivational.interest);
+    expect(flat.anger).toBe(layered.affective.intensity);
+
+    // Sanity-check the actual values
+    expect(flat.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust + 20);       // 50 + 20 = 70
+    expect(flat.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 15); // 20 + 15 = 35
+    expect(flat.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest - 10);// 50 - 10 = 40
+    expect(flat.anger).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 25);     // 30 + 25 = 55
+  });
+
+  it('keeps both representations in sync when npcEmotionDelta and npcAffectiveStateDelta are combined in one patch', () => {
+    // Combined patch: emotion delta moves trust +10, then affective delta moves trust a further +5
+    // The final npcEmotions.trust should equal the final npcAffectiveState.relational.trust.
+    const state = applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: {
+        npcEmotionDelta: { trust: 10, anger: 5 },
+        npcAffectiveStateDelta: {
+          relational: { trust: 5 },   // layered trust gets further delta
+          affective: { intensity: 3 }, // layered intensity gets further delta
+        },
+      },
+    });
+
+    const flat = state.npcEmotions;
+    const layered = state.npcAffectiveState!;
+
+    // After all deltas, flat must equal layered for every mapped key
+    expect(flat.trust).toBe(layered.relational.trust);
+    expect(flat.anger).toBe(layered.affective.intensity);
+    expect(flat.confusion).toBe(layered.cognitive.confusion);
+    expect(flat.interest).toBe(layered.motivational.interest);
+
+    // trust: 50 + 10 (emotion delta) + 5 (affective delta) = 65
+    expect(flat.trust).toBe(65);
+    // anger: 30 + 5 (emotion delta) + 3 (affective delta) = 38
+    expect(flat.anger).toBe(38);
+  });
+
+  it('does not diverge after sequential patches mixing emotion and affective deltas', () => {
+    // Patch 1: move trust via npcEmotionDelta
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't1',
+      patch: { npcEmotionDelta: { trust: -15 } }, // trust: 50 → 35
+    });
+
+    // Patch 2: move relational.trust directly via npcAffectiveStateDelta
+    const state = applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation', priority: 'normal', turnId: 't2',
+      patch: { npcAffectiveStateDelta: { relational: { trust: -10 } } }, // trust: 35 → 25
+    });
+
+    expect(state.npcEmotions.trust).toBe(state.npcAffectiveState!.relational.trust);
+    expect(state.npcEmotions.trust).toBe(25);
   });
 });
 
