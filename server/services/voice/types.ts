@@ -83,4 +83,5 @@ export interface RealtimeSession {
   suppressTimeoutId?: ReturnType<typeof setTimeout>;
   lastAudioCommitSentAt: number;
   audioSourceThisTurn: 'top' | 'inline' | null;
+  lastUserAffect?: import('./emotionAnalyzer').UserAffectState;
 }

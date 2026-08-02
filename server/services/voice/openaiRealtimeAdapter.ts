@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { RealtimeSession, PendingOutgoingMessage } from './types';
-import { analyzeEmotion } from './emotionAnalyzer';
+import { analyzeEmotion, analyzeUserEmotion, NEUTRAL_USER_AFFECT } from './emotionAnalyzer';
 import { GoogleGenAI } from '@google/genai';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
@@ -67,6 +67,7 @@ export function createMessageHandler(
   let aiTranscriptBuffer = '';
   let sessionReadySent = false;
   let accumulatedUserTranscript = '';
+  let latestUserAffect: import('./emotionAnalyzer').UserAffectState = { ...NEUTRAL_USER_AFFECT };
 
   return function handleMessage(msg: any): void {
     session.lastActivityTime = Date.now();
@@ -165,17 +166,20 @@ export function createMessageHandler(
             }
           }
 
-          // Async emotion analysis using Gemini (even when voice provider is OpenAI)
+          // Async emotion analysis using Gemini (even when voice provider is OpenAI).
+          // Run in parallel with already-resolved user affect for zero latency increase.
+          const capturedUserAffect = { ...latestUserAffect };
           const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
           if (geminiApiKey) {
             const gai = new GoogleGenAI({ apiKey: geminiApiKey });
-            analyzeEmotion(fullTranscript, session.userLanguage, gai)
+            analyzeEmotion(fullTranscript, session.personaName || '', session.userLanguage, gai)
               .then(({ emotion, emotionReason }) => {
                 sendToClient(session, {
                   type: 'ai.transcription.done',
                   text: fullTranscript,
                   emotion,
                   emotionReason,
+                  userAffect: capturedUserAffect,
                   turnSeq: session.turnSeq,
                 });
               })
@@ -186,6 +190,7 @@ export function createMessageHandler(
                   text: fullTranscript,
                   emotion: '중립',
                   emotionReason: '',
+                  userAffect: capturedUserAffect,
                   turnSeq: session.turnSeq,
                 });
               });
@@ -195,6 +200,7 @@ export function createMessageHandler(
               text: fullTranscript,
               emotion: '중립',
               emotionReason: '',
+              userAffect: capturedUserAffect,
               turnSeq: session.turnSeq,
             });
           }
@@ -238,6 +244,16 @@ export function createMessageHandler(
             if (session.recentMessages.length > 30) {
               session.recentMessages.splice(0, session.recentMessages.length - 30);
             }
+          }
+
+          // Fire user affect analysis in parallel (result stored for the next ai.transcription.done)
+          const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+          if (geminiApiKey) {
+            const gai = new GoogleGenAI({ apiKey: geminiApiKey });
+            const contextStr = (session.recentMessages ?? []).slice(-3).map(m => `${m.role}: ${m.text}`).join('\n');
+            analyzeUserEmotion(userText, contextStr, session.personaName || '', session.userLanguage, gai)
+              .then(affect => { latestUserAffect = affect; })
+              .catch(() => { /* keep previous value */ });
           }
         }
         break;

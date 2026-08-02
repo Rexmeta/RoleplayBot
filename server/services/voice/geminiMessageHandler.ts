@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import { RealtimeSession } from './types';
 import { filterThinkingText, isThinkingText, stripSimulationToolCallText } from './textFilter';
-import { analyzeEmotion } from './emotionAnalyzer';
+import { analyzeEmotion, analyzeUserEmotion, NEUTRAL_USER_AFFECT } from './emotionAnalyzer';
 import { GoogleGenAI } from '@google/genai';
 import { handleToolCall } from '../simulation/simulationToolHandler';
 import { getOrCreateSessionContext, applySimulationPatch, getSessionState, setSessionState, getSessionEvaluationHarness, getSessionHarnessConfig, getSessionFlowGraph } from '../simulation/simulationEngine';
@@ -686,6 +686,10 @@ export function handleGeminiMessage(
     if (serverContent.turnComplete) {
       console.log('✅ Turn complete');
 
+      // Capture user text for affect analysis before it is cleared below.
+      // Scoped here so the AI emotion setImmediate can reference it.
+      let capturedUserTextForAffect = '';
+
       session.turnSeq++;
       // Fix 2: Reset source-aware cross-frame audio dedup on each turn boundary
       // so the next AI turn can use either source again.
@@ -723,6 +727,7 @@ export function handleGeminiMessage(
 
       if (session.userTranscriptBuffer.trim()) {
         const userText = session.userTranscriptBuffer.trim();
+        capturedUserTextForAffect = userText;
         console.log(`🎤 User turn complete (VAD): "${userText}"`);
         sendToClient(session, { type: 'user.transcription', transcript: userText });
         session.recentMessages.push({ role: 'user', text: userText.slice(0, 300) });
@@ -842,7 +847,21 @@ export function handleGeminiMessage(
           session.evaluationInProgress = true;
           setImmediate(async () => {
             try {
-              let state = getSessionState(personaRunId);
+              // Resolve current-turn user affect in parallel with state loading so
+              // evaluateUserResponse always sees THIS turn's affect (not the previous one).
+              const [, state0] = await Promise.all([
+                capturedUserTextForAffect
+                  ? analyzeUserEmotion(
+                      capturedUserTextForAffect,
+                      session.recentMessages.slice(-3).map(m => `${m.role}: ${m.text}`).join('\n'),
+                      session.personaName,
+                      session.userLanguage,
+                      genAI,
+                    ).then(affect => { session.lastUserAffect = affect; })
+                  : Promise.resolve(),
+                Promise.resolve(getSessionState(personaRunId) ?? createDefaultSimulationState()),
+              ]);
+              let state: ReturnType<typeof createDefaultSimulationState> = state0 as any;
               if (!state) state = createDefaultSimulationState();
               const stateBefore = state;
 
@@ -856,6 +875,7 @@ export function handleGeminiMessage(
                 language: session.userLanguage,
                 evaluationHarness: getSessionEvaluationHarness(personaRunId) ?? null,
                 npcBehaviorHarness: getSessionHarnessConfig(personaRunId).npcBehaviorHarness ?? null,
+                userAffect: session.lastUserAffect ?? undefined,
               });
 
               // Short utterances (<10 chars) are skipped by evaluateUserResponse per spec:
@@ -1040,12 +1060,16 @@ export function handleGeminiMessage(
           setImmediate(() => {
             analyzeEmotion(filteredTranscript, session.personaName, session.userLanguage, genAI)
               .then(({ emotion, emotionReason }) => {
+                // session.lastUserAffect was set in the evaluation setImmediate (runs
+                // concurrently); use its value or fall back to NEUTRAL for the payload.
+                const userAffect = session.lastUserAffect ?? { ...NEUTRAL_USER_AFFECT };
                 console.log(`😊 Emotion analyzed: ${emotion} (${emotionReason})`);
                 sendToClient(session, {
                   type: 'ai.transcription.done',
                   text: filteredTranscript,
                   emotion,
                   emotionReason,
+                  userAffect,
                 });
                 if (session.targetTurns && session.userTurnsCompleted >= session.targetTurns) {
                   console.log(`🏁 [targetTurns] Hard stop: ${session.userTurnsCompleted}/${session.targetTurns} turns reached — sending conversation.completed`);

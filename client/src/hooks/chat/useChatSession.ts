@@ -95,6 +95,7 @@ export function useChatSession({
       timestamp: msg.timestamp,
       emotion: msg.emotion,
       emotionReason: msg.emotionReason,
+      userAffect: msg.userAffect ?? undefined,
     }));
     const latest = pendingUserTextRef ? pendingUserTextRef.current : pendingText;
     const trimmed = latest.trim();

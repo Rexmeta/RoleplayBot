@@ -8,6 +8,7 @@ import { inferEmotionPatchFromEvaluation, applyNpcBehaviorHarnessModifiers } fro
 import { buildSimulationStateBlock } from '../simulationPrompt';
 import type { EvaluationHarness, NpcBehaviorHarness } from '../../../../shared/schema/scenarios';
 import { storage } from '../../../storage';
+import type { UserAffectState } from '../../voice/emotionAnalyzer';
 
 const EVAL_TIMEOUT_MS = 8000;
 
@@ -23,6 +24,7 @@ export interface EvaluationInput {
   evaluationHarness?: EvaluationHarness | null;
   npcBehaviorHarness?: NpcBehaviorHarness | null;
   model?: string;
+  userAffect?: UserAffectState;
 }
 
 export interface EvaluationResult {
@@ -48,7 +50,10 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
     const llmScore = await runLLMEvaluation(input);
     if (llmScore) {
       const baseDelta = inferEmotionPatchFromEvaluation(llmScore, simulationState);
-      const emotionDelta = applyNpcBehaviorHarnessModifiers(baseDelta, input.npcBehaviorHarness, simulationState);
+      const withHarness = applyNpcBehaviorHarnessModifiers(baseDelta, input.npcBehaviorHarness, simulationState);
+      const emotionDelta = input.userAffect
+        ? applyUserAffectToEmotionDelta(withHarness, input.userAffect)
+        : withHarness;
       return { turnScore: llmScore, emotionDelta, skipped: false, method: 'llm' };
     }
   } catch (err) {
@@ -64,8 +69,50 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
 
   const ruleScore = runRuleBasedEvaluation(input);
   const baseDelta = inferEmotionPatchFromEvaluation(ruleScore, simulationState);
-  const emotionDelta = applyNpcBehaviorHarnessModifiers(baseDelta, input.npcBehaviorHarness, simulationState);
+  const withHarness = applyNpcBehaviorHarnessModifiers(baseDelta, input.npcBehaviorHarness, simulationState);
+  const emotionDelta = input.userAffect
+    ? applyUserAffectToEmotionDelta(withHarness, input.userAffect)
+    : withHarness;
   return { turnScore: ruleScore, emotionDelta, skipped: false, method: 'rule' };
+}
+
+/** Adjust NPC emotion delta based on detected user affect state. */
+function applyUserAffectToEmotionDelta(
+  base: Partial<Record<'anger' | 'trust' | 'confusion' | 'interest', number>>,
+  affect: UserAffectState
+): Partial<Record<'anger' | 'trust' | 'confusion' | 'interest', number>> {
+  const delta = { ...base };
+
+  // Valence: strongly negative → more NPC anger, less trust
+  if (affect.valence < -0.4) {
+    const magnitude = Math.round((-affect.valence - 0.4) * 10);
+    delta.anger = (delta.anger ?? 0) + magnitude;
+    delta.trust = (delta.trust ?? 0) - Math.round(magnitude * 0.5);
+  } else if (affect.valence > 0.4) {
+    const magnitude = Math.round((affect.valence - 0.4) * 8);
+    delta.trust = (delta.trust ?? 0) + magnitude;
+  }
+
+  // Stance modifiers
+  switch (affect.stance) {
+    case 'defensive':
+      delta.anger = (delta.anger ?? 0) + 3;
+      delta.trust = (delta.trust ?? 0) - 2;
+      break;
+    case 'withdrawn':
+      delta.interest = (delta.interest ?? 0) - 3;
+      break;
+    case 'collaborative':
+      delta.trust = (delta.trust ?? 0) + 2;
+      break;
+    case 'assertive':
+      // Assertive is directionally neutral for NPC emotion
+      break;
+    default:
+      break;
+  }
+
+  return delta;
 }
 
 const EVAL_MODEL_FALLBACK = 'gemini-2.5-flash';

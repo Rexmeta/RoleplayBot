@@ -8,6 +8,7 @@ export type ConversationMessage = {
   personaId?: string;
   interrupted?: boolean;
   turnIndex?: number;
+  userAffect?: Record<string, unknown>;
 };
 
 export type ScoreAdjustments = {

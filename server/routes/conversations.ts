@@ -456,6 +456,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       emotion: msg.emotion || undefined,
       emotionReason: msg.emotionReason || undefined,
       turnIndex: msg.turnIndex,
+      userAffect: (msg.userAffect as Record<string, unknown>) ?? undefined,
     }));
 
     const isPersonaXGet = scenarioRun.scenarioId === '__free_chat__' ||
@@ -1565,6 +1566,7 @@ ${userNameLine}
         turnIndex: i,
         emotion: msg.emotion || null,
         emotionReason: msg.emotionReason || null,
+        userAffect: msg.userAffect ?? null,
         createdAt: msg.timestamp ? new Date(msg.timestamp) : new Date()
       };
       await db.insert(chatMessagesTable)
@@ -1576,6 +1578,7 @@ ${userNameLine}
             message: values.message,
             emotion: values.emotion,
             emotionReason: values.emotionReason,
+            userAffect: values.userAffect,
             createdAt: values.createdAt,
           },
         });

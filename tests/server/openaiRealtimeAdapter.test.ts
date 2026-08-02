@@ -4,10 +4,25 @@ import type { RealtimeSession } from '../../server/services/voice/types';
 
 vi.mock('../../server/services/voice/emotionAnalyzer', () => ({
   analyzeEmotion: vi.fn().mockResolvedValue({ emotion: '중립', emotionReason: '기본값' }),
+  analyzeUserEmotion: vi.fn().mockResolvedValue({
+    primaryEmotion: 'neutral', secondaryEmotions: [], valence: 0, arousal: 0.3, dominance: 0.5,
+    intensity: 0.2, expressedEmotion: 'neutral', inferredInternalEmotion: 'neutral',
+    maskingProbability: 0, stance: 'neutral', engagement: 'medium', confidence: 0.5, evidence: '',
+  }),
+  NEUTRAL_USER_AFFECT: {
+    primaryEmotion: 'neutral', secondaryEmotions: [], valence: 0, arousal: 0.3, dominance: 0.5,
+    intensity: 0.2, expressedEmotion: 'neutral', inferredInternalEmotion: 'neutral',
+    maskingProbability: 0, stance: 'neutral', engagement: 'medium', confidence: 0.5, evidence: 'no analysis available',
+  },
 }));
 
 vi.mock('@google/genai', () => ({
-  GoogleGenAI: vi.fn().mockImplementation(() => ({})),
+  // Use a class so `new GoogleGenAI(...)` works in tested code paths that
+  // reach the Gemini API key branch (env secrets are available in this env).
+  GoogleGenAI: class {
+    models = { generateContent: vi.fn().mockResolvedValue({ text: '' }) };
+    constructor(_opts?: any) {}
+  },
 }));
 
 function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession {

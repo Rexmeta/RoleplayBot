@@ -2,6 +2,160 @@ import { GoogleGenAI } from '@google/genai';
 import { LangCode } from './prompts/languageInstructions';
 import { getModelForFeature } from '../aiServiceFactory';
 
+// ── User Affect State ─────────────────────────────────────────────────────────
+
+export interface UserAffectState {
+  primaryEmotion: string;
+  secondaryEmotions: string[];
+  valence: number;             // -1.0 to 1.0 (negative to positive)
+  arousal: number;             // 0.0 to 1.0 (calm to excited)
+  dominance: number;           // 0.0 to 1.0 (submissive to dominant)
+  intensity: number;           // 0.0 to 1.0
+  expressedEmotion: string;
+  inferredInternalEmotion: string;
+  maskingProbability: number;  // 0.0 to 1.0
+  stance: 'collaborative' | 'assertive' | 'defensive' | 'withdrawn' | 'neutral';
+  engagement: 'high' | 'medium' | 'low' | 'disengaged';
+  confidence: number;          // 0.0 to 1.0
+  evidence: string;
+}
+
+export const NEUTRAL_USER_AFFECT: UserAffectState = {
+  primaryEmotion: 'neutral',
+  secondaryEmotions: [],
+  valence: 0,
+  arousal: 0.3,
+  dominance: 0.5,
+  intensity: 0.2,
+  expressedEmotion: 'neutral',
+  inferredInternalEmotion: 'neutral',
+  maskingProbability: 0,
+  stance: 'neutral',
+  engagement: 'medium',
+  confidence: 0.5,
+  evidence: 'no analysis available',
+};
+
+function buildUserAffectPrompt(
+  userTranscript: string,
+  conversationContext: string,
+  personaName: string,
+  lang: LangCode
+): string {
+  const langInstructions: Record<LangCode, string> = {
+    ko: `사용자의 발화를 제3자 심리학적 관점에서 분석하세요. 발화자: 사용자, 상대방: ${personaName}.`,
+    en: `Analyze the user's utterance from a third-party psychological perspective. Speaker: user, Counterpart: ${personaName}.`,
+    zh: `从第三方心理学视角分析用户的发言。说话者：用户，对方：${personaName}。`,
+    ja: `第三者の心理学的視点でユーザーの発言を分析してください。話者：ユーザー、相手：${personaName}。`,
+  };
+
+  return `${langInstructions[lang] ?? langInstructions.en}
+
+Recent conversation context:
+${conversationContext || '(none)'}
+
+User utterance to analyze:
+"${userTranscript.substring(0, 400)}"
+
+Analyze the user's emotional state and return ONLY this JSON (no other text):
+{
+  "primaryEmotion": "the dominant emotion label (e.g. frustrated, anxious, neutral, happy)",
+  "secondaryEmotions": ["list", "of", "secondary", "emotions"],
+  "valence": 0.0,
+  "arousal": 0.5,
+  "dominance": 0.5,
+  "intensity": 0.4,
+  "expressedEmotion": "what the user is overtly expressing",
+  "inferredInternalEmotion": "what the user may actually feel underneath",
+  "maskingProbability": 0.1,
+  "stance": "collaborative|assertive|defensive|withdrawn|neutral",
+  "engagement": "high|medium|low|disengaged",
+  "confidence": 0.7,
+  "evidence": "brief phrase supporting the analysis"
+}
+
+valence: -1.0 (very negative) to 1.0 (very positive)
+arousal: 0.0 (calm) to 1.0 (very excited/agitated)
+dominance: 0.0 (submissive/powerless) to 1.0 (dominant/in control)
+intensity: 0.0 (flat) to 1.0 (very intense)
+maskingProbability: 0.0 (authentic) to 1.0 (strongly masking)`;
+}
+
+function parseUserAffectState(data: Record<string, any>): UserAffectState {
+  const clamp = (v: any, lo: number, hi: number) => {
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    return isNaN(n) ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, n));
+  };
+  const validStances = new Set(['collaborative', 'assertive', 'defensive', 'withdrawn', 'neutral']);
+  const validEngagements = new Set(['high', 'medium', 'low', 'disengaged']);
+  const stance = validStances.has(data.stance) ? data.stance : 'neutral';
+  const engagement = validEngagements.has(data.engagement) ? data.engagement : 'medium';
+
+  return {
+    primaryEmotion: String(data.primaryEmotion || 'neutral'),
+    secondaryEmotions: Array.isArray(data.secondaryEmotions) ? data.secondaryEmotions.map(String) : [],
+    valence: clamp(data.valence, -1, 1),
+    arousal: clamp(data.arousal, 0, 1),
+    dominance: clamp(data.dominance, 0, 1),
+    intensity: clamp(data.intensity, 0, 1),
+    expressedEmotion: String(data.expressedEmotion || 'neutral'),
+    inferredInternalEmotion: String(data.inferredInternalEmotion || 'neutral'),
+    maskingProbability: clamp(data.maskingProbability, 0, 1),
+    stance,
+    engagement,
+    confidence: clamp(data.confidence, 0, 1),
+    evidence: String(data.evidence || ''),
+  };
+}
+
+export async function analyzeUserEmotion(
+  userTranscript: string,
+  conversationContext: string,
+  personaName: string,
+  userLanguage: LangCode = 'ko',
+  genAI: GoogleGenAI | null
+): Promise<UserAffectState> {
+  if (!userTranscript || userTranscript.trim().length < 3) {
+    return { ...NEUTRAL_USER_AFFECT };
+  }
+
+  if (!genAI) {
+    return { ...NEUTRAL_USER_AFFECT };
+  }
+
+  try {
+    const emotionModel = await getModelForFeature('emotion');
+    const prompt = buildUserAffectPrompt(userTranscript, conversationContext, personaName, userLanguage);
+
+    const result = await genAI.models.generateContent({
+      model: emotionModel,
+      contents: prompt,
+      config: {
+        maxOutputTokens: 300,
+        temperature: 0.1,
+      },
+    });
+
+    let responseText = (result.text || '').trim();
+    responseText = responseText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const data = JSON.parse(jsonMatch[0]);
+        return parseUserAffectState(data);
+      } catch {
+        // fall through to neutral
+      }
+    }
+
+    return { ...NEUTRAL_USER_AFFECT, confidence: 0.2 };
+  } catch (error: any) {
+    console.error('❌ User affect analysis error:', error?.message || error);
+    return { ...NEUTRAL_USER_AFFECT };
+  }
+}
+
 function getEmotionConfig(lang: LangCode) {
   const emotionsByLang = {
     ko: {

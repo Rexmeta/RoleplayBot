@@ -102,6 +102,7 @@ export const chatMessages = pgTable("chat_messages", {
   message: text("message").notNull(),
   emotion: text("emotion"),
   emotionReason: text("emotion_reason"),
+  userAffect: jsonb("user_affect"),
   interrupted: boolean("interrupted").default(false),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [

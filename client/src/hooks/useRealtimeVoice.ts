@@ -100,7 +100,7 @@ interface UseRealtimeVoiceProps {
   enabled: boolean;
   delayGreeting?: boolean;
   onMessage?: (message: string) => void;
-  onMessageComplete?: (message: string, emotion?: string, emotionReason?: string) => void;
+  onMessageComplete?: (message: string, emotion?: string, emotionReason?: string, userAffect?: Record<string, unknown>) => void;
   onReconnectGreetingComplete?: () => void;
   onUserTranscription?: (transcript: string) => void;
   onUserTranscriptionDelta?: (delta: string, accumulated: string) => void;
@@ -605,7 +605,7 @@ export function useRealtimeVoice({
                 console.log('🔄 Skipping reconnect greeting to keep turn counter accurate');
                 if (onReconnectGreetingCompleteRef.current) onReconnectGreetingCompleteRef.current();
               } else if (data.text && onMessageCompleteRef.current) {
-                onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason);
+                onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason, data.userAffect);
               }
               if (data.text) {
                 accumulatedMessagesRef.current.push({ role: 'ai', content: data.text });

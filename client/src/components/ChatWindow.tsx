@@ -240,7 +240,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
     },
-    onMessageComplete: (message, emotion, emotionReason) => {
+    onMessageComplete: (message, emotion, emotionReason, userAffect) => {
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
       if (emotion) {
@@ -265,7 +265,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           console.log('⚠️ [phase-dedup] Suppressing duplicate AI message in greeting phase');
           return prev;
         }
-        return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '' }];
+        return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '', userAffect: userAffect ?? undefined }];
       });
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
       // Incrementally persist after each AI turn so that if the session ends
