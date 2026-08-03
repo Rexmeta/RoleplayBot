@@ -46,7 +46,8 @@ export interface ScenarioPersona {
   voice?: {
     tone: string;
     pace: string;
-    emotion: string;
+    /** @deprecated flat emotion string replaced by NpcAffectiveState at session start */
+    emotion?: string;
   };
   // Multi-persona switching fields
   isPrimary?: boolean;

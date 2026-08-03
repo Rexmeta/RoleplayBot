@@ -16,6 +16,8 @@ import {
   SimulationStatePatch,
   DEFAULT_NPC_AFFECTIVE_STATE,
 } from '../../server/services/simulation/simulationTypes';
+import { normalizeNpcBehaviorHarness, applyNpcBehaviorHarnessModifiers } from '../../server/services/simulation/simulationRules';
+import { normalizeSimulationHarness, resolveHarness } from '../../server/services/simulation/simulationHarness';
 import type { FlowGraph, TerminationRules } from '../../shared/schema/scenarios';
 
 const RUN_ID = 'test-run-001';
@@ -1379,5 +1381,136 @@ describe('legacy state restore — npcAffectiveState absent', () => {
     expect(restored.npcAffectiveState).toBeDefined();
     expect(restored.npcAffectiveState.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity);
     expect(restored.npcAffectiveState.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Backward-compat normalizers for persisted legacy harness field names
+// ---------------------------------------------------------------------------
+
+describe('normalizeSimulationHarness (legacy field migration)', () => {
+  it('migrates emotionModel → affectiveAxes', () => {
+    const legacy: any = { emotionModel: ['anger', 'trust'] };
+    const normalized = normalizeSimulationHarness(legacy);
+    expect(normalized.affectiveAxes).toEqual(['anger', 'trust']);
+    expect((normalized as any).emotionModel).toBeUndefined();
+  });
+
+  it('migrates toolPolicy.updateNpcEmotion → toolPolicy.npcAffectiveStateDelta', () => {
+    const legacy: any = {
+      toolPolicy: { updateNpcEmotion: { maxCallsPerTurn: 3, maxDeltaPerCall: 25 } },
+    };
+    const normalized = normalizeSimulationHarness(legacy);
+    expect(normalized.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn).toBe(3);
+    expect((normalized.toolPolicy as any)?.updateNpcEmotion).toBeUndefined();
+  });
+
+  it('is a no-op when new keys are already present', () => {
+    const modern: any = {
+      affectiveAxes: ['affective.intensity'],
+      toolPolicy: { npcAffectiveStateDelta: { maxCallsPerTurn: 2, maxDeltaPerCall: 30 } },
+    };
+    const normalized = normalizeSimulationHarness(modern);
+    expect(normalized.affectiveAxes).toEqual(['affective.intensity']);
+    expect(normalized.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn).toBe(2);
+  });
+
+  it('resolveHarness preserves custom emotionModel values from legacy stored harness', () => {
+    const scenario: any = {
+      simulationHarness: { emotionModel: ['custom.axis1', 'custom.axis2'] },
+    };
+    const resolved = resolveHarness(scenario);
+    expect(resolved.affectiveAxes).toEqual(['custom.axis1', 'custom.axis2']);
+  });
+
+  it('resolveHarness preserves legacy updateNpcEmotion maxCallsPerTurn', () => {
+    const scenario: any = {
+      simulationHarness: {
+        toolPolicy: { updateNpcEmotion: { maxCallsPerTurn: 5, maxDeltaPerCall: 20 } },
+      },
+    };
+    const resolved = resolveHarness(scenario);
+    expect(resolved.toolPolicy.npcAffectiveStateDelta.maxCallsPerTurn).toBe(5);
+    expect(resolved.toolPolicy.npcAffectiveStateDelta.maxDeltaPerCall).toBe(20);
+  });
+});
+
+describe('normalizeNpcBehaviorHarness (legacy field migration)', () => {
+  it('migrates minTrustToYield → minRelationalTrustToYield', () => {
+    const legacy: any = { negotiationBounds: { minTrustToYield: 60, maxPatienceTurns: 3 } };
+    const normalized = normalizeNpcBehaviorHarness(legacy);
+    expect(normalized.negotiationBounds?.minRelationalTrustToYield).toBe(60);
+    expect((normalized.negotiationBounds as any)?.minTrustToYield).toBeUndefined();
+  });
+
+  it('migrates maxAngerBeforeWalkout → maxAffectiveIntensityBeforeWalkout', () => {
+    const legacy: any = { negotiationBounds: { maxAngerBeforeWalkout: 80 } };
+    const normalized = normalizeNpcBehaviorHarness(legacy);
+    expect(normalized.negotiationBounds?.maxAffectiveIntensityBeforeWalkout).toBe(80);
+    expect((normalized.negotiationBounds as any)?.maxAngerBeforeWalkout).toBeUndefined();
+  });
+
+  it('migrates trustDelta/angerDelta in trustTriggers', () => {
+    const legacy: any = {
+      trustTriggers: [{ keyword: 'test', trustDelta: 10, angerDelta: -5 }],
+    };
+    const normalized = normalizeNpcBehaviorHarness(legacy);
+    expect(normalized.trustTriggers?.[0]?.relationalTrustDelta).toBe(10);
+    expect(normalized.trustTriggers?.[0]?.affectiveIntensityDelta).toBe(-5);
+    expect((normalized.trustTriggers?.[0] as any)?.trustDelta).toBeUndefined();
+    expect((normalized.trustTriggers?.[0] as any)?.angerDelta).toBeUndefined();
+  });
+
+  it('migrates trustDelta/angerDelta in escalationTriggers', () => {
+    const legacy: any = {
+      escalationTriggers: [{ keyword: 'bad', trustDelta: -15, angerDelta: 20 }],
+    };
+    const normalized = normalizeNpcBehaviorHarness(legacy);
+    expect(normalized.escalationTriggers?.[0]?.relationalTrustDelta).toBe(-15);
+    expect(normalized.escalationTriggers?.[0]?.affectiveIntensityDelta).toBe(20);
+  });
+
+  it('is a no-op when new field names are already present', () => {
+    const modern: any = {
+      negotiationBounds: {
+        minRelationalTrustToYield: 55,
+        maxAffectiveIntensityBeforeWalkout: 75,
+      },
+      trustTriggers: [{ keyword: 'ok', relationalTrustDelta: 8, affectiveIntensityDelta: -3 }],
+    };
+    const normalized = normalizeNpcBehaviorHarness(modern);
+    expect(normalized.negotiationBounds?.minRelationalTrustToYield).toBe(55);
+    expect(normalized.negotiationBounds?.maxAffectiveIntensityBeforeWalkout).toBe(75);
+    expect(normalized.trustTriggers?.[0]?.relationalTrustDelta).toBe(8);
+  });
+
+  it('applyNpcBehaviorHarnessModifiers applies walkout modifier from legacy harness', () => {
+    const state = createDefaultSimulationState();
+    // Simulate NPC intensity near walkout threshold stored with old key
+    state.npcAffectiveState.affective.intensity = 85;
+    state.npcAffectiveState.relational.trust = 40;
+
+    const legacyHarness: any = {
+      negotiationBounds: { maxAngerBeforeWalkout: 80, maxPatienceTurns: 10 },
+    };
+    const result = applyNpcBehaviorHarnessModifiers({}, legacyHarness, state);
+    // intensity >= maxAngerBeforeWalkout (80) should trigger walkout modifier
+    expect(result.affective?.intensity).toBe(5);
+    expect(result.relational?.trust).toBe(-5);
+  });
+
+  it('applyNpcBehaviorHarnessModifiers applies yield modifier from legacy harness', () => {
+    const state = createDefaultSimulationState();
+    // Simulate low trust below legacy minTrustToYield
+    state.npcAffectiveState.affective.intensity = 20;
+    state.npcAffectiveState.relational.trust = 30;
+
+    const legacyHarness: any = {
+      negotiationBounds: { minTrustToYield: 50, maxPatienceTurns: 10 },
+    };
+    const result = applyNpcBehaviorHarnessModifiers({}, legacyHarness, state);
+    // trust (30) < minTrustToYield (50) should trigger yield modifier
+    expect(result.affective?.intensity).toBe(3);
+    expect(result.relational?.trust).toBe(-2);
   });
 });

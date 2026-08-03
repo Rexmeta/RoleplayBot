@@ -307,7 +307,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [analyticsBenchmarkGroup, setAnalyticsBenchmarkGroup] = useState('');
   // Structured simulation harness state
   const [harnessEnabled, setHarnessEnabled] = useState(false);
-  const [harnessEmotionModel, setHarnessEmotionModel] = useState('anger,trust,confusion,interest');
+  const [harnessAffectiveAxes, setHarnessAffectiveAxes] = useState('affective.intensity,relational.trust,cognitive.confusion,motivational.interest');
   const [harnessMaxCallsPerTurn, setHarnessMaxCallsPerTurn] = useState('2');
   const [harnessMaxDeltaPerCall, setHarnessMaxDeltaPerCall] = useState('30');
   const [harnessAllowedTypes, setHarnessAllowedTypes] = useState<string[]>([...HARNESS_ALL_INCIDENT_TYPES]);
@@ -322,11 +322,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const harnessEffective = useMemo(() => {
     if (!harnessEnabled) return null;
-    const DEF_EMOTIONS = ['anger', 'trust', 'confusion', 'interest'];
+    const DEF_AXES = ['affective.intensity', 'relational.trust', 'cognitive.confusion', 'motivational.interest'];
     const DEF_TYPES = [...HARNESS_ALL_INCIDENT_TYPES] as string[];
     if (harnessShowRaw) {
       if (!harnessRawJson.trim()) {
-        return { valid: true, usingDefaults: true, emotionModel: DEF_EMOTIONS, maxCallsPerTurn: 2, maxDeltaPerCall: 30, allowedTypes: DEF_TYPES, globalCooldownSec: 60, perTypeCooldownSec: 120, stateUpdatesEnabled: true, preferredSignals: {} as Record<string, string>, fieldErrors: {} as Record<string, string> };
+        return { valid: true, usingDefaults: true, affectiveAxes: DEF_AXES, maxCallsPerTurn: 2, maxDeltaPerCall: 30, allowedTypes: DEF_TYPES, globalCooldownSec: 60, perTypeCooldownSec: 120, stateUpdatesEnabled: true, preferredSignals: {} as Record<string, string>, fieldErrors: {} as Record<string, string> };
       }
       let raw: unknown;
       try { raw = JSON.parse(harnessRawJson); } catch { return { valid: false, parseError: 'JSON 구문 오류', fieldErrors: {} as Record<string, string> }; }
@@ -339,9 +339,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       const h = result.data;
       return {
         valid: true, usingDefaults: false,
-        emotionModel: h.emotionModel ?? DEF_EMOTIONS,
-        maxCallsPerTurn: h.toolPolicy?.updateNpcEmotion?.maxCallsPerTurn ?? 2,
-        maxDeltaPerCall: h.toolPolicy?.updateNpcEmotion?.maxDeltaPerCall ?? 30,
+        affectiveAxes: h.affectiveAxes ?? DEF_AXES,
+        maxCallsPerTurn: h.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn ?? 2,
+        maxDeltaPerCall: h.toolPolicy?.npcAffectiveStateDelta?.maxDeltaPerCall ?? 30,
         allowedTypes: h.toolPolicy?.triggerIncident?.allowedTypes ?? DEF_TYPES,
         globalCooldownSec: h.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? 60,
         perTypeCooldownSec: h.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? 120,
@@ -350,12 +350,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         fieldErrors: {} as Record<string, string>,
       };
     } else {
-      const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+      const affectiveAxes = harnessAffectiveAxes.split(',').map(s => s.trim()).filter(Boolean);
       const preferredSignals: Record<string, string> = {};
       harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
       return {
         valid: true, usingDefaults: false,
-        emotionModel: emotionModel.length > 0 ? emotionModel : DEF_EMOTIONS,
+        affectiveAxes: affectiveAxes.length > 0 ? affectiveAxes : DEF_AXES,
         maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2,
         maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30,
         allowedTypes: harnessAllowedTypes,
@@ -366,7 +366,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         fieldErrors: {} as Record<string, string>,
       };
     }
-  }, [harnessEnabled, harnessShowRaw, harnessRawJson, harnessEmotionModel, harnessMaxCallsPerTurn, harnessMaxDeltaPerCall, harnessAllowedTypes, harnessGlobalCooldownSec, harnessPerTypeCooldownSec, harnessStateUpdatesEnabled, harnessPreferredSignals]);
+  }, [harnessEnabled, harnessShowRaw, harnessRawJson, harnessAffectiveAxes, harnessMaxCallsPerTurn, harnessMaxDeltaPerCall, harnessAllowedTypes, harnessGlobalCooldownSec, harnessPerTypeCooldownSec, harnessStateUpdatesEnabled, harnessPreferredSignals]);
 
   const harnessWarnings = useMemo(() => {
     if (!harnessEffective?.valid) return [];
@@ -375,7 +375,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       warnings.push('허용 이벤트 유형이 없습니다 — 인시던트가 전혀 발생하지 않습니다.');
     }
     if (harnessEffective.maxCallsPerTurn === 0) {
-      warnings.push('턴당 최대 감정 호출이 0입니다 — NPC 감정이 업데이트되지 않습니다.');
+      warnings.push('턴당 최대 어펙티브 상태 업데이트 횟수가 0입니다 — NPC 상태가 업데이트되지 않습니다.');
     }
     if (harnessEffective.globalCooldownSec === 0) {
       warnings.push('전역 쿨다운이 0초입니다 — 인시던트가 매 턴 반복될 수 있습니다.');
@@ -924,7 +924,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setBuilderKey(k => k + 1);
     setEvaluationHarnessValue(null);
     setHarnessEnabled(false);
-    setHarnessEmotionModel('anger,trust,confusion,interest');
+    setHarnessAffectiveAxes('affective.intensity,relational.trust,cognitive.confusion,motivational.interest');
     setHarnessMaxCallsPerTurn('2');
     setHarnessMaxDeltaPerCall('30');
     setHarnessAllowedTypes([...HARNESS_ALL_INCIDENT_TYPES]);
@@ -1016,9 +1016,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     const existingHarness = (originalScenario as any).simulationHarness;
     if (existingHarness) {
       setHarnessEnabled(true);
-      setHarnessEmotionModel((existingHarness.emotionModel ?? ['anger','trust','confusion','interest']).join(','));
-      setHarnessMaxCallsPerTurn(String(existingHarness.toolPolicy?.updateNpcEmotion?.maxCallsPerTurn ?? 2));
-      setHarnessMaxDeltaPerCall(String(existingHarness.toolPolicy?.updateNpcEmotion?.maxDeltaPerCall ?? 30));
+      setHarnessAffectiveAxes((existingHarness.affectiveAxes ?? ['affective.intensity','relational.trust','cognitive.confusion','motivational.interest']).join(','));
+      setHarnessMaxCallsPerTurn(String(existingHarness.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn ?? 2));
+      setHarnessMaxDeltaPerCall(String(existingHarness.toolPolicy?.npcAffectiveStateDelta?.maxDeltaPerCall ?? 30));
       setHarnessAllowedTypes(existingHarness.toolPolicy?.triggerIncident?.allowedTypes ?? [...HARNESS_ALL_INCIDENT_TYPES]);
       setHarnessGlobalCooldownSec(String(existingHarness.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? 60));
       setHarnessPerTypeCooldownSec(String(existingHarness.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? 120));
@@ -1027,7 +1027,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       setHarnessPreferredSignals(Object.entries(sigs).map(([key, value]) => ({ key, value: String(value) })));
     } else {
       setHarnessEnabled(false);
-      setHarnessEmotionModel('anger,trust,confusion,interest');
+      setHarnessAffectiveAxes('affective.intensity,relational.trust,cognitive.confusion,motivational.interest');
       setHarnessMaxCallsPerTurn('2');
       setHarnessMaxDeltaPerCall('30');
       setHarnessAllowedTypes([...HARNESS_ALL_INCIDENT_TYPES]);
@@ -1151,11 +1151,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           setHarnessRawJsonError('');
         }
       } else {
-        const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+        const affectiveAxes = harnessAffectiveAxes.split(',').map(s => s.trim()).filter(Boolean);
         const preferredSignals: Record<string, string> = {};
         harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
-        const built: any = { emotionModel, toolPolicy: {
-          updateNpcEmotion: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
+        const built: any = { affectiveAxes, toolPolicy: {
+          npcAffectiveStateDelta: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
           triggerIncident: { allowedTypes: harnessAllowedTypes, cooldownOverride: { globalCooldownSec: parseInt(harnessGlobalCooldownSec) || 60, perTypeCooldownSec: parseInt(harnessPerTypeCooldownSec) || 120 } },
           updateScenarioState: { enabled: harnessStateUpdatesEnabled },
         }};
@@ -3350,16 +3350,16 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
                 {harnessEnabled && (
                   <div className="space-y-4">
-                    {/* Emotion Model */}
+                    {/* Affective Axes */}
                     <div>
-                      <Label className="text-xs font-semibold text-slate-700 mb-1 block">감정 모델 (쉼표로 구분)</Label>
+                      <Label className="text-xs font-semibold text-slate-700 mb-1 block">어펙티브 레이어 축 (쉼표로 구분)</Label>
                       <Input
-                        value={harnessEmotionModel}
-                        onChange={e => setHarnessEmotionModel(e.target.value)}
-                        placeholder="anger,trust,confusion,interest"
+                        value={harnessAffectiveAxes}
+                        onChange={e => setHarnessAffectiveAxes(e.target.value)}
+                        placeholder="affective.intensity,relational.trust,cognitive.confusion,motivational.interest"
                         className="text-xs h-8"
                       />
-                      <p className="text-xs text-slate-400 mt-0.5">AI가 조절할 감정 축 목록 (기본: anger, trust, confusion, interest)</p>
+                      <p className="text-xs text-slate-400 mt-0.5">AI가 조절할 어펙티브 레이어 축 목록 (기본: affective.intensity, relational.trust, cognitive.confusion, motivational.interest)</p>
                     </div>
 
                     {/* Emotion Tool Limits */}
@@ -3476,18 +3476,18 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         <p className="text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">적용될 실제 값 미리보기 <span className="normal-case font-normal text-blue-500">(직접 편집 가능)</span></p>
                         <div className="bg-slate-50 rounded-md p-3 text-xs space-y-2.5 text-slate-700">
 
-                          {/* Emotion Model — removable chips + add input */}
+                          {/* Affective Axes — removable chips + add input */}
                           <div>
-                            <span className="font-medium text-slate-500 block mb-1">감정 축:</span>
+                            <span className="font-medium text-slate-500 block mb-1">어펙티브 레이어 축:</span>
                             <div className="flex gap-1 flex-wrap items-center">
-                              {harnessEffective.emotionModel!.map(e => (
+                              {harnessEffective.affectiveAxes!.map(e => (
                                 <span key={e} className="inline-flex items-center gap-0.5 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
                                   {e}
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const updated = harnessEffective.emotionModel!.filter(x => x !== e);
-                                      setHarnessEmotionModel(updated.join(','));
+                                      const updated = harnessEffective.affectiveAxes!.filter(x => x !== e);
+                                      setHarnessAffectiveAxes(updated.join(','));
                                     }}
                                     className="ml-0.5 text-blue-400 hover:text-red-500 leading-none"
                                     title="제거"
@@ -3502,8 +3502,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                   if ((e.key === 'Enter' || e.key === ',') && previewEmotionInput.trim()) {
                                     e.preventDefault();
                                     const name = previewEmotionInput.trim().replace(/,/g, '');
-                                    if (name && !harnessEffective.emotionModel!.includes(name)) {
-                                      setHarnessEmotionModel([...harnessEffective.emotionModel!, name].join(','));
+                                    if (name && !harnessEffective.affectiveAxes!.includes(name)) {
+                                      setHarnessAffectiveAxes([...harnessEffective.affectiveAxes!, name].join(','));
                                     }
                                     setPreviewEmotionInput('');
                                   }
@@ -3633,11 +3633,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         type="button"
                         onClick={() => {
                           if (!harnessShowRaw) {
-                            const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+                            const affectiveAxes = harnessAffectiveAxes.split(',').map(s => s.trim()).filter(Boolean);
                             const preferredSignals: Record<string, string> = {};
                             harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
-                            const built: any = { emotionModel, toolPolicy: {
-                              updateNpcEmotion: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
+                            const built: any = { affectiveAxes, toolPolicy: {
+                              npcAffectiveStateDelta: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
                               triggerIncident: { allowedTypes: harnessAllowedTypes, cooldownOverride: { globalCooldownSec: parseInt(harnessGlobalCooldownSec) || 60, perTypeCooldownSec: parseInt(harnessPerTypeCooldownSec) || 120 } },
                               updateScenarioState: { enabled: harnessStateUpdatesEnabled },
                             }};
@@ -3693,9 +3693,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                   </div>
                                 )}
                                 <div>
-                                  <p className="text-slate-400 text-[10px] mb-0.5">감정 축</p>
+                                  <p className="text-slate-400 text-[10px] mb-0.5">어펙티브 레이어 축</p>
                                   <div className="flex flex-wrap gap-0.5">
-                                    {harnessEffective.emotionModel!.map(e => (
+                                    {harnessEffective.affectiveAxes!.map(e => (
                                       <span key={e} className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded text-[10px]">{e}</span>
                                     ))}
                                   </div>

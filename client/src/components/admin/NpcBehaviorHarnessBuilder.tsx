@@ -27,12 +27,13 @@ function TriggerRow({ trigger, onChange, onRemove, readOnly }: TriggerRowProps) 
       <div>
         <Input
           type="number"
-          value={trigger.trustDelta ?? ''}
+          value={trigger.relationalTrustDelta ?? ''}
           onChange={(e) => {
             const v = e.target.value === '' ? undefined : Number(e.target.value);
-            onChange({ ...trigger, trustDelta: v });
+            onChange({ ...trigger, relationalTrustDelta: v });
           }}
           placeholder="신뢰±"
+          title="relational.trust delta"
           className="bg-white text-xs h-8"
           readOnly={readOnly}
         />
@@ -40,12 +41,13 @@ function TriggerRow({ trigger, onChange, onRemove, readOnly }: TriggerRowProps) 
       <div>
         <Input
           type="number"
-          value={trigger.angerDelta ?? ''}
+          value={trigger.affectiveIntensityDelta ?? ''}
           onChange={(e) => {
             const v = e.target.value === '' ? undefined : Number(e.target.value);
-            onChange({ ...trigger, angerDelta: v });
+            onChange({ ...trigger, affectiveIntensityDelta: v });
           }}
-          placeholder="분노±"
+          placeholder="강도±"
+          title="affective.intensity delta"
           className="bg-white text-xs h-8"
           readOnly={readOnly}
         />
@@ -111,8 +113,8 @@ function TriggerList({ label, description, triggers, onChange, readOnly }: Trigg
         <div className="space-y-1.5">
           <div className="grid grid-cols-[1fr_5rem_5rem_1fr_auto] gap-1.5 px-0.5">
             <span className="text-xs text-slate-400 font-medium">키워드</span>
-            <span className="text-xs text-slate-400 font-medium">신뢰±</span>
-            <span className="text-xs text-slate-400 font-medium">분노±</span>
+            <span className="text-xs text-slate-400 font-medium" title="relational.trust delta">신뢰±</span>
+            <span className="text-xs text-slate-400 font-medium" title="affective.intensity delta">강도±</span>
             <span className="text-xs text-slate-400 font-medium">설명</span>
             {!readOnly && <span />}
           </div>
@@ -152,8 +154,8 @@ export function NpcBehaviorHarnessBuilder({ value, onChange, readOnly }: NpcBeha
     const bounds = next.negotiationBounds;
     const hasBounds =
       bounds !== undefined &&
-      (bounds.minTrustToYield !== undefined ||
-        bounds.maxAngerBeforeWalkout !== undefined ||
+      (bounds.minRelationalTrustToYield !== undefined ||
+        bounds.maxAffectiveIntensityBeforeWalkout !== undefined ||
         bounds.maxPatienceTurns !== undefined);
     const hasTrust = (next.trustTriggers?.length ?? 0) > 0;
     const hasEscalation = (next.escalationTriggers?.length ?? 0) > 0;
@@ -165,8 +167,8 @@ export function NpcBehaviorHarnessBuilder({ value, onChange, readOnly }: NpcBeha
   const updateBounds = (patch: Partial<NonNullable<NpcBehaviorHarness['negotiationBounds']>>) => {
     const nextBounds = { ...bounds, ...patch };
     const hasAny =
-      nextBounds.minTrustToYield !== undefined ||
-      nextBounds.maxAngerBeforeWalkout !== undefined ||
+      nextBounds.minRelationalTrustToYield !== undefined ||
+      nextBounds.maxAffectiveIntensityBeforeWalkout !== undefined ||
       nextBounds.maxPatienceTurns !== undefined;
     update({ negotiationBounds: hasAny ? nextBounds : undefined });
   };
@@ -182,15 +184,15 @@ export function NpcBehaviorHarnessBuilder({ value, onChange, readOnly }: NpcBeha
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-xs text-slate-600">양보 최소 신뢰도</Label>
-            <p className="text-xs text-slate-400">minTrustToYield</p>
+            <p className="text-xs text-slate-400">minRelationalTrustToYield</p>
             <Input
               type="number"
               min={0}
               max={100}
-              value={bounds.minTrustToYield ?? ''}
+              value={bounds.minRelationalTrustToYield ?? ''}
               onChange={(e) => {
                 const v = e.target.value === '' ? undefined : Number(e.target.value);
-                updateBounds({ minTrustToYield: v });
+                updateBounds({ minRelationalTrustToYield: v });
               }}
               placeholder="예: 60"
               className="bg-white text-xs h-8"
@@ -198,16 +200,16 @@ export function NpcBehaviorHarnessBuilder({ value, onChange, readOnly }: NpcBeha
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-slate-600">이탈 최대 분노</Label>
-            <p className="text-xs text-slate-400">maxAngerBeforeWalkout</p>
+            <Label className="text-xs text-slate-600">이탈 최대 강도</Label>
+            <p className="text-xs text-slate-400">maxAffectiveIntensityBeforeWalkout</p>
             <Input
               type="number"
               min={0}
               max={100}
-              value={bounds.maxAngerBeforeWalkout ?? ''}
+              value={bounds.maxAffectiveIntensityBeforeWalkout ?? ''}
               onChange={(e) => {
                 const v = e.target.value === '' ? undefined : Number(e.target.value);
-                updateBounds({ maxAngerBeforeWalkout: v });
+                updateBounds({ maxAffectiveIntensityBeforeWalkout: v });
               }}
               placeholder="예: 80"
               className="bg-white text-xs h-8"

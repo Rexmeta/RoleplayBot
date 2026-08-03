@@ -59,7 +59,6 @@ interface MBTIPersona {
   voice: {
     tone: string;
     pace: string;
-    emotion: string;
   };
   images: {
     base: string;  // 기본 프로필 이미지
@@ -145,7 +144,6 @@ interface MBTIPersonaFormData {
   voice: {
     tone: string;
     pace: string;
-    emotion: string;
   };
   images: {
     base: string;  // 기본 프로필 이미지
@@ -273,7 +271,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     voice: {
       tone: '',
       pace: '',
-      emotion: ''
     },
     freeChatAvailable: false,
     freeChatDescription: '',
@@ -686,7 +683,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       voice: {
         tone: '',
         pace: '',
-        emotion: ''
       },
       freeChatAvailable: false,
       freeChatDescription: '',
@@ -738,7 +734,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       voice: {
         tone: persona.voice?.tone || '',
         pace: persona.voice?.pace || '',
-        emotion: persona.voice?.emotion || ''
       },
       images: {
         base: persona.gender === 'male'
@@ -1147,20 +1142,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       />
                     </div>
 
-                    <div>
-                      <Label htmlFor="voice_emotion" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.voiceEmotion')}</Label>
-                      <Input
-                        id="voice_emotion"
-                        value={formData.voice?.emotion || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          voice: { ...prev.voice, emotion: e.target.value }
-                        }))}
-                        placeholder={t('admin.personaManager.form.voiceEmotionPlaceholder')}
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
-                        data-testid="input-voice-emotion"
-                      />
-                    </div>
                   </div>
 
                   <div>
@@ -1758,12 +1739,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                           <div>
                             <p className="text-xs text-slate-500">{t('admin.personaManager.card.pace')}:</p>
                             <p className="text-xs text-slate-600">{persona.voice.pace}</p>
-                          </div>
-                        )}
-                        {persona.voice.emotion && (
-                          <div>
-                            <p className="text-xs text-slate-500">{t('admin.personaManager.card.emotion')}:</p>
-                            <p className="text-xs text-slate-600">{persona.voice.emotion}</p>
                           </div>
                         )}
                       </div>

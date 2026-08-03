@@ -146,8 +146,8 @@ function handleUpdateNpcAffectiveState(rawArgs: unknown, ctx: ToolCallContext): 
   }
 
   const h = resolveHarness({ simulationHarness: ctx.harness });
-  const maxCalls = h.toolPolicy.updateNpcEmotion.maxCallsPerTurn;
-  const maxDelta = h.toolPolicy.updateNpcEmotion.maxDeltaPerCall;
+  const maxCalls = h.toolPolicy.npcAffectiveStateDelta.maxCallsPerTurn;
+  const maxDelta = h.toolPolicy.npcAffectiveStateDelta.maxDeltaPerCall;
 
   if (ctx.emotionCallCountThisTurn >= maxCalls) {
     return { success: false, error: `Maximum ${maxCalls} affective state updates per turn` };

@@ -763,32 +763,32 @@ ${contextStr}
 ## 출력 JSON 형식 (이 구조를 정확히 따르세요)
 {
   "negotiationBounds": {
-    "minTrustToYield": 60,
-    "maxAngerBeforeWalkout": 80,
+    "minRelationalTrustToYield": 60,
+    "maxAffectiveIntensityBeforeWalkout": 80,
     "maxPatienceTurns": 4
   },
   "trustTriggers": [
     {
       "keyword": "트리거 키워드 또는 행동 패턴",
-      "trustDelta": 10,
-      "angerDelta": -5,
+      "relationalTrustDelta": 10,
+      "affectiveIntensityDelta": -5,
       "description": "이 트리거가 발동되는 상황 설명"
     }
   ],
   "escalationTriggers": [
     {
       "keyword": "갈등 유발 키워드 또는 행동",
-      "trustDelta": -15,
-      "angerDelta": 20,
+      "relationalTrustDelta": -15,
+      "affectiveIntensityDelta": 20,
       "description": "이 트리거가 발동되는 상황 설명"
     }
   ]
 }
 
 규칙:
-- negotiationBounds: minTrustToYield(0~100), maxAngerBeforeWalkout(0~100), maxPatienceTurns(양의 정수)
-- trustTriggers: 신뢰도 증가 트리거 2~5개, trustDelta(-20~+20), angerDelta(-20~+20)
-- escalationTriggers: 갈등 고조 트리거 1~3개, trustDelta 음수 권장, angerDelta 양수 권장
+- negotiationBounds: minRelationalTrustToYield(0~100, NPC가 양보하는 최소 신뢰 수치), maxAffectiveIntensityBeforeWalkout(0~100, NPC가 이탈하는 최대 감정 강도), maxPatienceTurns(양의 정수)
+- trustTriggers: 신뢰도 증가 트리거 2~5개, relationalTrustDelta(-20~+20), affectiveIntensityDelta(-20~+20)
+- escalationTriggers: 갈등 고조 트리거 1~3개, relationalTrustDelta 음수 권장, affectiveIntensityDelta 양수 권장
 - keyword는 한국어로 작성
 - 페르소나의 stance와 goal을 반영한 현실적인 내용`;
 
@@ -811,7 +811,44 @@ ${contextStr}
   const cleanJson = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   const parsed = JSON.parse(cleanJson);
 
-  const result = npcBehaviorHarnessSchema.safeParse(parsed);
+  // Compatibility normalizer: silently migrate any stale field names the AI may still output
+  // (e.g. from cached examples) to the current affective-layer naming.
+  const normalizeHarness = (raw: any): any => {
+    if (!raw || typeof raw !== 'object') return raw;
+    const out: any = { ...raw };
+    if (out.negotiationBounds && typeof out.negotiationBounds === 'object') {
+      const b = { ...out.negotiationBounds };
+      if ('minTrustToYield' in b && !('minRelationalTrustToYield' in b)) {
+        b.minRelationalTrustToYield = b.minTrustToYield;
+        delete b.minTrustToYield;
+      }
+      if ('maxAngerBeforeWalkout' in b && !('maxAffectiveIntensityBeforeWalkout' in b)) {
+        b.maxAffectiveIntensityBeforeWalkout = b.maxAngerBeforeWalkout;
+        delete b.maxAngerBeforeWalkout;
+      }
+      out.negotiationBounds = b;
+    }
+    const normalizeTriggers = (triggers: any[]): any[] =>
+      (triggers ?? []).map((t: any) => {
+        const nt = { ...t };
+        if ('trustDelta' in nt && !('relationalTrustDelta' in nt)) {
+          nt.relationalTrustDelta = nt.trustDelta;
+          delete nt.trustDelta;
+        }
+        if ('angerDelta' in nt && !('affectiveIntensityDelta' in nt)) {
+          nt.affectiveIntensityDelta = nt.angerDelta;
+          delete nt.angerDelta;
+        }
+        return nt;
+      });
+    if (Array.isArray(out.trustTriggers)) out.trustTriggers = normalizeTriggers(out.trustTriggers);
+    if (Array.isArray(out.escalationTriggers)) out.escalationTriggers = normalizeTriggers(out.escalationTriggers);
+    return out;
+  };
+
+  const normalized = normalizeHarness(parsed);
+
+  const result = npcBehaviorHarnessSchema.safeParse(normalized);
   if (!result.success) {
     console.error('[generateNpcBehaviorHarnessWithAI] Zod validation failed:', result.error.errors);
     throw new Error(`AI가 반환한 npcBehaviorHarness 형식이 잘못되었습니다: ${result.error.errors[0]?.message}`);
