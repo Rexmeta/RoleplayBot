@@ -262,6 +262,27 @@ describe('OpenAIProvider — barge-in analysis in feedback path', () => {
     expect(feedback.scoreAdjustments!.finalScore).toBe(expected);
   });
 
+  it('does not produce duplicate barge-in events when a single interrupted turn is present', async () => {
+    // One interrupted AI turn should yield exactly one barge-in event, not two.
+    const messages = makeMessages({ withInterruptions: true });
+    const interruptedCount = messages.filter(m => m.sender === 'ai' && (m as any).interrupted).length;
+
+    const feedback = await provider.generateFeedback(
+      makeScenario(),
+      messages,
+      makePersona(),
+      undefined,
+      undefined,
+      'ko'
+    );
+
+    // events.length must not exceed the number of interrupted turns
+    if (feedback.bargeInAnalysis) {
+      expect(feedback.bargeInAnalysis.events.length).toBeLessThanOrEqual(interruptedCount);
+      expect(feedback.bargeInAnalysis.count).toBe(feedback.bargeInAnalysis.events.length);
+    }
+  });
+
   it('bargeInAnalysis contains the event with the interrupted turn details', async () => {
     const messages = makeMessages({ withInterruptions: true });
     const feedback = await provider.generateFeedback(

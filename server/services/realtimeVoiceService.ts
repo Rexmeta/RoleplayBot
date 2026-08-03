@@ -777,6 +777,17 @@ export class RealtimeVoiceService {
         currentSession.isInterrupted = false;
         currentSession.cancelledTurnSeq = -1;
         currentSession.currentTranscript = '';
+        // Flush any accumulated user transcript before resetting the buffer so
+        // the partial speech is not lost and will not re-accumulate after the new
+        // Gemini session replays pending audio — preventing a duplicate user turn.
+        const pendingUserSpeech = currentSession.userTranscriptBuffer.trim();
+        if (pendingUserSpeech) {
+          console.log(`🎤 [proactiveReconnect] Flushing pending user buffer before reset: "${pendingUserSpeech.substring(0, 60)}"`);
+          this.sendToClient(currentSession, { type: 'user.transcription', transcript: pendingUserSpeech });
+          currentSession.recentMessages.push({ role: 'user', text: pendingUserSpeech.slice(0, 300) });
+          if (currentSession.recentMessages.length > 30) currentSession.recentMessages.shift();
+        }
+        currentSession.userTranscriptBuffer = '';
         currentSession.usingReconnectInstructions = true;
         console.log(`✅ proactiveReconnect 성공: 새 Gemini 세션 활성화`);
         this.sendToClient(currentSession, { type: 'session.reconnected' });

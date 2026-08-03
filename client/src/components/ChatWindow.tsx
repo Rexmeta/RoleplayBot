@@ -257,7 +257,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
     },
-    onMessageComplete: (message, emotion, emotionReason, userAffect) => {
+    onMessageComplete: (message, emotion, emotionReason, userAffect, interrupted) => {
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
       if (emotion) {
@@ -270,6 +270,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       hasPendingLocalRef.current = true;
       setLocalMessages(prev => {
         if (prev.some(m => m.sender === 'ai' && m.message === message)) return prev;
+        // Barge-in replacement takes priority over every other dedup rule:
+        // if the immediately preceding message is an interrupted AI turn, swap it
+        // with the new resumed/completed turn rather than appending. This must run
+        // before phase-dedup so that a barge-in during the greeting (before any
+        // user turn) is also handled correctly. The interrupted flag is propagated
+        // from the server's ai.transcription.done event via useRealtimeVoice.
+        const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
+        if (lastMsg && lastMsg.sender === 'ai' && (lastMsg as any).interrupted) {
+          console.log('⚠️ [barge-in-dedup] Replacing interrupted AI message with resumed turn');
+          return [
+            ...prev.slice(0, -1),
+            { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '', userAffect: userAffect ?? undefined, interrupted: interrupted ?? false },
+          ];
+        }
         // Phase-based dedup: if AI has spoken but user hasn't yet (greeting phase),
         // suppress any additional AI message — it's a duplicate from the retry race.
         const hasAiMessage = prev.some(m => m.sender === 'ai');
@@ -278,7 +292,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           console.log('⚠️ [phase-dedup] Suppressing duplicate AI message in greeting phase');
           return prev;
         }
-        return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '', userAffect: userAffect ?? undefined }];
+        return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '', userAffect: userAffect ?? undefined, interrupted: interrupted ?? false }];
       });
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
       // Incrementally persist after each AI turn so that if the session ends

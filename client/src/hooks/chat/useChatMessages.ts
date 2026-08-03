@@ -378,12 +378,25 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     // triggered between these two calls always sees either the transcript in
     // localMessagesRef.current OR the pending text in pendingUserTextRef.current
     // — never neither.
-    setLocalMessages(prev => [...prev, {
-      id: nextId(),
-      sender: 'user',
-      message: transcript,
-      timestamp: new Date().toISOString(),
-    }]);
+    setLocalMessages(prev => {
+      // Replay dedup guard: suppress only when the *immediately preceding*
+      // message is a user turn with the exact same text. Reconnect replay
+      // always delivers the duplicate transcript back-to-back, so a strict
+      // last-message check is sufficient. Legitimate repeated utterances
+      // (e.g. "네" said again after an AI response) are always allowed through
+      // because an AI turn will have appeared in between.
+      const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
+      if (lastMsg && lastMsg.sender === 'user' && lastMsg.message === transcript) {
+        console.log('⚠️ [user-dedup] Suppressing adjacent duplicate user transcription:', transcript.substring(0, 60));
+        return prev;
+      }
+      return [...prev, {
+        id: nextId(),
+        sender: 'user',
+        message: transcript,
+        timestamp: new Date().toISOString(),
+      }];
+    });
     setPendingUserText('');
   };
 
