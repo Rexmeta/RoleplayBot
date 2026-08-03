@@ -414,7 +414,7 @@ export interface AvatarClipRequest {
   neutralImageUrl?: string;
 }
 
-function generateAvatarClipPrompt(request: AvatarClipRequest): string {
+export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
   const { state, styleHint } = request;
   const base = styleHint
     ? `A professional person (${styleHint}), `
