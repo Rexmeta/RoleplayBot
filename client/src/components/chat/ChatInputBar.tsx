@@ -379,98 +379,102 @@ export function ChatInputBar({
     );
   }
 
+  const charsLeft = 200 - userInput.length;
+
   return (
-    <div className="flex gap-4">
-      <div className="flex-1">
-        <div className="relative">
-          <AutoResizeTextarea
-            value={userInput}
-            onChange={(e) => onUserInputChange(e.target.value)}
-            placeholder={`메시지를 입력하세요... (최대 200자)`}
-            maxLength={200}
-            rows={3}
-            className="rounded-xl border-slate-200 focus:border-corporate-400 focus:ring-corporate-400/20 focus:ring-4 transition-all duration-200 pr-12 pb-8"
-            disabled={isLoading}
-            data-testid="input-message"
-          />
-          <div className="absolute bottom-3 right-3 text-xs text-slate-400 bg-white/80 px-1.5 py-0.5 rounded">
-            {userInput.length}/200
-          </div>
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {speechSupported ? (
-                  <button
-                    type="button"
-                    onClick={onVoiceInput}
-                    disabled={isLoading}
-                    className={`absolute bottom-2 left-3 flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all duration-200 ${
-                      isRecording
-                        ? 'bg-red-100 border border-red-300 text-red-700 animate-pulse'
-                        : 'bg-slate-100 border border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    data-testid="button-voice-input"
-                  >
-                    <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} text-[11px] ${isRecording ? 'text-red-500' : 'text-slate-500'}`}></i>
-                    <span>{isRecording ? t('chat.done') : t('chat.voice')}</span>
-                  </button>
-                ) : (
-                  <span
-                    className="absolute bottom-2 left-3 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-slate-100 border border-slate-200 text-slate-400 opacity-50 cursor-not-allowed"
-                    aria-label={t('chat.voiceNotSupported', { defaultValue: '이 브라우저는 음성 인식을 지원하지 않습니다' })}
-                    data-testid="button-voice-input"
-                  >
-                    <i className="fas fa-microphone text-[11px] text-slate-400"></i>
-                    <span>{t('chat.voice')}</span>
-                  </span>
-                )}
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {!speechSupported
-                  ? t('chat.voiceNotSupported', { defaultValue: '이 브라우저는 음성 인식을 지원하지 않습니다' })
-                  : isRecording
-                    ? t('chat.stopRecording')
-                    : t('chat.startRecording')}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        <div className="flex items-center justify-between mt-2 px-1">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <i className="fas fa-lightbulb text-amber-400"></i>
-            <span>{t('chat.tipPoliteAnswer')}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            {isRecording && (
-              <span className="text-red-600 animate-pulse flex items-center gap-1">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                {t('voice.inputInProgress')}
+    <div className="flex items-center gap-2">
+      {/* Mic button */}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {speechSupported ? (
+              <button
+                type="button"
+                onClick={onVoiceInput}
+                disabled={isLoading}
+                className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 ${
+                  isRecording
+                    ? 'bg-red-500 text-white animate-pulse shadow-md'
+                    : 'bg-slate-100 border border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                data-testid="button-voice-input"
+              >
+                <i className={`fas ${isRecording ? 'fa-stop' : 'fa-microphone'} text-sm`}></i>
+              </button>
+            ) : (
+              <span
+                className="w-10 h-10 rounded-full inline-flex items-center justify-center shrink-0 bg-slate-100 border border-slate-200 text-slate-400 opacity-50 cursor-not-allowed"
+                aria-label={t('chat.voiceNotSupported', { defaultValue: '이 브라우저는 음성 인식을 지원하지 않습니다' })}
+                data-testid="button-voice-input"
+              >
+                <i className="fas fa-microphone text-sm"></i>
               </span>
             )}
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col gap-3">
-        <Button
-          onClick={onSendMessage}
-          disabled={!userInput.trim() || isLoading}
-          className="bg-gradient-to-r from-corporate-600 to-corporate-700 hover:from-corporate-700 hover:to-corporate-800 shadow-md hover:shadow-lg transition-all duration-200 rounded-xl min-h-[44px] h-12"
-          data-testid="button-send-message"
-        >
-          <i className="fas fa-paper-plane mr-2"></i>
-          {t('chat.send')}
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={onSkipTurn}
-          disabled={isLoading}
-          className="rounded-xl min-h-[44px] h-10 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-          data-testid="button-skip-turn"
-        >
-          <i className="fas fa-forward mr-2"></i>
-          {t('chat.skip')}
-        </Button>
-      </div>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {!speechSupported
+              ? t('chat.voiceNotSupported', { defaultValue: '이 브라우저는 음성 인식을 지원하지 않습니다' })
+              : isRecording
+                ? t('chat.stopRecording')
+                : t('chat.startRecording')}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      {/* Text input */}
+      <AutoResizeTextarea
+        value={userInput}
+        onChange={(e) => onUserInputChange(e.target.value)}
+        placeholder={`메시지를 입력하세요... (최대 200자)`}
+        maxLength={200}
+        rows={1}
+        style={{ maxHeight: '120px' }}
+        className="flex-1 rounded-xl border-slate-200 focus:border-corporate-400 focus:ring-corporate-400/20 focus:ring-4 transition-all duration-200 py-2.5 px-3"
+        disabled={isLoading}
+        data-testid="input-message"
+      />
+
+      {/* Char counter */}
+      <span className={`text-xs shrink-0 ${charsLeft <= 20 ? 'text-amber-500' : 'text-slate-400'}`}>
+        {charsLeft}
+      </span>
+
+      {/* Send button */}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onSendMessage}
+              disabled={!userInput.trim() || isLoading}
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-r from-corporate-600 to-corporate-700 hover:from-corporate-700 hover:to-corporate-800 text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="button-send-message"
+            >
+              <i className="fas fa-paper-plane text-sm"></i>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">{t('chat.send')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      {/* Skip button */}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onSkipTurn}
+              disabled={isLoading}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="button-skip-turn"
+            >
+              <i className="fas fa-forward text-[11px]"></i>
+              <span>{t('chat.skip')}</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">{t('chat.skip')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 }
