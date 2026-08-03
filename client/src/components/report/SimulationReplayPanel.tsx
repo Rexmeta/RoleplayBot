@@ -178,7 +178,7 @@ interface EmotionDelta {
  * For each turn, compute NPC emotion delta = stateAfter - stateBefore
  * from auto_evaluation events. Includes affective-only fields when available.
  */
-function computeEmotionDeltasByTurn(events: SimulationEventRecord[]): Map<number, EmotionDelta> {
+export function computeEmotionDeltasByTurn(events: SimulationEventRecord[]): Map<number, EmotionDelta> {
   const result = new Map<number, EmotionDelta>();
   for (const ev of events) {
     if (ev.eventType !== "auto_evaluation") continue;
@@ -225,7 +225,7 @@ interface EmotionTrendPoint {
  * Extract absolute NPC emotion + affective-only values from stateAfter of auto_evaluation events,
  * one point per turn (latest entry wins when a turn has duplicates).
  */
-function computeEmotionTrend(events: SimulationEventRecord[]): EmotionTrendPoint[] {
+export function computeEmotionTrend(events: SimulationEventRecord[]): EmotionTrendPoint[] {
   const byTurn = new Map<number, EmotionTrendPoint>();
   for (const ev of events) {
     if (ev.eventType !== "auto_evaluation") continue;
