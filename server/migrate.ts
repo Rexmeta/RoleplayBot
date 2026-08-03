@@ -1030,7 +1030,8 @@ export async function runMigrations(): Promise<void> {
         { table: 'scenarios', column: 'flow_graph', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='flow_graph') THEN ALTER TABLE "scenarios" ADD COLUMN "flow_graph" jsonb; END IF; END $$;` },
         { table: 'scenarios', column: 'persona_switch_rules', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='persona_switch_rules') THEN ALTER TABLE "scenarios" ADD COLUMN "persona_switch_rules" jsonb; END IF; END $$;` },
         { table: 'scenarios', column: 'evaluation_harness', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='evaluation_harness') THEN ALTER TABLE "scenarios" ADD COLUMN "evaluation_harness" jsonb; END IF; END $$;` },
-        { table: 'scenarios', column: 'termination_rules', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='termination_rules') THEN ALTER TABLE "scenarios" ADD COLUMN "termination_rules" jsonb; END IF; END $$;` }
+        { table: 'scenarios', column: 'termination_rules', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='termination_rules') THEN ALTER TABLE "scenarios" ADD COLUMN "termination_rules" jsonb; END IF; END $$;` },
+        { table: 'chat_messages', column: 'user_affect', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='chat_messages' AND column_name='user_affect') THEN ALTER TABLE "chat_messages" ADD COLUMN "user_affect" jsonb; END IF; END $$;` }
       );
 
       for (const patch of criticalColumnPatches) {
