@@ -35,9 +35,17 @@ interface NpcEmotions {
   interest: number;
 }
 
+interface NpcAffectiveState {
+  affective: { intensity: number; valence: number };
+  cognitive: { confusion: number; load: number };
+  relational: { trust: number; rapport: number };
+  motivational: { interest: number; cooperativeness: number };
+}
+
 interface SimulationState {
   version: number;
   npcEmotions: NpcEmotions;
+  npcAffectiveState?: NpcAffectiveState;
   recentIncidents: Incident[];
 }
 
@@ -83,6 +91,16 @@ function isNpcEmotions(v: unknown): v is NpcEmotions {
     typeof e.trust === "number" &&
     typeof e.confusion === "number" &&
     typeof e.interest === "number"
+  );
+}
+
+function isNpcAffectiveState(v: unknown): v is NpcAffectiveState {
+  if (!v || typeof v !== "object") return false;
+  const a = v as Record<string, unknown>;
+  return (
+    a.relational !== null && typeof a.relational === "object" &&
+    a.cognitive !== null && typeof a.cognitive === "object" &&
+    a.motivational !== null && typeof a.motivational === "object"
   );
 }
 
@@ -151,11 +169,14 @@ interface EmotionDelta {
   interest: number;
   anger: number;
   confusion: number;
+  rapport: number;
+  cognitiveLoad: number;
+  cooperativeness: number;
 }
 
 /**
  * For each turn, compute NPC emotion delta = stateAfter - stateBefore
- * from auto_evaluation events.
+ * from auto_evaluation events. Includes affective-only fields when available.
  */
 function computeEmotionDeltasByTurn(events: SimulationEventRecord[]): Map<number, EmotionDelta> {
   const result = new Map<number, EmotionDelta>();
@@ -165,11 +186,22 @@ function computeEmotionDeltasByTurn(events: SimulationEventRecord[]): Map<number
     const after = ev.stateAfter.npcEmotions;
     const before = isSimulationState(ev.stateBefore) ? ev.stateBefore.npcEmotions : null;
     if (!before) continue;
+
+    const afterAff = isNpcAffectiveState(ev.stateAfter.npcAffectiveState)
+      ? ev.stateAfter.npcAffectiveState
+      : null;
+    const beforeAff = isSimulationState(ev.stateBefore) && isNpcAffectiveState(ev.stateBefore.npcAffectiveState)
+      ? ev.stateBefore.npcAffectiveState
+      : null;
+
     result.set(ev.turnIndex, {
       trust: after.trust - before.trust,
       interest: after.interest - before.interest,
       anger: after.anger - before.anger,
       confusion: after.confusion - before.confusion,
+      rapport: afterAff && beforeAff ? afterAff.relational.rapport - beforeAff.relational.rapport : 0,
+      cognitiveLoad: afterAff && beforeAff ? afterAff.cognitive.load - beforeAff.cognitive.load : 0,
+      cooperativeness: afterAff && beforeAff ? afterAff.motivational.cooperativeness - beforeAff.motivational.cooperativeness : 0,
     });
   }
   return result;
@@ -183,10 +215,14 @@ interface EmotionTrendPoint {
   anger: number;
   confusion: number;
   interest: number;
+  /** Affective-only fields — present when npcAffectiveState was stored on the event */
+  rapport: number | null;
+  cognitiveLoad: number | null;
+  cooperativeness: number | null;
 }
 
 /**
- * Extract absolute NPC emotion values from stateAfter of auto_evaluation events,
+ * Extract absolute NPC emotion + affective-only values from stateAfter of auto_evaluation events,
  * one point per turn (latest entry wins when a turn has duplicates).
  */
 function computeEmotionTrend(events: SimulationEventRecord[]): EmotionTrendPoint[] {
@@ -195,7 +231,17 @@ function computeEmotionTrend(events: SimulationEventRecord[]): EmotionTrendPoint
     if (ev.eventType !== "auto_evaluation") continue;
     if (!isSimulationState(ev.stateAfter)) continue;
     const { anger, trust, confusion, interest } = ev.stateAfter.npcEmotions;
-    byTurn.set(ev.turnIndex, { turnIndex: ev.turnIndex, trust, anger, confusion, interest });
+    const aff = isNpcAffectiveState(ev.stateAfter.npcAffectiveState) ? ev.stateAfter.npcAffectiveState : null;
+    byTurn.set(ev.turnIndex, {
+      turnIndex: ev.turnIndex,
+      trust,
+      anger,
+      confusion,
+      interest,
+      rapport: aff ? aff.relational.rapport : null,
+      cognitiveLoad: aff ? aff.cognitive.load : null,
+      cooperativeness: aff ? aff.motivational.cooperativeness : null,
+    });
   }
   return Array.from(byTurn.values()).sort((a, b) => a.turnIndex - b.turnIndex);
 }
@@ -210,7 +256,7 @@ function EmotionTrendChart({ trend }: EmotionTrendChartProps) {
   if (trend.length < 3) return null;
 
   const W = 560;
-  const H = 96;
+  const H = 120;
   const PAD = { top: 8, right: 12, bottom: 20, left: 28 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
@@ -220,9 +266,14 @@ function EmotionTrendChart({ trend }: EmotionTrendChartProps) {
   const toX = (i: number) => PAD.left + i * xStep;
   const toY = (v: number) => PAD.top + innerH - (Math.max(0, Math.min(100, v)) / 100) * innerH;
 
-  // Build path strings for trust and anger
-  const buildLinePath = (vals: number[]) =>
-    vals.map((v, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
+  const buildLinePath = (vals: (number | null)[]) => {
+    const pts: string[] = [];
+    vals.forEach((v, i) => {
+      if (v === null) return;
+      pts.push(`${pts.length === 0 ? "M" : "L"} ${toX(i).toFixed(1)},${toY(v).toFixed(1)}`);
+    });
+    return pts.join(" ");
+  };
 
   const buildAreaPath = (vals: number[]) => {
     const line = buildLinePath(vals);
@@ -233,6 +284,12 @@ function EmotionTrendChart({ trend }: EmotionTrendChartProps) {
 
   const trustVals = trend.map((p) => p.trust);
   const angerVals = trend.map((p) => p.anger);
+  const rapportVals = trend.map((p) => p.rapport);
+  const loadVals = trend.map((p) => p.cognitiveLoad);
+  const coopVals = trend.map((p) => p.cooperativeness);
+
+  // Only show affective lines if at least one turn has data
+  const hasAffective = trend.some((p) => p.rapport !== null);
 
   // Y-axis tick labels: 0, 50, 100
   const yTicks = [0, 50, 100];
@@ -252,6 +309,22 @@ function EmotionTrendChart({ trend }: EmotionTrendChartProps) {
               <span className="inline-block w-3 h-0.5 rounded bg-red-400" />
               분노
             </span>
+            {hasAffective && (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-0.5 rounded bg-violet-500" />
+                  라포
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-0.5 rounded bg-amber-500" style={{ borderStyle: "dashed" }} />
+                  인지부하
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-0.5 rounded bg-sky-500" />
+                  협력의지
+                </span>
+              </>
+            )}
           </div>
         </CardTitle>
       </CardHeader>
@@ -259,8 +332,8 @@ function EmotionTrendChart({ trend }: EmotionTrendChartProps) {
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="w-full h-auto"
-          style={{ maxHeight: "96px" }}
-          aria-label="NPC 신뢰·분노 추이 차트"
+          style={{ maxHeight: `${H}px` }}
+          aria-label="NPC 감정 및 관계 추이 차트"
         >
           <defs>
             <linearGradient id="trustGrad" x1="0" y1="0" x2="0" y2="1">
@@ -319,6 +392,40 @@ function EmotionTrendChart({ trend }: EmotionTrendChartProps) {
             strokeLinecap="round"
           />
 
+          {/* Affective-only lines (rapport, cognitive load, cooperativeness) */}
+          {hasAffective && (
+            <>
+              {/* Rapport */}
+              <path
+                d={buildLinePath(rapportVals)}
+                fill="none"
+                stroke="#8b5cf6"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              {/* Cognitive Load (dashed) */}
+              <path
+                d={buildLinePath(loadVals)}
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="1.5"
+                strokeDasharray="4,3"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              {/* Cooperativeness */}
+              <path
+                d={buildLinePath(coopVals)}
+                fill="none"
+                stroke="#0ea5e9"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            </>
+          )}
+
           {/* Dots and X-axis turn labels */}
           {trend.map((point, i) => (
             <g key={point.turnIndex}>
@@ -326,6 +433,16 @@ function EmotionTrendChart({ trend }: EmotionTrendChartProps) {
               <circle cx={toX(i)} cy={toY(point.trust)} r="2.5" fill="#10b981" />
               {/* Anger dot */}
               <circle cx={toX(i)} cy={toY(point.anger)} r="2.5" fill="#f87171" />
+              {/* Affective dots */}
+              {hasAffective && point.rapport !== null && (
+                <circle cx={toX(i)} cy={toY(point.rapport)} r="2" fill="#8b5cf6" />
+              )}
+              {hasAffective && point.cognitiveLoad !== null && (
+                <circle cx={toX(i)} cy={toY(point.cognitiveLoad)} r="2" fill="#f59e0b" />
+              )}
+              {hasAffective && point.cooperativeness !== null && (
+                <circle cx={toX(i)} cy={toY(point.cooperativeness)} r="2" fill="#0ea5e9" />
+              )}
               {/* Turn label on X axis */}
               <text
                 x={toX(i)}
@@ -516,6 +633,10 @@ function EmotionImpactRow({ delta }: { delta: EmotionDelta }) {
       {/* Interest and confusion only shown when non-zero */}
       <DeltaBadge value={delta.interest} label="관심" />
       <DeltaBadge value={delta.confusion} label="혼란" invertPositive />
+      {/* Affective-only fields — only shown when non-zero */}
+      <DeltaBadge value={delta.rapport} label="라포" />
+      <DeltaBadge value={delta.cognitiveLoad} label="인지부하" invertPositive />
+      <DeltaBadge value={delta.cooperativeness} label="협력의지" />
     </div>
   );
 }
