@@ -414,31 +414,42 @@ export interface AvatarClipRequest {
   neutralImageUrl?: string;
 }
 
+/**
+ * Build a Veo prompt for an avatar clip state.
+ *
+ * Design intent: prompts describe ONLY body posture and motion — no appearance,
+ * no ethnicity, no gender.  The person's looks come from the seed image.
+ * Mouth is kept closed/still in every state to avoid lip-sync policy issues.
+ */
 export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
-  const { state, styleHint } = request;
-  const base = styleHint
-    ? `A professional person (${styleHint}), `
-    : 'A professional person, ';
+  const { state } = request;
+  // styleHint is intentionally ignored — appearance is provided via seed image.
 
   const stateDescriptions: Record<AvatarClipState, string> = {
     idle:
-      base + 'standing calmly in a modern office, relaxed posture, upper body visible, soft ambient background, loopable. ' +
-      'Cinematic, photorealistic, soft lighting, no text, no background distractions. 6 seconds.',
+      'A person sitting calmly upright at a desk. Subtle natural breathing, very slight body sway. ' +
+      'Mouth closed and still. Neutral expression. Soft office background, no distractions. ' +
+      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     listening:
-      base + 'in a professional setting, upper body visible, attentive posture, slightly turned toward a colleague, loopable. ' +
-      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+      'A person sitting attentively, leaning slightly forward. Head gently tilted, focused gaze. ' +
+      'Mouth closed and still. Engaged but calm body language. ' +
+      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     listening_nod:
-      base + 'in a bright conference room, upper body visible, leaning forward with an engaged posture, loopable. ' +
-      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+      'A person giving slow, small nods of acknowledgment. Natural, gentle head movement. ' +
+      'Mouth closed. Relaxed shoulders. ' +
+      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     thinking:
-      base + 'in a modern office, upper body visible, pausing with a contemplative posture, gaze directed slightly away, loopable. ' +
-      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+      'A person pausing in thought. Eyes glancing slightly upward or to one side. Subtle head tilt. ' +
+      'Mouth closed and still. Contemplative, calm posture. ' +
+      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     speaking:
-      base + 'in a modern office, gesturing during a conversation, upper body visible, engaged body language, loopable. ' +
-      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+      'A person making small, natural hand gestures while engaged in conversation. ' +
+      'Upper body animated, leaning slightly forward. Mouth closed and still. ' +
+      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     speaking_pause:
-      base + 'in a professional setting, upper body visible, pausing mid-conversation with a composed posture, loopable. ' +
-      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+      'A person pausing between sentences, composed and upright. ' +
+      'Slight breath, minimal body movement. Mouth gently closed. ' +
+      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
   };
 
   return stateDescriptions[state] ?? stateDescriptions['idle'];
@@ -466,6 +477,25 @@ export async function generateAvatarClip(
     console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${request.state} / gender:${request.gender ?? 'unspecified'}`);
     console.log(`프롬프트: ${videoPrompt}`);
 
+    // Convert relative object-storage keys (e.g. "personas/ac/male/neutral.webp")
+    // to gs:// URIs so the SSRF guard below will accept them.
+    let resolvedNeutralImageUrl = request.neutralImageUrl;
+    if (
+      resolvedNeutralImageUrl &&
+      !resolvedNeutralImageUrl.startsWith('http') &&
+      !resolvedNeutralImageUrl.startsWith('gs://')
+    ) {
+      const bucket = process.env.GCS_BUCKET_NAME;
+      if (bucket) {
+        const key = resolvedNeutralImageUrl.replace(/^\/+/, '');
+        resolvedNeutralImageUrl = `gs://${bucket}/${key}`;
+        console.log(`🖼️ 시드 이미지 경로 변환: ${request.neutralImageUrl} → ${resolvedNeutralImageUrl}`);
+      } else {
+        console.warn('⚠️ GCS_BUCKET_NAME 미설정 — 시드 이미지 없이 텍스트 프롬프트만 사용');
+        resolvedNeutralImageUrl = undefined;
+      }
+    }
+
     // Build optional seed image parameter.
     // SSRF guard: only allow gs:// URIs or HTTPS URLs hosted on trusted GCS/storage domains.
     const TRUSTED_HTTPS_HOSTS = [
@@ -484,8 +514,8 @@ export async function generateAvatarClip(
     };
 
     let seedImage: { gcsUri: string } | { imageBytes: string; mimeType: string } | undefined;
-    if (request.neutralImageUrl) {
-      const url = request.neutralImageUrl;
+    if (resolvedNeutralImageUrl) {
+      const url = resolvedNeutralImageUrl;
       if (!isTrustedNeutralImageUrl(url)) {
         console.warn(`⚠️ neutralImageUrl 신뢰할 수 없는 출처 (SSRF 방지): ${url.substring(0, 60)} — 텍스트 프롬프트만 사용`);
       } else {
