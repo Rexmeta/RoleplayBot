@@ -12,12 +12,15 @@
  *  - currentEmotion / getCharacterImage                → MessageList, header thumbnail
  *  - hasNoPersonaImages                                → "no images" notice
  *  - setEmotion                                        → call from message handlers
+ *  - playState                                         → drive avatar state machine changes
+ *  - renderer                                          → raw instance (VideoAvatarPortrait needs it)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createAvatarRenderer } from '@/lib/avatar/AvatarRendererFactory';
+import { ImageAvatarRenderer } from '@/lib/avatar/ImageAvatarRenderer';
 import type { AvatarRenderer } from '@/lib/avatar/AvatarRenderer';
-import type { ImageAvatarRenderer } from '@/lib/avatar/ImageAvatarRenderer';
+import type { AvatarState } from '@/lib/avatar/types';
 
 interface PersonaInfo {
   id: string;
@@ -53,6 +56,10 @@ export interface UseAvatarRendererResult {
   getCharacterImage: (emotion: string) => string | null;
   /** Drive an emotion change (handles preload & overlay colour) */
   setEmotion: (emotion: string) => void;
+  /** Drive a combined state + optional emotion change */
+  playState: (state: AvatarState, emotion?: string) => void;
+  /** Raw renderer instance — needed by VideoAvatarPortrait to mount containerEl */
+  renderer: AvatarRenderer;
 }
 
 export function useAvatarRenderer({
@@ -60,25 +67,52 @@ export function useAvatarRenderer({
   conversationId,
   onReady,
 }: UseAvatarRendererOptions): UseAvatarRendererResult {
-  // Keep a stable renderer reference across renders
-  const rendererRef = useRef<AvatarRenderer | null>(null);
+  // `rendererInstance` is state so that a type swap (image → video) causes
+  // the persona effect to re-run and re-initialize the new renderer.
+  const [rendererInstance, setRendererInstance] = useState<AvatarRenderer>(
+    () => new ImageAvatarRenderer(),
+  );
+
+  // Ref mirrors state for stable access in effects without stale closures.
+  const rendererRef = useRef<AvatarRenderer>(rendererInstance);
+
   const onReadyRef = useRef(onReady);
+  useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
 
-  useEffect(() => {
-    onReadyRef.current = onReady;
-  }, [onReady]);
-
-  // Force re-render when the renderer emits a change
+  // Force re-render when the renderer emits a change notification.
   const [, forceUpdate] = useState(0);
 
-  // Create the renderer once
-  if (!rendererRef.current) {
-    rendererRef.current = createAvatarRenderer();
-  }
-
-  // (Re-)initialize whenever persona / conversationId changes
+  // ── Step 1: Resolve the correct renderer type once on mount ────────────────
+  // If VITE_AVATAR_RENDERER=image (the default) the factory returns
+  // ImageAvatarRenderer which is the same type as the placeholder, so no swap
+  // happens.  For "video" the dynamic import resolves and we swap in place.
   useEffect(() => {
-    const renderer = rendererRef.current!;
+    let cancelled = false;
+
+    createAvatarRenderer().then(resolved => {
+      if (cancelled) {
+        resolved.destroy();
+        return;
+      }
+      const current = rendererRef.current;
+      if (resolved.constructor !== current.constructor) {
+        // Different type — destroy placeholder, install the real renderer.
+        current.destroy();
+        rendererRef.current = resolved;
+        setRendererInstance(resolved); // triggers persona effect below
+      } else {
+        // Same type — keep the existing instance; discard the duplicate.
+        resolved.destroy();
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Step 2: Initialize + subscribe on every relevant change ───────────────
+  // Depends on `rendererInstance` so it automatically re-runs after a swap.
+  useEffect(() => {
+    const renderer = rendererInstance;
     renderer.initialize(
       {
         id: persona.id,
@@ -93,22 +127,23 @@ export function useAvatarRenderer({
     );
 
     const unsubscribe = renderer.subscribe(() => forceUpdate(n => n + 1));
-    return () => {
-      unsubscribe();
-    };
-  }, [persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, conversationId]);
+    return unsubscribe; // React calls this on cleanup (dep change or unmount)
+  }, [rendererInstance, persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, conversationId]);
 
-  // Destroy on unmount
+  // ── Step 3: Destroy on unmount ─────────────────────────────────────────────
+  // Uses ref so it always reaches the most-recent renderer instance.
   useEffect(() => {
-    return () => {
-      rendererRef.current?.destroy();
-    };
+    return () => { rendererRef.current?.destroy(); };
   }, []);
 
-  const renderer = rendererRef.current;
+  // ── Stable callbacks ───────────────────────────────────────────────────────
 
   const setEmotion = useCallback((emotion: string) => {
     rendererRef.current?.setEmotion(emotion);
+  }, []);
+
+  const playState = useCallback((state: AvatarState, emotion?: string) => {
+    rendererRef.current?.playState(state, emotion);
   }, []);
 
   const getCharacterImage = useCallback((emotion: string): string | null => {
@@ -117,14 +152,16 @@ export function useAvatarRenderer({
   }, []);
 
   return {
-    displayImageUrl: renderer.displayImageUrl,
-    overlayColor: renderer.overlayColor,
-    isTransitioning: renderer.isTransitioning,
-    isInitialLoading: renderer.isInitialLoading,
-    isOverlayFading: renderer.isOverlayFading,
-    currentEmotion: renderer.currentEmotion,
-    hasNoPersonaImages: (renderer as ImageAvatarRenderer).hasNoPersonaImages ?? false,
+    displayImageUrl: rendererInstance.displayImageUrl,
+    overlayColor: rendererInstance.overlayColor,
+    isTransitioning: rendererInstance.isTransitioning,
+    isInitialLoading: rendererInstance.isInitialLoading,
+    isOverlayFading: rendererInstance.isOverlayFading,
+    currentEmotion: rendererInstance.currentEmotion,
+    hasNoPersonaImages: (rendererInstance as ImageAvatarRenderer).hasNoPersonaImages ?? false,
     getCharacterImage,
     setEmotion,
+    playState,
+    renderer: rendererInstance,
   };
 }

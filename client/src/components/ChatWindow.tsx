@@ -34,6 +34,8 @@ import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
+import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
+import type { VideoAvatarRenderer } from "@/lib/avatar/VideoAvatarRenderer";
 import { ChatInputBar } from "@/components/chat/ChatInputBar";
 import { useAvatarStateMachine } from "@/hooks/useAvatarStateMachine";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
@@ -227,7 +229,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const {
     displayImageUrl, overlayColor, isTransitioning, isInitialLoading, isOverlayFading,
-    hasNoPersonaImages, currentEmotion, getCharacterImage, setEmotion,
+    hasNoPersonaImages, currentEmotion, getCharacterImage, setEmotion, playState, renderer,
   } = useAvatarRenderer({
     persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions },
     conversationId, onReady,
@@ -238,6 +240,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // driven by realtime-voice events.  The state machine is decoupled from the
   // Renderer so it can be reused when the renderer changes.
   const { avatarState, dispatchAvatarEvent } = useAvatarStateMachine();
+
+  // Forward state-machine changes to the renderer (VideoAvatarRenderer uses
+  // this to switch which clip is playing; ImageAvatarRenderer ignores state).
+  useEffect(() => {
+    playState(avatarState, currentEmotion || undefined);
+  }, [avatarState, playState]); // currentEmotion intentionally excluded — emotion changes go via setEmotion
 
   const realtimeVoice = useRealtimeVoice({
     conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false, delayGreeting,
@@ -941,9 +949,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   </div>
 
-                  <CharacterPortrait displayImageUrl={displayImageUrl} overlayColor={overlayColor}
-                    isTransitioning={isTransitioning} isSessionEnding={isSessionEnding}
-                    isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
+                  {(renderer as VideoAvatarRenderer).containerEl ? (
+                    <VideoAvatarPortrait
+                      renderer={renderer as VideoAvatarRenderer}
+                      overlayColor={overlayColor}
+                      isTransitioning={isTransitioning}
+                      isSessionEnding={isSessionEnding}
+                      isTextMode={inputMode !== 'realtime-voice'}
+                      avatarState={avatarState}
+                    />
+                  ) : (
+                    <CharacterPortrait displayImageUrl={displayImageUrl} overlayColor={overlayColor}
+                      isTransitioning={isTransitioning} isSessionEnding={isSessionEnding}
+                      isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
+                  )}
 
                   {latestPersonaSwitch && (
                     <div className="absolute top-16 left-0 right-0 z-[14] flex justify-center animate-in slide-in-from-top-2 duration-300 px-4">
