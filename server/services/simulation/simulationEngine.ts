@@ -476,6 +476,30 @@ export function applySimulationPatch(
     newEmotions.interest = newAffectiveState.motivational.interest;
   }
 
+  // Invariant guard: affective-only fields (rapport, cooperativeness, cognitive.load,
+  // affective.valence) have no flat-emotion counterpart and are only intentionally changed
+  // via npcAffectiveStateDelta. If any of these fields decreased without an explicit delta,
+  // it indicates the new state was accidentally re-initialised from defaults rather than
+  // carried forward from prev — warn loudly so the regression is caught early.
+  if (prev.npcAffectiveState && !patch.npcAffectiveStateDelta) {
+    const prevAff = prev.npcAffectiveState;
+    const checks: Array<{ label: string; prev: number; next: number }> = [
+      { label: 'relational.rapport',          prev: prevAff.relational.rapport,          next: newAffectiveState.relational.rapport },
+      { label: 'motivational.cooperativeness', prev: prevAff.motivational.cooperativeness, next: newAffectiveState.motivational.cooperativeness },
+      { label: 'cognitive.load',              prev: prevAff.cognitive.load,               next: newAffectiveState.cognitive.load },
+      { label: 'affective.valence',           prev: prevAff.affective.valence,            next: newAffectiveState.affective.valence },
+    ];
+    for (const c of checks) {
+      if (c.next < c.prev) {
+        console.warn(
+          `[simulationEngine] invariant: affective-only field ${c.label} decreased ` +
+          `(${c.prev} → ${c.next}) without npcAffectiveStateDelta in patch. ` +
+          `personaRunId=${personaRunId} turnId=${turnId} source=${request.source}`
+        );
+      }
+    }
+  }
+
   const intermediateState: SimulationState = {
     version: prev.version + 1,
     stage: newStage,

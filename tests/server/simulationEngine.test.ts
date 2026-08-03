@@ -1137,11 +1137,12 @@ describe('npcAffectiveState — npcAffectiveStateDelta covers all 4 sub-layers',
     expect(aff.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest + 7);
     expect(aff.motivational.cooperativeness).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness - 3);
 
-    // flat npcEmotions must be unaffected by npcAffectiveStateDelta
-    expect(state.npcEmotions.anger).toBe(30);
-    expect(state.npcEmotions.trust).toBe(50);
-    expect(state.npcEmotions.confusion).toBe(20);
-    expect(state.npcEmotions.interest).toBe(50);
+    // Mapped flat emotions are re-derived from the affective layer when npcAffectiveStateDelta is applied.
+    // Unmapped fields (rapport, cooperativeness, load, valence) have no flat counterpart and are not touched.
+    expect(state.npcEmotions.anger).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 10);     // 30 + 10 = 40
+    expect(state.npcEmotions.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 5);          // 50 - 5  = 45
+    expect(state.npcEmotions.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 15);  // 20 + 15 = 35
+    expect(state.npcEmotions.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest + 7);  // 50 + 7  = 57
   });
 });
 
@@ -1231,5 +1232,135 @@ describe('npcAffectiveState — session restore preserves all 4 sub-fields', () 
     expect(reloadedAff.relational.rapport).toBe(savedAff.relational.rapport);
     expect(reloadedAff.motivational.interest).toBe(savedAff.motivational.interest);
     expect(reloadedAff.motivational.cooperativeness).toBe(savedAff.motivational.cooperativeness);
+  });
+});
+
+// ─── Affective-only fields preserved across emotion-only patches ──────────────
+
+describe('affective-only fields preserved when patches only supply npcEmotionDelta', () => {
+  beforeEach(() => {
+    clearSessionContext(RUN_ID);
+  });
+
+  it('rapport and cooperativeness survive multiple emotion-only patches', () => {
+    // Seed non-default rapport and cooperativeness via npcAffectiveStateDelta
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation',
+      priority: 'normal',
+      turnId: 't0',
+      patch: {
+        npcAffectiveStateDelta: {
+          relational:   { rapport: 20 },
+          motivational: { cooperativeness: 15 },
+        },
+      },
+    });
+
+    const seedState = getSessionState(RUN_ID)!;
+    const seedRapport          = seedState.npcAffectiveState!.relational.rapport;
+    const seedCooperativeness  = seedState.npcAffectiveState!.motivational.cooperativeness;
+
+    // Apply several patches that only touch flat emotions — no npcAffectiveStateDelta
+    for (let i = 1; i <= 4; i++) {
+      applySimulationPatch(RUN_ID, {
+        source: 'server_evaluation',
+        priority: 'normal',
+        turnId: `t${i}`,
+        patch: { npcEmotionDelta: { anger: 5, trust: -3, confusion: 2, interest: 1 } },
+      });
+    }
+
+    const finalState = getSessionState(RUN_ID)!;
+    const finalAff = finalState.npcAffectiveState!;
+
+    // Affective-only fields must be carried forward untouched
+    expect(finalAff.relational.rapport).toBe(seedRapport);
+    expect(finalAff.motivational.cooperativeness).toBe(seedCooperativeness);
+  });
+
+  it('cognitive.load and affective.valence survive multiple emotion-only patches', () => {
+    // Seed non-default load and valence
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation',
+      priority: 'normal',
+      turnId: 't0',
+      patch: {
+        npcAffectiveStateDelta: {
+          cognitive:  { load: 30 },
+          affective:  { valence: -25 },
+        },
+      },
+    });
+
+    const seedState = getSessionState(RUN_ID)!;
+    const seedLoad   = seedState.npcAffectiveState!.cognitive.load;
+    const seedValence = seedState.npcAffectiveState!.affective.valence;
+
+    // Several emotion-only patches
+    for (let i = 1; i <= 4; i++) {
+      applySimulationPatch(RUN_ID, {
+        source: 'server_evaluation',
+        priority: 'normal',
+        turnId: `t${i}`,
+        patch: { npcEmotionDelta: { anger: -5, trust: 4 } },
+      });
+    }
+
+    const finalState = getSessionState(RUN_ID)!;
+    const finalAff = finalState.npcAffectiveState!;
+
+    expect(finalAff.cognitive.load).toBe(seedLoad);
+    expect(finalAff.affective.valence).toBe(seedValence);
+  });
+
+  it('all four affective-only fields accumulate correctly across mixed patches', () => {
+    // Two npcAffectiveStateDelta patches separated by emotion-only patches
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation',
+      priority: 'normal',
+      turnId: 't0',
+      patch: {
+        npcAffectiveStateDelta: {
+          relational:   { rapport: 10 },
+          motivational: { cooperativeness: 8 },
+          cognitive:    { load: 20 },
+          affective:    { valence: -15 },
+        },
+      },
+    });
+
+    // Emotion-only patches — should not change affective-only fields
+    for (let i = 1; i <= 3; i++) {
+      applySimulationPatch(RUN_ID, {
+        source: 'server_evaluation',
+        priority: 'normal',
+        turnId: `t${i}`,
+        patch: { npcEmotionDelta: { anger: 3 } },
+      });
+    }
+
+    // Second npcAffectiveStateDelta patch — accumulates on top of first
+    applySimulationPatch(RUN_ID, {
+      source: 'server_evaluation',
+      priority: 'normal',
+      turnId: 't4',
+      patch: {
+        npcAffectiveStateDelta: {
+          relational:   { rapport: 5 },
+          motivational: { cooperativeness: -3 },
+          cognitive:    { load: 10 },
+          affective:    { valence: 7 },
+        },
+      },
+    });
+
+    const finalState = getSessionState(RUN_ID)!;
+    const finalAff = finalState.npcAffectiveState!;
+
+    // Must equal the sum of both deltas applied to defaults (no resets in between)
+    expect(finalAff.relational.rapport).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport + 10 + 5);
+    expect(finalAff.motivational.cooperativeness).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness + 8 - 3);
+    expect(finalAff.cognitive.load).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.load + 20 + 10);
+    expect(finalAff.affective.valence).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.valence - 15 + 7);
   });
 });
