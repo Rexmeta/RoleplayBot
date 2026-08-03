@@ -399,6 +399,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     Object.values(isGeneratingNpcBehaviorHarness).some(Boolean);
   const [isUploadingDefaultVideo, setIsUploadingDefaultVideo] = useState(false);
   const defaultVideoInputRef = useRef<HTMLInputElement>(null);
+  const videoJobPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -1383,6 +1384,73 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     closeAiPreviewDialog();
   };
 
+  const pollIntroVideoJob = (scenarioId: string, jobId: string, deadline: number) => {
+    const POLL_INTERVAL_MS = 5_000;
+
+    const poll = async (): Promise<void> => {
+      if (Date.now() > deadline) {
+        setIsGeneratingVideo(false);
+        toast({
+          title: t('admin.scenarioManager.toast.videoGenerateFailed', '비디오 생성 시간 초과'),
+          description: '비디오 생성 시간이 초과되었습니다. 다시 시도해주세요.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      try {
+        const statusRes = await apiRequest('GET', `/api/admin/scenarios/${scenarioId}/generate-intro-video/status?jobId=${encodeURIComponent(jobId)}`);
+
+        if (statusRes.status === 404) {
+          setIsGeneratingVideo(false);
+          toast({
+            title: '서버 재시작',
+            description: '서버가 재시작되어 작업 정보를 찾을 수 없습니다. 다시 시도해주세요.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        const data = await statusRes.json();
+
+        if (data.status === 'done' && data.result?.videoUrl) {
+          setIsGeneratingVideo(false);
+          setFormData(prev => ({ ...prev, introVideoUrl: data.result.videoUrl, introVideoMode: 'custom' }));
+          toast({
+            title: t('admin.scenarioManager.toast.videoGenerated', '비디오 생성 완료'),
+            description: t('admin.scenarioManager.toast.videoGeneratedDesc', '인트로 비디오가 생성되었습니다.'),
+          });
+          queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+        } else if (data.status === 'error') {
+          setIsGeneratingVideo(false);
+          toast({
+            title: t('admin.scenarioManager.toast.videoGenerateFailed', '비디오 생성 실패'),
+            description: data.error || '비디오 생성 중 오류가 발생했습니다.',
+            variant: 'destructive',
+          });
+        } else {
+          // pending or running — keep polling
+          videoJobPollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      } catch (pollErr: any) {
+        const msg = pollErr?.message ?? '';
+        if (msg.includes('404') || msg.includes('Job not found')) {
+          setIsGeneratingVideo(false);
+          toast({
+            title: '서버 재시작',
+            description: '서버가 재시작되어 작업 정보를 찾을 수 없습니다. 다시 시도해주세요.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        // Network glitch — keep polling
+        videoJobPollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+      }
+    };
+
+    videoJobPollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+  };
+
   const handleGenerateVideo = async () => {
     if (!editingScenario?.id) {
       toast({
@@ -1402,34 +1470,40 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return;
     }
 
+    // Cancel any existing poll
+    if (videoJobPollRef.current) {
+      clearTimeout(videoJobPollRef.current);
+      videoJobPollRef.current = null;
+    }
+
     setIsGeneratingVideo(true);
     setVideoLoadFailed(false);
     try {
       const response = await apiRequest('POST', `/api/admin/scenarios/${editingScenario.id}/generate-intro-video`, {
         customPrompt: formData.videoPrompt || undefined,
       });
-      
+
       const data = await response.json();
-      
-      if (data.success && data.videoUrl) {
-        setFormData(prev => ({ ...prev, introVideoUrl: data.videoUrl, introVideoMode: 'custom' }));
-        toast({
-          title: t('admin.scenarioManager.toast.videoGenerated', 'Video Generated'),
-          description: t('admin.scenarioManager.toast.videoGeneratedDesc', 'Intro video generated successfully.'),
-        });
-        queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
-      } else {
-        throw new Error(data.error || t('admin.scenarioManager.toast.videoGenerateFailed', 'Video generation failed'));
+
+      if (!data.jobId) {
+        throw new Error(data.error || '작업 ID를 받지 못했습니다.');
       }
+
+      toast({
+        title: '비디오 생성 시작',
+        description: '인트로 비디오 생성 중… 완료되면 자동으로 반영됩니다. (최대 5분)',
+      });
+
+      const TIMEOUT_MS = 10 * 60_000; // 10 minutes
+      pollIntroVideoJob(editingScenario.id, data.jobId, Date.now() + TIMEOUT_MS);
     } catch (error: any) {
       console.error('Video generation error:', error);
+      setIsGeneratingVideo(false);
       toast({
         title: t('admin.scenarioManager.toast.videoGenerateFailed', 'Video Generation Failed'),
         description: error.message || t('admin.scenarioManager.toast.videoGenerateFailed', 'An error occurred during video generation.'),
         variant: "destructive",
       });
-    } finally {
-      setIsGeneratingVideo(false);
     }
   };
 

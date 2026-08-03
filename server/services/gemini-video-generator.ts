@@ -20,6 +20,26 @@ const VIDEO_CONFIG = {
   webmAudioBitrate: '128k',
 };
 
+/** Retry a function up to maxRetries times on transient errors with exponential backoff. */
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, label = ''): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const status = err?.status ?? err?.httpStatus ?? 0;
+      const msg = (err?.message ?? '').toLowerCase();
+      const isTransient =
+        status === 500 || status === 503 || status === 504 ||
+        msg.includes('500') || msg.includes('503') || msg.includes('504') ||
+        msg.includes('network') || msg.includes('timeout') || msg.includes('econnreset');
+      if (!isTransient || attempt === maxRetries) throw err;
+      const delayMs = 1000 * Math.pow(2, attempt);
+      console.warn(`[retry:${label}] attempt ${attempt + 1}/${maxRetries}, retrying in ${delayMs}ms: ${err.message}`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw new Error('Unreachable');
+}
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
 export interface VideoGenerationResult {
@@ -65,10 +85,10 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
 
     const videoModel = await getModelForFeature('video');
 
-    const operation = await genAI.models.generateVideos({
-      model: videoModel,
-      prompt: videoPrompt,
-    });
+    const operation = await withRetry(
+      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt }),
+      3, 'generateVideos-intro',
+    );
 
     console.log('📋 Veo API 응답 - 작업 시작됨:', operation.name);
 
@@ -79,7 +99,10 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
       await new Promise(resolve => setTimeout(resolve, VIDEO_CONFIG.pollingIntervalMs));
       
       try {
-        result = await genAI.operations.getVideosOperation({ operation: result });
+        result = await withRetry(
+          () => genAI.operations.getVideosOperation({ operation: result }),
+          3, `poll-intro-${attempts}`,
+        );
       } catch (pollError: any) {
         console.log(`⏳ 폴링 시도 ${attempts + 1}: ${pollError.message || '대기 중...'}`);
       }
@@ -130,24 +153,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     
     if (videoData.uri) {
       console.log('📥 비디오 URI에서 다운로드:', videoData.uri);
-      
-      const downloadUrl = new URL(videoData.uri);
-      downloadUrl.searchParams.set('key', apiKey!);
-      
-      const response = await fetch(downloadUrl.toString(), {
-        headers: {
-          'x-goog-api-key': apiKey!
-        }
-      });
-      
-      if (!response.ok) {
-        console.error(`비디오 다운로드 실패 - Status: ${response.status}, StatusText: ${response.statusText}`);
-        const errorText = await response.text().catch(() => '');
-        console.error(`응답 내용: ${errorText}`);
-        throw new Error(`비디오 다운로드 실패: ${response.status}`);
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      videoBytes = new Uint8Array(arrayBuffer);
+      videoBytes = await fetchVideoWithTimeout(videoData.uri, apiKey!);
     } else if (videoData.videoBytes) {
       if (typeof videoData.videoBytes === 'string') {
         const binaryString = atob(videoData.videoBytes);
@@ -466,7 +472,7 @@ export async function generateAvatarClip(
       'storage.googleapis.com',
       'storage.cloud.google.com',
     ];
-    function isTrustedNeutralImageUrl(url: string): boolean {
+    const isTrustedNeutralImageUrl = (url: string): boolean => {
       if (url.startsWith('gs://')) return true;
       try {
         const { protocol, hostname } = new URL(url);
@@ -475,7 +481,7 @@ export async function generateAvatarClip(
       } catch {
         return false;
       }
-    }
+    };
 
     let seedImage: { gcsUri: string } | { imageBytes: string; mimeType: string } | undefined;
     if (request.neutralImageUrl) {
@@ -510,15 +516,21 @@ export async function generateAvatarClip(
     const generateParams: any = { model: videoModel, prompt: videoPrompt };
     if (seedImage) generateParams.image = seedImage;
 
-    const operation = await genAI.models.generateVideos(generateParams);
+    const operation = await withRetry(
+      () => genAI.models.generateVideos(generateParams),
+      3, 'generateVideos-avatar',
+    );
 
     let result = operation;
     let attempts = 0;
     while (!result.done && attempts < VIDEO_CONFIG.maxPollingAttempts) {
       await new Promise(resolve => setTimeout(resolve, VIDEO_CONFIG.pollingIntervalMs));
       try {
-        result = await genAI.operations.getVideosOperation({ operation: result });
-      } catch (_) { /* retry */ }
+        result = await withRetry(
+          () => genAI.operations.getVideosOperation({ operation: result }),
+          3, `poll-avatar-${attempts}`,
+        );
+      } catch (_) { /* non-transient or max-retried — keep polling */ }
       attempts++;
       console.log(`⏳ 아바타 클립 생성 중... (${attempts}/${VIDEO_CONFIG.maxPollingAttempts})`);
     }
@@ -543,13 +555,7 @@ export async function generateAvatarClip(
 
     let videoBytes: Uint8Array | undefined;
     if (videoData.uri) {
-      const downloadUrl = new URL(videoData.uri);
-      downloadUrl.searchParams.set('key', apiKey!);
-      const response = await fetch(downloadUrl.toString(), {
-        headers: { 'x-goog-api-key': apiKey! },
-      });
-      if (!response.ok) throw new Error(`비디오 다운로드 실패: ${response.status}`);
-      videoBytes = new Uint8Array(await response.arrayBuffer());
+      videoBytes = await fetchVideoWithTimeout(videoData.uri, apiKey!);
     } else if (videoData.videoBytes) {
       if (typeof videoData.videoBytes === 'string') {
         const bin = atob(videoData.videoBytes);
@@ -602,4 +608,31 @@ export function getDefaultVideoPrompt(request: {
   };
 }): string {
   return generateVideoPrompt(request as VideoGenerationRequest);
+}
+
+/** Download a video from a URI with a 60-second timeout. */
+async function fetchVideoWithTimeout(uri: string, apiKey: string): Promise<Uint8Array> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60_000);
+  try {
+    const downloadUrl = new URL(uri);
+    downloadUrl.searchParams.set('key', apiKey);
+    const response = await fetch(downloadUrl.toString(), {
+      headers: { 'x-goog-api-key': apiKey },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.error(`비디오 다운로드 실패 - Status: ${response.status}, Body: ${errorText}`);
+      throw new Error(`비디오 다운로드 실패: ${response.status}`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') {
+      throw new Error('비디오 다운로드 시간이 초과되었습니다 (60초). 잠시 후 다시 시도해주세요.');
+    }
+    throw err;
+  }
 }

@@ -14,7 +14,7 @@ export interface VideoJobRecord {
   clipState: string;
   gender: string;
   status: VideoJobStatus;
-  result?: { videoUrl: string; state: string; gender: string };
+  result?: { videoUrl: string; state: string; gender: string; storageKey?: string };
   error?: string;
   createdAt: number;
 }

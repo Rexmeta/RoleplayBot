@@ -1,5 +1,6 @@
 import { Router } from "express";
 import express from "express";
+import { randomUUID } from "crypto";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateScenarioWithAI, enhanceScenarioWithAI, fillScenarioFieldsWithAI, generateEvaluationHarnessWithAI, generatePlayerConstraintsWithAI, generateNpcBehaviorHarnessWithAI } from "../services/aiScenarioGenerator";
@@ -15,6 +16,7 @@ import { getOperatorAccessibleCategoryIds, asyncHandler, createHttpError } from 
 import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { validateScenario } from "../services/scenarios/scenarioValidator";
 import { mediaStorage } from "../services/mediaStorage";
+import { videoJobStore } from "../utils/videoJobStore";
 
 const AI_STREAM_TIMEOUT_MS = 55_000;
 
@@ -573,6 +575,10 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     });
   }));
 
+  /**
+   * POST /api/admin/scenarios/:id/generate-intro-video
+   * Kicks off intro video generation in the background and returns a jobId immediately (202).
+   */
   router.post("/api/admin/scenarios/:id/generate-intro-video", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const scenarioId = req.params.id;
     const { customPrompt } = req.body;
@@ -590,44 +596,72 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     }
 
     const oldVideoPath = scenario.introVideoUrl || null;
+    const jobId = randomUUID();
+    videoJobStore.create(jobId);
 
-    console.log(`🎬 시나리오 인트로 비디오 생성 시작: ${scenario.title}`);
+    console.log(`🎬 시나리오 인트로 비디오 생성 시작 (비동기): ${scenario.title} jobId=${jobId}`);
 
-    const result = await generateIntroVideo({
-      scenarioId: scenario.id,
-      scenarioTitle: scenario.title,
-      description: scenario.description,
-      customPrompt: customPrompt,
-      context: {
-        situation: scenario.context?.situation || scenario.description,
-        stakes: scenario.context?.stakes || '',
-        timeline: scenario.context?.timeline || ''
+    // Fire-and-forget background generation
+    setImmediate(async () => {
+      videoJobStore.setRunning(jobId);
+      try {
+        const result = await generateIntroVideo({
+          scenarioId: scenario.id,
+          scenarioTitle: scenario.title,
+          description: scenario.description,
+          customPrompt: customPrompt,
+          context: {
+            situation: scenario.context?.situation || scenario.description,
+            stakes: scenario.context?.stakes || '',
+            timeline: scenario.context?.timeline || ''
+          }
+        });
+
+        if (result.success && result.videoUrl) {
+          await fileManager.updateScenario(scenarioId, {
+            introVideoUrl: result.videoUrl,
+            introVideoMode: 'custom'
+          } as any);
+
+          if (oldVideoPath && oldVideoPath !== result.videoUrl) {
+            await deleteIntroVideo(oldVideoPath);
+          }
+
+          console.log(`✅ 시나리오 인트로 비디오 생성 완료: ${result.videoUrl}`);
+          videoJobStore.setDone(jobId, result.videoUrl, 'intro', '');
+        } else {
+          videoJobStore.setError(jobId, result.error || '비디오 생성 실패');
+        }
+      } catch (err: any) {
+        console.error(`[videoJob:${jobId}] Unhandled error:`, err);
+        videoJobStore.setError(jobId, err?.message || '알 수 없는 오류가 발생했습니다.');
       }
     });
 
-    if (!result.success) {
-      throw Object.assign(createHttpError(500, result.error || "비디오 생성 실패"), { prompt: result.prompt });
+    res.status(202).json({ jobId });
+  }));
+
+  /**
+   * GET /api/admin/scenarios/:id/generate-intro-video/status?jobId=<id>
+   * Returns the current status (and result/error) of a background intro-video generation job.
+   */
+  router.get("/api/admin/scenarios/:id/generate-intro-video/status", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { jobId } = req.query as { jobId?: string };
+    if (!jobId) throw createHttpError(400, 'jobId query parameter is required');
+
+    const record = videoJobStore.get(jobId);
+    if (!record) throw createHttpError(404, 'Job not found or expired');
+
+    let result = record.result ?? null;
+    if (result?.videoUrl) {
+      const signed = await transformToSignedUrl(result.videoUrl).catch(() => null);
+      result = { ...result, videoUrl: signed || result.videoUrl };
     }
-
-    await fileManager.updateScenario(scenarioId, {
-      introVideoUrl: result.videoUrl,
-      introVideoMode: 'custom'
-    } as any);
-
-    if (oldVideoPath && oldVideoPath !== result.videoUrl) {
-      await deleteIntroVideo(oldVideoPath);
-    }
-
-    console.log(`✅ 시나리오 인트로 비디오 생성 완료: ${result.videoUrl}`);
-
-    const signedVideoUrl = await transformToSignedUrl(result.videoUrl) || result.videoUrl;
 
     res.json({
-      success: true,
-      videoUrl: signedVideoUrl,
-      storagePath: result.videoUrl,
-      prompt: result.prompt,
-      metadata: result.metadata
+      status: record.status,
+      result,
+      error: record.error ?? null,
     });
   }));
 

@@ -174,7 +174,6 @@ app.use((req, res, next) => {
     req.path.includes('/api/video/') ||
     req.path.includes('/generate-persona') ||
     req.path.includes('/generate-scenario-image') ||
-    req.path.includes('/generate-intro-video') ||
     req.path.includes('/generate-scenario') ||
     req.path.includes('/enhance-scenario') ||
     req.path.includes('/generate-evaluation-harness') ||
