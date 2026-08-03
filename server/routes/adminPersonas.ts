@@ -51,11 +51,12 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
    */
   router.post("/api/admin/personas/:id/video/generate-clip", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const personaId = req.params.id;
-    const { state, styleHint, gender, neutralImageUrl } = req.body as {
+    const { state, styleHint, gender, neutralImageUrl, extraPrompt } = req.body as {
       state?: string;
       styleHint?: string;
       gender?: string;
       neutralImageUrl?: string;
+      extraPrompt?: string;
     };
 
     const VALID_STATES: AvatarClipState[] = [
@@ -82,6 +83,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
           styleHint,
           gender: resolvedGender,
           neutralImageUrl: neutralImageUrl || undefined,
+          extraPrompt: extraPrompt || undefined,
         });
 
         if (result.success && result.videoUrl) {

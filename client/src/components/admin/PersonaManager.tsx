@@ -242,6 +242,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   
   // 비디오 아바타 생성 상태 (여러 클립을 동시에 추적)
   const [generatingVideoClip, setGeneratingVideoClip] = useState<Set<string>>(new Set());
+  // Extra prompt text per clip slot, keyed "gender:state"
+  const [clipExtraPrompts, setClipExtraPrompts] = useState<Record<string, string>>({});
   
   // 비디오 섹션 성별 탭
   const [videoGender, setVideoGender] = useState<'male' | 'female'>('male');
@@ -747,7 +749,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   };
 
   // 비디오 클립 개별 생성 핸들러 (백그라운드 폴링 방식)
-  const handleGenerateVideoClip = async (state: string, gender: 'male' | 'female') => {
+  const handleGenerateVideoClip = async (state: string, gender: 'male' | 'female', extraPrompt?: string) => {
     if (!formData.id || !editingPersona) {
       toast({ title: '오류', description: '페르소나를 먼저 저장해주세요.', variant: 'destructive' });
       return;
@@ -768,6 +770,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         styleHint: formData.images?.style || undefined,
         gender,
         neutralImageUrl: neutralImageUrl || undefined,
+        extraPrompt: extraPrompt?.trim() || undefined,
       });
       const { jobId } = await startResponse.json();
       if (!jobId) throw new Error('서버에서 작업 ID를 받지 못했습니다.');
@@ -1642,11 +1645,18 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                           placeholder="URL 직접 입력"
                           className="text-xs border-slate-300 bg-white h-7"
                         />
+                        <textarea
+                          value={clipExtraPrompts[clipKey] ?? ''}
+                          onChange={(e) => setClipExtraPrompts(prev => ({ ...prev, [clipKey]: e.target.value }))}
+                          placeholder="추가 프롬프트 (선택)"
+                          rows={2}
+                          className="w-full text-xs rounded-md border border-slate-300 bg-white px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder:text-slate-400"
+                        />
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => handleGenerateVideoClip(state, videoGender)}
+                          onClick={() => handleGenerateVideoClip(state, videoGender, clipExtraPrompts[clipKey])}
                           disabled={isGenerating || !editingPersona}
                           className="h-7 text-xs"
                         >

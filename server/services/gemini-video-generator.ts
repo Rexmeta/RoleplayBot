@@ -412,6 +412,8 @@ export interface AvatarClipRequest {
   styleHint?: string;
   gender?: 'male' | 'female';
   neutralImageUrl?: string;
+  /** Optional free-text rider appended after the base state prompt. */
+  extraPrompt?: string;
 }
 
 /**
@@ -492,7 +494,10 @@ export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
       'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
   };
 
-  return stateDescriptions[state] ?? stateDescriptions['idle'];
+  const base = stateDescriptions[state] ?? stateDescriptions['idle'];
+  // Append caller-supplied extra prompt after the base description.
+  const extra = request.extraPrompt?.trim();
+  return extra ? `${base} ${extra}` : base;
 }
 
 /**
