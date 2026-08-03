@@ -358,7 +358,7 @@ export const scenarios = pgTable("scenarios", {
   terminationRules: jsonb("termination_rules").$type<TerminationRules>(),
   playerConstraints: jsonb("player_constraints").$type<PlayerConstraints>(),
   difficultyProfile: jsonb("difficulty_profile").$type<DifficultyProfile>(),
-  personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join'>(),
+  personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join' | 'none'>(),
   simulationHarness: jsonb("simulation_harness").$type<SimulationHarness>(),
   analyticsSpec: jsonb("analytics_spec").$type<AnalyticsSpec>(),
   storeListed: boolean("store_listed").notNull().default(false),

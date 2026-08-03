@@ -586,17 +586,16 @@ export async function generateAndSaveFeedback(
           : [];
       const scenarioPersonas: any[] = scenarioObj?.personas ?? [];
 
-      if (personaSwitchLog.length > 0 && scenarioPersonas.length > 1) {
+      const switchModeForSegments: string = scenarioObj?.personaSwitchMode ?? 'replace';
+      if (personaSwitchLog.length > 0 && scenarioPersonas.length > 1 && switchModeForSegments !== 'none') {
         const dbMessages = await storage.getChatMessagesByPersonaRun(conversationId);
         const sortedLog = [...personaSwitchLog].sort((a, b) => a.turn - b.turn);
         const maxTurn = dbMessages.length > 0
           ? Math.max(...dbMessages.map((m: any) => m.turnIndex ?? 0))
           : 0;
-        const switchMode: string = scenarioObj?.personaSwitchMode ?? 'replace';
-
         let segments: Array<{ personaIndex: number; turnStart: number; turnEnd: number }> = [];
 
-        if (switchMode === 'join') {
+        if (switchModeForSegments === 'join') {
           // Join mode: each persona is active from their first appearance turn to end of session.
           // Build per-persona active windows (overlapping).
           const personaWindowStart: Map<number, number> = new Map([[0, 0]]);

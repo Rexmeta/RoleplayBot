@@ -855,7 +855,8 @@ ${userNameLine}
     // Check if we're awaiting user consent from a previous turn's announcement.
     const hasMultiplePersonasForSwitch = !isPersonaX &&
       Array.isArray((scenarioWithUserDifficulty as any).allPersonas) &&
-      (scenarioWithUserDifficulty as any).allPersonas.length > 1;
+      (scenarioWithUserDifficulty as any).allPersonas.length > 1 &&
+      ((scenarioWithUserDifficulty as any).personaSwitchMode ?? 'replace') !== 'none';
     if (hasMultiplePersonasForSwitch && !isSkipTurn) {
       const switchAwaitingState = getPersonaSwitchAwaitingState(personaRunId);
       if (switchAwaitingState?.awaitingSwitch) {
@@ -1078,7 +1079,8 @@ ${userNameLine}
       const streamSwitchPersonaInfo = (metaParsed.switchPersona && typeof metaParsed.switchPersona === 'object')
         ? metaParsed.switchPersona as { targetPersonaIndex: number; reason?: string; transitionLine?: string }
         : undefined;
-      const streamAiMessageContent = streamSwitchPersonaInfo?.transitionLine?.trim() || streamCleanContent;
+      const streamPersonaSwitchMode = (scenarioWithUserDifficulty as any)?.personaSwitchMode ?? 'replace';
+      const streamAiMessageContent = (streamPersonaSwitchMode !== 'none' && streamSwitchPersonaInfo?.transitionLine?.trim()) || streamCleanContent;
 
       // Save AI message to DB
       await storage.createChatMessage({
@@ -1093,7 +1095,7 @@ ${userNameLine}
       type FullPersona = ScenarioPersona & { position?: string; image?: string };
       let streamSwitchToPersona: FullPersona | null = null;
       let streamSwitchFromPersona: FullPersona | null = null;
-      if (streamSwitchPersonaInfo && typeof streamSwitchPersonaInfo.targetPersonaIndex === 'number') {
+      if (streamSwitchPersonaInfo && typeof streamSwitchPersonaInfo.targetPersonaIndex === 'number' && streamPersonaSwitchMode !== 'none') {
         const scenarioCast = scenarioWithUserDifficulty as { allPersonas?: FullPersona[]; personas?: FullPersona[] };
         const allSPs: FullPersona[] = scenarioCast?.allPersonas ?? scenarioCast?.personas ?? [];
         const tr = handleToolCall('switch_persona', {
@@ -1281,9 +1283,10 @@ ${userNameLine}
     );
 
     const isCompleted = (aiResult as any).isCompleted || false;
+    const personaSwitchModeForGuard = (scenarioWithUserDifficulty as any)?.personaSwitchMode ?? 'replace';
     const switchPersonaInfo = (aiResult as any).switchPersona as { targetPersonaIndex: number; reason?: string; transitionLine?: string } | undefined;
-    // Use transitionLine as the persisted AI message when a persona switch occurs
-    const aiMessageContent = switchPersonaInfo?.transitionLine?.trim() || aiResult.content;
+    // Use transitionLine as the persisted AI message when a persona switch occurs (skip in none mode)
+    const aiMessageContent = (personaSwitchModeForGuard !== 'none' && switchPersonaInfo?.transitionLine?.trim()) || aiResult.content;
 
     await storage.createChatMessage({
       personaRunId,
@@ -1297,7 +1300,7 @@ ${userNameLine}
     let newPersonaSwitchLog = Array.isArray(personaRun!.personaSwitchLog) ? [...(personaRun!.personaSwitchLog as any[])] : [];
     let switchToPersona: any = null;
     let switchFromPersona: any = null;
-    if (switchPersonaInfo && typeof switchPersonaInfo.targetPersonaIndex === 'number') {
+    if (switchPersonaInfo && typeof switchPersonaInfo.targetPersonaIndex === 'number' && personaSwitchModeForGuard !== 'none') {
       const allScenarioPersonasForSwitch = (scenarioWithUserDifficulty as any)?.allPersonas ?? (scenarioWithUserDifficulty as any)?.personas ?? [];
       const toolResult = handleToolCall('switch_persona', {
         targetPersonaIndex: switchPersonaInfo.targetPersonaIndex,

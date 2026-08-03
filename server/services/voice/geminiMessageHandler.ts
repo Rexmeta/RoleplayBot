@@ -277,6 +277,20 @@ export function handleGeminiMessage(
           session.scenarioPersonas,
           session.activePersonaIndex
         );
+        // Hard block when personaSwitchMode is 'none': never allow switching
+        if (fc.name === 'switch_persona' && session.personaSwitchMode === 'none') {
+          console.warn(`[geminiMessageHandler] Blocking switch_persona — personaSwitchMode is 'none'.`);
+          if (session.geminiSession && fc.id) {
+            try {
+              session.geminiSession.sendToolResponse?.({
+                functionResponses: [{ id: fc.id, name: fc.name, response: { success: false, error: 'Persona switching is disabled for this scenario.' } }],
+              });
+            } catch (e) {
+              console.warn('[geminiMessageHandler] Failed to send none-mode switch_persona block response:', e);
+            }
+          }
+          continue;
+        }
         if (fc.name === 'switch_persona' && result.personaSwitched && !session.personaSwitchPending && !session.awaitingPersonaSwitch && !_transcriptHasIntent) {
           console.warn(`[geminiMessageHandler] Blocking premature switch_persona — neither personaSwitchPending nor awaitingPersonaSwitch is set. Forcing AI to announce first.`);
           const blockMessages: Record<string, string> = {

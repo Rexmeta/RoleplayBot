@@ -340,9 +340,11 @@ export class RealtimeVoiceService {
     const initialFlowGraph = (resolvedScenarioObj as any).flowGraph ?? null;
     const initialStageGoal: string | undefined = initialFlowGraph?.stages?.find((s: any) => s.id === 'intro')?.goal;
     const scenarioPlayerConstraints = (resolvedScenarioObj as any).playerConstraints ?? null;
+    const voicePersonaSwitchMode: 'replace' | 'join' | 'none' =
+      ((resolvedScenarioObj as any).personaSwitchMode ?? 'replace') as 'replace' | 'join' | 'none';
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
-      true, allPersonas, initialPersonaIndex, resolvedScenarioObj.targetTurns, 'replace', initialStageGoal,
+      true, allPersonas, initialPersonaIndex, resolvedScenarioObj.targetTurns, voicePersonaSwitchMode, initialStageGoal,
       scenarioPlayerConstraints, activeScenarioOverride
     );
 
@@ -355,7 +357,7 @@ export class RealtimeVoiceService {
         const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
-          true, allPersonas, pIdx, resolvedScenarioObj.targetTurns, 'replace', initialStageGoal,
+          true, allPersonas, pIdx, resolvedScenarioObj.targetTurns, voicePersonaSwitchMode, initialStageGoal,
           scenarioPlayerConstraints, activeScenarioOverride
         ));
       }
@@ -430,6 +432,7 @@ export class RealtimeVoiceService {
       softCloseSent: false,
       personaSwitchPending: false,
       awaitingPersonaSwitch: false,
+      personaSwitchMode: voicePersonaSwitchMode,
       simulationHarness: (scenarioObj as any).simulationHarness ?? null,
     };
 

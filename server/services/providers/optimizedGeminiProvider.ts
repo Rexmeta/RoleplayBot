@@ -162,7 +162,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
 
       // Gemini API 호출 (재시도 + 동시 실행 제한 적용)
       const hasMultiplePersonas = Array.isArray(allPersonas) && allPersonas.length > 1;
-      const responseSchema: any = hasMultiplePersonas
+      const responseSchema: any = (hasMultiplePersonas && personaSwitchModeForHistory !== 'none')
         ? {
             type: "object",
             properties: {
@@ -414,6 +414,7 @@ ${experience ? `- 경력: ${experience}` : ''}
       const switchMode = (scenario as any).personaSwitchMode ?? 'replace';
       const switchLog: Array<{ turn: number; toPersonaIndex: number }> = (scenario as any).personaSwitchLog ?? [];
       if (!allPersonas || allPersonas.length <= 1) return '';
+      if (switchMode === 'none') return '';
       if (switchMode === 'join') {
         const activeIndices = new Set<number>([0]);
         for (const sw of switchLog) activeIndices.add(sw.toPersonaIndex);
@@ -429,7 +430,8 @@ ${experience ? `- 경력: ${experience}` : ''}
     })();
 
     const rule12Suffix = (() => {
-      const isJoin = (scenario as any).personaSwitchMode === 'join' && Array.isArray(allPersonas) && allPersonas.length > 1;
+      const switchMode = (scenario as any).personaSwitchMode ?? 'replace';
+      const isJoin = switchMode === 'join' && Array.isArray(allPersonas) && allPersonas.length > 1;
       if (isJoin) {
         const switchLog: Array<{ turn: number; toPersonaIndex: number }> = (scenario as any).personaSwitchLog ?? [];
         const activeIndices = new Set<number>([0]);
@@ -442,7 +444,7 @@ ${experience ? `- 경력: ${experience}` : ''}
 
     const jsonFormat = streamingMetaInstruction
       ? streamingMetaInstruction
-      : `JSON 형식으로 응답:\n{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유"${allPersonas && allPersonas.length > 1 ? `,"switchPersona":{"targetPersonaIndex":0,"reason":"이유","transitionLine":"전환 대사"} 또는 null` : ''}}`;
+      : `JSON 형식으로 응답:\n{"content":"대화내용","emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유"${allPersonas && allPersonas.length > 1 && (scenario as any).personaSwitchMode !== 'none' ? `,"switchPersona":{"targetPersonaIndex":0,"reason":"이유","transitionLine":"전환 대사"} 또는 null` : ''}}`;
 
     const system = `당신은 ${persona.name}(${persona.role})입니다.
 
@@ -597,7 +599,7 @@ ${conversationHistory}
     );
 
     const hasMultiplePersonas = Array.isArray(allPersonas) && allPersonas.length > 1;
-    const metaInstruction = hasMultiplePersonas
+    const metaInstruction = (hasMultiplePersonas && streamSwitchMode !== 'none')
       ? `대화 내용을 자연스럽게 작성하세요. 모든 내용 작성 후, 반드시 마지막 줄에만 이 마커를 추가하세요 (대화 내용에 절대 포함하지 마세요):\n[META:{"emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유","complete":false,"switchPersona":null}]\n전환 필요 시: [META:{"emotion":"...","emotionReason":"...","complete":false,"switchPersona":{"targetPersonaIndex":0,"reason":"이유","transitionLine":"전환 대사"}}]\n대화를 마무리해야 할 경우 complete를 true로 설정하세요.`
       : `대화 내용을 자연스럽게 작성하세요. 모든 내용 작성 후, 반드시 마지막 줄에만 이 마커를 추가하세요 (대화 내용에 절대 포함하지 마세요):\n[META:{"emotion":"기쁨|슬픔|분노|놀람|중립|호기심|불안|피로|실망|당혹","emotionReason":"감정이유","complete":false}]\n대화를 마무리해야 할 경우 complete를 true로 설정하세요.`;
 

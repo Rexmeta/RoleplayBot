@@ -78,7 +78,7 @@ interface ScenarioFormData {
   storeListed?: boolean;
   storePriceUsd?: number | null;
   storePackId?: string | null;
-  personaSwitchMode?: 'replace' | 'join'; // 다중 페르소나 전환 방식
+  personaSwitchMode?: 'replace' | 'join' | 'none'; // 다중 페르소나 전환 방식
   context: {
     situation: string;
     timeline: string;
@@ -2972,7 +2972,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       </Label>
                       <Select
                         value={formData.personaSwitchMode ?? 'replace'}
-                        onValueChange={(value: 'replace' | 'join') =>
+                        onValueChange={(value: 'replace' | 'join' | 'none') =>
                           setFormData(prev => ({ ...prev, personaSwitchMode: value }))
                         }
                       >
@@ -2990,6 +2990,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             <div>
                               <div className="font-medium">Join (합류)</div>
                               <div className="text-xs text-slate-500">다음 페르소나가 기존 페르소나와 함께 참여합니다</div>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="none">
+                            <div>
+                              <div className="font-medium">없음 (전환 안 함)</div>
+                              <div className="text-xs text-slate-500">페르소나 전환 없음 — 첫 번째 페르소나만 유지됩니다</div>
                             </div>
                           </SelectItem>
                         </SelectContent>

@@ -233,7 +233,7 @@ export function buildSystemInstructions(
     ...(playerConstraints ? [buildPlayerConstraintsBlock(playerConstraints, userLanguage)] : []),
     ...(scenarioOverride ? [buildOverridePromptBlock(scenarioOverride)] : []),
     ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage)] : []),
-    ...(allPersonas && allPersonas.length > 1
+    ...(allPersonas && allPersonas.length > 1 && personaSwitchMode !== 'none'
       ? [personaSwitchMode === 'join'
           ? (() => {
               const joinNames = allPersonas.map((p: any) => p.name).join(', ');
