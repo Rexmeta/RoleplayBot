@@ -14,16 +14,7 @@ function compareOp(actual: number, operator: ConditionOperator, value: number): 
 
 function resolveMetric(metric: string, state: SimulationState): number {
   const parts = metric.split('.');
-  // Support legacy npcEmotions.* metric names by mapping to npcAffectiveState
-  if (parts[0] === 'npcEmotions' && parts[1]) {
-    const key = parts[1];
-    if (key === 'anger') return state.npcAffectiveState.affective.intensity;
-    if (key === 'trust') return state.npcAffectiveState.relational.trust;
-    if (key === 'confusion') return state.npcAffectiveState.cognitive.confusion;
-    if (key === 'interest') return state.npcAffectiveState.motivational.interest;
-    return 0;
-  }
-  // Support new npcAffectiveState.* dotted paths (e.g. npcAffectiveState.relational.trust)
+  // Support npcAffectiveState.* dotted paths (e.g. npcAffectiveState.relational.trust)
   if (parts[0] === 'npcAffectiveState' && parts[1] && parts[2]) {
     const layer = parts[1];
     const field = parts[2];
