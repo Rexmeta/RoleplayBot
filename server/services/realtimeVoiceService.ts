@@ -875,7 +875,7 @@ export class RealtimeVoiceService {
               personaRunId: session.personaRunId,
               sender: 'user',
               message: pendingUserText,
-              turnIndex: Math.floor(existing.length / 2),
+              turnIndex: existing.length,
               emotion: null,
               emotionReason: null,
               createdAt: new Date(),

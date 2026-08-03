@@ -269,14 +269,20 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       // the user message that arrived just before this AI turn completed.
       hasPendingLocalRef.current = true;
       setLocalMessages(prev => {
-        if (prev.some(m => m.sender === 'ai' && m.message === message)) return prev;
+        // Narrow dedup: only suppress if the immediately preceding message is
+        // the same AI text (covers reconnect-greeting duplicates without blocking
+        // a stubborn persona that legitimately repeats the same line).
+        const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
+        if (lastMsg && lastMsg.sender === 'ai' && lastMsg.message === message && !(lastMsg as any).interrupted) {
+          console.log('⚠️ [consecutive-dedup] Suppressing consecutive identical AI message');
+          return prev;
+        }
         // Barge-in replacement takes priority over every other dedup rule:
         // if the immediately preceding message is an interrupted AI turn, swap it
         // with the new resumed/completed turn rather than appending. This must run
         // before phase-dedup so that a barge-in during the greeting (before any
         // user turn) is also handled correctly. The interrupted flag is propagated
         // from the server's ai.transcription.done event via useRealtimeVoice.
-        const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
         if (lastMsg && lastMsg.sender === 'ai' && (lastMsg as any).interrupted) {
           console.log('⚠️ [barge-in-dedup] Replacing interrupted AI message with resumed turn');
           return [
