@@ -549,7 +549,7 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
  * Safely transform a single path to signed URL
  * Returns original path on failure instead of throwing
  */
-async function safeTransformToSignedUrl(path: string): Promise<string> {
+export async function safeTransformToSignedUrl(path: string): Promise<string> {
   if (!path) return path;
   try {
     const signedUrl = await transformToSignedUrl(path);
@@ -654,17 +654,32 @@ export async function transformPersonaImages(images: any): Promise<any> {
 }
 
 /**
- * Transform a persona object's image fields to signed URLs
+ * Transform a persona object's image fields (and video clips) to signed URLs
  */
 export async function transformPersonaMedia(persona: any): Promise<any> {
   if (!persona) return persona;
   
   try {
     const transformedImages = await transformPersonaImages(persona.images);
+
+    // Transform videos.clips paths to accessible URLs
+    let transformedVideos = persona.videos;
+    if (persona.videos?.clips && typeof persona.videos.clips === 'object') {
+      const transformedClips: Record<string, string> = {};
+      for (const [state, path] of Object.entries(persona.videos.clips)) {
+        if (typeof path === 'string' && path) {
+          transformedClips[state] = await safeTransformToSignedUrl(path);
+        } else {
+          transformedClips[state] = path as string;
+        }
+      }
+      transformedVideos = { ...persona.videos, clips: transformedClips };
+    }
     
     return {
       ...persona,
-      images: transformedImages
+      images: transformedImages,
+      videos: transformedVideos,
     };
   } catch (error) {
     console.error(`[GCS] Failed to transform persona media for ${persona?.id || 'unknown'}:`, error);

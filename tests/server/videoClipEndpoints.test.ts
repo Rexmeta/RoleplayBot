@@ -47,6 +47,7 @@ vi.mock('../../server/services/fileManager', () => ({
 vi.mock('../../server/services/gcsStorage', () => ({
   transformPersonasMedia: vi.fn().mockImplementation((p: any) => Promise.resolve(p)),
   transformPersonaMedia: vi.fn().mockImplementation((p: any) => Promise.resolve(p)),
+  safeTransformToSignedUrl: vi.fn().mockImplementation((url: string) => Promise.resolve(url)),
 }));
 
 vi.mock('../../server/services/gemini-video-generator', () => ({

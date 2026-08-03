@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
-import { transformPersonasMedia, transformPersonaMedia } from "../services/gcsStorage";
+import { transformPersonasMedia, transformPersonaMedia, safeTransformToSignedUrl } from "../services/gcsStorage";
 import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAvatarClip, type AvatarClipState } from "../services/gemini-video-generator";
@@ -96,9 +96,15 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
     const record = videoJobStore.get(jobId);
     if (!record) throw createHttpError(404, 'Job not found or expired');
 
+    // Resolve raw storage path to a browser-accessible URL before returning to client
+    let result = record.result ?? null;
+    if (result?.videoUrl) {
+      result = { ...result, videoUrl: await safeTransformToSignedUrl(result.videoUrl) };
+    }
+
     res.json({
       status: record.status,
-      result: record.result ?? null,
+      result,
       error: record.error ?? null,
     });
   }));

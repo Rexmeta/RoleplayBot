@@ -1516,6 +1516,17 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                             <a href={clipUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[80px]">보기</a>
                           )}
                         </div>
+                        {clipUrl && (
+                          <video
+                            key={clipUrl}
+                            src={clipUrl}
+                            controls
+                            loop
+                            muted
+                            className="w-full rounded border border-slate-200 bg-black"
+                            style={{ maxHeight: 120 }}
+                          />
+                        )}
                         <Input
                           value={clipUrl}
                           onChange={(e) =>
