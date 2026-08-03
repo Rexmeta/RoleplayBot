@@ -34,6 +34,7 @@ import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { ChatInputBar } from "@/components/chat/ChatInputBar";
+import { useAvatarStateMachine } from "@/hooks/useAvatarStateMachine";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 
 const MAX_TURNS = 999;
@@ -230,6 +231,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     conversationId, onReady,
   });
 
+  // ── Avatar State Machine ──────────────────────────────────────────────────
+  // Tracks the high-level avatar state (idle / listening / thinking / speaking …)
+  // driven by realtime-voice events.  The state machine is decoupled from the
+  // Renderer so it can be reused when the renderer changes.
+  const { avatarState, dispatchAvatarEvent } = useAvatarStateMachine();
+
   const realtimeVoice = useRealtimeVoice({
     conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false, delayGreeting,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
@@ -276,10 +283,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       addRealtimeUserMessage(transcript);
     },
     onUserTranscriptionDelta: (_delta, accumulated) => { setPendingUserText(accumulated); },
-    onAiSpeakingStart: () => { setPendingAiMessage(true); isAISpeakingForBargeInRef.current = true; },
+    onAiSpeakingStart: () => {
+      setPendingAiMessage(true); isAISpeakingForBargeInRef.current = true;
+      dispatchAvatarEvent({ type: 'TTSStart' });
+    },
     onUserSpeakingStart: () => {
       setPendingUserMessage(true); setPendingUserText('');
       hasUserSpokenRef.current = true; setShowMicPrompt(false);
+      dispatchAvatarEvent({ type: 'UserSpeechStart' });
       if (isAISpeakingForBargeInRef.current) {
         setIsBargeInFlash(true); isAISpeakingForBargeInRef.current = false;
         setTimeout(() => setIsBargeInFlash(false), 400);
@@ -289,6 +300,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onSessionTerminated: (reason) => {
       toast({ title: t('voice.sessionEnded'), description: reason });
       setPendingAiMessage(false); setPendingUserMessage(false); setPendingUserText('');
+      dispatchAvatarEvent({ type: 'ConversationEnd' });
       pendingModeTransitionRef.current = 'realtime-voice';
       setInputMode('text');
       if (handleSwitchToTextModeRef.current) {
@@ -298,6 +310,27 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   });
 
   const pendingAiMessage = rawPendingAiMessage && !realtimeVoice.isReconnecting;
+
+  // ── Avatar State Machine event wiring (state-change–driven) ───────────────
+  // Dispatch TTSEnd when AI stops speaking (response.done / response.interrupted)
+  const prevIsAISpeakingRef = useRef(false);
+  useEffect(() => {
+    const wasAISpeaking = prevIsAISpeakingRef.current;
+    prevIsAISpeakingRef.current = realtimeVoice.isAISpeaking;
+    if (wasAISpeaking && !realtimeVoice.isAISpeaking) {
+      dispatchAvatarEvent({ type: 'TTSEnd' });
+    }
+  }, [realtimeVoice.isAISpeaking, dispatchAvatarEvent]);
+
+  // Dispatch UserSpeechEnd when user stops recording
+  const prevIsRecordingRef = useRef(false);
+  useEffect(() => {
+    const wasRecording = prevIsRecordingRef.current;
+    prevIsRecordingRef.current = realtimeVoice.isRecording;
+    if (wasRecording && !realtimeVoice.isRecording) {
+      dispatchAvatarEvent({ type: 'UserSpeechEnd' });
+    }
+  }, [realtimeVoice.isRecording, dispatchAvatarEvent]);
 
   // ① Start WebSocket connection early (during video intro) so Gemini is warm by the time video ends.
   // Status is intentionally omitted from deps — connect() has its own idempotency guard and will
@@ -913,7 +946,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
                   <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={activePersona.name} personaImage={activePersona.image}
                     currentEmotion={currentEmotion} isEmotionTransitioning={isEmotionTransitioning} isSessionEnding={isSessionEnding}
-                    isTextMode={inputMode !== 'realtime-voice'} />
+                    isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
 
                   {latestPersonaSwitch && (
                     <div className="absolute top-16 left-0 right-0 z-[14] flex justify-center animate-in slide-in-from-top-2 duration-300 px-4">

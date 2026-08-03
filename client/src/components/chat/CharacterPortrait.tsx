@@ -1,5 +1,6 @@
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { emotionToEnglish } from "@/hooks/chat/useEmotionState";
+import type { AvatarState } from "@/lib/avatar/types";
 
 interface CharacterPortraitProps {
   loadedImageUrl: string;
@@ -9,6 +10,8 @@ interface CharacterPortraitProps {
   isEmotionTransitioning: boolean;
   isSessionEnding: boolean;
   isTextMode?: boolean;
+  /** Avatar state from useAvatarStateMachine — used for future renderer integration */
+  avatarState?: AvatarState;
 }
 
 const emotionOverlayColors: Record<string, string> = {
@@ -33,6 +36,7 @@ export function CharacterPortrait({
   isEmotionTransitioning,
   isSessionEnding,
   isTextMode = false,
+  avatarState: _avatarState,  // reserved for future renderer use
 }: CharacterPortraitProps) {
   const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(personaName)}&background=6366f1&color=fff&size=400`;
   const displayUrl = loadedImageUrl || toMediaUrl(personaImage || '') || fallbackUrl;
