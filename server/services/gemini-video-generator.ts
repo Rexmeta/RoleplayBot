@@ -467,31 +467,47 @@ export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
 
   // styleHint is intentionally not injected — appearance is provided via seed image.
 
+  // Design principles for all states:
+  // 1. Seamless perfect loop — the clip must end on the exact same frame it starts so
+  //    continuous playback never shows a visible cut or jump.
+  // 2. idle / listening / thinking — ultra-minimal motion only: natural eye blinks and
+  //    imperceptible micro-movements of the neck. No head turns, no body sway, no gestures.
+  // 3. Mouth stays completely still in every state (lip movement is handled externally by TTS).
   const stateDescriptions: Record<AvatarClipState, string> = {
     idle:
-      'Upper body of a person sitting calmly at a desk. Subtle natural breathing, very slight body sway. ' +
-      'Mouth closed and still. Neutral expression. Soft office background, no distractions. ' +
-      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
+      'Upper body of a person sitting in a neutral resting pose. ' +
+      'Extremely subtle motion: only natural eye blinks and imperceptible micro-movement of the neck. ' +
+      'No head movement, no body sway, no gestures. Mouth completely closed and motionless. Calm neutral expression. ' +
+      'Soft indoor background, soft lighting, no text. ' +
+      'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
     listening:
-      'Upper body of a person sitting attentively, leaning slightly forward. Head gently tilted, focused gaze. ' +
-      'Mouth closed and still. Engaged but calm body language. ' +
-      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
+      'Upper body of a person in a fixed, attentive seated pose, leaning very slightly forward. ' +
+      'Extremely subtle motion: only natural eye blinks and faint micro-movements of the neck. ' +
+      'No head tilts, no nodding, no body movement. Mouth completely closed and motionless. Focused, calm expression. ' +
+      'Soft indoor background, soft lighting, no text. ' +
+      'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
     listening_nod:
-      'Upper body of a person giving slow, small nods of acknowledgment. Natural, gentle head movement. ' +
-      'Mouth closed. Relaxed shoulders. ' +
-      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
+      'Upper body of a person doing one slow, small nod of acknowledgment, then returning to start position. ' +
+      'Head moves gently down then back up to the exact starting angle. Mouth closed. Relaxed shoulders. ' +
+      'Soft indoor background, soft lighting, no text. ' +
+      'Seamless perfect loop — head ends at the same position as the start. Loopable. 6 seconds.',
     thinking:
-      'Upper body of a person pausing in thought. Eyes glancing slightly upward or to one side. Subtle head tilt. ' +
-      'Mouth closed and still. Contemplative, calm posture. ' +
-      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
+      'Upper body of a person in quiet contemplation, completely still. ' +
+      'Extremely subtle motion: only natural eye blinks; eyes may shift gaze very slightly once then return. ' +
+      'No head movement, no body movement. Mouth completely closed and motionless. Thoughtful, calm expression. ' +
+      'Soft indoor background, soft lighting, no text. ' +
+      'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
     speaking:
-      'Upper body of a person making small, natural hand gestures while engaged in conversation. ' +
-      'Leaning slightly forward, animated posture. Mouth closed and still. ' +
-      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
+      'Upper body of a person making one small, contained hand gesture — wrist-level only — then returning hands to rest. ' +
+      'Slight forward lean, engaged posture. Mouth closed and motionless throughout. ' +
+      'Soft indoor background, soft lighting, no text. ' +
+      'Seamless perfect loop — hands return to starting position by the final frame. Loopable. 6 seconds.',
     speaking_pause:
-      'Upper body of a person pausing between sentences, composed and upright. ' +
-      'Slight breath, minimal body movement. Mouth gently closed. ' +
-      'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
+      'Upper body of a person in a composed, upright resting pose between sentences. ' +
+      'Extremely subtle motion: only natural eye blinks and a single quiet breath. ' +
+      'No head movement, no gestures. Mouth gently closed and motionless. ' +
+      'Soft indoor background, soft lighting, no text. ' +
+      'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
   };
 
   const base = stateDescriptions[state] ?? stateDescriptions['idle'];
