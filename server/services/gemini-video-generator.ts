@@ -427,27 +427,27 @@ export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
 
   const stateDescriptions: Record<AvatarClipState, string> = {
     idle:
-      'A person sitting calmly upright at a desk. Subtle natural breathing, very slight body sway. ' +
+      'Upper body of a person sitting calmly at a desk. Subtle natural breathing, very slight body sway. ' +
       'Mouth closed and still. Neutral expression. Soft office background, no distractions. ' +
       'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     listening:
-      'A person sitting attentively, leaning slightly forward. Head gently tilted, focused gaze. ' +
+      'Upper body of a person sitting attentively, leaning slightly forward. Head gently tilted, focused gaze. ' +
       'Mouth closed and still. Engaged but calm body language. ' +
       'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     listening_nod:
-      'A person giving slow, small nods of acknowledgment. Natural, gentle head movement. ' +
+      'Upper body of a person giving slow, small nods of acknowledgment. Natural, gentle head movement. ' +
       'Mouth closed. Relaxed shoulders. ' +
       'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     thinking:
-      'A person pausing in thought. Eyes glancing slightly upward or to one side. Subtle head tilt. ' +
+      'Upper body of a person pausing in thought. Eyes glancing slightly upward or to one side. Subtle head tilt. ' +
       'Mouth closed and still. Contemplative, calm posture. ' +
       'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     speaking:
-      'A person making small, natural hand gestures while engaged in conversation. ' +
-      'Upper body animated, leaning slightly forward. Mouth closed and still. ' +
+      'Upper body of a person making small, natural hand gestures while engaged in conversation. ' +
+      'Leaning slightly forward, animated posture. Mouth closed and still. ' +
       'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
     speaking_pause:
-      'A person pausing between sentences, composed and upright. ' +
+      'Upper body of a person pausing between sentences, composed and upright. ' +
       'Slight breath, minimal body movement. Mouth gently closed. ' +
       'Cinematic, smooth motion, soft lighting, no text. Loopable. 6 seconds.',
   };
@@ -477,69 +477,40 @@ export async function generateAvatarClip(
     console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${request.state} / gender:${request.gender ?? 'unspecified'}`);
     console.log(`프롬프트: ${videoPrompt}`);
 
-    // Convert relative object-storage keys (e.g. "personas/ac/male/neutral.webp")
-    // to gs:// URIs so the SSRF guard below will accept them.
-    let resolvedNeutralImageUrl = request.neutralImageUrl;
-    if (
-      resolvedNeutralImageUrl &&
-      !resolvedNeutralImageUrl.startsWith('http') &&
-      !resolvedNeutralImageUrl.startsWith('gs://')
-    ) {
-      const bucket = process.env.GCS_BUCKET_NAME;
-      if (bucket) {
-        const key = resolvedNeutralImageUrl.replace(/^\/+/, '');
-        resolvedNeutralImageUrl = `gs://${bucket}/${key}`;
-        console.log(`🖼️ 시드 이미지 경로 변환: ${request.neutralImageUrl} → ${resolvedNeutralImageUrl}`);
-      } else {
-        console.warn('⚠️ GCS_BUCKET_NAME 미설정 — 시드 이미지 없이 텍스트 프롬프트만 사용');
-        resolvedNeutralImageUrl = undefined;
-      }
-    }
-
     // Build optional seed image parameter.
-    // SSRF guard: only allow gs:// URIs or HTTPS URLs hosted on trusted GCS/storage domains.
-    const TRUSTED_HTTPS_HOSTS = [
-      'storage.googleapis.com',
-      'storage.cloud.google.com',
-    ];
-    const isTrustedNeutralImageUrl = (url: string): boolean => {
-      if (url.startsWith('gs://')) return true;
+    // The Gemini API only accepts imageBytes (base64) — gcsUri is NOT supported.
+    // We read the neutral image directly from PRIVATE_OBJECT_DIR (local disk),
+    // which is always present in both dev (Replit) and production environments.
+    let seedImage: { imageBytes: string; mimeType: string } | undefined;
+    if (request.neutralImageUrl) {
       try {
-        const { protocol, hostname } = new URL(url);
-        if (protocol !== 'https:') return false;
-        return TRUSTED_HTTPS_HOSTS.some(h => hostname === h || hostname.endsWith(`.${h}`));
-      } catch {
-        return false;
-      }
-    };
+        const objectDir = process.env.PRIVATE_OBJECT_DIR;
+        if (!objectDir) {
+          console.warn('⚠️ PRIVATE_OBJECT_DIR 미설정 — 시드 이미지 없이 텍스트 프롬프트만 사용');
+        } else {
+          // neutralImageUrl is a relative object-storage key like "personas/ac/male/neutral.webp"
+          const key = request.neutralImageUrl.replace(/^\/+/, '');
+          const localPath = path.join(objectDir, key);
 
-    let seedImage: { gcsUri: string } | { imageBytes: string; mimeType: string } | undefined;
-    if (resolvedNeutralImageUrl) {
-      const url = resolvedNeutralImageUrl;
-      if (!isTrustedNeutralImageUrl(url)) {
-        console.warn(`⚠️ neutralImageUrl 신뢰할 수 없는 출처 (SSRF 방지): ${url.substring(0, 60)} — 텍스트 프롬프트만 사용`);
-      } else {
-        try {
-          if (url.startsWith('gs://')) {
-            seedImage = { gcsUri: url };
-            console.log(`🖼️ 시드 이미지 (GCS URI): ${url}`);
+          // Basic path-traversal guard
+          const resolvedPath = path.resolve(localPath);
+          const resolvedDir  = path.resolve(objectDir);
+          if (!resolvedPath.startsWith(resolvedDir + path.sep) && resolvedPath !== resolvedDir) {
+            console.warn(`⚠️ 시드 이미지 경로 이탈 감지: ${key} — 시드 이미지 스킵`);
+          } else if (fs.existsSync(localPath)) {
+            const imgBuf = fs.readFileSync(localPath);
+            const ext = path.extname(localPath).toLowerCase().replace('.', '');
+            const mimeType = ext === 'webp' ? 'image/webp'
+              : ext === 'png'  ? 'image/png'
+              : 'image/jpeg';
+            seedImage = { imageBytes: imgBuf.toString('base64'), mimeType };
+            console.log(`🖼️ 시드 이미지 로드: ${key} (${mimeType}, ${imgBuf.byteLength} bytes)`);
           } else {
-            // HTTPS URL from trusted host
-            const imgRes = await fetch(url);
-            if (imgRes.ok) {
-              const imgBuf = await imgRes.arrayBuffer();
-              const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
-              const mimeType = contentType.split(';')[0].trim();
-              const imageBytes = Buffer.from(imgBuf).toString('base64');
-              seedImage = { imageBytes, mimeType };
-              console.log(`🖼️ 시드 이미지 (HTTPS, ${mimeType}, ${imgBuf.byteLength} bytes)`);
-            } else {
-              console.warn(`⚠️ 시드 이미지 다운로드 실패 (${imgRes.status}), 텍스트 프롬프트만 사용`);
-            }
+            console.warn(`⚠️ 시드 이미지 파일 없음: ${localPath} — 텍스트 프롬프트만 사용`);
           }
-        } catch (imgErr: any) {
-          console.warn(`⚠️ 시드 이미지 처리 오류: ${imgErr.message}, 텍스트 프롬프트만 사용`);
         }
+      } catch (imgErr: any) {
+        console.warn(`⚠️ 시드 이미지 처리 오류: ${imgErr.message} — 텍스트 프롬프트만 사용`);
       }
     }
 

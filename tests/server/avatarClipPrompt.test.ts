@@ -66,10 +66,10 @@ describe('generateAvatarClipPrompt – structural requirements', () => {
     expect(unique.size).toBe(ALL_STATES.length);
   });
 
-  it('includes "upper body visible" for every state (no full-face close-ups)', () => {
+  it('includes "upper body" framing for every state (no full-face close-ups)', () => {
     for (const state of ALL_STATES) {
       const prompt = generateAvatarClipPrompt(makeRequest(state));
-      expect(prompt.toLowerCase()).toContain('upper body visible');
+      expect(prompt.toLowerCase()).toContain('upper body');
     }
   });
 
@@ -87,10 +87,11 @@ describe('generateAvatarClipPrompt – structural requirements', () => {
     }
   });
 
-  it('incorporates styleHint into the prompt when provided', () => {
+  it('ignores styleHint — appearance comes from seed image, not prompt text', () => {
     const hint = 'wearing a navy suit, Asian male';
     const prompt = generateAvatarClipPrompt(makeRequest('idle', { styleHint: hint }));
-    expect(prompt).toContain(hint);
+    // styleHint must NOT appear in the prompt; person appearance is supplied via seed image only.
+    expect(prompt).not.toContain(hint);
   });
 
   it('falls back to "idle" prompt for an unknown state', () => {
