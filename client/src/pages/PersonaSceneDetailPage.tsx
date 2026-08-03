@@ -150,7 +150,7 @@ export default function PersonaSceneDetailPage() {
     <>
       <PersonaLayout>
         {/* ── 전체화면 히어로 이미지 ─────────────────── */}
-        <div className="relative w-full h-[62svh] min-h-[380px] overflow-hidden">
+        <div className="relative w-full h-[42svh] min-h-[260px] overflow-hidden">
           <img
             src={sceneImage}
             alt={scene.title}
@@ -161,7 +161,7 @@ export default function PersonaSceneDetailPage() {
             }}
           />
           {/* 상단 어둠 + 하단 slate-950으로 자연스럽게 연결 */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/10 to-slate-950" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/20 to-slate-950" />
 
           {/* 플로팅 네비게이션 */}
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-5 z-10">
@@ -189,8 +189,8 @@ export default function PersonaSceneDetailPage() {
           </div>
 
           {/* 이미지 하단 제목 오버레이 */}
-          <div className="absolute bottom-0 left-0 right-0 px-5 pb-7">
-            <div className="flex items-center gap-2.5 mb-3">
+          <div className="absolute bottom-0 left-0 right-0 px-4 pb-6">
+            <div className="flex items-center gap-2.5 mb-2.5">
               <Badge className="bg-emerald-500/90 text-white text-xs font-semibold backdrop-blur-sm px-2.5 py-1">
                 {scene.genre}
               </Badge>
@@ -202,40 +202,42 @@ export default function PersonaSceneDetailPage() {
                 <MessageSquare className="w-3 h-3" />{scene.useCount}회 사용
               </span>
             </div>
-            <h1 className="text-[28px] font-bold text-white leading-tight tracking-tight drop-shadow-lg">
+            <h1 className="text-[22px] font-bold text-white leading-tight tracking-tight drop-shadow-lg">
               {scene.title}
             </h1>
             {scene.description && (
-              <p className="text-white/65 text-sm mt-2 leading-relaxed line-clamp-2">{scene.description}</p>
+              <p className="text-white/65 text-xs mt-1.5 leading-relaxed line-clamp-2">{scene.description}</p>
             )}
           </div>
         </div>
 
         {/* ── 다크 컨텐츠 영역 ──────────────────────── */}
-        <div className="bg-slate-950 px-5 pt-7 pb-36 space-y-8">
+        <div className="bg-slate-950 px-4 pt-5 pb-32 space-y-3">
 
           {/* 분위기 */}
           {scene.mood && (
-            <div className="flex items-center gap-2.5">
-              <Wind className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] px-4 py-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2 flex items-center gap-1.5">
+                <Wind className="w-3.5 h-3.5" />분위기
+              </p>
               <span className="text-emerald-400 text-sm font-medium">{scene.mood}</span>
             </div>
           )}
 
           {/* 배경 상황 */}
           {scene.setting && (
-            <div>
-              <h3 className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.15em] mb-3 flex items-center gap-1.5">
+            <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] px-4 py-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5" />배경 상황
-              </h3>
+              </p>
               <p className="text-slate-300 text-sm leading-[1.8] font-light">{scene.setting}</p>
             </div>
           )}
 
-          {/* 첫 대사 - 시네마틱 인용구 */}
+          {/* 첫 대사 */}
           {scene.openingLine && (
-            <div className="relative pl-5 border-l-2 border-emerald-500/50 py-1">
-              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-[0.15em] mb-2.5">첫 대사</p>
+            <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] px-4 py-4">
+              <p className="text-[10px] font-bold text-emerald-500/80 uppercase tracking-[0.15em] mb-2.5">첫 대사</p>
               <p className="text-white/85 text-[15px] italic leading-[1.85] font-light">
                 "{scene.openingLine}"
               </p>
@@ -244,15 +246,18 @@ export default function PersonaSceneDetailPage() {
 
           {/* 태그 */}
           {scene.tags && scene.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {scene.tags.map(tag => (
-                <span
-                  key={tag}
-                  className="text-xs bg-white/[0.07] text-slate-400 px-3 py-1.5 rounded-full border border-white/[0.08]"
-                >
-                  #{tag}
-                </span>
-              ))}
+            <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] px-4 py-4">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-3">태그</p>
+              <div className="flex flex-wrap gap-2">
+                {scene.tags.map(tag => (
+                  <span
+                    key={tag}
+                    className="text-xs bg-white/[0.07] text-slate-400 px-3 py-1.5 rounded-full border border-white/[0.08]"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
