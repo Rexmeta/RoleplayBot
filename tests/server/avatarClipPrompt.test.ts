@@ -8,7 +8,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { generateAvatarClipPrompt } from '../../server/services/gemini-video-generator';
+import {
+  generateAvatarClipPrompt,
+  validateStyleHint,
+  AVATAR_PROMPT_BANNED_TERMS,
+} from '../../server/services/gemini-video-generator';
 import type { AvatarClipState, AvatarClipRequest } from '../../server/services/gemini-video-generator';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -99,5 +103,71 @@ describe('generateAvatarClipPrompt – structural requirements', () => {
     // Cast to bypass TS – we are testing runtime fallback behaviour
     const unknownPrompt = generateAvatarClipPrompt(makeRequest('unknown_state' as AvatarClipState));
     expect(unknownPrompt).toBe(idlePrompt);
+  });
+});
+
+// ── styleHint policy-safety tests ────────────────────────────────────────────
+
+describe('validateStyleHint – banned-term rejection', () => {
+  it('accepts an empty styleHint without throwing', () => {
+    expect(() => validateStyleHint('')).not.toThrow();
+  });
+
+  it('accepts a clean styleHint without throwing', () => {
+    expect(() => validateStyleHint('wearing a navy suit, professional lighting')).not.toThrow();
+  });
+
+  for (const term of AVATAR_PROMPT_BANNED_TERMS) {
+    it(`rejects styleHint containing banned term: "${term}"`, () => {
+      expect(() => validateStyleHint(`some text ${term} more text`)).toThrow(/policy-violating term/i);
+    });
+
+    it(`rejects styleHint case-insensitively for: "${term}"`, () => {
+      expect(() => validateStyleHint(term.toUpperCase())).toThrow(/policy-violating term/i);
+    });
+  }
+});
+
+describe('generateAvatarClipPrompt – styleHint policy guard', () => {
+  it('throws when styleHint contains a banned term', () => {
+    expect(() =>
+      generateAvatarClipPrompt(makeRequest('idle', { styleHint: 'close-up face portrait' }))
+    ).toThrow(/policy-violating term/i);
+  });
+
+  it('throws when styleHint contains "facial expression"', () => {
+    expect(() =>
+      generateAvatarClipPrompt(makeRequest('speaking', { styleHint: 'detailed facial expression visible' }))
+    ).toThrow(/policy-violating term/i);
+  });
+
+  it('throws when styleHint contains "mouth moving"', () => {
+    expect(() =>
+      generateAvatarClipPrompt(makeRequest('speaking', { styleHint: 'mouth moving naturally' }))
+    ).toThrow(/policy-violating term/i);
+  });
+
+  it('does not throw when styleHint is clean', () => {
+    expect(() =>
+      generateAvatarClipPrompt(makeRequest('idle', { styleHint: 'soft studio lighting, business casual' }))
+    ).not.toThrow();
+  });
+
+  it('does not throw when styleHint is undefined', () => {
+    expect(() =>
+      generateAvatarClipPrompt(makeRequest('idle'))
+    ).not.toThrow();
+  });
+
+  it('the error message names the offending term', () => {
+    expect(() =>
+      generateAvatarClipPrompt(makeRequest('idle', { styleHint: 'close-up face portrait' }))
+    ).toThrow(/close-up face/i);
+  });
+
+  it('clean styleHint does not appear in the returned prompt (appearance comes from seed image)', () => {
+    const hint = 'wearing a white blazer';
+    const prompt = generateAvatarClipPrompt(makeRequest('idle', { styleHint: hint }));
+    expect(prompt).not.toContain(hint);
   });
 });

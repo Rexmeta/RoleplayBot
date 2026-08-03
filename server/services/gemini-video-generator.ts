@@ -415,6 +415,38 @@ export interface AvatarClipRequest {
 }
 
 /**
+ * Terms that have triggered Veo content-policy rejections.
+ * Any styleHint value that contains one of these (case-insensitive) is rejected
+ * before it can be concatenated into a prompt.
+ */
+export const AVATAR_PROMPT_BANNED_TERMS: readonly string[] = [
+  'mouth moving',
+  'mouth move',
+  'speaking naturally',
+  'facial expression',
+  'close-up face',
+  'close up face',
+  'closeup face',
+  'face close',
+];
+
+/**
+ * Validate a styleHint value against the banned-term list.
+ * Throws a descriptive Error if the hint contains a prohibited term.
+ */
+export function validateStyleHint(styleHint: string): void {
+  const lower = styleHint.toLowerCase();
+  for (const term of AVATAR_PROMPT_BANNED_TERMS) {
+    if (lower.includes(term.toLowerCase())) {
+      throw new Error(
+        `styleHint contains a policy-violating term ("${term}") and cannot be forwarded to Veo. ` +
+        `styleHint values must not describe face close-ups, mouth movement, or facial expressions.`,
+      );
+    }
+  }
+}
+
+/**
  * Build a Veo prompt for an avatar clip state.
  *
  * Design intent: prompts describe ONLY body posture and motion — no appearance,
@@ -422,8 +454,16 @@ export interface AvatarClipRequest {
  * Mouth is kept closed/still in every state to avoid lip-sync policy issues.
  */
 export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
-  const { state } = request;
-  // styleHint is intentionally ignored — appearance is provided via seed image.
+  const { state, styleHint } = request;
+
+  // Reject styleHints that contain policy-violating language.
+  // Even though the hint is not injected into the prompt today, we validate it
+  // at the boundary so callers get a clear error rather than silent acceptance.
+  if (styleHint !== undefined && styleHint !== '') {
+    validateStyleHint(styleHint);
+  }
+
+  // styleHint is intentionally not injected — appearance is provided via seed image.
 
   const stateDescriptions: Record<AvatarClipState, string> = {
     idle:
