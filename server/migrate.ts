@@ -1031,7 +1031,23 @@ export async function runMigrations(): Promise<void> {
         { table: 'scenarios', column: 'persona_switch_rules', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='persona_switch_rules') THEN ALTER TABLE "scenarios" ADD COLUMN "persona_switch_rules" jsonb; END IF; END $$;` },
         { table: 'scenarios', column: 'evaluation_harness', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='evaluation_harness') THEN ALTER TABLE "scenarios" ADD COLUMN "evaluation_harness" jsonb; END IF; END $$;` },
         { table: 'scenarios', column: 'termination_rules', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='termination_rules') THEN ALTER TABLE "scenarios" ADD COLUMN "termination_rules" jsonb; END IF; END $$;` },
-        { table: 'chat_messages', column: 'user_affect', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='chat_messages' AND column_name='user_affect') THEN ALTER TABLE "chat_messages" ADD COLUMN "user_affect" jsonb; END IF; END $$;` }
+        { table: 'chat_messages', column: 'user_affect', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='chat_messages' AND column_name='user_affect') THEN ALTER TABLE "chat_messages" ADD COLUMN "user_affect" jsonb; END IF; END $$;` },
+
+        // Columns added after the initial criticalColumnPatches batch.
+        // Each entry here is the authoritative migration path for that column;
+        // the schema-migration coverage test (tests/server/schemaMigrationCoverage.test.ts)
+        // will fail if a new Drizzle column is not represented here or in a
+        // CREATE TABLE / ADD COLUMN block in runMigrations().
+
+        { table: 'mbti_personas', column: 'free_chat_available', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mbti_personas' AND column_name='free_chat_available') THEN ALTER TABLE "mbti_personas" ADD COLUMN "free_chat_available" boolean NOT NULL DEFAULT false; END IF; END $$;` },
+        { table: 'mbti_personas', column: 'free_chat_description', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mbti_personas' AND column_name='free_chat_description') THEN ALTER TABLE "mbti_personas" ADD COLUMN "free_chat_description" text; END IF; END $$;` },
+        { table: 'scenarios', column: 'is_public', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='is_public') THEN ALTER TABLE "scenarios" ADD COLUMN "is_public" boolean NOT NULL DEFAULT false; END IF; END $$;` },
+        { table: 'evaluation_criteria_sets', column: 'owner_operator_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_criteria_sets' AND column_name='owner_operator_id') THEN ALTER TABLE "evaluation_criteria_sets" ADD COLUMN "owner_operator_id" varchar; END IF; END $$;` },
+        { table: 'evaluation_dimensions', column: 'evaluation_prompt', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_dimensions' AND column_name='evaluation_prompt') THEN ALTER TABLE "evaluation_dimensions" ADD COLUMN "evaluation_prompt" text; END IF; END $$;` },
+        { table: 'feedbacks', column: 'score_adjustments', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedbacks' AND column_name='score_adjustments') THEN ALTER TABLE "feedbacks" ADD COLUMN "score_adjustments" jsonb; END IF; END $$;` },
+        { table: 'persona_runs', column: 'termination_reason', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='termination_reason') THEN ALTER TABLE "persona_runs" ADD COLUMN "termination_reason" text; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_status', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_status') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_status" varchar; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_job_started_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_started_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_started_at" timestamp; END IF; END $$;` }
       );
 
       for (const patch of criticalColumnPatches) {
@@ -1932,6 +1948,166 @@ export async function runMigrations(): Promise<void> {
         console.log('✅ users anonymization columns ensured');
       } catch (err) {
         console.warn('⚠️ Failed to ensure users anonymization columns:', err);
+      }
+
+      // ─── Tables that have no CREATE TABLE elsewhere in this migration ────────
+      // These tables exist in the Drizzle schema but were originally created
+      // outside the formal migration path.  Adding CREATE TABLE IF NOT EXISTS
+      // here makes fresh deployments work and satisfies the schema-migration
+      // coverage test (tests/server/schemaMigrationCoverage.test.ts).
+
+      // user_personas – persona X user chat personas
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "user_personas" (
+            "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "creator_id" varchar(36) NOT NULL,
+            "name" text NOT NULL,
+            "description" text NOT NULL DEFAULT '',
+            "greeting" text NOT NULL DEFAULT '',
+            "avatar_url" text,
+            "expressions" jsonb,
+            "gender" varchar,
+            "personality" jsonb,
+            "tags" text[] DEFAULT '{}',
+            "is_public" boolean NOT NULL DEFAULT false,
+            "like_count" integer NOT NULL DEFAULT 0,
+            "chat_count" integer NOT NULL DEFAULT 0,
+            "created_at" timestamp NOT NULL DEFAULT now(),
+            "updated_at" timestamp NOT NULL DEFAULT now()
+          );
+          CREATE INDEX IF NOT EXISTS "idx_user_personas_creator_id" ON "user_personas"("creator_id");
+          CREATE INDEX IF NOT EXISTS "idx_user_personas_is_public" ON "user_personas"("is_public");
+        `);
+        console.log('✅ user_personas table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create user_personas table:', err);
+      }
+
+      // user_persona_likes – like records for user-created personas
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "user_persona_likes" (
+            "user_id" varchar(36) NOT NULL,
+            "persona_id" varchar(36) NOT NULL,
+            "created_at" timestamp NOT NULL DEFAULT now(),
+            CONSTRAINT "user_persona_likes_pk" PRIMARY KEY ("user_id", "persona_id")
+          );
+          CREATE INDEX IF NOT EXISTS "idx_user_persona_likes_persona_id" ON "user_persona_likes"("persona_id");
+        `);
+        console.log('✅ user_persona_likes table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create user_persona_likes table:', err);
+      }
+
+      // agent_sessions – sessions created via the public agent API
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "agent_sessions" (
+            "id" varchar PRIMARY KEY NOT NULL,
+            "agent_key_id" varchar NOT NULL REFERENCES "agent_api_keys"("id"),
+            "organization_id" varchar NOT NULL,
+            "external_user_id" varchar NOT NULL,
+            "external_session_id" varchar,
+            "persona_run_id" varchar,
+            "scenario_id" text NOT NULL,
+            "persona_id" text NOT NULL,
+            "language" varchar(5) NOT NULL DEFAULT 'ko',
+            "difficulty" integer NOT NULL DEFAULT 4,
+            "status" varchar(20) NOT NULL DEFAULT 'active',
+            "metadata" jsonb,
+            "last_activity_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "expires_at" timestamp NOT NULL,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "ended_at" timestamp
+          );
+          CREATE INDEX IF NOT EXISTS "idx_agent_sessions_key_id" ON "agent_sessions"("agent_key_id");
+          CREATE INDEX IF NOT EXISTS "idx_agent_sessions_org_id" ON "agent_sessions"("organization_id");
+          CREATE INDEX IF NOT EXISTS "idx_agent_sessions_status" ON "agent_sessions"("status");
+          CREATE INDEX IF NOT EXISTS "idx_agent_sessions_external_session"
+            ON "agent_sessions"("organization_id", "external_session_id");
+        `);
+        console.log('✅ agent_sessions table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create agent_sessions table:', err);
+      }
+
+      // agent_idempotency_keys – dedup store for agent API requests
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "agent_idempotency_keys" (
+            "key" varchar NOT NULL,
+            "agent_key_id" varchar NOT NULL REFERENCES "agent_api_keys"("id") ON DELETE CASCADE,
+            "request_hash" varchar NOT NULL,
+            "response_body" jsonb,
+            "status_code" integer NOT NULL,
+            "expires_at" timestamp NOT NULL,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT "agent_idempotency_keys_pk" PRIMARY KEY ("key", "agent_key_id")
+          );
+          CREATE INDEX IF NOT EXISTS "idx_agent_idempotency_keys_expires"
+            ON "agent_idempotency_keys"("expires_at");
+        `);
+        console.log('✅ agent_idempotency_keys table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create agent_idempotency_keys table:', err);
+      }
+
+      // agent_usage_daily – daily aggregated token/request usage per API key
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "agent_usage_daily" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "organization_id" varchar NOT NULL,
+            "agent_key_id" varchar NOT NULL REFERENCES "agent_api_keys"("id"),
+            "date" varchar(10) NOT NULL,
+            "request_count" integer NOT NULL DEFAULT 0,
+            "session_count" integer NOT NULL DEFAULT 0,
+            "input_tokens" integer NOT NULL DEFAULT 0,
+            "output_tokens" integer NOT NULL DEFAULT 0,
+            "total_tokens" integer NOT NULL DEFAULT 0,
+            "cached_tokens" integer NOT NULL DEFAULT 0,
+            "error_count" integer NOT NULL DEFAULT 0,
+            "avg_latency_ms" integer,
+            "estimated_request_count" integer NOT NULL DEFAULT 0
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS "idx_agent_usage_daily_unique"
+            ON "agent_usage_daily"("organization_id", "agent_key_id", "date");
+          CREATE INDEX IF NOT EXISTS "idx_agent_usage_daily_org"
+            ON "agent_usage_daily"("organization_id");
+          CREATE INDEX IF NOT EXISTS "idx_agent_usage_daily_date"
+            ON "agent_usage_daily"("date");
+        `);
+        console.log('✅ agent_usage_daily table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create agent_usage_daily table:', err);
+      }
+
+      // store_entitlement_audit_log – audit trail for entitlement revocations
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "store_entitlement_audit_log" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "entitlement_id" varchar NOT NULL,
+            "org_id" varchar NOT NULL,
+            "pack_id" varchar NOT NULL,
+            "pack_name" varchar NOT NULL DEFAULT '',
+            "action" varchar(50) NOT NULL DEFAULT 'revoke',
+            "revoked_by" varchar,
+            "stripe_refund_id" text,
+            "reason" text,
+            "revoked_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS "idx_entitlement_audit_org_id"
+            ON "store_entitlement_audit_log"("org_id");
+          CREATE INDEX IF NOT EXISTS "idx_entitlement_audit_pack_id"
+            ON "store_entitlement_audit_log"("pack_id");
+          CREATE INDEX IF NOT EXISTS "idx_entitlement_audit_revoked_at"
+            ON "store_entitlement_audit_log"("revoked_at");
+        `);
+        console.log('✅ store_entitlement_audit_log table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create store_entitlement_audit_log table:', err);
       }
 
       console.log('✅ Database migrations completed successfully');
