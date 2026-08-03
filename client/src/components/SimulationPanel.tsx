@@ -26,11 +26,16 @@ export const STAGE_COLORS: Record<string, string> = {
   resolution: 'bg-green-500',
 };
 
+/** Color classes keyed to affective-layer metric names (npcAffectiveState). */
 export const EMOTION_COLORS: Record<string, string> = {
-  anger: 'bg-red-400',
-  trust: 'bg-blue-400',
+  intensity: 'bg-red-400',
+  valence: 'bg-pink-400',
   confusion: 'bg-yellow-400',
+  load: 'bg-amber-400',
+  trust: 'bg-blue-400',
+  rapport: 'bg-indigo-400',
   interest: 'bg-green-400',
+  cooperativeness: 'bg-teal-400',
 };
 
 function EmotionBar({ label, value, icon, colorClass }: { label: string; value: number; icon: React.ReactNode; colorClass: string }) {

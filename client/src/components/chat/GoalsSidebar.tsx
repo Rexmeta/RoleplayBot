@@ -5,7 +5,7 @@ import { formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import type { ComplexScenario } from "@/lib/scenario-system";
 import SimulationPanel, { STAGE_COLORS, EMOTION_COLORS } from "@/components/SimulationPanel";
-import type { SimulationState, Incident, TurnScore } from "@/hooks/useSimulationState";
+import type { SimulationState, Incident, TurnScore, NpcAffectiveState } from "@/hooks/useSimulationState";
 
 const STAGE_TEXT_COLORS: Record<string, string> = {
   intro: 'text-blue-600',
@@ -23,16 +23,21 @@ const STAGE_BG_COLORS: Record<string, string> = {
   resolution: 'bg-green-50 border-green-200',
 };
 
-function getDominantEmotion(npcEmotions: SimulationState['npcEmotions']): { key: string; value: number } | null {
-  const entries = Object.entries(npcEmotions) as [string, number][];
-  if (entries.length === 0) return null;
+function getDominantAffective(npcAffectiveState: NpcAffectiveState): { key: string; value: number } | null {
+  const flat: Record<string, number> = {
+    intensity: npcAffectiveState.affective.intensity,
+    confusion: npcAffectiveState.cognitive.confusion,
+    trust: npcAffectiveState.relational.trust,
+    interest: npcAffectiveState.motivational.interest,
+  };
+  const entries = Object.entries(flat);
   return entries.reduce((best, [key, value]) => (value > best.value ? { key, value } : best), { key: entries[0][0], value: entries[0][1] });
 }
 
 function NpcCollapsedPreview({ simulationState }: { simulationState: SimulationState }) {
   const { t } = useTranslation();
-  const { stage, npcEmotions } = simulationState;
-  const dominant = getDominantEmotion(npcEmotions);
+  const { stage, npcAffectiveState } = simulationState;
+  const dominant = npcAffectiveState ? getDominantAffective(npcAffectiveState) : null;
   const stageDotColor = STAGE_COLORS[stage] ?? 'bg-slate-400';
   const stageTextColor = STAGE_TEXT_COLORS[stage] ?? 'text-slate-600';
   const stageBgColor = STAGE_BG_COLORS[stage] ?? 'bg-slate-50 border-slate-200';
@@ -47,7 +52,7 @@ function NpcCollapsedPreview({ simulationState }: { simulationState: SimulationS
       {dominant && (
         <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 leading-none">
           <span className={`w-2 h-2 rounded-full ${EMOTION_COLORS[dominant.key] ?? 'bg-slate-400'}`} />
-          <span>{t(`simulation.emotions.${dominant.key}`, { defaultValue: dominant.key })}</span>
+          <span>{t(`simulation.affectiveState.${dominant.key}`, { defaultValue: dominant.key })}</span>
           <span className="font-mono text-slate-400">{dominant.value}%</span>
         </span>
       )}

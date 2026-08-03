@@ -387,7 +387,7 @@ export function handleGeminiMessage(
                 response: {
                   success: true,
                   ...(result.statePatch ? { statePatch: result.statePatch } : {}),
-                  ...(result.currentState ? { currentState: { stage: result.currentState.stage, pressureLevel: result.currentState.pressureLevel, npcEmotions: result.currentState.npcEmotions } } : {}),
+                  ...(result.currentState ? { currentState: { stage: result.currentState.stage, pressureLevel: result.currentState.pressureLevel, npcAffectiveState: result.currentState.npcAffectiveState } } : {}),
                   ...(result.behaviorInstruction ? { behaviorInstruction: result.behaviorInstruction } : {}),
                 },
               }],
