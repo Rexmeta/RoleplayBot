@@ -396,6 +396,16 @@ export default function FeedbackView() {
       {personaSwitchLog.length > 0 && (
         <PersonaParticipationSummary switchLog={personaSwitchLog} scenarioPersonas={scenarioPersonas} totalTurnCount={conversation?.turnCount ?? 0} />
       )}
+      {effectiveScenario?.personaSwitchMode === 'none' && (
+        <div className="mx-auto max-w-4xl px-4 py-3">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center gap-2">
+            <Users className="w-4 h-4 text-slate-400 flex-shrink-0" />
+            <span className="text-sm text-slate-500">
+              {t('feedback.switchModeNone', { defaultValue: '이 세션은 페르소나 전환이 비활성화된 상태로 진행되었습니다.' })}
+            </span>
+          </div>
+        </div>
+      )}
       {personaSegmentFeedbacks.length > 0 ? (
         <Tabs defaultValue="overall" className="w-full">
           <div className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
