@@ -98,25 +98,20 @@ export function GoalsSidebar({
 }: GoalsSidebarProps) {
   const { t } = useTranslation();
   const npcBodyRef = useRef<HTMLDivElement>(null);
-  const [npcBodyHeight, setNpcBodyHeight] = useState<number>(0);
+  const [npcBodyOverflow, setNpcBodyOverflow] = useState<'hidden' | 'auto'>('hidden');
 
+  // Reset overflow to hidden as soon as a collapse begins
   useEffect(() => {
-    if (!npcBodyRef.current) return;
-    const observer = new ResizeObserver(() => {
-      if (npcBodyRef.current) {
-        setNpcBodyHeight(npcBodyRef.current.scrollHeight);
-      }
-    });
-    observer.observe(npcBodyRef.current);
-    setNpcBodyHeight(npcBodyRef.current.scrollHeight);
-    return () => observer.disconnect();
-  }, [simulationState, latestTurnScore, newIncident]);
+    if (!isNpcExpanded) {
+      setNpcBodyOverflow('hidden');
+    }
+  }, [isNpcExpanded]);
 
   const hasGoals = scenario?.objectives || scenario?.context?.playerRoleText || scenario?.context?.playerRole?.responsibility;
 
   if (variant === 'sidebar') {
     return (
-      <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30">
+      <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30 h-full">
         <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4">
           <div className="flex items-center space-x-2">
             <span className="text-sm font-semibold text-slate-800">{personaDept} {personaRole} {personaName}</span>
@@ -192,13 +187,14 @@ export function GoalsSidebar({
 
             <div
               style={{
-                maxHeight: isNpcExpanded ? `${Math.max(npcBodyHeight, 200)}px` : '0px',
+                maxHeight: isNpcExpanded ? '9999px' : '0px',
                 opacity: isNpcExpanded ? 1 : 0,
-                overflow: 'hidden',
+                overflow: npcBodyOverflow,
                 transition: 'max-height 0.35s ease-in-out, opacity 0.3s ease-in-out',
               }}
+              onTransitionEnd={() => { if (isNpcExpanded) setNpcBodyOverflow('auto'); }}
             >
-              <div ref={npcBodyRef} className="border-t border-slate-100">
+              <div ref={npcBodyRef} className="border-t border-slate-100 pb-2">
                 {simulationState ? (
                   <SimulationPanel
                     state={simulationState}
