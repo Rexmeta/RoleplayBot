@@ -237,8 +237,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   // 개별 표정 이미지 생성 상태
   const [generatingSingleEmotion, setGeneratingSingleEmotion] = useState<string | null>(null);
   
-  // 비디오 아바타 생성 상태
-  const [generatingVideoClip, setGeneratingVideoClip] = useState<string | null>(null);
+  // 비디오 아바타 생성 상태 (여러 클립을 동시에 추적)
+  const [generatingVideoClip, setGeneratingVideoClip] = useState<Set<string>>(new Set());
   
   // 이미지 로드 실패 상태 추적
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
@@ -665,70 +665,89 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     }
   };
 
+  // localStorage 키 헬퍼
+  const videoJobKey = (personaId: string, state: string) => `videoJob:${personaId}:${state}`;
+
+  // 비디오 클립 폴링 (재개 가능)
+  const pollVideoJob = (personaId: string, state: string, jobId: string, deadline: number) => {
+    const POLL_INTERVAL_MS = 5_000;
+
+    const poll = async (): Promise<void> => {
+      if (Date.now() > deadline) {
+        localStorage.removeItem(videoJobKey(personaId, state));
+        setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
+        toast({ title: '시간 초과', description: '클립 생성 시간이 초과되었습니다. 나중에 다시 시도해주세요.', variant: 'destructive' });
+        return;
+      }
+
+      try {
+        const statusRes = await apiRequest('GET', `/api/admin/personas/${personaId}/video/generate-clip/status?jobId=${encodeURIComponent(jobId)}`);
+        const data = await statusRes.json();
+
+        if (data.status === 'done' && data.result?.videoUrl) {
+          localStorage.removeItem(videoJobKey(personaId, state));
+          setFormData(prev => ({
+            ...prev,
+            videos: {
+              enabled: prev.videos?.enabled ?? true,
+              avatarId: prev.videos?.avatarId ?? prev.id,
+              clips: { ...(prev.videos?.clips ?? {}), [state]: data.result.videoUrl },
+            },
+          }));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
+          toast({ title: '저장 중', description: `${state} 클립 생성 완료. 저장을 눌러 반영하세요.` });
+        } else if (data.status === 'error') {
+          localStorage.removeItem(videoJobKey(personaId, state));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
+          toast({ title: '생성 오류', description: data.error || '클립 생성 실패', variant: 'destructive' });
+        } else if (data.status === undefined && !data.jobId) {
+          // Job expired from server store (> 30 min) — clear gracefully
+          localStorage.removeItem(videoJobKey(personaId, state));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
+        } else {
+          // pending or running — keep polling
+          setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      } catch (pollErr: any) {
+        // Network glitch — keep polling unless we've timed out
+        setTimeout(poll, POLL_INTERVAL_MS);
+      }
+    };
+
+    setTimeout(poll, POLL_INTERVAL_MS);
+  };
+
   // 비디오 클립 개별 생성 핸들러 (백그라운드 폴링 방식)
   const handleGenerateVideoClip = async (state: string) => {
     if (!formData.id || !editingPersona) {
       toast({ title: '오류', description: '페르소나를 먼저 저장해주세요.', variant: 'destructive' });
       return;
     }
-    setGeneratingVideoClip(state);
+    const personaId = formData.id;
+    setGeneratingVideoClip(prev => new Set(Array.from(prev).concat(state)));
     try {
       // Step 1: kick off background job, get jobId immediately
-      const startResponse = await apiRequest('POST', `/api/admin/personas/${formData.id}/video/generate-clip`, {
+      const startResponse = await apiRequest('POST', `/api/admin/personas/${personaId}/video/generate-clip`, {
         state,
         styleHint: formData.images?.style || undefined,
       });
       const { jobId } = await startResponse.json();
       if (!jobId) throw new Error('서버에서 작업 ID를 받지 못했습니다.');
 
-      toast({ title: '생성 시작', description: `${state} 클립 생성 중… 완료되면 자동으로 반영됩니다.` });
-
-      // Step 2: poll every 5 seconds for up to 6 minutes
-      const POLL_INTERVAL_MS = 5_000;
+      // Step 2: persist job reference so it survives page navigations
       const POLL_TIMEOUT_MS = 6 * 60 * 1_000;
       const deadline = Date.now() + POLL_TIMEOUT_MS;
+      localStorage.setItem(videoJobKey(personaId, state), JSON.stringify({ jobId, deadline }));
 
-      const poll = async (): Promise<void> => {
-        if (Date.now() > deadline) {
-          setGeneratingVideoClip(null);
-          toast({ title: '시간 초과', description: '클립 생성 시간이 초과되었습니다. 나중에 다시 시도해주세요.', variant: 'destructive' });
-          return;
-        }
+      toast({ title: '생성 시작', description: `${state} 클립 생성 중… 완료되면 자동으로 반영됩니다.` });
 
-        try {
-          const statusRes = await apiRequest('GET', `/api/admin/personas/${formData.id}/video/generate-clip/status?jobId=${encodeURIComponent(jobId)}`);
-          const data = await statusRes.json();
-
-          if (data.status === 'done' && data.result?.videoUrl) {
-            setFormData(prev => ({
-              ...prev,
-              videos: {
-                enabled: prev.videos?.enabled ?? true,
-                avatarId: prev.videos?.avatarId ?? prev.id,
-                clips: { ...(prev.videos?.clips ?? {}), [state]: data.result.videoUrl },
-              },
-            }));
-            setGeneratingVideoClip(null);
-            toast({ title: '저장 중', description: `${state} 클립 생성 완료. 저장을 눌러 반영하세요.` });
-          } else if (data.status === 'error') {
-            setGeneratingVideoClip(null);
-            toast({ title: '생성 오류', description: data.error || '클립 생성 실패', variant: 'destructive' });
-          } else {
-            // pending or running — keep polling
-            setTimeout(poll, POLL_INTERVAL_MS);
-          }
-        } catch (pollErr: any) {
-          // Network glitch — keep polling unless we've timed out
-          setTimeout(poll, POLL_INTERVAL_MS);
-        }
-      };
-
-      setTimeout(poll, POLL_INTERVAL_MS);
+      // Step 3: start polling
+      pollVideoJob(personaId, state, jobId, deadline);
     } catch (error: any) {
-      setGeneratingVideoClip(null);
+      localStorage.removeItem(videoJobKey(personaId, state));
+      setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
       toast({ title: '생성 오류', description: error.message || '클립 생성 실패', variant: 'destructive' });
     }
-    // NOTE: setGeneratingVideoClip(null) is called inside the polling chain, not here
   };
 
   const resetForm = () => {
@@ -867,6 +886,29 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       win_conditions: (persona.communication_patterns?.win_conditions || []).join(', ')
     });
     setEditingPersona(persona);
+
+    // 페이지 이동 후 다시 열었을 때 진행 중인 비디오 클립 작업 복구
+    const VIDEO_STATES = ['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'];
+    const resumingStates: string[] = [];
+    VIDEO_STATES.forEach(state => {
+      const stored = localStorage.getItem(`videoJob:${persona.id}:${state}`);
+      if (!stored) return;
+      try {
+        const { jobId, deadline } = JSON.parse(stored);
+        if (Date.now() > deadline) {
+          localStorage.removeItem(`videoJob:${persona.id}:${state}`);
+          return;
+        }
+        resumingStates.push(state);
+        pollVideoJob(persona.id, state, jobId, deadline);
+      } catch {
+        localStorage.removeItem(`videoJob:${persona.id}:${state}`);
+      }
+    });
+    if (resumingStates.length > 0) {
+      setGeneratingVideoClip(prev => new Set(Array.from(prev).concat(resumingStates)));
+      toast({ title: '생성 재개', description: `진행 중인 클립 작업을 재개합니다: ${resumingStates.join(', ')}` });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1465,7 +1507,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {(['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'] as const).map((state) => {
                     const clipUrl = formData.videos?.clips?.[state] ?? '';
-                    const isGenerating = generatingVideoClip === state;
+                    const isGenerating = generatingVideoClip.has(state);
                     return (
                       <div key={state} className="border border-slate-200 rounded-lg p-3 bg-slate-50 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
