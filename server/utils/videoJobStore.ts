@@ -15,7 +15,7 @@ export interface VideoJobRecord {
 
 const JOB_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
-class VideoJobStore {
+export class VideoJobStore {
   private jobs = new Map<string, VideoJobRecord>();
 
   create(jobId: string): VideoJobRecord {
