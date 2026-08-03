@@ -23,7 +23,8 @@ import SimulationPanel from "@/components/SimulationPanel";
 
 import { useConversationTimer, formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
-import { useEmotionState, emotionEmojis } from "@/hooks/chat/useEmotionState";
+import { emotionEmojis } from "@/hooks/chat/useEmotionState";
+import { useAvatarRenderer } from "@/hooks/chat/useAvatarRenderer";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatSession } from "@/hooks/chat/useChatSession";
 import { MessageList } from "@/components/chat/MessageList";
@@ -224,9 +225,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onPersonaSwitched: handlePersonaSwitched,
   });
 
-  const { currentEmotion, setCurrentEmotion, isEmotionTransitioning, setIsEmotionTransitioning,
-    loadedImageUrl, isInitialLoading, isOverlayFading, hasNoPersonaImages,
-    getCharacterImage, preloadImage } = useEmotionState({
+  const {
+    displayImageUrl, overlayColor, isTransitioning, isInitialLoading, isOverlayFading,
+    hasNoPersonaImages, currentEmotion, getCharacterImage, setEmotion,
+  } = useAvatarRenderer({
     persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions },
     conversationId, onReady,
   });
@@ -251,11 +253,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
       if (emotion) {
-        setIsEmotionTransitioning(true);
-        setCurrentEmotion(emotion);
-        setTimeout(() => setIsEmotionTransitioning(false), 150);
-        const newUrl = getCharacterImage(emotion);
-        if (newUrl) preloadImage(newUrl);
+        setEmotion(emotion);
       }
       // Mark pending before mutating local state so the sync effect (which
       // fires after the subsequent flushRealtimeMessages resolves) cannot
@@ -633,8 +631,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     const newEmotion = latestAiMessage?.emotion || '중립';
     if (newEmotion !== currentEmotion) {
-      setIsEmotionTransitioning(true); setCurrentEmotion(newEmotion);
-      const newUrl = getCharacterImage(newEmotion); if (newUrl) preloadImage(newUrl);
+      setEmotion(newEmotion);
     }
   }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion]);
 
@@ -865,7 +862,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       {/* Persona avatar thumbnail */}
                       <div className="relative shrink-0">
                         <img
-                          src={loadedImageUrl || toMediaUrl(activePersona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`}
+                          src={displayImageUrl || toMediaUrl(activePersona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`}
                           alt={activePersona.name}
                           className="w-8 h-8 rounded-full object-cover object-top border border-white/20"
                         />
@@ -944,8 +941,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   </div>
 
-                  <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={activePersona.name} personaImage={activePersona.image}
-                    currentEmotion={currentEmotion} isEmotionTransitioning={isEmotionTransitioning} isSessionEnding={isSessionEnding}
+                  <CharacterPortrait displayImageUrl={displayImageUrl} overlayColor={overlayColor}
+                    isTransitioning={isTransitioning} isSessionEnding={isSessionEnding}
                     isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
 
                   {latestPersonaSwitch && (
