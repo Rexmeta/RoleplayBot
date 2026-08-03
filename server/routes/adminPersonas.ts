@@ -47,6 +47,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
   /**
    * POST /api/admin/personas/:id/video/generate-clip
    * Kicks off avatar clip generation in the background and returns a jobId immediately.
+   * On completion the clip is automatically saved to the persona's `videos.clips` in the DB.
    */
   router.post("/api/admin/personas/:id/video/generate-clip", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const personaId = req.params.id;
@@ -68,7 +69,8 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
       gender === 'female' ? 'female' : 'male';
 
     const jobId = randomUUID();
-    videoJobStore.create(jobId);
+    // Create job record in memory + DB (fire-and-forget DB write)
+    videoJobStore.create(jobId, personaId, state, resolvedGender);
 
     // Fire-and-forget background generation
     setImmediate(async () => {
@@ -81,8 +83,34 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
           gender: resolvedGender,
           neutralImageUrl: neutralImageUrl || undefined,
         });
+
         if (result.success && result.videoUrl) {
           videoJobStore.setDone(jobId, result.videoUrl, state, resolvedGender);
+
+          // Auto-save the generated clip directly into the persona's DB record.
+          // This means the user doesn't need to click "Save" after generation,
+          // and the clip persists even if the user navigated away.
+          try {
+            const persona = await storage.getMbtiPersona(personaId);
+            if (persona) {
+              const currentVideos = (persona.videos as any) ?? { enabled: true, avatarId: personaId, clips: {} };
+              const currentClips = (currentVideos.clips ?? {}) as Record<string, Record<string, string>>;
+              const updatedClips = {
+                ...currentClips,
+                [resolvedGender]: {
+                  ...(currentClips[resolvedGender] ?? {}),
+                  [state]: result.videoUrl,
+                },
+              };
+              await storage.updateMbtiPersona(personaId, {
+                videos: { ...currentVideos, clips: updatedClips },
+              });
+              console.log(`✅ [videoJob:${jobId}] 클립 자동 저장 완료: ${personaId}/${resolvedGender}/${state}`);
+            }
+          } catch (saveErr: any) {
+            // Auto-save failure is non-fatal — client still gets the storageKey via polling
+            console.warn(`⚠️ [videoJob:${jobId}] 클립 자동 저장 실패 (무시):`, saveErr.message);
+          }
         } else {
           videoJobStore.setError(jobId, result.error || '비디오 생성 실패');
         }
@@ -98,12 +126,14 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
   /**
    * GET /api/admin/personas/:id/video/generate-clip/status?jobId=<id>
    * Returns the current status (and result/error) of a background generation job.
+   * Falls back to DB when the job is not in memory (e.g. after a server restart).
    */
   router.get("/api/admin/personas/:id/video/generate-clip/status", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const { jobId } = req.query as { jobId?: string };
     if (!jobId) throw createHttpError(400, 'jobId query parameter is required');
 
-    const record = videoJobStore.get(jobId);
+    // Async get: checks memory first, then DB
+    const record = await videoJobStore.get(jobId);
     if (!record) throw createHttpError(404, 'Job not found or expired');
 
     // Resolve raw storage path to a browser-accessible URL before returning to client.
@@ -112,7 +142,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
     if (result?.videoUrl) {
       const storageKey = result.videoUrl; // raw stable key
       const displayUrl = await safeTransformToSignedUrl(storageKey);
-      result = { ...result, storageKey, videoUrl: displayUrl };
+      result = { ...result, storageKey, videoUrl: displayUrl } as typeof result & { storageKey: string };
     }
 
     res.json({

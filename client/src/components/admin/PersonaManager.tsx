@@ -712,7 +712,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
             };
           });
           setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${state}`); return s; });
-          toast({ title: '저장 중', description: `${doneGender} / ${doneState} 클립 생성 완료. 저장을 눌러 반영하세요.` });
+          toast({ title: '클립 생성 완료', description: `${doneGender} / ${doneState} 클립이 자동으로 저장됐습니다.` });
         } else if (data.status === 'error') {
           localStorage.removeItem(videoJobKey(personaId, gender, state));
           setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${state}`); return s; });
@@ -726,6 +726,18 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
           setTimeout(poll, POLL_INTERVAL_MS);
         }
       } catch (pollErr: any) {
+        // 404 means server restarted and the in-flight job is gone.
+        // The status endpoint now falls back to DB, so 404 only happens if
+        // the job truly expired. Treat as a terminal error rather than retrying.
+        const is404 = (pollErr as any)?.status === 404
+          || String((pollErr as any)?.message ?? '').includes('404')
+          || String((pollErr as any)?.message ?? '').includes('not found');
+        if (is404) {
+          localStorage.removeItem(videoJobKey(personaId, gender, state));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${state}`); return s; });
+          toast({ title: '작업 만료', description: '생성 작업 기록을 찾을 수 없습니다. 다시 시도해주세요.', variant: 'destructive' });
+          return;
+        }
         // Network glitch — keep polling unless we've timed out
         setTimeout(poll, POLL_INTERVAL_MS);
       }

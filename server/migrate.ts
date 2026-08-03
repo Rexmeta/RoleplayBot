@@ -2111,6 +2111,32 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to create store_entitlement_audit_log table:', err);
       }
 
+      // video_generation_jobs – persists background Veo clip generation jobs across server restarts
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "video_generation_jobs" (
+            "job_id" varchar PRIMARY KEY NOT NULL,
+            "persona_id" varchar NOT NULL,
+            "clip_state" varchar NOT NULL,
+            "gender" varchar NOT NULL DEFAULT 'male',
+            "status" varchar NOT NULL DEFAULT 'pending',
+            "result_data" jsonb,
+            "error_message" text,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS "idx_video_generation_jobs_persona"
+            ON "video_generation_jobs"("persona_id");
+          CREATE INDEX IF NOT EXISTS "idx_video_generation_jobs_status"
+            ON "video_generation_jobs"("status");
+          CREATE INDEX IF NOT EXISTS "idx_video_generation_jobs_updated"
+            ON "video_generation_jobs"("updated_at");
+        `);
+        console.log('✅ video_generation_jobs table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create video_generation_jobs table:', err);
+      }
+
       console.log('✅ Database migrations completed successfully');
     } finally {
       client.release();
