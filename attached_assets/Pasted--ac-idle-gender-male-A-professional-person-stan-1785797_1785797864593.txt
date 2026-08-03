@@ -1,0 +1,31 @@
+아바타 클립 생성 요청: ac / idle / gender:male
+프롬프트: A professional person (한국인 상반신 의자에 앉아서 손이 보이게 무표정), standing or sitting calmly, neutral expression, slight breathing movement, loopable. Cinematic, photorealistic, soft lighting, no text, no background distractions. 6 seconds.
+⚠️ neutralImageUrl 신뢰할 수 없는 출처 (SSRF 방지): personas/ac/male/neutral.webp — 텍스트 프롬프트만 사용
+10:55:14 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 200 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (1/60)
+10:55:19 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (2/60)
+10:55:25 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 3ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (3/60)
+10:55:30 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 6ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (4/60)
+10:55:35 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (5/60)
+10:55:40 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (6/60)
+10:55:46 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 3ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (7/60)
+10:55:51 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 4ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (8/60)
+10:55:56 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (9/60)
+10:56:01 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (10/60)
+10:56:07 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (11/60)
+10:56:12 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 5ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (12/60)
+10:56:17 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (13/60)
+10:56:22 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 200 in 5ms :: {"status":"error","result":null,"error":"Video gene…
+[agentApi] Expired sessions cleanup done.
