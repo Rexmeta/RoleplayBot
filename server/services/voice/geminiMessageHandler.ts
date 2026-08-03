@@ -195,7 +195,7 @@ export function handleGeminiMessage(
 
       if (result.success) {
         session.toolCallCountThisTurn++;
-        if (fc.name === 'update_npc_emotion') session.emotionCallCountThisTurn++;
+        if (fc.name === 'update_npc_affective_state') session.emotionCallCountThisTurn++;
         if (result.incident) session.currentTurnIncidentFired = true;
         if (result.currentState) session.simulationState = result.currentState;
 
@@ -887,7 +887,7 @@ export function handleGeminiMessage(
                   turnId,
                   patch: {
                     turnScoresToAdd: [evalResult.turnScore],
-                    npcEmotionDelta: evalResult.emotionDelta,
+                    npcAffectiveStateDelta: evalResult.npcAffectiveStateDelta,
                   },
                 });
 

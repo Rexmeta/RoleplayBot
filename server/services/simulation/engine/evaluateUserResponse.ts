@@ -2,6 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import {
   TurnScore,
   SimulationState,
+  NpcAffectiveState,
+  DeepPartial,
   calcTurnScoreTotal,
 } from '../simulationTypes';
 import { inferEmotionPatchFromEvaluation, applyNpcBehaviorHarnessModifiers } from '../simulationRules';
@@ -29,7 +31,7 @@ export interface EvaluationInput {
 
 export interface EvaluationResult {
   turnScore: TurnScore;
-  emotionDelta: Partial<Record<'anger' | 'trust' | 'confusion' | 'interest', number>>;
+  npcAffectiveStateDelta: DeepPartial<NpcAffectiveState>;
   skipped: boolean;
   method: 'llm' | 'rule' | 'skipped';
 }
@@ -40,7 +42,7 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
   if (userText.trim().length < 10) {
     return {
       turnScore: makeSkipScore(turnId, turnIndex),
-      emotionDelta: {},
+      npcAffectiveStateDelta: {},
       skipped: true,
       method: 'skipped',
     };
@@ -51,10 +53,10 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
     if (llmScore) {
       const baseDelta = inferEmotionPatchFromEvaluation(llmScore, simulationState);
       const withHarness = applyNpcBehaviorHarnessModifiers(baseDelta, input.npcBehaviorHarness, simulationState);
-      const emotionDelta = input.userAffect
+      const npcAffectiveStateDelta = input.userAffect
         ? applyUserAffectToEmotionDelta(withHarness, input.userAffect)
         : withHarness;
-      return { turnScore: llmScore, emotionDelta, skipped: false, method: 'llm' };
+      return { turnScore: llmScore, npcAffectiveStateDelta, skipped: false, method: 'llm' };
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
@@ -70,49 +72,68 @@ export async function evaluateUserResponse(input: EvaluationInput): Promise<Eval
   const ruleScore = runRuleBasedEvaluation(input);
   const baseDelta = inferEmotionPatchFromEvaluation(ruleScore, simulationState);
   const withHarness = applyNpcBehaviorHarnessModifiers(baseDelta, input.npcBehaviorHarness, simulationState);
-  const emotionDelta = input.userAffect
+  const npcAffectiveStateDelta = input.userAffect
     ? applyUserAffectToEmotionDelta(withHarness, input.userAffect)
     : withHarness;
-  return { turnScore: ruleScore, emotionDelta, skipped: false, method: 'rule' };
+  return { turnScore: ruleScore, npcAffectiveStateDelta, skipped: false, method: 'rule' };
 }
 
-/** Adjust NPC emotion delta based on detected user affect state. */
+/** Adjust NPC affective state delta based on detected user affect state. */
 function applyUserAffectToEmotionDelta(
-  base: Partial<Record<'anger' | 'trust' | 'confusion' | 'interest', number>>,
+  base: DeepPartial<NpcAffectiveState>,
   affect: UserAffectState
-): Partial<Record<'anger' | 'trust' | 'confusion' | 'interest', number>> {
-  const delta = { ...base };
+): DeepPartial<NpcAffectiveState> {
+  const intensityAdj: number[] = [];
+  const trustAdj: number[] = [];
+  const interestAdj: number[] = [];
 
-  // Valence: strongly negative → more NPC anger, less trust
+  // Valence: strongly negative → more NPC intensity, less trust
   if (affect.valence < -0.4) {
     const magnitude = Math.round((-affect.valence - 0.4) * 10);
-    delta.anger = (delta.anger ?? 0) + magnitude;
-    delta.trust = (delta.trust ?? 0) - Math.round(magnitude * 0.5);
+    intensityAdj.push(magnitude);
+    trustAdj.push(-Math.round(magnitude * 0.5));
   } else if (affect.valence > 0.4) {
     const magnitude = Math.round((affect.valence - 0.4) * 8);
-    delta.trust = (delta.trust ?? 0) + magnitude;
+    trustAdj.push(magnitude);
   }
 
   // Stance modifiers
   switch (affect.stance) {
     case 'defensive':
-      delta.anger = (delta.anger ?? 0) + 3;
-      delta.trust = (delta.trust ?? 0) - 2;
+      intensityAdj.push(3);
+      trustAdj.push(-2);
       break;
     case 'withdrawn':
-      delta.interest = (delta.interest ?? 0) - 3;
+      interestAdj.push(-3);
       break;
     case 'collaborative':
-      delta.trust = (delta.trust ?? 0) + 2;
+      trustAdj.push(2);
       break;
     case 'assertive':
-      // Assertive is directionally neutral for NPC emotion
       break;
     default:
       break;
   }
 
-  return delta;
+  const totalIntensity = intensityAdj.reduce((a, b) => a + b, 0);
+  const totalTrust = trustAdj.reduce((a, b) => a + b, 0);
+  const totalInterest = interestAdj.reduce((a, b) => a + b, 0);
+
+  return {
+    affective: {
+      intensity: (base.affective?.intensity ?? 0) + totalIntensity || undefined,
+      valence: base.affective?.valence,
+    },
+    cognitive: base.cognitive,
+    relational: {
+      trust: (base.relational?.trust ?? 0) + totalTrust || undefined,
+      rapport: base.relational?.rapport,
+    },
+    motivational: {
+      interest: (base.motivational?.interest ?? 0) + totalInterest || undefined,
+      cooperativeness: base.motivational?.cooperativeness,
+    },
+  };
 }
 
 const EVAL_MODEL_FALLBACK = 'gemini-2.5-flash';

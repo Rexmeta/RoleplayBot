@@ -3,6 +3,8 @@ import {
   SimulationStatePatch,
   TurnScore,
   NpcEmotions,
+  NpcAffectiveState,
+  DeepPartial,
   ScenarioStage,
 } from './simulationTypes';
 import type { NpcBehaviorHarness, DifficultyProfile } from '../../../shared/schema/scenarios';
@@ -30,33 +32,42 @@ export {
 export function inferEmotionPatchFromEvaluation(
   turnScore: TurnScore,
   currentState: SimulationState
-): Partial<Record<keyof NpcEmotions, number>> {
-  const delta: Partial<Record<keyof NpcEmotions, number>> = {};
+): DeepPartial<NpcAffectiveState> {
+  let trustDelta = 0;
+  let intensityDelta = 0;
+  let interestDelta = 0;
+  let confusionDelta = 0;
   const total = turnScore.total;
 
   if (total >= 80) {
-    delta.trust = 5;
-    delta.anger = -5;
-    delta.interest = 5;
-    delta.confusion = -3;
+    trustDelta = 5;
+    intensityDelta = -5;
+    interestDelta = 5;
+    confusionDelta = -3;
   } else if (total >= 60) {
-    delta.trust = 2;
-    delta.anger = -2;
-    delta.interest = 2;
+    trustDelta = 2;
+    intensityDelta = -2;
+    interestDelta = 2;
   } else if (total >= 40) {
-    delta.confusion = 3;
-    delta.interest = -2;
+    confusionDelta = 3;
+    interestDelta = -2;
   } else {
-    delta.anger = 5;
-    delta.trust = -5;
-    delta.confusion = 5;
-    delta.interest = -5;
+    intensityDelta = 5;
+    trustDelta = -5;
+    confusionDelta = 5;
+    interestDelta = -5;
   }
 
-  if (turnScore.empathy < 40) delta.trust = (delta.trust ?? 0) - 3;
-  if (turnScore.empathy >= 80) delta.trust = (delta.trust ?? 0) + 3;
-  if (turnScore.actionPlan < 30) delta.anger = (delta.anger ?? 0) + 5;
-  if (turnScore.clarity < 30) delta.confusion = (delta.confusion ?? 0) + 5;
+  if (turnScore.empathy < 40) trustDelta -= 3;
+  if (turnScore.empathy >= 80) trustDelta += 3;
+  if (turnScore.actionPlan < 30) intensityDelta += 5;
+  if (turnScore.clarity < 30) confusionDelta += 5;
+
+  const delta: DeepPartial<NpcAffectiveState> = {};
+  if (intensityDelta !== 0) delta.affective = { intensity: intensityDelta };
+  if (confusionDelta !== 0) delta.cognitive = { confusion: confusionDelta };
+  if (trustDelta !== 0) delta.relational = { trust: trustDelta };
+  if (interestDelta !== 0) delta.motivational = { interest: interestDelta };
 
   return delta;
 }
@@ -66,28 +77,51 @@ export function inferEmotionPatchFromEvaluation(
  * Called after the baseline emotion delta is computed to layer harness-specific adjustments.
  */
 export function applyNpcBehaviorHarnessModifiers(
-  baseDelta: Partial<Record<keyof NpcEmotions, number>>,
+  baseDelta: DeepPartial<NpcAffectiveState>,
   harness: NpcBehaviorHarness | undefined | null,
   currentState: SimulationState
-): Partial<Record<keyof NpcEmotions, number>> {
+): DeepPartial<NpcAffectiveState> {
   if (!harness?.negotiationBounds) return baseDelta;
-  const result = { ...baseDelta };
   const bounds = harness.negotiationBounds;
-  const { anger, trust } = currentState.npcEmotions;
+  // Prefer npcAffectiveState (primary source of truth); fall back to flat npcEmotions
+  // so legacy states (persisted before npcAffectiveState was introduced) don't crash here.
+  const intensity = currentState.npcAffectiveState?.affective.intensity ?? currentState.npcEmotions.anger;
+  const trust = currentState.npcAffectiveState?.relational.trust ?? currentState.npcEmotions.trust;
+
+  // Deep-merge helper for affective state deltas
+  const merge = (a: DeepPartial<NpcAffectiveState>, b: DeepPartial<NpcAffectiveState>): DeepPartial<NpcAffectiveState> => ({
+    affective: a.affective || b.affective ? {
+      intensity: (a.affective?.intensity ?? 0) + (b.affective?.intensity ?? 0) || undefined,
+      valence: (a.affective?.valence ?? 0) + (b.affective?.valence ?? 0) || undefined,
+    } : undefined,
+    cognitive: a.cognitive || b.cognitive ? {
+      confusion: (a.cognitive?.confusion ?? 0) + (b.cognitive?.confusion ?? 0) || undefined,
+      load: (a.cognitive?.load ?? 0) + (b.cognitive?.load ?? 0) || undefined,
+    } : undefined,
+    relational: a.relational || b.relational ? {
+      trust: (a.relational?.trust ?? 0) + (b.relational?.trust ?? 0) || undefined,
+      rapport: (a.relational?.rapport ?? 0) + (b.relational?.rapport ?? 0) || undefined,
+    } : undefined,
+    motivational: a.motivational || b.motivational ? {
+      interest: (a.motivational?.interest ?? 0) + (b.motivational?.interest ?? 0) || undefined,
+      cooperativeness: (a.motivational?.cooperativeness ?? 0) + (b.motivational?.cooperativeness ?? 0) || undefined,
+    } : undefined,
+  });
+
+  let result = baseDelta;
 
   if (bounds.minTrustToYield !== undefined && trust < bounds.minTrustToYield) {
-    result.anger = (result.anger ?? 0) + 3;
-    result.trust = (result.trust ?? 0) - 2;
+    result = merge(result, { affective: { intensity: 3 }, relational: { trust: -2 } });
   }
 
-  if (bounds.maxAngerBeforeWalkout !== undefined && anger >= bounds.maxAngerBeforeWalkout) {
-    result.anger = (result.anger ?? 0) + 5;
-    result.trust = (result.trust ?? 0) - 5;
+  if (bounds.maxAngerBeforeWalkout !== undefined && intensity >= bounds.maxAngerBeforeWalkout) {
+    result = merge(result, { affective: { intensity: 5 }, relational: { trust: -5 } });
   }
 
   if (bounds.maxPatienceTurns !== undefined && currentState.summary.totalTurns >= bounds.maxPatienceTurns) {
-    if ((result.trust ?? 0) > 0) {
-      result.trust = Math.floor((result.trust ?? 0) * 0.5);
+    const prevTrust = result.relational?.trust ?? 0;
+    if (prevTrust > 0) {
+      result = { ...result, relational: { ...result.relational, trust: Math.floor(prevTrust * 0.5) } };
     }
   }
 

@@ -973,9 +973,9 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
           if (!currentState) {
             const stored = await storage.getSimulationState(personaRunId).catch(() => null);
             if (stored) {
-              const { setSessionState } = await import("../services/simulation/simulationEngine");
+              const { setSessionState, getSessionState: getSS } = await import("../services/simulation/simulationEngine");
               setSessionState(personaRunId, stored as any);
-              currentState = stored as any;
+              currentState = getSS(personaRunId) ?? (stored as any);
             } else {
               currentState = createDefaultSimulationState();
             }
@@ -999,7 +999,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
               source: "server_evaluation",
               priority: "normal",
               patch: {
-                npcEmotionDelta: evalResult.emotionDelta,
+                npcAffectiveStateDelta: evalResult.npcAffectiveStateDelta,
                 turnScoresToAdd: [evalResult.turnScore],
               },
             });
@@ -1141,9 +1141,9 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
         if (!currentState) {
           const stored = await storage.getSimulationState(personaRunId).catch(() => null);
           if (stored) {
-            const { setSessionState } = await import("../services/simulation/simulationEngine");
+            const { setSessionState, getSessionState: getSS } = await import("../services/simulation/simulationEngine");
             setSessionState(personaRunId, stored as any);
-            currentState = stored as any;
+            currentState = getSS(personaRunId) ?? (stored as any);
           } else {
             currentState = createDefaultSimulationState();
           }
@@ -1169,7 +1169,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
             source: "server_evaluation",
             priority: "normal",
             patch: {
-              npcEmotionDelta: evalResult.emotionDelta,
+              npcAffectiveStateDelta: evalResult.npcAffectiveStateDelta,
               turnScoresToAdd: [evalResult.turnScore],
             },
           });

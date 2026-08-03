@@ -11,6 +11,11 @@ export type SimulationEventType =
 
 export type PatchSource = 'gemini_tool' | 'server_evaluation' | 'server_rule' | 'admin';
 
+/**
+ * @deprecated Use NpcAffectiveState instead. Kept for report/API backward compatibility.
+ * Values are derived from NpcAffectiveState (intensity→anger, confusion→confusion,
+ * trust→trust, interest→interest) and must not be set independently.
+ */
 export interface NpcEmotions {
   anger: number;
   trust: number;
@@ -20,7 +25,8 @@ export interface NpcEmotions {
 
 /**
  * NpcAffectiveState — 4-layer structured NPC state model.
- * Introduced alongside NpcEmotions for gradual migration.
+ * This is the single source of truth for NPC emotional state.
+ * NpcEmotions is derived from this for backward compatibility.
  * - affective: raw emotional responses
  * - cognitive: perceptual/epistemic state
  * - relational: interpersonal relationship quality
@@ -90,9 +96,10 @@ export interface SimulationState {
   version: number;
   stage: ScenarioStage;
   pressureLevel: number;
+  /** @deprecated Derived from npcAffectiveState for backward compatibility only. Do not write directly. */
   npcEmotions: NpcEmotions;
-  /** New 4-layer structured state — lives alongside npcEmotions for gradual migration */
-  npcAffectiveState?: NpcAffectiveState;
+  /** Primary NPC state. All emotion logic reads and writes here. */
+  npcAffectiveState: NpcAffectiveState;
   timer: TimerState;
   currentScore: number;
   recentTurnScores: TurnScore[];
@@ -121,8 +128,7 @@ export type DeepPartial<T> = {
 };
 
 export interface SimulationStatePatch {
-  npcEmotionDelta?: Partial<Record<keyof NpcEmotions, number>>;
-  /** Delta patch for the new 4-layer affective state — merged alongside npcEmotionDelta */
+  /** Primary NPC state delta. Engine applies this and derives npcEmotions from it. */
   npcAffectiveStateDelta?: DeepPartial<NpcAffectiveState>;
   targetStage?: ScenarioStage;
   pressureDelta?: -1 | 0 | 1;

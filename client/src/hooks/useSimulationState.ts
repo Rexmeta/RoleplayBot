@@ -57,9 +57,10 @@ export interface SimulationState {
   version: number;
   stage: 'intro' | 'conflict' | 'negotiation' | 'escalation' | 'resolution';
   pressureLevel: number;
+  /** @deprecated Derived from npcAffectiveState for backward compatibility only. */
   npcEmotions: NpcEmotions;
-  /** New 4-layer structured state — present alongside npcEmotions during gradual migration */
-  npcAffectiveState?: NpcAffectiveState;
+  /** Primary NPC state — single source of truth. */
+  npcAffectiveState: NpcAffectiveState;
   timer: {
     enabled: boolean;
     timeLimitSec: number;

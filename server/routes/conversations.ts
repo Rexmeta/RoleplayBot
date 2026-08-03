@@ -912,6 +912,8 @@ ${userNameLine}
             evalState = defaultState;
           }
           setSessionState(personaRunId, evalState);
+          // Re-read so the normalized (npcAffectiveState-backfilled) version is used for evaluation
+          evalState = getSessionState(personaRunId) ?? evalState;
         }
       } catch (e) {
         const preloadError = e instanceof Error ? e : new Error(String(e));
@@ -966,7 +968,7 @@ ${userNameLine}
           // Apply all patches to build updated state for [SIMULATION_STATE] injection
           let qs = applySimulationPatch(personaRunId, {
             source: 'server_evaluation', priority: 'normal', turnId: evalTurnId,
-            patch: { turnScoresToAdd: [qualityEvalResult.turnScore], npcEmotionDelta: qualityEvalResult.emotionDelta },
+            patch: { turnScoresToAdd: [qualityEvalResult.turnScore], npcAffectiveStateDelta: qualityEvalResult.npcAffectiveStateDelta },
           });
           const qr = buildRuleFallbackPatch(qualityEvalResult.turnScore, qs, 0);
           if (qr) qs = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: qr });
@@ -1186,7 +1188,7 @@ ${userNameLine}
           try {
             const er = await fastEvalPromise;
             if (!er.skipped) {
-              let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcEmotionDelta: er.emotionDelta } });
+              let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcAffectiveStateDelta: er.npcAffectiveStateDelta } });
               const rp = buildRuleFallbackPatch(er.turnScore, ns, 0);
               if (rp) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: rp });
               const st = resolveStageTransition(ns, getSessionFlowGraph(personaRunId));
@@ -1417,7 +1419,7 @@ ${userNameLine}
         try {
           const er = await fastEvalPromise;
           if (!er.skipped) {
-            let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcEmotionDelta: er.emotionDelta } });
+            let ns = applySimulationPatch(personaRunId, { source: 'server_evaluation', priority: 'normal', turnId: evalTurnId, patch: { turnScoresToAdd: [er.turnScore], npcAffectiveStateDelta: er.npcAffectiveStateDelta } });
             const rp = buildRuleFallbackPatch(er.turnScore, ns, 0);
             if (rp) ns = applySimulationPatch(personaRunId, { source: 'server_rule', priority: 'low', turnId: evalTurnId, patch: rp });
             const st = resolveStageTransition(ns, getSessionFlowGraph(personaRunId));

@@ -20,7 +20,7 @@ export function buildSimulationToolPrompt(
   if (language === 'ko') {
     return `## 시뮬레이션 도구
 서버가 모든 쿨다운·한도·단계 전환 유효성을 검증합니다. 아래 도구를 상황에 맞게 사용하세요.
-- **update_npc_emotion**: 사용자 반응에 따라 NPC 감정(anger/trust/confusion/interest)을 조정.
+- **update_npc_affective_state**: 사용자 반응에 따라 NPC 감정 상태(intensity/valence/confusion/load/trust/rapport/interest/cooperativeness)를 조정.
 - **update_scenario_state**: 갈등 심화, 긴장 고조, 해결, 또는 압박 수준 변화 시 호출.
 - **trigger_incident**: 중요한 전환점에서 돌발 이벤트 발생.
 원칙: 도구 결과를 대화 중 직접 언급하지 말고 자연스러운 말투 변화로 표현하세요.`;
@@ -28,7 +28,7 @@ export function buildSimulationToolPrompt(
 
   return `## Simulation Tools
 The server validates all cooldowns, limits, and stage transition rules. Use these tools as appropriate.
-- **update_npc_emotion**: Adjust NPC emotions (anger/trust/confusion/interest) based on user response quality.
+- **update_npc_affective_state**: Adjust NPC affective state layers (intensity/valence/confusion/load/trust/rapport/interest/cooperativeness) based on user response quality.
 - **update_scenario_state**: Call on deepening conflict, escalation, resolution, or pressure change.
 - **trigger_incident**: Trigger an unexpected event at a pivotal moment.
 Principle: never mention tool results directly — reflect them through natural tone adjustments.`;
@@ -78,7 +78,7 @@ export function buildPlayerConstraintsBlock(
 export function buildSimulationStateBlock(state: {
   stage: string;
   pressureLevel: number;
-  npcEmotions: { anger: number; trust: number; confusion: number; interest: number };
+  npcEmotions?: { anger: number; trust: number; confusion: number; interest: number };
   npcAffectiveState?: {
     affective?: { intensity?: number; valence?: number };
     cognitive?: { confusion?: number; load?: number };
@@ -95,9 +95,9 @@ export function buildSimulationStateBlock(state: {
     '[SIMULATION_STATE]',
     `stage=${state.stage}`,
     `pressureLevel=${state.pressureLevel}`,
-    `anger=${state.npcEmotions.anger}, trust=${state.npcEmotions.trust}, confusion=${state.npcEmotions.confusion}, interest=${state.npcEmotions.interest}`,
     `currentScore=${state.currentScore}`,
   ];
+  // Prefer affective state (primary), fall back to flat emotions for legacy callers
   if (state.npcAffectiveState) {
     const aff = state.npcAffectiveState;
     const parts: string[] = [];
@@ -106,6 +106,9 @@ export function buildSimulationStateBlock(state: {
     if (aff.relational) parts.push(`relational(trust=${aff.relational.trust ?? '?'}, rapport=${aff.relational.rapport ?? '?'})`);
     if (aff.motivational) parts.push(`motivational(interest=${aff.motivational.interest ?? '?'}, cooperativeness=${aff.motivational.cooperativeness ?? '?'})`);
     if (parts.length > 0) lines.push(`npcAffectiveState: ${parts.join(' | ')}`);
+  } else if (state.npcEmotions) {
+    const e = state.npcEmotions;
+    lines.push(`npcEmotions: intensity=${e.anger}, trust=${e.trust}, confusion=${e.confusion}, interest=${e.interest}`);
   }
   if (lastScore) {
     lines.push(`latestTurnScore: clarity=${lastScore.clarity}, empathy=${lastScore.empathy}, actionPlan=${lastScore.actionPlan}`);

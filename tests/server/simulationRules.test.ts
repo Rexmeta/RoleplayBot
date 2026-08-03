@@ -2,11 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   inferEmotionPatchFromEvaluation,
   buildRuleFallbackPatch,
+  applyNpcBehaviorHarnessModifiers,
 } from '../../server/services/simulation/simulationRules';
 import { clearSessionContext } from '../../server/services/simulation/simulationEngine';
 import {
   createDefaultSimulationState,
   TurnScore,
+  NpcAffectiveState,
 } from '../../server/services/simulation/simulationTypes';
 
 const RUN_ID = 'rules-test-001';
@@ -32,25 +34,26 @@ function makeTurnScore(total: number, overrides?: Partial<TurnScore>): TurnScore
 }
 
 describe('inferEmotionPatchFromEvaluation', () => {
-  it('increases trust and decreases anger for high score', () => {
+  it('increases trust and decreases intensity for high score', () => {
     const state = createDefaultSimulationState();
     const delta = inferEmotionPatchFromEvaluation(makeTurnScore(85), state);
-    expect(delta.trust).toBeGreaterThan(0);
-    expect(delta.anger).toBeLessThan(0);
+    // Now returns DeepPartial<NpcAffectiveState>
+    expect(delta.relational?.trust ?? 0).toBeGreaterThan(0);
+    expect(delta.affective?.intensity ?? 0).toBeLessThan(0);
   });
 
-  it('increases anger and decreases trust for low score', () => {
+  it('increases intensity and decreases trust for low score', () => {
     const state = createDefaultSimulationState();
     const delta = inferEmotionPatchFromEvaluation(makeTurnScore(25), state);
-    expect(delta.anger).toBeGreaterThan(0);
-    expect(delta.trust).toBeLessThan(0);
+    expect(delta.affective?.intensity ?? 0).toBeGreaterThan(0);
+    expect(delta.relational?.trust ?? 0).toBeLessThan(0);
   });
 
   it('adds extra trust penalty for low empathy', () => {
     const state = createDefaultSimulationState();
     const highEmpathyDelta = inferEmotionPatchFromEvaluation(makeTurnScore(85, { empathy: 90 }), state);
     const lowEmpathyDelta = inferEmotionPatchFromEvaluation(makeTurnScore(85, { empathy: 30 }), state);
-    expect((lowEmpathyDelta.trust ?? 0)).toBeLessThan((highEmpathyDelta.trust ?? 0));
+    expect((lowEmpathyDelta.relational?.trust ?? 0)).toBeLessThan((highEmpathyDelta.relational?.trust ?? 0));
   });
 });
 
@@ -84,8 +87,52 @@ describe('buildRuleFallbackPatch', () => {
     const ts = makeTurnScore(30);
     const patch = buildRuleFallbackPatch(ts, state, 0);
     expect(patch).not.toBeNull();
-    expect(patch!.npcEmotionDelta).toBeUndefined();
+    expect(patch!.npcAffectiveStateDelta).toBeUndefined();
     expect(patch!.targetStage).toBeDefined();
+  });
+});
+
+describe('applyNpcBehaviorHarnessModifiers — legacy state safety', () => {
+  it('does not crash when npcAffectiveState is absent (legacy state) and negotiationBounds is set', () => {
+    // Regression: this would throw "Cannot read properties of undefined (reading 'affective')"
+    // before the guard was added.
+    const legacyState = {
+      ...createDefaultSimulationState(),
+      npcEmotions: { anger: 85, trust: 20, confusion: 30, interest: 40 },
+      npcAffectiveState: undefined as any,
+    };
+
+    const harness = {
+      negotiationBounds: {
+        maxAngerBeforeWalkout: 80,
+        minTrustToYield: 30,
+      },
+    };
+
+    expect(() => {
+      applyNpcBehaviorHarnessModifiers({}, harness, legacyState);
+    }).not.toThrow();
+  });
+
+  it('reads intensity and trust from flat npcEmotions when npcAffectiveState is absent', () => {
+    const legacyState = {
+      ...createDefaultSimulationState(),
+      npcEmotions: { anger: 85, trust: 20, confusion: 30, interest: 40 },
+      npcAffectiveState: undefined as any,
+    };
+
+    const harness = {
+      negotiationBounds: {
+        maxAngerBeforeWalkout: 80, // anger=85 ≥ 80 → should trigger extra intensity/trust penalty
+        minTrustToYield: 30,       // trust=20 < 30 → should also trigger
+      },
+    };
+
+    const result = applyNpcBehaviorHarnessModifiers({}, harness, legacyState);
+
+    // Both conditions fired, so affective intensity and relational trust penalties must be present
+    expect((result.affective?.intensity ?? 0)).toBeGreaterThan(0);
+    expect((result.relational?.trust ?? 0)).toBeLessThan(0);
   });
 });
 

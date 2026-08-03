@@ -46,7 +46,7 @@ describe('evaluateUserResponse – skip for very short input', () => {
     expect(result.turnScore.total).toBe(0);
     expect(result.turnScore.clarity).toBe(0);
     expect(result.turnScore.empathy).toBe(0);
-    expect(result.emotionDelta).toEqual({});
+    expect(result.npcAffectiveStateDelta).toEqual({});
   });
 
   it('returns skipped: true for whitespace-only text', async () => {
@@ -109,9 +109,9 @@ describe('evaluateUserResponse – rule-based evaluation (no API key)', () => {
     expect(logicResult.turnScore.logic).toBeGreaterThanOrEqual(baseResult.turnScore.logic);
   });
 
-  it('returns an emotionDelta object', async () => {
+  it('returns an npcAffectiveStateDelta object', async () => {
     const result = await evaluateUserResponse(makeInput());
-    expect(typeof result.emotionDelta).toBe('object');
+    expect(typeof result.npcAffectiveStateDelta).toBe('object');
   });
 
   it('respects evaluationHarness dimension weights', async () => {

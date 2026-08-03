@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle, TrendingUp, Heart, Eye, Brain, Zap, Timer, ChevronDown, SkipForward, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import type { SimulationState, Incident, TurnScore, NpcAffectiveState, NpcEmotions } from '@/hooks/useSimulationState';
+import type { SimulationState, Incident, TurnScore, NpcAffectiveState } from '@/hooks/useSimulationState';
 
 interface SimulationPanelProps {
   state: SimulationState | null;
@@ -337,18 +337,12 @@ function SimulationTimer({ timer }: { timer: SimulationState['timer'] }) {
 
 /**
  * AffectiveStatePanel shows the full 4-layer affective breakdown.
- *
- * For fields that have a flat counterpart in npcEmotions (confusion → cognitive.confusion,
- * trust → relational.trust, interest → motivational.interest) we read from npcEmotions so
- * that this panel always agrees with the emotion bars above it. The affective-only fields
- * (load, rapport, cooperativeness) have no flat counterpart and are read from npcAffectiveState.
+ * All values are read directly from npcAffectiveState — the single source of truth.
  */
 export function AffectiveStatePanel({
   affectiveState,
-  npcEmotions,
 }: {
   affectiveState: NpcAffectiveState;
-  npcEmotions: NpcEmotions;
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -364,13 +358,25 @@ export function AffectiveStatePanel({
       </button>
       {expanded && (
         <div className="mt-2 space-y-2 text-xs">
-          {/* Cognitive layer — confusion reads from flat npcEmotions to stay in sync with emotion bars */}
+          {/* Affective layer */}
+          <div>
+            <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.affective', { defaultValue: 'Affective' })}</p>
+            <div className="space-y-1">
+              <EmotionBar
+                label={t('simulation.affectiveState.intensity', { defaultValue: 'Intensity' })}
+                value={affectiveState.affective.intensity}
+                icon={<Zap className="h-3 w-3 text-red-400" />}
+                colorClass="bg-red-400"
+              />
+            </div>
+          </div>
+          {/* Cognitive layer */}
           <div>
             <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.cognitive', { defaultValue: 'Cognitive' })}</p>
             <div className="space-y-1">
               <EmotionBar
                 label={t('simulation.affectiveState.confusion', { defaultValue: 'Confusion' })}
-                value={npcEmotions.confusion}
+                value={affectiveState.cognitive.confusion}
                 icon={<Brain className="h-3 w-3 text-yellow-400" />}
                 colorClass="bg-yellow-400"
               />
@@ -382,13 +388,13 @@ export function AffectiveStatePanel({
               />
             </div>
           </div>
-          {/* Relational layer — trust reads from flat npcEmotions to stay in sync with emotion bars */}
+          {/* Relational layer */}
           <div>
             <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.relational', { defaultValue: 'Relational' })}</p>
             <div className="space-y-1">
               <EmotionBar
                 label={t('simulation.affectiveState.trust', { defaultValue: 'Trust' })}
-                value={npcEmotions.trust}
+                value={affectiveState.relational.trust}
                 icon={<Heart className="h-3 w-3 text-blue-400" />}
                 colorClass="bg-blue-400"
               />
@@ -400,13 +406,13 @@ export function AffectiveStatePanel({
               />
             </div>
           </div>
-          {/* Motivational layer — interest reads from flat npcEmotions to stay in sync with emotion bars */}
+          {/* Motivational layer */}
           <div>
             <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.motivational', { defaultValue: 'Motivational' })}</p>
             <div className="space-y-1">
               <EmotionBar
                 label={t('simulation.affectiveState.interest', { defaultValue: 'Interest' })}
-                value={npcEmotions.interest}
+                value={affectiveState.motivational.interest}
                 icon={<Eye className="h-3 w-3 text-green-400" />}
                 colorClass="bg-green-400"
               />
@@ -444,7 +450,7 @@ const SimulationPanel = memo(function SimulationPanel({
 
   if (!isVisible || !state) return null;
 
-  const { npcEmotions, stage, pressureLevel, currentScore, summary, timer, terminationReason } = state;
+  const { stage, pressureLevel, currentScore, summary, timer, terminationReason } = state;
 
   return (
     <Card className={`w-full border border-border/50 bg-card/60 backdrop-blur-sm flex flex-col overflow-hidden ${className}`}>
@@ -473,32 +479,11 @@ const SimulationPanel = memo(function SimulationPanel({
       {/* Scrollable body */}
       <div ref={scrollBodyRef} className="overflow-y-auto flex-1">
         <CardContent className="p-3 space-y-3">
-          <div className="space-y-1.5">
-            <EmotionBar
-              label={t('simulation.emotions.anger')}
-              value={npcEmotions.anger}
-              icon={<Zap className="h-3 w-3 text-red-400" />}
-              colorClass="bg-red-400"
-            />
-            <EmotionBar
-              label={t('simulation.emotions.trust')}
-              value={npcEmotions.trust}
-              icon={<Heart className="h-3 w-3 text-blue-400" />}
-              colorClass="bg-blue-400"
-            />
-            <EmotionBar
-              label={t('simulation.emotions.confusion')}
-              value={npcEmotions.confusion}
-              icon={<Brain className="h-3 w-3 text-yellow-400" />}
-              colorClass="bg-yellow-400"
-            />
-            <EmotionBar
-              label={t('simulation.emotions.interest')}
-              value={npcEmotions.interest}
-              icon={<Eye className="h-3 w-3 text-green-400" />}
-              colorClass="bg-green-400"
-            />
-          </div>
+          {/* Affective Layers panel — primary NPC state display.
+              Guard against legacy sessions loaded before npcAffectiveState was introduced. */}
+          {state.npcAffectiveState && (
+            <AffectiveStatePanel affectiveState={state.npcAffectiveState} />
+          )}
 
           <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
             <div className="flex items-center gap-1">
@@ -536,9 +521,7 @@ const SimulationPanel = memo(function SimulationPanel({
             <ScoreHistory scores={state.recentTurnScores} />
           )}
 
-          {state.npcAffectiveState && (
-            <AffectiveStatePanel affectiveState={state.npcAffectiveState} npcEmotions={npcEmotions} />
-          )}
+          {/* AffectiveStatePanel is already rendered above — no duplicate needed */}
         </CardContent>
       </div>
     </Card>

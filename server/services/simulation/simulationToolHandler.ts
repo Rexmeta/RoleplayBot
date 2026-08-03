@@ -17,11 +17,15 @@ import { renderIncidentMessage } from './incidentTemplates';
 import type { SimulationHarness } from '@shared/schema/scenarios';
 import { DEFAULT_SIMULATION_HARNESS, resolveHarness, resolveCooldownsForType } from './simulationHarness';
 
-const UpdateNpcEmotionArgsSchema = z.object({
-  angerDelta: z.number().optional(),
-  trustDelta: z.number().optional(),
+const UpdateNpcAffectiveStateArgsSchema = z.object({
+  intensityDelta: z.number().optional(),
+  valenceDelta: z.number().optional(),
   confusionDelta: z.number().optional(),
+  loadDelta: z.number().optional(),
+  trustDelta: z.number().optional(),
+  rapportDelta: z.number().optional(),
   interestDelta: z.number().optional(),
+  cooperativenessDelta: z.number().optional(),
   reason: z.string(),
 });
 
@@ -84,8 +88,8 @@ export function handleToolCall(
 ): ToolHandlerResult {
   try {
     switch (toolName) {
-      case 'update_npc_emotion':
-        return handleUpdateNpcEmotion(rawArgs, ctx);
+      case 'update_npc_affective_state':
+        return handleUpdateNpcAffectiveState(rawArgs, ctx);
       case 'update_scenario_state':
         return handleUpdateScenarioState(rawArgs, ctx);
       case 'trigger_incident':
@@ -135,8 +139,8 @@ function clampDelta(value: number | undefined, maxAbs: number): number | undefin
   return Math.max(-maxAbs, Math.min(maxAbs, value));
 }
 
-function handleUpdateNpcEmotion(rawArgs: unknown, ctx: ToolCallContext): ToolHandlerResult {
-  const parsed = UpdateNpcEmotionArgsSchema.safeParse(rawArgs);
+function handleUpdateNpcAffectiveState(rawArgs: unknown, ctx: ToolCallContext): ToolHandlerResult {
+  const parsed = UpdateNpcAffectiveStateArgsSchema.safeParse(rawArgs);
   if (!parsed.success) {
     return { success: false, error: `Invalid args: ${parsed.error.message}` };
   }
@@ -146,22 +150,38 @@ function handleUpdateNpcEmotion(rawArgs: unknown, ctx: ToolCallContext): ToolHan
   const maxDelta = h.toolPolicy.updateNpcEmotion.maxDeltaPerCall;
 
   if (ctx.emotionCallCountThisTurn >= maxCalls) {
-    return { success: false, error: `Maximum ${maxCalls} emotion updates per turn` };
+    return { success: false, error: `Maximum ${maxCalls} affective state updates per turn` };
   }
 
   const args = parsed.data;
-  const patch: SimulationStatePatch = {
-    npcEmotionDelta: {
-      ...(args.angerDelta !== undefined ? { anger: clampDelta(args.angerDelta, maxDelta)! } : {}),
-      ...(args.trustDelta !== undefined ? { trust: clampDelta(args.trustDelta, maxDelta)! } : {}),
-      ...(args.confusionDelta !== undefined ? { confusion: clampDelta(args.confusionDelta, maxDelta)! } : {}),
-      ...(args.interestDelta !== undefined ? { interest: clampDelta(args.interestDelta, maxDelta)! } : {}),
-    },
-  };
+  const affectiveDelta: import('./simulationTypes').DeepPartial<import('./simulationTypes').NpcAffectiveState> = {};
 
-  if (args.angerDelta !== undefined && Math.abs(args.angerDelta) > maxDelta) {
-    console.log(`[simulationToolHandler] angerDelta clamped: ${args.angerDelta} → ${clampDelta(args.angerDelta, maxDelta)} (maxDelta=${maxDelta})`);
+  if (args.intensityDelta !== undefined || args.valenceDelta !== undefined) {
+    affectiveDelta.affective = {
+      ...(args.intensityDelta !== undefined ? { intensity: clampDelta(args.intensityDelta, maxDelta)! } : {}),
+      ...(args.valenceDelta !== undefined ? { valence: clampDelta(args.valenceDelta, maxDelta)! } : {}),
+    };
   }
+  if (args.confusionDelta !== undefined || args.loadDelta !== undefined) {
+    affectiveDelta.cognitive = {
+      ...(args.confusionDelta !== undefined ? { confusion: clampDelta(args.confusionDelta, maxDelta)! } : {}),
+      ...(args.loadDelta !== undefined ? { load: clampDelta(args.loadDelta, maxDelta)! } : {}),
+    };
+  }
+  if (args.trustDelta !== undefined || args.rapportDelta !== undefined) {
+    affectiveDelta.relational = {
+      ...(args.trustDelta !== undefined ? { trust: clampDelta(args.trustDelta, maxDelta)! } : {}),
+      ...(args.rapportDelta !== undefined ? { rapport: clampDelta(args.rapportDelta, maxDelta)! } : {}),
+    };
+  }
+  if (args.interestDelta !== undefined || args.cooperativenessDelta !== undefined) {
+    affectiveDelta.motivational = {
+      ...(args.interestDelta !== undefined ? { interest: clampDelta(args.interestDelta, maxDelta)! } : {}),
+      ...(args.cooperativenessDelta !== undefined ? { cooperativeness: clampDelta(args.cooperativenessDelta, maxDelta)! } : {}),
+    };
+  }
+
+  const patch: SimulationStatePatch = { npcAffectiveStateDelta: affectiveDelta };
 
   const newState = applySimulationPatch(ctx.personaRunId, {
     source: 'gemini_tool',
@@ -259,7 +279,12 @@ function handleTriggerIncident(rawArgs: unknown, ctx: ToolCallContext): ToolHand
   const patch: SimulationStatePatch = {
     incidentsToAdd: [incident],
     pressureDelta: args.severity === 'high' ? 1 : 0,
-    npcEmotionDelta: args.severity === 'high' ? { anger: 10, trust: -5 } : {},
+    ...(args.severity === 'high' ? {
+      npcAffectiveStateDelta: {
+        affective: { intensity: 10 },
+        relational: { trust: -5 },
+      },
+    } : {}),
   };
 
   const newState = applySimulationPatch(ctx.personaRunId, {
@@ -279,9 +304,10 @@ function handleTriggerIncident(rawArgs: unknown, ctx: ToolCallContext): ToolHand
 }
 
 function buildEmotionBehaviorInstruction(reason: string, state: SimulationState): string {
-  const { anger, trust } = state.npcEmotions;
-  if (anger >= 80) return `Respond with high tension and frustration. ${reason}`;
+  const intensity = state.npcAffectiveState.affective.intensity;
+  const trust = state.npcAffectiveState.relational.trust;
+  if (intensity >= 80) return `Respond with high tension and frustration. ${reason}`;
   if (trust >= 70) return `Respond with warmth and cooperation. ${reason}`;
-  if (anger >= 60) return `Maintain guarded tone with some skepticism. ${reason}`;
+  if (intensity >= 60) return `Maintain guarded tone with some skepticism. ${reason}`;
   return `Adjust tone naturally based on the conversation. ${reason}`;
 }

@@ -224,14 +224,22 @@ interface EmotionTrendPoint {
 /**
  * Extract absolute NPC emotion + affective-only values from stateAfter of auto_evaluation events,
  * one point per turn (latest entry wins when a turn has duplicates).
+ *
+ * Prefers npcAffectiveState values when available (newer sessions).
+ * Falls back to npcEmotions flat values for legacy session data.
  */
 export function computeEmotionTrend(events: SimulationEventRecord[]): EmotionTrendPoint[] {
   const byTurn = new Map<number, EmotionTrendPoint>();
   for (const ev of events) {
     if (ev.eventType !== "auto_evaluation") continue;
     if (!isSimulationState(ev.stateAfter)) continue;
-    const { anger, trust, confusion, interest } = ev.stateAfter.npcEmotions;
     const aff = isNpcAffectiveState(ev.stateAfter.npcAffectiveState) ? ev.stateAfter.npcAffectiveState : null;
+    const flat = ev.stateAfter.npcEmotions;
+    // Prefer affective state (primary source of truth), fall back to flat for old sessions
+    const anger = aff ? aff.affective.intensity : flat.anger;
+    const trust = aff ? aff.relational.trust : flat.trust;
+    const confusion = aff ? aff.cognitive.confusion : flat.confusion;
+    const interest = aff ? aff.motivational.interest : flat.interest;
     byTurn.set(ev.turnIndex, {
       turnIndex: ev.turnIndex,
       trust,

@@ -18,7 +18,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 const EMOTION_KEYS: Array<keyof NpcEmotions> = ['anger', 'trust', 'confusion', 'interest'];
 const MAX_RECENT = 10;
-const GEMINI_TOOL_MAX_DELTA_AFTER_SERVER_EVAL = 10;
 
 function clamp(val: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, val));
@@ -93,12 +92,10 @@ export function evaluateFlowGraph(state: SimulationState, flowGraph: FlowGraph):
 
 export interface PatchContext {
   turnId: string;
-  serverEvalAppliedEmotionDelta?: Partial<Record<keyof NpcEmotions, number>>;
 }
 
 interface InternalSession {
   simulationState: SimulationState;
-  patchContextByTurn: Map<string, { serverEvalEmotionDelta: Partial<Record<keyof NpcEmotions, number>> }>;
   globalIncidentCooldownUntil: number;
   incidentTypeCooldowns: Map<string, number>;
   allTimeTurnScoreSum: number;
@@ -116,14 +113,44 @@ interface InternalSession {
 
 const sessionContexts = new Map<string, InternalSession>();
 
+/**
+ * Ensure a SimulationState always has a valid npcAffectiveState.
+ * Legacy persisted states (saved before npcAffectiveState was introduced) lack this field.
+ * Backfill from flat npcEmotions values so any restore/read path is safe for rendering
+ * and patching without requiring an intermediate applySimulationPatch call first.
+ */
+export function normalizeSimulationState(state: SimulationState): SimulationState {
+  if (state.npcAffectiveState) return state;
+  return {
+    ...state,
+    npcAffectiveState: {
+      affective: {
+        intensity: state.npcEmotions.anger,
+        valence: DEFAULT_NPC_AFFECTIVE_STATE.affective.valence,
+      },
+      cognitive: {
+        confusion: state.npcEmotions.confusion,
+        load: DEFAULT_NPC_AFFECTIVE_STATE.cognitive.load,
+      },
+      relational: {
+        trust: state.npcEmotions.trust,
+        rapport: DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport,
+      },
+      motivational: {
+        interest: state.npcEmotions.interest,
+        cooperativeness: DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness,
+      },
+    },
+  };
+}
+
 export function getOrCreateSessionContext(personaRunId: string, state?: SimulationState): InternalSession {
   if (!sessionContexts.has(personaRunId)) {
-    const initState = state ?? createDefaultSimulationState();
+    const initState = normalizeSimulationState(state ?? createDefaultSimulationState());
     const acc = initState.scoreAccumulator;
     const existingScored = initState.recentTurnScores.filter(ts => ts.total > 0);
     sessionContexts.set(personaRunId, {
       simulationState: initState,
-      patchContextByTurn: new Map(),
       globalIncidentCooldownUntil: 0,
       incidentTypeCooldowns: new Map(),
       allTimeTurnScoreSum: acc?.sum ?? existingScored.reduce((s, ts) => s + ts.total, 0),
@@ -134,7 +161,7 @@ export function getOrCreateSessionContext(personaRunId: string, state?: Simulati
   }
   const ctx = sessionContexts.get(personaRunId)!;
   if (state && ctx.simulationState.version < state.version) {
-    ctx.simulationState = state;
+    ctx.simulationState = normalizeSimulationState(state);
     // Re-hydrate accumulators from the persisted scoreAccumulator when the incoming state
     // represents more scored turns than the in-memory counters. This covers the server-restart
     // scenario where a context was first created without a state (e.g. by applyHarnessToSession)
@@ -299,50 +326,9 @@ export function applySimulationPatch(
   const patch = request.patch;
   const turnId = request.turnId;
 
+  // npcEmotions is derived from npcAffectiveState — do not update directly.
+  // It will be re-derived below after applying npcAffectiveStateDelta.
   const newEmotions = { ...prev.npcEmotions };
-
-  if (patch.npcEmotionDelta) {
-    let turnCtx = ctx.patchContextByTurn.get(turnId);
-
-    if (request.source === 'server_evaluation') {
-      for (const key of EMOTION_KEYS) {
-        const delta = patch.npcEmotionDelta[key];
-        if (delta !== undefined) {
-          newEmotions[key] = clamp(newEmotions[key] + delta);
-        }
-      }
-      if (!turnCtx) {
-        turnCtx = { serverEvalEmotionDelta: {} };
-        ctx.patchContextByTurn.set(turnId, turnCtx);
-      }
-      for (const key of EMOTION_KEYS) {
-        const delta = patch.npcEmotionDelta[key];
-        if (delta !== undefined) {
-          turnCtx.serverEvalEmotionDelta[key] = (turnCtx.serverEvalEmotionDelta[key] ?? 0) + delta;
-        }
-      }
-    } else if (request.source === 'gemini_tool') {
-      const prevServerEvalDelta = turnCtx?.serverEvalEmotionDelta ?? {};
-      for (const key of EMOTION_KEYS) {
-        const rawDelta = patch.npcEmotionDelta[key];
-        if (rawDelta !== undefined) {
-          const alreadyMoved = prevServerEvalDelta[key] ?? 0;
-          const signedCap = rawDelta > 0
-            ? Math.min(rawDelta, GEMINI_TOOL_MAX_DELTA_AFTER_SERVER_EVAL)
-            : Math.max(rawDelta, -GEMINI_TOOL_MAX_DELTA_AFTER_SERVER_EVAL);
-          const effectiveDelta = alreadyMoved !== 0 ? signedCap : rawDelta;
-          newEmotions[key] = clamp(newEmotions[key] + effectiveDelta);
-        }
-      }
-    } else {
-      for (const key of EMOTION_KEYS) {
-        const delta = patch.npcEmotionDelta[key];
-        if (delta !== undefined) {
-          newEmotions[key] = clamp(newEmotions[key] + delta);
-        }
-      }
-    }
-  }
 
   let newStage = prev.stage;
   if (patch.targetStage && stageAllowed(prev.stage, patch.targetStage)) {
@@ -399,48 +385,41 @@ export function applySimulationPatch(
     ? Math.round(ctx.allTimeTurnScoreSum / ctx.allTimeTurnScoreCount)
     : prev.currentScore;
 
-  const maxAnger = Math.max(prev.summary.maxAnger, newEmotions.anger);
-  const minTrust = Math.min(prev.summary.minTrust, newEmotions.trust);
   const totalIncidents = prev.summary.totalIncidents + (patch.incidentsToAdd?.length ?? 0);
   const totalTurns = prev.summary.totalTurns + (patch.turnScoresToAdd?.length ?? 0);
 
-  // Sync npcAffectiveState from emotion delta (flat → layered mapping)
-  let newAffectiveState: NpcAffectiveState | undefined = prev.npcAffectiveState
-    ? {
-        affective: { ...prev.npcAffectiveState.affective },
-        cognitive: { ...prev.npcAffectiveState.cognitive },
-        relational: { ...prev.npcAffectiveState.relational },
-        motivational: { ...prev.npcAffectiveState.motivational },
-      }
-    : {
-        affective: { ...DEFAULT_NPC_AFFECTIVE_STATE.affective },
-        cognitive: { ...DEFAULT_NPC_AFFECTIVE_STATE.cognitive },
-        relational: { ...DEFAULT_NPC_AFFECTIVE_STATE.relational },
-        motivational: { ...DEFAULT_NPC_AFFECTIVE_STATE.motivational },
-      };
+  // Guard against legacy persisted states that may lack npcAffectiveState.
+  // Backfill from flat npcEmotions values (which are always present) so that
+  // any restored legacy session can be patched without throwing.
+  const prevAffective: NpcAffectiveState = prev.npcAffectiveState ?? {
+    affective: {
+      intensity: prev.npcEmotions.anger,
+      valence: DEFAULT_NPC_AFFECTIVE_STATE.affective.valence,
+    },
+    cognitive: {
+      confusion: prev.npcEmotions.confusion,
+      load: DEFAULT_NPC_AFFECTIVE_STATE.cognitive.load,
+    },
+    relational: {
+      trust: prev.npcEmotions.trust,
+      rapport: DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport,
+    },
+    motivational: {
+      interest: prev.npcEmotions.interest,
+      cooperativeness: DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness,
+    },
+  };
 
-  if (patch.npcEmotionDelta) {
-    // Mirror the ACTUAL applied deltas (post-capping/cap logic) into the affective-state layers
-    // so both representations always stay in sync.
-    if (patch.npcEmotionDelta.anger !== undefined) {
-      const actualDelta = newEmotions.anger - prev.npcEmotions.anger;
-      newAffectiveState.affective.intensity = clamp(newAffectiveState.affective.intensity + actualDelta);
-    }
-    if (patch.npcEmotionDelta.confusion !== undefined) {
-      const actualDelta = newEmotions.confusion - prev.npcEmotions.confusion;
-      newAffectiveState.cognitive.confusion = clamp(newAffectiveState.cognitive.confusion + actualDelta);
-    }
-    if (patch.npcEmotionDelta.trust !== undefined) {
-      const actualDelta = newEmotions.trust - prev.npcEmotions.trust;
-      newAffectiveState.relational.trust = clamp(newAffectiveState.relational.trust + actualDelta);
-    }
-    if (patch.npcEmotionDelta.interest !== undefined) {
-      const actualDelta = newEmotions.interest - prev.npcEmotions.interest;
-      newAffectiveState.motivational.interest = clamp(newAffectiveState.motivational.interest + actualDelta);
-    }
-  }
+  // npcAffectiveState is the single source of truth — carry forward from prev.
+  const newAffectiveState: NpcAffectiveState = {
+    affective: { ...prevAffective.affective },
+    cognitive: { ...prevAffective.cognitive },
+    relational: { ...prevAffective.relational },
+    motivational: { ...prevAffective.motivational },
+  };
 
-  // Apply direct npcAffectiveStateDelta if provided
+  // Apply npcAffectiveStateDelta — the only path for updating NPC emotional state.
+  // After applying, npcEmotions is re-derived for backward-compat (reports, API).
   if (patch.npcAffectiveStateDelta) {
     const d = patch.npcAffectiveStateDelta;
     if (d.affective) {
@@ -468,21 +447,25 @@ export function applySimulationPatch(
         newAffectiveState.motivational.cooperativeness = clamp(newAffectiveState.motivational.cooperativeness + d.motivational.cooperativeness);
     }
 
-    // Re-derive npcEmotions from the authoritative affective-state values so the two
-    // representations never diverge after a direct npcAffectiveStateDelta patch.
+    // Re-derive npcEmotions from the authoritative affective-state values.
+    // This is the ONLY place npcEmotions is updated — backward-compat for reports/API.
     newEmotions.anger = newAffectiveState.affective.intensity;
     newEmotions.confusion = newAffectiveState.cognitive.confusion;
     newEmotions.trust = newAffectiveState.relational.trust;
     newEmotions.interest = newAffectiveState.motivational.interest;
   }
 
+  // maxAnger/minTrust track the session high-water marks using affective state values.
+  const maxAnger = Math.max(prev.summary.maxAnger, newAffectiveState.affective.intensity);
+  const minTrust = Math.min(prev.summary.minTrust, newAffectiveState.relational.trust);
+
   // Invariant guard: affective-only fields (rapport, cooperativeness, cognitive.load,
   // affective.valence) have no flat-emotion counterpart and are only intentionally changed
   // via npcAffectiveStateDelta. If any of these fields decreased without an explicit delta,
   // it indicates the new state was accidentally re-initialised from defaults rather than
   // carried forward from prev — warn loudly so the regression is caught early.
-  if (prev.npcAffectiveState && !patch.npcAffectiveStateDelta) {
-    const prevAff = prev.npcAffectiveState;
+  if (!patch.npcAffectiveStateDelta) {
+    const prevAff = prevAffective;
     const checks: Array<{ label: string; prev: number; next: number }> = [
       { label: 'relational.rapport',          prev: prevAff.relational.rapport,          next: newAffectiveState.relational.rapport },
       { label: 'motivational.cooperativeness', prev: prevAff.motivational.cooperativeness, next: newAffectiveState.motivational.cooperativeness },
@@ -657,7 +640,7 @@ export function getSessionState(personaRunId: string): SimulationState | null {
 
 export function setSessionState(personaRunId: string, state: SimulationState): void {
   const ctx = getOrCreateSessionContext(personaRunId, state);
-  ctx.simulationState = state;
+  ctx.simulationState = normalizeSimulationState(state);
 }
 
 export { calcTurnScoreTotal };

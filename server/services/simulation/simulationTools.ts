@@ -1,37 +1,61 @@
 export const SIMULATION_TOOLS = [
   {
-    name: 'update_npc_emotion',
-    description: 'Update NPC emotion levels using delta values. Call this when the conversation affects the NPC\'s emotional state. Maximum 2 calls per turn. Each delta is clamped to -30~+30.',
+    name: 'update_npc_affective_state',
+    description: 'Update NPC affective state using delta values across four layers. Call this when the conversation affects the NPC\'s emotional or relational state. Maximum 2 calls per turn. Each delta is clamped to -30~+30.',
     parameters: {
       type: 'object',
       properties: {
-        angerDelta: {
+        intensityDelta: {
           type: 'number',
-          description: 'Change in anger level (-30 to +30). Positive = more angry, negative = less angry.',
+          description: 'Change in emotional intensity / anger proxy (-30 to +30). Positive = more intense/angry.',
           minimum: -30,
           maximum: 30,
         },
-        trustDelta: {
+        valenceDelta: {
           type: 'number',
-          description: 'Change in trust level (-30 to +30). Positive = more trusting, negative = less trusting.',
+          description: 'Change in emotional valence (-30 to +30). Positive = more pleasant, negative = more unpleasant.',
           minimum: -30,
           maximum: 30,
         },
         confusionDelta: {
           type: 'number',
-          description: 'Change in confusion level (-30 to +30). Positive = more confused, negative = less confused.',
+          description: 'Change in cognitive confusion (-30 to +30). Positive = more confused.',
+          minimum: -30,
+          maximum: 30,
+        },
+        loadDelta: {
+          type: 'number',
+          description: 'Change in cognitive load / overwhelm (-30 to +30). Positive = more overwhelmed.',
+          minimum: -30,
+          maximum: 30,
+        },
+        trustDelta: {
+          type: 'number',
+          description: 'Change in relational trust (-30 to +30). Positive = more trusting.',
+          minimum: -30,
+          maximum: 30,
+        },
+        rapportDelta: {
+          type: 'number',
+          description: 'Change in perceived rapport / closeness (-30 to +30). Positive = closer.',
           minimum: -30,
           maximum: 30,
         },
         interestDelta: {
           type: 'number',
-          description: 'Change in interest level (-30 to +30). Positive = more interested, negative = less interested.',
+          description: 'Change in motivational interest (-30 to +30). Positive = more engaged.',
+          minimum: -30,
+          maximum: 30,
+        },
+        cooperativenessDelta: {
+          type: 'number',
+          description: 'Change in willingness to cooperate (-30 to +30). Positive = more cooperative.',
           minimum: -30,
           maximum: 30,
         },
         reason: {
           type: 'string',
-          description: 'Brief explanation of why the emotion changed (e.g., "User provided clear solution, trust increased").',
+          description: 'Brief explanation of why the affective state changed.',
         },
       },
       required: ['reason'],

@@ -6,6 +6,7 @@ import {
   setSessionState,
   applySimulationPatch,
   getOrCreateSessionContext,
+  normalizeSimulationState,
 } from "../services/simulation/simulationEngine";
 import {
   createDefaultSimulationState,
@@ -103,6 +104,8 @@ export default function createSimulationRouter(isAuthenticated: any) {
       const stored = await storage.getSimulationState(personaRunId);
       state = stored ? (stored as unknown as SimulationState) : createDefaultSimulationState();
       setSessionState(personaRunId, state);
+      // Re-read so the normalized (npcAffectiveState-backfilled) version is used below
+      state = getSessionState(personaRunId)!;
     }
 
     const turnId = uuidv4();
@@ -115,7 +118,7 @@ export default function createSimulationRouter(isAuthenticated: any) {
       turnIndex: turnIdx,
       userText,
       aiText: aiText ?? '',
-      simulationState: state,
+      simulationState: normalizeSimulationState(state),
       language: lang,
     });
 
@@ -125,7 +128,7 @@ export default function createSimulationRouter(isAuthenticated: any) {
       turnId,
       patch: {
         turnScoresToAdd: [evalResult.turnScore],
-        npcEmotionDelta: evalResult.emotionDelta,
+        npcAffectiveStateDelta: evalResult.npcAffectiveStateDelta,
       },
     });
 
