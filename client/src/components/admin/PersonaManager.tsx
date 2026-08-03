@@ -665,7 +665,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     }
   };
 
-  // 비디오 클립 개별 생성 핸들러
+  // 비디오 클립 개별 생성 핸들러 (백그라운드 폴링 방식)
   const handleGenerateVideoClip = async (state: string) => {
     if (!formData.id || !editingPersona) {
       toast({ title: '오류', description: '페르소나를 먼저 저장해주세요.', variant: 'destructive' });
@@ -673,27 +673,62 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     }
     setGeneratingVideoClip(state);
     try {
-      const response = await apiRequest('POST', `/api/admin/personas/${formData.id}/video/generate-clip`, {
+      // Step 1: kick off background job, get jobId immediately
+      const startResponse = await apiRequest('POST', `/api/admin/personas/${formData.id}/video/generate-clip`, {
         state,
         styleHint: formData.images?.style || undefined,
       });
-      const result = await response.json();
-      if (result.success && result.videoUrl) {
-        setFormData(prev => ({
-          ...prev,
-          videos: {
-            enabled: prev.videos?.enabled ?? true,
-            avatarId: prev.videos?.avatarId ?? prev.id,
-            clips: { ...(prev.videos?.clips ?? {}), [state]: result.videoUrl },
-          },
-        }));
-        toast({ title: '저장 중', description: `${state} 클립 생성 완료. 저장을 눌러 반영하세요.` });
-      }
+      const { jobId } = await startResponse.json();
+      if (!jobId) throw new Error('서버에서 작업 ID를 받지 못했습니다.');
+
+      toast({ title: '생성 시작', description: `${state} 클립 생성 중… 완료되면 자동으로 반영됩니다.` });
+
+      // Step 2: poll every 5 seconds for up to 6 minutes
+      const POLL_INTERVAL_MS = 5_000;
+      const POLL_TIMEOUT_MS = 6 * 60 * 1_000;
+      const deadline = Date.now() + POLL_TIMEOUT_MS;
+
+      const poll = async (): Promise<void> => {
+        if (Date.now() > deadline) {
+          setGeneratingVideoClip(null);
+          toast({ title: '시간 초과', description: '클립 생성 시간이 초과되었습니다. 나중에 다시 시도해주세요.', variant: 'destructive' });
+          return;
+        }
+
+        try {
+          const statusRes = await apiRequest('GET', `/api/admin/personas/${formData.id}/video/generate-clip/status?jobId=${encodeURIComponent(jobId)}`);
+          const data = await statusRes.json();
+
+          if (data.status === 'done' && data.result?.videoUrl) {
+            setFormData(prev => ({
+              ...prev,
+              videos: {
+                enabled: prev.videos?.enabled ?? true,
+                avatarId: prev.videos?.avatarId ?? prev.id,
+                clips: { ...(prev.videos?.clips ?? {}), [state]: data.result.videoUrl },
+              },
+            }));
+            setGeneratingVideoClip(null);
+            toast({ title: '저장 중', description: `${state} 클립 생성 완료. 저장을 눌러 반영하세요.` });
+          } else if (data.status === 'error') {
+            setGeneratingVideoClip(null);
+            toast({ title: '생성 오류', description: data.error || '클립 생성 실패', variant: 'destructive' });
+          } else {
+            // pending or running — keep polling
+            setTimeout(poll, POLL_INTERVAL_MS);
+          }
+        } catch (pollErr: any) {
+          // Network glitch — keep polling unless we've timed out
+          setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      };
+
+      setTimeout(poll, POLL_INTERVAL_MS);
     } catch (error: any) {
-      toast({ title: '생성 오류', description: error.message || '클립 생성 실패', variant: 'destructive' });
-    } finally {
       setGeneratingVideoClip(null);
+      toast({ title: '생성 오류', description: error.message || '클립 생성 실패', variant: 'destructive' });
     }
+    // NOTE: setGeneratingVideoClip(null) is called inside the polling chain, not here
   };
 
   const resetForm = () => {

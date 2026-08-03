@@ -182,7 +182,8 @@ app.use((req, res, next) => {
     req.path.includes('/generate-npc-behavior-harness') ||
     req.path.includes('/fill-scenario-fields') ||
     (req.method === 'POST' && req.path.includes('/feedback')) ||
-    req.path.includes('/dry-run');
+    req.path.includes('/dry-run') ||
+    req.path.includes('/video/generate-clip');
   
   const timeoutMs = isSlowEndpoint ? LONG_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
 

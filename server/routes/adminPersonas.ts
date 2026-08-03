@@ -1,10 +1,12 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { transformPersonasMedia, transformPersonaMedia } from "../services/gcsStorage";
 import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateAvatarClip, type AvatarClipState } from "../services/gemini-video-generator";
+import { videoJobStore } from "../utils/videoJobStore";
 
 export default function createAdminPersonasRouter(isAuthenticated: any) {
   const router = Router();
@@ -42,6 +44,10 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
     res.json(transformedPersona);
   }));
 
+  /**
+   * POST /api/admin/personas/:id/video/generate-clip
+   * Kicks off avatar clip generation in the background and returns a jobId immediately.
+   */
   router.post("/api/admin/personas/:id/video/generate-clip", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const personaId = req.params.id;
     const { state, styleHint } = req.body as { state?: string; styleHint?: string };
@@ -53,17 +59,48 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
       throw createHttpError(400, `state must be one of: ${VALID_STATES.join(', ')}`);
     }
 
-    const result = await generateAvatarClip({
-      personaId,
-      state: state as AvatarClipState,
-      styleHint,
+    const jobId = randomUUID();
+    videoJobStore.create(jobId);
+
+    // Fire-and-forget background generation
+    setImmediate(async () => {
+      videoJobStore.setRunning(jobId);
+      try {
+        const result = await generateAvatarClip({
+          personaId,
+          state: state as AvatarClipState,
+          styleHint,
+        });
+        if (result.success && result.videoUrl) {
+          videoJobStore.setDone(jobId, result.videoUrl, state);
+        } else {
+          videoJobStore.setError(jobId, result.error || '비디오 생성 실패');
+        }
+      } catch (err: any) {
+        console.error(`[videoJob:${jobId}] Unhandled error:`, err);
+        videoJobStore.setError(jobId, err?.message || '알 수 없는 오류가 발생했습니다.');
+      }
     });
 
-    if (!result.success) {
-      throw createHttpError(500, result.error || '비디오 생성 실패');
-    }
+    res.status(202).json({ jobId });
+  }));
 
-    res.json({ success: true, videoUrl: result.videoUrl, state });
+  /**
+   * GET /api/admin/personas/:id/video/generate-clip/status?jobId=<id>
+   * Returns the current status (and result/error) of a background generation job.
+   */
+  router.get("/api/admin/personas/:id/video/generate-clip/status", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    const { jobId } = req.query as { jobId?: string };
+    if (!jobId) throw createHttpError(400, 'jobId query parameter is required');
+
+    const record = videoJobStore.get(jobId);
+    if (!record) throw createHttpError(404, 'Job not found or expired');
+
+    res.json({
+      status: record.status,
+      result: record.result ?? null,
+      error: record.error ?? null,
+    });
   }));
 
   router.delete("/api/admin/personas/:id", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req: any, res) => {
