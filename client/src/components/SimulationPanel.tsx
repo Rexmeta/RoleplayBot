@@ -343,7 +343,7 @@ function SimulationTimer({ timer }: { timer: SimulationState['timer'] }) {
  * that this panel always agrees with the emotion bars above it. The affective-only fields
  * (load, rapport, cooperativeness) have no flat counterpart and are read from npcAffectiveState.
  */
-function AffectiveStatePanel({
+export function AffectiveStatePanel({
   affectiveState,
   npcEmotions,
 }: {
