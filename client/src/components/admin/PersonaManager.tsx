@@ -1609,13 +1609,13 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-slate-700">{state}</span>
                           {clipUrl && (
-                            <a href={clipUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[80px]">보기</a>
+                            <a href={toMediaUrl(clipUrl)} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[80px]">보기</a>
                           )}
                         </div>
                         {clipUrl && (
                           <video
                             key={clipUrl}
-                            src={clipUrl}
+                            src={toMediaUrl(clipUrl)}
                             controls
                             loop
                             muted

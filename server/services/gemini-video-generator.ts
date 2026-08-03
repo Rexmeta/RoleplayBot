@@ -569,10 +569,18 @@ export async function generateAvatarClip(
 
     if (!videoBytes) return { success: false, error: '비디오 바이트를 추출할 수 없습니다.' };
 
-    const storagePath = await mediaStorage.saveVideo(
-      videoBytes,
-      `avatar-${request.personaId}`,
-      `${request.personaId}-${request.state}`,
+    // Build a stable, readable key that includes persona, gender and state.
+    // We use saveToFixedPath instead of saveVideo because saveVideo's safeTitle
+    // sanitiser strips hyphens (e.g. "ac-idle" → "acidle"), producing garbled names.
+    const safePersonaId = request.personaId.replace(/[^a-zA-Z0-9]/g, '-');
+    const safeState    = (request.state as string).replace(/_/g, '-'); // listening_nod → listening-nod
+    const gender       = request.gender ?? 'unknown';
+    const timestamp    = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const fixedKey     = `videos/avatar-${safePersonaId}-${gender}-${safeState}-${timestamp}.webm`;
+    const storagePath  = await mediaStorage.saveToFixedPath(
+      Buffer.from(videoBytes),
+      fixedKey,
+      'video/webm',
     );
 
     trackVideoUsage({
