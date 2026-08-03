@@ -44,7 +44,10 @@ export const mbtiPersonas = pgTable("mbti_personas", {
   videos: jsonb("videos").$type<{
     enabled: boolean;
     avatarId?: string;
-    clips?: Partial<Record<string, string>>;
+    clips?: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    };
   }>(),
   freeChatAvailable: boolean("free_chat_available").notNull().default(false),
   freeChatDescription: text("free_chat_description"),
@@ -99,6 +102,24 @@ export const personaUserScenes = pgTable("persona_user_scenes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+/**
+ * Normalize the `videos.clips` field from the legacy flat shape
+ * (`{ idle: url, ... }`) to the gender-separated shape
+ * (`{ male: { idle: url, ... }, female: {} }`).
+ * Returns the value unchanged if it is already in the new format.
+ */
+export function normalizeVideoClips(
+  clips: Record<string, any> | undefined | null,
+): { male?: Partial<Record<string, string>>; female?: Partial<Record<string, string>> } {
+  if (!clips) return { male: {}, female: {} };
+  const CLIP_STATES = ['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'];
+  const isFlat = Object.keys(clips).some(k => CLIP_STATES.includes(k));
+  if (isFlat) {
+    return { male: clips as Partial<Record<string, string>>, female: {} };
+  }
+  return clips as { male?: Partial<Record<string, string>>; female?: Partial<Record<string, string>> };
+}
 
 export const insertMbtiPersonaSchema = createInsertSchema(mbtiPersonas).omit({
   createdAt: true,

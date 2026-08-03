@@ -23,7 +23,17 @@ export interface AvatarPersonaInfo {
   videos?: {
     enabled?: boolean;
     avatarId?: string;
-    clips?: Partial<Record<string, string>>;
+    /**
+     * Clip URLs — either the new gender-separated shape
+     *   `{ male?: { idle: url, ... }, female?: { idle: url, ... } }`
+     * or the legacy flat shape
+     *   `{ idle: url, ... }`.
+     * Consumers must use resolveGenderedClips() to normalise before access.
+     */
+    clips?: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    } | Partial<Record<string, string>>;
   };
 }
 

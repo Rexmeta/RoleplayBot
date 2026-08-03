@@ -197,7 +197,10 @@ interface MBTIPersonaFormData {
   videos?: {
     enabled: boolean;
     avatarId: string;
-    clips: Partial<Record<string, string>>;
+    clips: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    };
   };
 }
 
@@ -239,6 +242,9 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   
   // 비디오 아바타 생성 상태 (여러 클립을 동시에 추적)
   const [generatingVideoClip, setGeneratingVideoClip] = useState<Set<string>>(new Set());
+  
+  // 비디오 섹션 성별 탭
+  const [videoGender, setVideoGender] = useState<'male' | 'female'>('male');
   
   // 이미지 로드 실패 상태 추적
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
@@ -665,17 +671,17 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     }
   };
 
-  // localStorage 키 헬퍼
-  const videoJobKey = (personaId: string, state: string) => `videoJob:${personaId}:${state}`;
+  // localStorage 키 헬퍼 (gender 포함)
+  const videoJobKey = (personaId: string, gender: string, state: string) => `videoJob:${personaId}:${gender}:${state}`;
 
   // 비디오 클립 폴링 (재개 가능)
-  const pollVideoJob = (personaId: string, state: string, jobId: string, deadline: number) => {
+  const pollVideoJob = (personaId: string, gender: string, state: string, jobId: string, deadline: number) => {
     const POLL_INTERVAL_MS = 5_000;
 
     const poll = async (): Promise<void> => {
       if (Date.now() > deadline) {
-        localStorage.removeItem(videoJobKey(personaId, state));
-        setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
+        localStorage.removeItem(videoJobKey(personaId, gender, state));
+        setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${state}`); return s; });
         toast({ title: '시간 초과', description: '클립 생성 시간이 초과되었습니다. 나중에 다시 시도해주세요.', variant: 'destructive' });
         return;
       }
@@ -685,25 +691,36 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         const data = await statusRes.json();
 
         if (data.status === 'done' && data.result?.videoUrl) {
-          localStorage.removeItem(videoJobKey(personaId, state));
-          setFormData(prev => ({
-            ...prev,
-            videos: {
-              enabled: prev.videos?.enabled ?? true,
-              avatarId: prev.videos?.avatarId ?? prev.id,
-              clips: { ...(prev.videos?.clips ?? {}), [state]: data.result.videoUrl },
-            },
-          }));
-          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
-          toast({ title: '저장 중', description: `${state} 클립 생성 완료. 저장을 눌러 반영하세요.` });
+          localStorage.removeItem(videoJobKey(personaId, gender, state));
+          const doneGender: 'male' | 'female' = data.result.gender === 'female' ? 'female' : 'male';
+          const doneState: string = data.result.state || state;
+          // Persist the stable storage key (not the expiring signed URL) so saved clips don't break
+          const persistUrl: string = data.result.storageKey || data.result.videoUrl;
+          setFormData(prev => {
+            const prevClips = prev.videos?.clips ?? {};
+            const genderClips = prevClips[doneGender] ?? {};
+            return {
+              ...prev,
+              videos: {
+                enabled: prev.videos?.enabled ?? true,
+                avatarId: prev.videos?.avatarId ?? prev.id,
+                clips: {
+                  ...prevClips,
+                  [doneGender]: { ...genderClips, [doneState]: persistUrl },
+                },
+              },
+            };
+          });
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${state}`); return s; });
+          toast({ title: '저장 중', description: `${doneGender} / ${doneState} 클립 생성 완료. 저장을 눌러 반영하세요.` });
         } else if (data.status === 'error') {
-          localStorage.removeItem(videoJobKey(personaId, state));
-          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
+          localStorage.removeItem(videoJobKey(personaId, gender, state));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${state}`); return s; });
           toast({ title: '생성 오류', description: data.error || '클립 생성 실패', variant: 'destructive' });
         } else if (data.status === undefined && !data.jobId) {
           // Job expired from server store (> 30 min) — clear gracefully
-          localStorage.removeItem(videoJobKey(personaId, state));
-          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
+          localStorage.removeItem(videoJobKey(personaId, gender, state));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${state}`); return s; });
         } else {
           // pending or running — keep polling
           setTimeout(poll, POLL_INTERVAL_MS);
@@ -718,18 +735,27 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   };
 
   // 비디오 클립 개별 생성 핸들러 (백그라운드 폴링 방식)
-  const handleGenerateVideoClip = async (state: string) => {
+  const handleGenerateVideoClip = async (state: string, gender: 'male' | 'female') => {
     if (!formData.id || !editingPersona) {
       toast({ title: '오류', description: '페르소나를 먼저 저장해주세요.', variant: 'destructive' });
       return;
     }
     const personaId = formData.id;
-    setGeneratingVideoClip(prev => new Set(Array.from(prev).concat(state)));
+    const clipKey = `${gender}:${state}`;
+    setGeneratingVideoClip(prev => new Set(Array.from(prev).concat(clipKey)));
+
+    // 해당 성별의 중립 표정 이미지 URL 가져오기
+    const neutralImageUrl = gender === 'male'
+      ? formData.images?.male?.expressions?.['중립'] || ''
+      : formData.images?.female?.expressions?.['중립'] || '';
+
     try {
       // Step 1: kick off background job, get jobId immediately
       const startResponse = await apiRequest('POST', `/api/admin/personas/${personaId}/video/generate-clip`, {
         state,
         styleHint: formData.images?.style || undefined,
+        gender,
+        neutralImageUrl: neutralImageUrl || undefined,
       });
       const { jobId } = await startResponse.json();
       if (!jobId) throw new Error('서버에서 작업 ID를 받지 못했습니다.');
@@ -737,15 +763,15 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       // Step 2: persist job reference so it survives page navigations
       const POLL_TIMEOUT_MS = 6 * 60 * 1_000;
       const deadline = Date.now() + POLL_TIMEOUT_MS;
-      localStorage.setItem(videoJobKey(personaId, state), JSON.stringify({ jobId, deadline }));
+      localStorage.setItem(videoJobKey(personaId, gender, state), JSON.stringify({ jobId, deadline }));
 
-      toast({ title: '생성 시작', description: `${state} 클립 생성 중… 완료되면 자동으로 반영됩니다.` });
+      toast({ title: '생성 시작', description: `${gender} / ${state} 클립 생성 중… 완료되면 자동으로 반영됩니다.` });
 
       // Step 3: start polling
-      pollVideoJob(personaId, state, jobId, deadline);
+      pollVideoJob(personaId, gender, state, jobId, deadline);
     } catch (error: any) {
-      localStorage.removeItem(videoJobKey(personaId, state));
-      setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(state); return s; });
+      localStorage.removeItem(videoJobKey(personaId, gender, state));
+      setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(clipKey); return s; });
       toast({ title: '생성 오류', description: error.message || '클립 생성 실패', variant: 'destructive' });
     }
   };
@@ -788,7 +814,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } },
         female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } }
       },
-      videos: { enabled: false, avatarId: '', clips: {} },
+      videos: { enabled: false, avatarId: '', clips: { male: {}, female: {} } },
     });
     setRawInputs({
       personality_traits: '',
@@ -868,13 +894,22 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       storeListed: (persona as any).storeListed ?? false,
       storePriceUsd: (persona as any).storePriceUsd ?? null,
       storePackId: (persona as any).storePackId ?? null,
-      videos: (persona as any).videos
-        ? {
-            enabled: (persona as any).videos.enabled ?? false,
-            avatarId: (persona as any).videos.avatarId ?? persona.id,
-            clips: (persona as any).videos.clips ?? {},
-          }
-        : { enabled: false, avatarId: persona.id, clips: {} },
+      videos: (() => {
+        const pv = (persona as any).videos;
+        if (!pv) return { enabled: false, avatarId: persona.id, clips: { male: {}, female: {} } };
+        // Backward compat: if clips is flat (has clip-state keys directly), migrate to { male: clips }
+        const rawClips = pv.clips ?? {};
+        const CLIP_STATES = ['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'];
+        const isFlat = Object.keys(rawClips).some(k => CLIP_STATES.includes(k));
+        const normalizedClips = isFlat
+          ? { male: rawClips as Partial<Record<string, string>>, female: {} }
+          : { male: rawClips.male ?? {}, female: rawClips.female ?? {} };
+        return {
+          enabled: pv.enabled ?? false,
+          avatarId: pv.avatarId ?? persona.id,
+          clips: normalizedClips,
+        };
+      })(),
     });
     // rawInputs도 설정 (쉼표로 구분된 필드들)
     setRawInputs({
@@ -886,28 +921,32 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       win_conditions: (persona.communication_patterns?.win_conditions || []).join(', ')
     });
     setEditingPersona(persona);
+    setVideoGender(persona.gender === 'female' ? 'female' : 'male');
 
     // 페이지 이동 후 다시 열었을 때 진행 중인 비디오 클립 작업 복구
     const VIDEO_STATES = ['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'];
-    const resumingStates: string[] = [];
-    VIDEO_STATES.forEach(state => {
-      const stored = localStorage.getItem(`videoJob:${persona.id}:${state}`);
-      if (!stored) return;
-      try {
-        const { jobId, deadline } = JSON.parse(stored);
-        if (Date.now() > deadline) {
-          localStorage.removeItem(`videoJob:${persona.id}:${state}`);
-          return;
+    const GENDERS: Array<'male' | 'female'> = ['male', 'female'];
+    const resumingKeys: string[] = [];
+    GENDERS.forEach(g => {
+      VIDEO_STATES.forEach(state => {
+        const stored = localStorage.getItem(`videoJob:${persona.id}:${g}:${state}`);
+        if (!stored) return;
+        try {
+          const { jobId, deadline } = JSON.parse(stored);
+          if (Date.now() > deadline) {
+            localStorage.removeItem(`videoJob:${persona.id}:${g}:${state}`);
+            return;
+          }
+          resumingKeys.push(`${g}:${state}`);
+          pollVideoJob(persona.id, g, state, jobId, deadline);
+        } catch {
+          localStorage.removeItem(`videoJob:${persona.id}:${g}:${state}`);
         }
-        resumingStates.push(state);
-        pollVideoJob(persona.id, state, jobId, deadline);
-      } catch {
-        localStorage.removeItem(`videoJob:${persona.id}:${state}`);
-      }
+      });
     });
-    if (resumingStates.length > 0) {
-      setGeneratingVideoClip(prev => new Set(Array.from(prev).concat(resumingStates)));
-      toast({ title: '생성 재개', description: `진행 중인 클립 작업을 재개합니다: ${resumingStates.join(', ')}` });
+    if (resumingKeys.length > 0) {
+      setGeneratingVideoClip(prev => new Set(Array.from(prev).concat(resumingKeys)));
+      toast({ title: '생성 재개', description: `진행 중인 클립 작업을 재개합니다: ${resumingKeys.join(', ')}` });
     }
   };
 
@@ -1476,7 +1515,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       onCheckedChange={(checked) =>
                         setFormData(prev => ({
                           ...prev,
-                          videos: { enabled: checked, avatarId: prev.videos?.avatarId ?? prev.id, clips: prev.videos?.clips ?? {} },
+                          videos: { enabled: checked, avatarId: prev.videos?.avatarId ?? prev.id, clips: prev.videos?.clips ?? { male: {}, female: {} } },
                         }))
                       }
                     />
@@ -1494,7 +1533,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       onChange={(e) =>
                         setFormData(prev => ({
                           ...prev,
-                          videos: { enabled: prev.videos?.enabled ?? false, avatarId: e.target.value, clips: prev.videos?.clips ?? {} },
+                          videos: { enabled: prev.videos?.enabled ?? false, avatarId: e.target.value, clips: prev.videos?.clips ?? { male: {}, female: {} } },
                         }))
                       }
                       placeholder="아바타 ID (기본: 페르소나 ID)"
@@ -1503,11 +1542,56 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                   </div>
                 </div>
 
+                {/* 성별 탭 토글 */}
+                <div className="flex gap-2 mb-4">
+                  {(['male', 'female'] as const).map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setVideoGender(g)}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                        videoGender === g
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white text-slate-600 border-slate-300 hover:border-violet-400'
+                      }`}
+                    >
+                      {g === 'male' ? '남성 (Male)' : '여성 (Female)'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 시드 이미지 안내 */}
+                {(() => {
+                  const neutralUrl = videoGender === 'male'
+                    ? formData.images?.male?.expressions?.['중립']
+                    : formData.images?.female?.expressions?.['중립'];
+                  if (neutralUrl) {
+                    return (
+                      <div className="flex items-center gap-3 mb-4 p-2 bg-violet-50 border border-violet-200 rounded-lg">
+                        <img
+                          src={toMediaUrl(neutralUrl)}
+                          alt="시드 이미지"
+                          className="w-12 h-12 rounded object-cover border border-violet-300"
+                        />
+                        <p className="text-xs text-violet-700">
+                          <span className="font-semibold">시드 이미지 사용 중</span> — Veo 생성 시 이 {videoGender === 'male' ? '남성' : '여성'} 중립 이미지를 레퍼런스로 전달합니다.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                      {videoGender === 'male' ? '남성' : '여성'} 중립 표정 이미지를 먼저 생성하면 해당 인물 모습으로 영상이 만들어집니다.
+                    </p>
+                  );
+                })()}
+
                 {/* 6개 상태 슬롯 */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {(['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'] as const).map((state) => {
-                    const clipUrl = formData.videos?.clips?.[state] ?? '';
-                    const isGenerating = generatingVideoClip.has(state);
+                    const clipUrl = formData.videos?.clips?.[videoGender]?.[state] ?? '';
+                    const clipKey = `${videoGender}:${state}`;
+                    const isGenerating = generatingVideoClip.has(clipKey);
                     return (
                       <div key={state} className="border border-slate-200 rounded-lg p-3 bg-slate-50 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
@@ -1530,14 +1614,18 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                         <Input
                           value={clipUrl}
                           onChange={(e) =>
-                            setFormData(prev => ({
-                              ...prev,
-                              videos: {
-                                enabled: prev.videos?.enabled ?? false,
-                                avatarId: prev.videos?.avatarId ?? prev.id,
-                                clips: { ...(prev.videos?.clips ?? {}), [state]: e.target.value },
-                              },
-                            }))
+                            setFormData(prev => {
+                              const prevClips = prev.videos?.clips ?? { male: {}, female: {} };
+                              const genderClips = prevClips[videoGender] ?? {};
+                              return {
+                                ...prev,
+                                videos: {
+                                  enabled: prev.videos?.enabled ?? false,
+                                  avatarId: prev.videos?.avatarId ?? prev.id,
+                                  clips: { ...prevClips, [videoGender]: { ...genderClips, [state]: e.target.value } },
+                                },
+                              };
+                            })
                           }
                           placeholder="URL 직접 입력"
                           className="text-xs border-slate-300 bg-white h-7"
@@ -1546,7 +1634,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => handleGenerateVideoClip(state)}
+                          onClick={() => handleGenerateVideoClip(state, videoGender)}
                           disabled={isGenerating || !editingPersona}
                           className="h-7 text-xs"
                         >

@@ -50,7 +50,12 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
    */
   router.post("/api/admin/personas/:id/video/generate-clip", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const personaId = req.params.id;
-    const { state, styleHint } = req.body as { state?: string; styleHint?: string };
+    const { state, styleHint, gender, neutralImageUrl } = req.body as {
+      state?: string;
+      styleHint?: string;
+      gender?: string;
+      neutralImageUrl?: string;
+    };
 
     const VALID_STATES: AvatarClipState[] = [
       'idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause',
@@ -58,6 +63,9 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
     if (!state || !VALID_STATES.includes(state as AvatarClipState)) {
       throw createHttpError(400, `state must be one of: ${VALID_STATES.join(', ')}`);
     }
+
+    const resolvedGender: 'male' | 'female' =
+      gender === 'female' ? 'female' : 'male';
 
     const jobId = randomUUID();
     videoJobStore.create(jobId);
@@ -70,9 +78,11 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
           personaId,
           state: state as AvatarClipState,
           styleHint,
+          gender: resolvedGender,
+          neutralImageUrl: neutralImageUrl || undefined,
         });
         if (result.success && result.videoUrl) {
-          videoJobStore.setDone(jobId, result.videoUrl, state);
+          videoJobStore.setDone(jobId, result.videoUrl, state, resolvedGender);
         } else {
           videoJobStore.setError(jobId, result.error || '비디오 생성 실패');
         }
@@ -96,10 +106,13 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
     const record = videoJobStore.get(jobId);
     if (!record) throw createHttpError(404, 'Job not found or expired');
 
-    // Resolve raw storage path to a browser-accessible URL before returning to client
+    // Resolve raw storage path to a browser-accessible URL before returning to client.
+    // Always include the raw storageKey so the client persists a stable key, not an expiring signed URL.
     let result = record.result ?? null;
     if (result?.videoUrl) {
-      result = { ...result, videoUrl: await safeTransformToSignedUrl(result.videoUrl) };
+      const storageKey = result.videoUrl; // raw stable key
+      const displayUrl = await safeTransformToSignedUrl(storageKey);
+      result = { ...result, storageKey, videoUrl: displayUrl };
     }
 
     res.json({

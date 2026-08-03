@@ -662,15 +662,41 @@ export async function transformPersonaMedia(persona: any): Promise<any> {
   try {
     const transformedImages = await transformPersonaImages(persona.images);
 
-    // Transform videos.clips paths to accessible URLs
+    // Transform videos.clips paths to accessible URLs.
+    // Supports both the new gender-separated shape { male: {...}, female: {...} }
+    // and the legacy flat shape { idle: url, ... }.
     let transformedVideos = persona.videos;
     if (persona.videos?.clips && typeof persona.videos.clips === 'object') {
-      const transformedClips: Record<string, string> = {};
-      for (const [state, path] of Object.entries(persona.videos.clips)) {
-        if (typeof path === 'string' && path) {
-          transformedClips[state] = await safeTransformToSignedUrl(path);
-        } else {
-          transformedClips[state] = path as string;
+      const rawClips = persona.videos.clips as Record<string, any>;
+      const CLIP_STATES = new Set([
+        'idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause',
+      ]);
+      const isFlat = Object.keys(rawClips).some(k => CLIP_STATES.has(k));
+
+      let transformedClips: Record<string, any>;
+      if (isFlat) {
+        // Legacy flat shape: { idle: url, ... }
+        transformedClips = {};
+        for (const [state, path] of Object.entries(rawClips)) {
+          transformedClips[state] = typeof path === 'string' && path
+            ? await safeTransformToSignedUrl(path)
+            : path;
+        }
+      } else {
+        // New gender-separated shape: { male: { idle: url, ... }, female: { ... } }
+        transformedClips = {};
+        for (const [genderKey, genderMap] of Object.entries(rawClips)) {
+          if (genderMap && typeof genderMap === 'object') {
+            const transformedGenderMap: Record<string, string> = {};
+            for (const [state, path] of Object.entries(genderMap as Record<string, any>)) {
+              transformedGenderMap[state] = typeof path === 'string' && path
+                ? await safeTransformToSignedUrl(path)
+                : path as string;
+            }
+            transformedClips[genderKey] = transformedGenderMap;
+          } else {
+            transformedClips[genderKey] = genderMap;
+          }
         }
       }
       transformedVideos = { ...persona.videos, clips: transformedClips };

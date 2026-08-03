@@ -79,12 +79,43 @@ function videoUrl(avatarId: string, emotion: string, state: AvatarState): string
   return `/avatars/${avatarId}/${emotion}/${state}.mp4`;
 }
 
-/** Resolve a URL from the explicit clips map, trying the state directly then falling back to idle */
+const CLIP_STATES_SET = new Set([
+  'idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause',
+]);
+
+/**
+ * Resolve a URL from the explicit clips map.
+ * Supports both the new gender-separated shape ({ male?: {...}, female?: {...} })
+ * and the legacy flat shape ({ idle: url, ... }).
+ * Fallback order: requested gender → male → female → legacy flat → idle
+ */
 function resolveClipUrl(
-  clips: Partial<Record<string, string>>,
+  clips: Record<string, any>,
   state: AvatarState,
+  gender?: string,
 ): string | undefined {
-  return clips[state] ?? clips['idle'] ?? undefined;
+  if (!clips) return undefined;
+
+  // Detect shape: flat if any top-level key is a clip-state name
+  const isFlat = Object.keys(clips).some(k => CLIP_STATES_SET.has(k));
+
+  if (!isFlat) {
+    // New gender-separated shape
+    const preferredGender = gender === 'female' ? 'female' : 'male';
+    const genderMap: Partial<Record<string, string>> | undefined =
+      clips[preferredGender] ?? clips['male'] ?? clips['female'];
+    if (genderMap && typeof genderMap === 'object') {
+      return (genderMap as Partial<Record<string, string>>)[state]
+        ?? (genderMap as Partial<Record<string, string>>)['idle']
+        ?? undefined;
+    }
+    return undefined;
+  }
+
+  // Legacy flat shape
+  return (clips as Partial<Record<string, string>>)[state]
+    ?? (clips as Partial<Record<string, string>>)['idle']
+    ?? undefined;
 }
 
 // ── VideoAvatarRenderer ───────────────────────────────────────────────────────
@@ -314,7 +345,7 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     // ── Explicit clips override (persona-level video URLs) ─────────────────
     const clips = this.persona.videos?.clips;
     if (clips) {
-      const rawUrl = resolveClipUrl(clips, state);
+      const rawUrl = resolveClipUrl(clips as Record<string, any>, state, this.persona.gender);
       if (rawUrl) {
         // Normalize storage-key style refs (e.g. "videos/avatar-xxx-idle.webm")
         // to browser-playable URLs, using the same policy as other media assets.
@@ -436,9 +467,27 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     // If explicit clips are provided, preload those and skip convention probing.
     const clips = this.persona.videos?.clips;
     if (clips) {
-      const probes = Object.values(clips).filter(Boolean).map(src =>
-        this._probeVideo(src as string).then(available => {
-          if (available) this._injectPreloadLink(src as string);
+      // Collect all clip URLs regardless of flat vs gender-separated shape
+      const allUrls: string[] = [];
+      const isFlat = Object.keys(clips).some(k => CLIP_STATES_SET.has(k));
+      if (isFlat) {
+        allUrls.push(
+          ...Object.values(clips as Partial<Record<string, string>>)
+            .filter((v): v is string => typeof v === 'string' && !!v),
+        );
+      } else {
+        for (const genderMap of Object.values(clips as Record<string, any>)) {
+          if (genderMap && typeof genderMap === 'object') {
+            allUrls.push(
+              ...Object.values(genderMap as Partial<Record<string, string>>)
+                .filter((v): v is string => typeof v === 'string' && !!v),
+            );
+          }
+        }
+      }
+      const probes = allUrls.map(src =>
+        this._probeVideo(src).then(available => {
+          if (available) this._injectPreloadLink(src);
         }),
       );
       await Promise.allSettled(probes);

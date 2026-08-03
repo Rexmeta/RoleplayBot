@@ -8,7 +8,7 @@ export type VideoJobStatus = 'pending' | 'running' | 'done' | 'error';
 export interface VideoJobRecord {
   jobId: string;
   status: VideoJobStatus;
-  result?: { videoUrl: string; state: string };
+  result?: { videoUrl: string; state: string; gender: string };
   error?: string;
   createdAt: number;
 }
@@ -38,11 +38,11 @@ export class VideoJobStore {
     if (record) record.status = 'running';
   }
 
-  setDone(jobId: string, videoUrl: string, state: string): void {
+  setDone(jobId: string, videoUrl: string, state: string, gender: string): void {
     const record = this.jobs.get(jobId);
     if (record) {
       record.status = 'done';
-      record.result = { videoUrl, state };
+      record.result = { videoUrl, state, gender };
     }
   }
 

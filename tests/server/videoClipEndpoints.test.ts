@@ -231,7 +231,7 @@ describe('GET /api/admin/personas/:id/video/generate-clip/status', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('done');
-    expect(res.body.result).toEqual({ videoUrl: 'https://example.com/clip.mp4', state: 'idle' });
+    expect(res.body.result).toMatchObject({ videoUrl: 'https://example.com/clip.mp4', state: 'idle', storageKey: 'https://example.com/clip.mp4' });
     expect(res.body.error).toBeNull();
   });
 

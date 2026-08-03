@@ -404,6 +404,8 @@ export interface AvatarClipRequest {
   personaId: string;
   state: AvatarClipState;
   styleHint?: string;
+  gender?: 'male' | 'female';
+  neutralImageUrl?: string;
 }
 
 function generateAvatarClipPrompt(request: AvatarClipRequest): string {
@@ -455,13 +457,60 @@ export async function generateAvatarClip(
     const videoPrompt = generateAvatarClipPrompt(request);
     const videoModel = await getModelForFeature('video');
 
-    console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${request.state}`);
+    console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${request.state} / gender:${request.gender ?? 'unspecified'}`);
     console.log(`프롬프트: ${videoPrompt}`);
 
-    const operation = await genAI.models.generateVideos({
-      model: videoModel,
-      prompt: videoPrompt,
-    });
+    // Build optional seed image parameter.
+    // SSRF guard: only allow gs:// URIs or HTTPS URLs hosted on trusted GCS/storage domains.
+    const TRUSTED_HTTPS_HOSTS = [
+      'storage.googleapis.com',
+      'storage.cloud.google.com',
+    ];
+    function isTrustedNeutralImageUrl(url: string): boolean {
+      if (url.startsWith('gs://')) return true;
+      try {
+        const { protocol, hostname } = new URL(url);
+        if (protocol !== 'https:') return false;
+        return TRUSTED_HTTPS_HOSTS.some(h => hostname === h || hostname.endsWith(`.${h}`));
+      } catch {
+        return false;
+      }
+    }
+
+    let seedImage: { gcsUri: string } | { imageBytes: string; mimeType: string } | undefined;
+    if (request.neutralImageUrl) {
+      const url = request.neutralImageUrl;
+      if (!isTrustedNeutralImageUrl(url)) {
+        console.warn(`⚠️ neutralImageUrl 신뢰할 수 없는 출처 (SSRF 방지): ${url.substring(0, 60)} — 텍스트 프롬프트만 사용`);
+      } else {
+        try {
+          if (url.startsWith('gs://')) {
+            seedImage = { gcsUri: url };
+            console.log(`🖼️ 시드 이미지 (GCS URI): ${url}`);
+          } else {
+            // HTTPS URL from trusted host
+            const imgRes = await fetch(url);
+            if (imgRes.ok) {
+              const imgBuf = await imgRes.arrayBuffer();
+              const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+              const mimeType = contentType.split(';')[0].trim();
+              const imageBytes = Buffer.from(imgBuf).toString('base64');
+              seedImage = { imageBytes, mimeType };
+              console.log(`🖼️ 시드 이미지 (HTTPS, ${mimeType}, ${imgBuf.byteLength} bytes)`);
+            } else {
+              console.warn(`⚠️ 시드 이미지 다운로드 실패 (${imgRes.status}), 텍스트 프롬프트만 사용`);
+            }
+          }
+        } catch (imgErr: any) {
+          console.warn(`⚠️ 시드 이미지 처리 오류: ${imgErr.message}, 텍스트 프롬프트만 사용`);
+        }
+      }
+    }
+
+    const generateParams: any = { model: videoModel, prompt: videoPrompt };
+    if (seedImage) generateParams.image = seedImage;
+
+    const operation = await genAI.models.generateVideos(generateParams);
 
     let result = operation;
     let attempts = 0;
