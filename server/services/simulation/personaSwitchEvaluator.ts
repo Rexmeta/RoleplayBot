@@ -23,6 +23,13 @@ function resolveMetric(metric: string, state: SimulationState): number {
     if (key === 'interest') return state.npcAffectiveState.motivational.interest;
     return 0;
   }
+  // Support new npcAffectiveState.* dotted paths (e.g. npcAffectiveState.relational.trust)
+  if (parts[0] === 'npcAffectiveState' && parts[1] && parts[2]) {
+    const layer = parts[1];
+    const field = parts[2];
+    const affective = state.npcAffectiveState as Record<string, Record<string, number>>;
+    return affective[layer]?.[field] ?? 0;
+  }
   if (parts[0] === 'turnScores' && parts[1]) {
     const recent = state.recentTurnScores;
     if (recent.length === 0) return 0;
