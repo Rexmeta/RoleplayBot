@@ -29,6 +29,11 @@ interface PersonaInfo {
   name: string;
   image?: string;
   expressions?: Record<string, string>;
+  videos?: {
+    enabled?: boolean;
+    avatarId?: string;
+    clips?: Partial<Record<string, string>>;
+  };
 }
 
 interface UseAvatarRendererOptions {
@@ -82,14 +87,17 @@ export function useAvatarRenderer({
   // Force re-render when the renderer emits a change notification.
   const [, forceUpdate] = useState(0);
 
-  // ── Step 1: Resolve the correct renderer type once on mount ────────────────
-  // If VITE_AVATAR_RENDERER=image (the default) the factory returns
-  // ImageAvatarRenderer which is the same type as the placeholder, so no swap
-  // happens.  For "video" the dynamic import resolves and we swap in place.
+  // ── Step 1: Resolve the correct renderer type on mount and on persona change ─
+  // Persona-level videos.enabled flag is checked first; VITE_AVATAR_RENDERER
+  // env-var is the global fallback.  We track the persona ID so that switching
+  // to a video-enabled persona from an image-only one (or vice versa) triggers
+  // a renderer swap.
+  const videosEnabled = persona.videos?.enabled ?? false;
   useEffect(() => {
     let cancelled = false;
 
-    createAvatarRenderer().then(resolved => {
+    const hint = videosEnabled ? 'video' : undefined;
+    createAvatarRenderer(hint).then(resolved => {
       if (cancelled) {
         resolved.destroy();
         return;
@@ -107,7 +115,7 @@ export function useAvatarRenderer({
     });
 
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [persona.id, videosEnabled]); // re-run when persona or video mode changes
 
   // ── Step 2: Initialize + subscribe on every relevant change ───────────────
   // Depends on `rendererInstance` so it automatically re-runs after a swap.
@@ -121,6 +129,7 @@ export function useAvatarRenderer({
         name: persona.name,
         image: persona.image,
         expressions: persona.expressions,
+        videos: persona.videos,
       },
       conversationId,
       () => onReadyRef.current?.(),

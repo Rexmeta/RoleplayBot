@@ -79,6 +79,14 @@ function videoUrl(avatarId: string, emotion: string, state: AvatarState): string
   return `/avatars/${avatarId}/${emotion}/${state}.mp4`;
 }
 
+/** Resolve a URL from the explicit clips map, trying the state directly then falling back to idle */
+function resolveClipUrl(
+  clips: Partial<Record<string, string>>,
+  state: AvatarState,
+): string | undefined {
+  return clips[state] ?? clips['idle'] ?? undefined;
+}
+
 // ── VideoAvatarRenderer ───────────────────────────────────────────────────────
 
 export class VideoAvatarRenderer implements AvatarRenderer {
@@ -294,12 +302,30 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
   /**
    * Start playing a state + emotion combination.
-   * Tries emotion-specific asset first; falls back to neutral on load error.
+   *
+   * Priority:
+   * 1. If persona.videos.clips has an entry for this state → use it directly.
+   * 2. Fall back to the convention-based avatarId/emotion/state.mp4 path.
+   * Neutral is always the fallback for the convention path.
    */
   private async _play(state: AvatarState, emotionEn: string): Promise<void> {
     if (!this.persona || this.destroyed) return;
 
-    const avatarId = this.persona.id;
+    // ── Explicit clips override (persona-level video URLs) ─────────────────
+    const clips = this.persona.videos?.clips;
+    if (clips) {
+      const rawUrl = resolveClipUrl(clips, state);
+      if (rawUrl) {
+        // Normalize storage-key style refs (e.g. "videos/avatar-xxx-idle.webm")
+        // to browser-playable URLs, using the same policy as other media assets.
+        const explicitUrl = toMediaUrl(rawUrl) || rawUrl;
+        await this._crossFadeTo(explicitUrl);
+        return;
+      }
+    }
+
+    // ── Convention-based path ──────────────────────────────────────────────
+    const avatarId = this.persona.videos?.avatarId ?? this.persona.id;
     const resolvedEmotion = this.resolveEmotionFolder(avatarId, emotionEn, state);
     const src = videoUrl(avatarId, resolvedEmotion, state);
 
@@ -406,10 +432,22 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
   async preloadAssets(): Promise<void> {
     if (!this.persona) return;
-    const avatarId = this.persona.id;
+
+    // If explicit clips are provided, preload those and skip convention probing.
+    const clips = this.persona.videos?.clips;
+    if (clips) {
+      const probes = Object.values(clips).filter(Boolean).map(src =>
+        this._probeVideo(src as string).then(available => {
+          if (available) this._injectPreloadLink(src as string);
+        }),
+      );
+      await Promise.allSettled(probes);
+      return;
+    }
+
+    const avatarId = this.persona.videos?.avatarId ?? this.persona.id;
 
     // Probe all state assets for the current emotion + neutral fallback.
-    // Both are needed: current emotion for immediate display, neutral as fallback.
     const emotionsToProbe = Array.from(
       new Set([this.currentEmotionEn, 'neutral']),
     );

@@ -231,7 +231,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     displayImageUrl, overlayColor, isTransitioning, isInitialLoading, isOverlayFading,
     hasNoPersonaImages, currentEmotion, getCharacterImage, setEmotion, playState, renderer,
   } = useAvatarRenderer({
-    persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions },
+    persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions, videos: activePersona.videos },
     conversationId, onReady,
   });
 

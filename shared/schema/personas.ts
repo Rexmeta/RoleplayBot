@@ -41,6 +41,11 @@ export const mbtiPersonas = pgTable("mbti_personas", {
       expressions?: Record<string, string>;
     };
   }>(),
+  videos: jsonb("videos").$type<{
+    enabled: boolean;
+    avatarId?: string;
+    clips?: Partial<Record<string, string>>;
+  }>(),
   freeChatAvailable: boolean("free_chat_available").notNull().default(false),
   freeChatDescription: text("free_chat_description"),
   storeListed: boolean("store_listed").notNull().default(false),

@@ -390,6 +390,159 @@ export function getVideoGenerationStatus(): { available: boolean; reason?: strin
   };
 }
 
+// ── Avatar clip generation ────────────────────────────────────────────────────
+
+export type AvatarClipState =
+  | 'idle'
+  | 'listening'
+  | 'listening_nod'
+  | 'thinking'
+  | 'speaking'
+  | 'speaking_pause';
+
+export interface AvatarClipRequest {
+  personaId: string;
+  state: AvatarClipState;
+  styleHint?: string;
+}
+
+function generateAvatarClipPrompt(request: AvatarClipRequest): string {
+  const { state, styleHint } = request;
+  const base = styleHint
+    ? `A professional person (${styleHint}), `
+    : 'A professional person, ';
+
+  const stateDescriptions: Record<AvatarClipState, string> = {
+    idle:
+      base + 'standing or sitting calmly, neutral expression, slight breathing movement, loopable. ' +
+      'Cinematic, photorealistic, soft lighting, no text, no background distractions. 6 seconds.',
+    listening:
+      base + 'attentive, head slightly tilted, eyes focused on speaker, nodding very slightly, loopable. ' +
+      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+    listening_nod:
+      base + 'nodding expressively, eyes open, engaged expression, loopable. ' +
+      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+    thinking:
+      base + 'thoughtful expression, eyes slightly down or away, subtle chin-touch or pause, loopable. ' +
+      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+    speaking:
+      base + 'speaking naturally, mouth moving, animated facial expression, loopable. ' +
+      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+    speaking_pause:
+      base + 'mid-speech pause, thoughtful expression, slight inhale, loopable. ' +
+      'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
+  };
+
+  return stateDescriptions[state] ?? stateDescriptions['idle'];
+}
+
+/**
+ * Generate a single avatar clip (looping video for the given AvatarClipState)
+ * using Gemini Veo and persist it to storage.
+ */
+export async function generateAvatarClip(
+  request: AvatarClipRequest,
+): Promise<VideoGenerationResult> {
+  if (!apiKey) {
+    return {
+      success: false,
+      error: 'GEMINI_API_KEY 또는 GOOGLE_API_KEY가 설정되지 않았습니다.',
+    };
+  }
+
+  try {
+    const genAI = new GoogleGenAI({ apiKey });
+    const videoPrompt = generateAvatarClipPrompt(request);
+    const videoModel = await getModelForFeature('video');
+
+    console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${request.state}`);
+    console.log(`프롬프트: ${videoPrompt}`);
+
+    const operation = await genAI.models.generateVideos({
+      model: videoModel,
+      prompt: videoPrompt,
+    });
+
+    let result = operation;
+    let attempts = 0;
+    while (!result.done && attempts < VIDEO_CONFIG.maxPollingAttempts) {
+      await new Promise(resolve => setTimeout(resolve, VIDEO_CONFIG.pollingIntervalMs));
+      try {
+        result = await genAI.operations.getVideosOperation({ operation: result });
+      } catch (_) { /* retry */ }
+      attempts++;
+      console.log(`⏳ 아바타 클립 생성 중... (${attempts}/${VIDEO_CONFIG.maxPollingAttempts})`);
+    }
+
+    if (!result.done) {
+      return { success: false, error: '비디오 생성 시간이 초과되었습니다.' };
+    }
+    if (result.error) {
+      const msg = typeof result.error === 'object'
+        ? (result.error as any).message || JSON.stringify(result.error)
+        : String(result.error);
+      return { success: false, error: msg };
+    }
+
+    const generatedVideos = result.response?.generatedVideos;
+    if (!generatedVideos?.length) {
+      return { success: false, error: '생성된 비디오가 없습니다.' };
+    }
+
+    const videoData = generatedVideos[0].video;
+    if (!videoData) return { success: false, error: '비디오 데이터를 찾을 수 없습니다.' };
+
+    let videoBytes: Uint8Array | undefined;
+    if (videoData.uri) {
+      const downloadUrl = new URL(videoData.uri);
+      downloadUrl.searchParams.set('key', apiKey!);
+      const response = await fetch(downloadUrl.toString(), {
+        headers: { 'x-goog-api-key': apiKey! },
+      });
+      if (!response.ok) throw new Error(`비디오 다운로드 실패: ${response.status}`);
+      videoBytes = new Uint8Array(await response.arrayBuffer());
+    } else if (videoData.videoBytes) {
+      if (typeof videoData.videoBytes === 'string') {
+        const bin = atob(videoData.videoBytes);
+        videoBytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) videoBytes[i] = bin.charCodeAt(i);
+      } else {
+        videoBytes = videoData.videoBytes as Uint8Array;
+      }
+    }
+
+    if (!videoBytes) return { success: false, error: '비디오 바이트를 추출할 수 없습니다.' };
+
+    const storagePath = await mediaStorage.saveVideo(
+      videoBytes,
+      `avatar-${request.personaId}`,
+      `${request.personaId}-${request.state}`,
+    );
+
+    trackVideoUsage({
+      model: videoModel,
+      provider: 'gemini',
+      metadata: { personaId: request.personaId, state: request.state, durationSeconds: 6 },
+    });
+
+    console.log(`✅ 아바타 클립 생성 완료: ${storagePath}`);
+
+    return {
+      success: true,
+      videoUrl: storagePath,
+      prompt: videoPrompt,
+      metadata: { model: videoModel, provider: 'gemini', durationSeconds: 6, savedLocally: true },
+    };
+  } catch (error: any) {
+    console.error('아바타 클립 생성 오류:', error);
+    if (error.message?.includes('quota') || error.status === 429)
+      return { success: false, error: 'API 요청 한도를 초과했습니다.' };
+    if (error.message?.includes('safety') || error.message?.includes('policy'))
+      return { success: false, error: '콘텐츠 정책에 위반됩니다.' };
+    return { success: false, error: error.message || '알 수 없는 오류가 발생했습니다.' };
+  }
+}
+
 export function getDefaultVideoPrompt(request: {
   scenarioTitle: string;
   description?: string;

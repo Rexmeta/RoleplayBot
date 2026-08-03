@@ -260,10 +260,32 @@ export class FileManagerService {
     if (scenario.personas && Array.isArray(scenario.personas)) {
       const enrichedPersonas = await Promise.all(
         scenario.personas.map(async (persona: any) => {
-          if (typeof persona === 'object' && persona.personaRef) {
-            return await enrichPersonaWithBasicMBTI(persona, persona.personaRef);
+          if (typeof persona !== 'object') return persona;
+
+          // Enrich with basic MBTI field (mbti string) from the JSON file
+          const withMbti = persona.personaRef
+            ? await enrichPersonaWithBasicMBTI(persona, persona.personaRef)
+            : persona;
+
+          // Also propagate `videos` from the DB MBTI persona record.
+          // The MBTI persona ID is derived from personaRef ("intp.json" → "intp")
+          // or falls back to the persona's own id.
+          const mbtiId = persona.personaRef
+            ? persona.personaRef.replace('.json', '')
+            : persona.id;
+
+          if (mbtiId && !withMbti.videos) {
+            try {
+              const dbMbti = await storage.getMbtiPersona(mbtiId);
+              if (dbMbti?.videos) {
+                return { ...withMbti, videos: dbMbti.videos };
+              }
+            } catch {
+              // Non-critical: skip if lookup fails
+            }
           }
-          return persona;
+
+          return withMbti;
         })
       );
       scenario.personas = enrichedPersonas;
@@ -596,6 +618,7 @@ export class FileManagerService {
       communication_patterns: dbPersona.communicationPatterns,
       voice: dbPersona.voice,
       images: dbPersona.images || null,
+      videos: dbPersona.videos ?? null,
       freeChatAvailable: dbPersona.freeChatAvailable || false,
       freeChatDescription: dbPersona.freeChatDescription || '',
       storeListed: dbPersona.storeListed || false,
@@ -625,6 +648,7 @@ export class FileManagerService {
           communicationPatterns: personaData.communication_patterns || null,
           voice: personaData.voice || null,
           images: personaData.images || null,
+          videos: personaData.videos || null,
           storeListed: personaData.storeListed || false,
           storePriceUsd: personaData.storePriceUsd ?? null,
           storePackId: personaData.storePackId ?? null,
@@ -669,6 +693,7 @@ export class FileManagerService {
           communicationPatterns: personaData.communication_patterns,
           voice: personaData.voice,
           images: personaData.images,
+          videos: personaData.videos ?? null,
           freeChatAvailable: personaData.freeChatAvailable ?? false,
           freeChatDescription: personaData.freeChatDescription ?? '',
           storeListed: personaData.storeListed ?? false,

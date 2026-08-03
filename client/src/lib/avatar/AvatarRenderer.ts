@@ -19,6 +19,12 @@ export interface AvatarPersonaInfo {
   image?: string;
   /** Emotion-keyed expression URLs returned by the API (optional) */
   expressions?: Record<string, string>;
+  /** Video avatar configuration (optional) */
+  videos?: {
+    enabled?: boolean;
+    avatarId?: string;
+    clips?: Partial<Record<string, string>>;
+  };
 }
 
 // ── Renderer interface ────────────────────────────────────────────────────────

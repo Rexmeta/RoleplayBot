@@ -49,6 +49,12 @@ export interface ScenarioPersona {
     /** @deprecated flat emotion string replaced by NpcAffectiveState at session start */
     emotion?: string;
   };
+  /** Video avatar configuration (from MBTI persona, optional) */
+  videos?: {
+    enabled?: boolean;
+    avatarId?: string;
+    clips?: Partial<Record<string, string>>;
+  };
   // Multi-persona switching fields
   isPrimary?: boolean;
   triggerHints?: string[];

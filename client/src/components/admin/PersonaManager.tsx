@@ -194,6 +194,11 @@ interface MBTIPersonaFormData {
   storeListed?: boolean;
   storePriceUsd?: number | null;
   storePackId?: string | null;
+  videos?: {
+    enabled: boolean;
+    avatarId: string;
+    clips: Partial<Record<string, string>>;
+  };
 }
 
 interface PersonaManagerProps {
@@ -231,6 +236,9 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   
   // 개별 표정 이미지 생성 상태
   const [generatingSingleEmotion, setGeneratingSingleEmotion] = useState<string | null>(null);
+  
+  // 비디오 아바타 생성 상태
+  const [generatingVideoClip, setGeneratingVideoClip] = useState<string | null>(null);
   
   // 이미지 로드 실패 상태 추적
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
@@ -657,6 +665,37 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     }
   };
 
+  // 비디오 클립 개별 생성 핸들러
+  const handleGenerateVideoClip = async (state: string) => {
+    if (!formData.id || !editingPersona) {
+      toast({ title: '오류', description: '페르소나를 먼저 저장해주세요.', variant: 'destructive' });
+      return;
+    }
+    setGeneratingVideoClip(state);
+    try {
+      const response = await apiRequest('POST', `/api/admin/personas/${formData.id}/video/generate-clip`, {
+        state,
+        styleHint: formData.images?.style || undefined,
+      });
+      const result = await response.json();
+      if (result.success && result.videoUrl) {
+        setFormData(prev => ({
+          ...prev,
+          videos: {
+            enabled: prev.videos?.enabled ?? true,
+            avatarId: prev.videos?.avatarId ?? prev.id,
+            clips: { ...(prev.videos?.clips ?? {}), [state]: result.videoUrl },
+          },
+        }));
+        toast({ title: '저장 중', description: `${state} 클립 생성 완료. 저장을 눌러 반영하세요.` });
+      }
+    } catch (error: any) {
+      toast({ title: '생성 오류', description: error.message || '클립 생성 실패', variant: 'destructive' });
+    } finally {
+      setGeneratingVideoClip(null);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       id: '',
@@ -694,7 +733,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         style: '',
         male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } },
         female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } }
-      }
+      },
+      videos: { enabled: false, avatarId: '', clips: {} },
     });
     setRawInputs({
       personality_traits: '',
@@ -774,6 +814,13 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       storeListed: (persona as any).storeListed ?? false,
       storePriceUsd: (persona as any).storePriceUsd ?? null,
       storePackId: (persona as any).storePackId ?? null,
+      videos: (persona as any).videos
+        ? {
+            enabled: (persona as any).videos.enabled ?? false,
+            avatarId: (persona as any).videos.avatarId ?? persona.id,
+            clips: (persona as any).videos.clips ?? {},
+          }
+        : { enabled: false, avatarId: persona.id, clips: {} },
     });
     // rawInputs도 설정 (쉼표로 구분된 필드들)
     setRawInputs({
@@ -1332,6 +1379,103 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                     );
                   })}
                 </div>
+              </div>
+
+              {/* 비디오 아바타 섹션 */}
+              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i className="fas fa-video text-violet-600"></i>
+                    비디오 아바타
+                  </h3>
+                </div>
+
+                {/* 활성화 스위치 + Avatar ID */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="videoEnabled"
+                      checked={formData.videos?.enabled ?? false}
+                      onCheckedChange={(checked) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          videos: { enabled: checked, avatarId: prev.videos?.avatarId ?? prev.id, clips: prev.videos?.clips ?? {} },
+                        }))
+                      }
+                    />
+                    <Label htmlFor="videoEnabled" className="text-sm font-semibold text-slate-700">
+                      비디오 아바타 활성화
+                    </Label>
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="videoAvatarId" className="text-sm font-semibold text-slate-700 mb-1 block">
+                      Avatar ID
+                    </Label>
+                    <Input
+                      id="videoAvatarId"
+                      value={formData.videos?.avatarId ?? formData.id}
+                      onChange={(e) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          videos: { enabled: prev.videos?.enabled ?? false, avatarId: e.target.value, clips: prev.videos?.clips ?? {} },
+                        }))
+                      }
+                      placeholder="아바타 ID (기본: 페르소나 ID)"
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 6개 상태 슬롯 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'] as const).map((state) => {
+                    const clipUrl = formData.videos?.clips?.[state] ?? '';
+                    const isGenerating = generatingVideoClip === state;
+                    return (
+                      <div key={state} className="border border-slate-200 rounded-lg p-3 bg-slate-50 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-700">{state}</span>
+                          {clipUrl && (
+                            <a href={clipUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[80px]">보기</a>
+                          )}
+                        </div>
+                        <Input
+                          value={clipUrl}
+                          onChange={(e) =>
+                            setFormData(prev => ({
+                              ...prev,
+                              videos: {
+                                enabled: prev.videos?.enabled ?? false,
+                                avatarId: prev.videos?.avatarId ?? prev.id,
+                                clips: { ...(prev.videos?.clips ?? {}), [state]: e.target.value },
+                              },
+                            }))
+                          }
+                          placeholder="URL 직접 입력"
+                          className="text-xs border-slate-300 bg-white h-7"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGenerateVideoClip(state)}
+                          disabled={isGenerating || !editingPersona}
+                          className="h-7 text-xs"
+                        >
+                          {isGenerating ? (
+                            <><RefreshCw className="w-3 h-3 mr-1 animate-spin" />생성 중…</>
+                          ) : (
+                            <><i className="fas fa-magic mr-1"></i>Veo 생성</>
+                          )}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {!editingPersona && (
+                  <p className="text-sm text-slate-500 mt-3">페르소나를 먼저 저장한 후 클립을 생성할 수 있습니다.</p>
+                )}
               </div>
 
               {/* 자유 대화 설정 섹션 */}

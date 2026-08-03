@@ -14,8 +14,10 @@ import { ImageAvatarRenderer } from './ImageAvatarRenderer';
 
 export type AvatarRendererType = 'image' | 'video';
 
-export async function createAvatarRenderer(): Promise<AvatarRenderer> {
-  const type = (import.meta.env.VITE_AVATAR_RENDERER as AvatarRendererType | undefined) ?? 'image';
+export async function createAvatarRenderer(hint?: 'image' | 'video'): Promise<AvatarRenderer> {
+  // hint (persona-level setting) takes priority over the env variable
+  const envType = (import.meta.env.VITE_AVATAR_RENDERER as AvatarRendererType | undefined) ?? 'image';
+  const type: AvatarRendererType = hint ?? envType;
 
   switch (type) {
     case 'video': {
