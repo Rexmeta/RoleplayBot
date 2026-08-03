@@ -111,8 +111,9 @@ export function GoalsSidebar({
 
   if (variant === 'sidebar') {
     return (
-      <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 overflow-y-auto z-30 h-full">
-        <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4">
+      <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 z-30 h-full overflow-hidden">
+        {/* 상단: 페르소나 정보 — 고정 높이 */}
+        <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4 shrink-0">
           <div className="flex items-center space-x-2">
             <span className="text-sm font-semibold text-slate-800">{personaDept} {personaRole} {personaName}</span>
             {isAdmin && latestEmotion && (
@@ -127,40 +128,44 @@ export function GoalsSidebar({
           </div>
         </div>
 
+        {/* 중단: 역할·목표 — 내용이 길면 이 영역 안에서 스크롤 */}
         {hasGoals && (
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 mb-4 text-xs leading-relaxed space-y-3">
-            {(scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility) && (
-              <div>
-                <div className="font-semibold text-corporate-600 mb-1.5 flex items-center justify-between">
-                  <span>👤 {t('chat.yourRole')}</span>
-                  <span className="text-slate-500 font-normal">
-                    {scenario.context?.playerRole?.position}
-                    {scenario.context?.playerRole?.experience && ` (${scenario.context.playerRole.experience})`}
-                  </span>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 mb-4 text-xs leading-relaxed flex flex-col min-h-0 shrink overflow-hidden">
+            <div className="overflow-y-auto p-4 space-y-3">
+              {(scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility) && (
+                <div>
+                  <div className="font-semibold text-corporate-600 mb-1.5 flex items-center justify-between">
+                    <span>👤 {t('chat.yourRole')}</span>
+                    <span className="text-slate-500 font-normal">
+                      {scenario.context?.playerRole?.position}
+                      {scenario.context?.playerRole?.experience && ` (${scenario.context.playerRole.experience})`}
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 text-slate-700 rounded px-2 py-1.5">
+                    {scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility}
+                  </div>
                 </div>
-                <div className="bg-slate-50 text-slate-700 rounded px-2 py-1.5">
-                  {scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility}
+              )}
+              {scenario.objectives && scenario.objectives.length > 0 && (
+                <div>
+                  <div className="font-semibold text-blue-600 mb-1.5">🎯 {t('chat.achievementGoals')}</div>
+                  <div className="space-y-1.5">
+                    {scenario.objectives.map((objective: string, index: number) => (
+                      <div key={index} className="flex items-start space-x-2">
+                        <span className="text-blue-500 text-xs mt-0.5">•</span>
+                        <span className="flex-1 text-slate-700">{objective}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-            {scenario.objectives && scenario.objectives.length > 0 && (
-              <div>
-                <div className="font-semibold text-blue-600 mb-1.5">🎯 {t('chat.achievementGoals')}</div>
-                <div className="space-y-1.5">
-                  {scenario.objectives.map((objective: string, index: number) => (
-                    <div key={index} className="flex items-start space-x-2">
-                      <span className="text-blue-500 text-xs mt-0.5">•</span>
-                      <span className="flex-1 text-slate-700">{objective}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
+        {/* 하단: NPC 상태 — 항상 보이도록 shrink-0 */}
         {isSimulationEnabled && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden shrink-0">
             <button
               onClick={onToggleNpc}
               className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors duration-200"
