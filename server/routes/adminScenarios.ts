@@ -597,7 +597,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     const oldVideoPath = scenario.introVideoUrl || null;
     const jobId = randomUUID();
-    videoJobStore.create(jobId);
+    videoJobStore.create(jobId, scenarioId, 'intro', '');
 
     console.log(`🎬 시나리오 인트로 비디오 생성 시작 (비동기): ${scenario.title} jobId=${jobId}`);
 
@@ -649,7 +649,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     const { jobId } = req.query as { jobId?: string };
     if (!jobId) throw createHttpError(400, 'jobId query parameter is required');
 
-    const record = videoJobStore.get(jobId);
+    const record = await videoJobStore.get(jobId);
     if (!record) throw createHttpError(404, 'Job not found or expired');
 
     let result = record.result ?? null;

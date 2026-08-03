@@ -422,22 +422,22 @@ function generateAvatarClipPrompt(request: AvatarClipRequest): string {
 
   const stateDescriptions: Record<AvatarClipState, string> = {
     idle:
-      base + 'standing or sitting calmly, neutral expression, slight breathing movement, loopable. ' +
+      base + 'standing calmly in a modern office, relaxed posture, upper body visible, soft ambient background, loopable. ' +
       'Cinematic, photorealistic, soft lighting, no text, no background distractions. 6 seconds.',
     listening:
-      base + 'attentive, head slightly tilted, eyes focused on speaker, nodding very slightly, loopable. ' +
+      base + 'in a professional setting, upper body visible, attentive posture, slightly turned toward a colleague, loopable. ' +
       'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
     listening_nod:
-      base + 'nodding expressively, eyes open, engaged expression, loopable. ' +
+      base + 'in a bright conference room, upper body visible, leaning forward with an engaged posture, loopable. ' +
       'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
     thinking:
-      base + 'thoughtful expression, eyes slightly down or away, subtle chin-touch or pause, loopable. ' +
+      base + 'in a modern office, upper body visible, pausing with a contemplative posture, gaze directed slightly away, loopable. ' +
       'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
     speaking:
-      base + 'speaking naturally, mouth moving, animated facial expression, loopable. ' +
+      base + 'in a modern office, gesturing during a conversation, upper body visible, engaged body language, loopable. ' +
       'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
     speaking_pause:
-      base + 'mid-speech pause, thoughtful expression, slight inhale, loopable. ' +
+      base + 'in a professional setting, upper body visible, pausing mid-conversation with a composed posture, loopable. ' +
       'Cinematic, photorealistic, soft lighting, no text. 6 seconds.',
   };
 
