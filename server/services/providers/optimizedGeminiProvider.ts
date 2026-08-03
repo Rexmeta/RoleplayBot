@@ -384,7 +384,7 @@ ${experience ? `- 경력: ${experience}` : ''}
     const userNameGuide = normalizedUserName ? `
 **상대방 실명 호칭 (반드시 따를 것)**:
 - 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다
-- 대화 중 자연스럽게 "${normalizedUserName} 씨" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요
+- 대화 중 자연스럽게 "${normalizedUserName}님" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요
 - 역할 직책과 함께 또는 이름만으로 자연스럽게 부르세요` : '';
 
     // 직위 위계에 따른 말투 지시 (conversationContextBuilder에서 중앙 관리)

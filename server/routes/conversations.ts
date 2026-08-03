@@ -737,7 +737,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
               ].filter(Boolean).join("\n")
             : "";
           const scenePrefix = sceneBlock ? `${sceneBlock}\n\n` : "";
-          const userNameLine = userName ? `상대방 실명: 대화 상대방의 이름은 [${userName}]입니다. 대화 중 자연스럽게 "${userName}" 또는 "${userName} 씨"로 불러주세요.` : "";
+          const userNameLine = userName ? `상대방 실명: 대화 상대방의 이름은 [${userName}]입니다. 대화 중 자연스럽게 "${userName}" 또는 "${userName}님"으로 불러주세요.` : "";
           return `${scenePrefix}당신은 "${userPersonaData.name}"라는 AI 캐릭터입니다.
 
 ${userPersonaData.description ? `캐릭터 설명: ${userPersonaData.description}` : ""}

@@ -103,7 +103,7 @@ export class CustomProvider implements AIServiceInterface {
       const userNameSection = normalizedUserName ? `
 상대방 실명 호칭:
 - 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다
-- 대화 중 자연스럽게 "${normalizedUserName} 씨" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요` : '';
+- 대화 중 자연스럽게 "${normalizedUserName}님" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요` : '';
 
       const systemPrompt = `당신은 ${persona.name}(${persona.role})입니다.
 
@@ -323,7 +323,7 @@ ${conversationHistory}
 - 응답 스타일: ${persona.responseStyle}
 - 배경: ${persona.background}
 - 목표: ${persona.goals.join(', ')}
-${normalizedUserName ? `\n상대방 실명 호칭:\n- 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다\n- 대화 중 자연스럽게 "${normalizedUserName} 씨" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요` : ''}
+${normalizedUserName ? `\n상대방 실명 호칭:\n- 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다\n- 대화 중 자연스럽게 "${normalizedUserName}님" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요` : ''}
 대화 규칙:
 1. 주어진 페르소나를 정확히 구현하세요
 2. 자연스럽고 현실적인 대화를 유지하세요
