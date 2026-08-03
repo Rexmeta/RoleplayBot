@@ -519,35 +519,24 @@ export async function generateAvatarClip(
 
     // Build optional seed image parameter.
     // The Gemini API only accepts imageBytes (base64) — gcsUri is NOT supported.
-    // We read the neutral image directly from PRIVATE_OBJECT_DIR (local disk),
-    // which is always present in both dev (Replit) and production environments.
+    // mediaStorage.readImageBuffer() handles the full storage chain:
+    //   Replit Object Storage sidecar → GCS fallback
+    // This works correctly even when the local sidecar cache is cold or files
+    // live only in GCS (the dual-write backend keeps them in sync).
     let seedImage: { imageBytes: string; mimeType: string } | undefined;
     if (request.neutralImageUrl) {
       try {
-        const objectDir = process.env.PRIVATE_OBJECT_DIR;
-        if (!objectDir) {
-          console.warn('⚠️ PRIVATE_OBJECT_DIR 미설정 — 시드 이미지 없이 텍스트 프롬프트만 사용');
+        const key = request.neutralImageUrl.replace(/^\/+/, '');
+        const imgBuf = await mediaStorage.readImageBuffer(key);
+        if (imgBuf && imgBuf.byteLength > 0) {
+          const ext = path.extname(key).toLowerCase().replace('.', '');
+          const mimeType = ext === 'webp' ? 'image/webp'
+            : ext === 'png'  ? 'image/png'
+            : 'image/jpeg';
+          seedImage = { imageBytes: imgBuf.toString('base64'), mimeType };
+          console.log(`🖼️ 시드 이미지 로드: ${key} (${mimeType}, ${imgBuf.byteLength} bytes)`);
         } else {
-          // neutralImageUrl is a relative object-storage key like "personas/ac/male/neutral.webp"
-          const key = request.neutralImageUrl.replace(/^\/+/, '');
-          const localPath = path.join(objectDir, key);
-
-          // Basic path-traversal guard
-          const resolvedPath = path.resolve(localPath);
-          const resolvedDir  = path.resolve(objectDir);
-          if (!resolvedPath.startsWith(resolvedDir + path.sep) && resolvedPath !== resolvedDir) {
-            console.warn(`⚠️ 시드 이미지 경로 이탈 감지: ${key} — 시드 이미지 스킵`);
-          } else if (fs.existsSync(localPath)) {
-            const imgBuf = fs.readFileSync(localPath);
-            const ext = path.extname(localPath).toLowerCase().replace('.', '');
-            const mimeType = ext === 'webp' ? 'image/webp'
-              : ext === 'png'  ? 'image/png'
-              : 'image/jpeg';
-            seedImage = { imageBytes: imgBuf.toString('base64'), mimeType };
-            console.log(`🖼️ 시드 이미지 로드: ${key} (${mimeType}, ${imgBuf.byteLength} bytes)`);
-          } else {
-            console.warn(`⚠️ 시드 이미지 파일 없음: ${localPath} — 텍스트 프롬프트만 사용`);
-          }
+          console.warn(`⚠️ 시드 이미지를 찾을 수 없음: ${key} — 텍스트 프롬프트만 사용`);
         }
       } catch (imgErr: any) {
         console.warn(`⚠️ 시드 이미지 처리 오류: ${imgErr.message} — 텍스트 프롬프트만 사용`);
