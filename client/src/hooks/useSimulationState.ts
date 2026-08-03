@@ -2,13 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 
-export interface NpcEmotions {
-  anger: number;
-  trust: number;
-  confusion: number;
-  interest: number;
-}
-
 export interface NpcAffectiveState {
   affective: {
     intensity: number;
@@ -57,8 +50,6 @@ export interface SimulationState {
   version: number;
   stage: 'intro' | 'conflict' | 'negotiation' | 'escalation' | 'resolution';
   pressureLevel: number;
-  /** @deprecated Derived from npcAffectiveState for backward compatibility only. */
-  npcEmotions: NpcEmotions;
   /** Primary NPC state — single source of truth. */
   npcAffectiveState: NpcAffectiveState;
   timer: {

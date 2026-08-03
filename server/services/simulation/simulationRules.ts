@@ -2,7 +2,6 @@ import {
   SimulationState,
   SimulationStatePatch,
   TurnScore,
-  NpcEmotions,
   NpcAffectiveState,
   DeepPartial,
   ScenarioStage,
@@ -83,10 +82,8 @@ export function applyNpcBehaviorHarnessModifiers(
 ): DeepPartial<NpcAffectiveState> {
   if (!harness?.negotiationBounds) return baseDelta;
   const bounds = harness.negotiationBounds;
-  // Prefer npcAffectiveState (primary source of truth); fall back to flat npcEmotions
-  // so legacy states (persisted before npcAffectiveState was introduced) don't crash here.
-  const intensity = currentState.npcAffectiveState?.affective.intensity ?? currentState.npcEmotions.anger;
-  const trust = currentState.npcAffectiveState?.relational.trust ?? currentState.npcEmotions.trust;
+  const intensity = currentState.npcAffectiveState.affective.intensity;
+  const trust = currentState.npcAffectiveState.relational.trust;
 
   // Deep-merge helper for affective state deltas
   const merge = (a: DeepPartial<NpcAffectiveState>, b: DeepPartial<NpcAffectiveState>): DeepPartial<NpcAffectiveState> => ({

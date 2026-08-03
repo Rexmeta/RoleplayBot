@@ -323,7 +323,7 @@ function buildEvaluationPrompt(input: EvaluationInput): string {
   const stateBlock = buildSimulationStateBlock({
     stage: simulationState.stage,
     pressureLevel: simulationState.pressureLevel,
-    npcEmotions: simulationState.npcEmotions,
+    npcAffectiveState: simulationState.npcAffectiveState,
     currentScore: simulationState.currentScore,
     recentTurnScores: simulationState.recentTurnScores.slice(-2),
   });

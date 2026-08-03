@@ -15,7 +15,8 @@ export function inferIncidentCandidate(
   language: 'ko' | 'en' | 'ja' | 'zh' = 'ko',
   scenarioContext = ''
 ): Incident | null {
-  const { anger, trust } = state.npcEmotions;
+  const anger = state.npcAffectiveState.affective.intensity;
+  const trust = state.npcAffectiveState.relational.trust;
   const pressure = state.pressureLevel;
 
   let type: IncidentType | null = null;

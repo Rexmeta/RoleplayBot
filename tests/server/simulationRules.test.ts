@@ -81,7 +81,12 @@ describe('buildRuleFallbackPatch', () => {
       ...createDefaultSimulationState(),
       stage: 'conflict' as const,
       pressureLevel: 4,
-      npcEmotions: { anger: 85, trust: 20, confusion: 30, interest: 20 },
+      npcAffectiveState: {
+        affective: { intensity: 85, valence: 0 },
+        cognitive: { confusion: 30, load: 20 },
+        relational: { trust: 20, rapport: 40 },
+        motivational: { interest: 20, cooperativeness: 40 },
+      },
       summary: { totalTurns: 6, totalIncidents: 0, averageScore: 40, maxAnger: 85, minTrust: 20 },
     };
     const ts = makeTurnScore(30);
@@ -92,47 +97,4 @@ describe('buildRuleFallbackPatch', () => {
   });
 });
 
-describe('applyNpcBehaviorHarnessModifiers — legacy state safety', () => {
-  it('does not crash when npcAffectiveState is absent (legacy state) and negotiationBounds is set', () => {
-    // Regression: this would throw "Cannot read properties of undefined (reading 'affective')"
-    // before the guard was added.
-    const legacyState = {
-      ...createDefaultSimulationState(),
-      npcEmotions: { anger: 85, trust: 20, confusion: 30, interest: 40 },
-      npcAffectiveState: undefined as any,
-    };
-
-    const harness = {
-      negotiationBounds: {
-        maxAngerBeforeWalkout: 80,
-        minTrustToYield: 30,
-      },
-    };
-
-    expect(() => {
-      applyNpcBehaviorHarnessModifiers({}, harness, legacyState);
-    }).not.toThrow();
-  });
-
-  it('reads intensity and trust from flat npcEmotions when npcAffectiveState is absent', () => {
-    const legacyState = {
-      ...createDefaultSimulationState(),
-      npcEmotions: { anger: 85, trust: 20, confusion: 30, interest: 40 },
-      npcAffectiveState: undefined as any,
-    };
-
-    const harness = {
-      negotiationBounds: {
-        maxAngerBeforeWalkout: 80, // anger=85 ≥ 80 → should trigger extra intensity/trust penalty
-        minTrustToYield: 30,       // trust=20 < 30 → should also trigger
-      },
-    };
-
-    const result = applyNpcBehaviorHarnessModifiers({}, harness, legacyState);
-
-    // Both conditions fired, so affective intensity and relational trust penalties must be present
-    expect((result.affective?.intensity ?? 0)).toBeGreaterThan(0);
-    expect((result.relational?.trust ?? 0)).toBeLessThan(0);
-  });
-});
 

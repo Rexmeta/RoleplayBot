@@ -701,12 +701,16 @@ export async function generateAndSaveFeedback(
       const emotionTimeline: Array<{ anger?: number; trust?: number }> = [];
       for (const ev of (await storage.getSimulationEventsByPersonaRun(conversationId).catch(() => []))) {
         const sa = ev.stateAfter as any;
-        if (sa?.npcEmotions) emotionTimeline.push(sa.npcEmotions);
+        if (sa?.npcAffectiveState) {
+          emotionTimeline.push({ anger: sa.npcAffectiveState?.affective?.intensity, trust: sa.npcAffectiveState?.relational?.trust });
+        }
       }
       // Also include the final simulation state
       const personaRunForMetrics = await storage.getPersonaRun(conversationId).catch(() => null);
       const finalSimState = (personaRunForMetrics?.simulationState as any) ?? null;
-      if (finalSimState?.npcEmotions) emotionTimeline.push(finalSimState.npcEmotions);
+      if (finalSimState?.npcAffectiveState) {
+        emotionTimeline.push({ anger: finalSimState.npcAffectiveState?.affective?.intensity, trust: finalSimState.npcAffectiveState?.relational?.trust });
+      }
 
       for (const metric of analyticsSpec.trackedMetrics) {
         switch (metric) {

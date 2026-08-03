@@ -2,7 +2,6 @@ import {
   SimulationState,
   SimulationStatePatch,
   SimulationStatePatchRequest,
-  NpcEmotions,
   NpcAffectiveState,
   TurnScore,
   Incident,
@@ -16,7 +15,6 @@ import type { FlowGraph, PersonaSwitchRules, ExitCondition, ConditionOperator, T
 import { evaluatePersonaSwitchRules } from './personaSwitchEvaluator';
 import { v4 as uuidv4 } from 'uuid';
 
-const EMOTION_KEYS: Array<keyof NpcEmotions> = ['anger', 'trust', 'confusion', 'interest'];
 const MAX_RECENT = 10;
 
 function clamp(val: number, min = 0, max = 100): number {
@@ -63,8 +61,12 @@ function evaluateExitCondition(cond: ExitCondition, state: SimulationState): boo
     });
     actual = vals.reduce((a, b) => a + b, 0) / vals.length;
   } else if (cond.type === 'npc_emotion') {
-    const key = (cond.metric || 'anger') as keyof NpcEmotions;
-    actual = state.npcEmotions[key] ?? 0;
+    const metric = cond.metric || 'anger';
+    if (metric === 'anger') actual = state.npcAffectiveState.affective.intensity;
+    else if (metric === 'trust') actual = state.npcAffectiveState.relational.trust;
+    else if (metric === 'confusion') actual = state.npcAffectiveState.cognitive.confusion;
+    else if (metric === 'interest') actual = state.npcAffectiveState.motivational.interest;
+    else actual = 0;
   } else {
     return false;
   }
@@ -124,22 +126,10 @@ export function normalizeSimulationState(state: SimulationState): SimulationStat
   return {
     ...state,
     npcAffectiveState: {
-      affective: {
-        intensity: state.npcEmotions.anger,
-        valence: DEFAULT_NPC_AFFECTIVE_STATE.affective.valence,
-      },
-      cognitive: {
-        confusion: state.npcEmotions.confusion,
-        load: DEFAULT_NPC_AFFECTIVE_STATE.cognitive.load,
-      },
-      relational: {
-        trust: state.npcEmotions.trust,
-        rapport: DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport,
-      },
-      motivational: {
-        interest: state.npcEmotions.interest,
-        cooperativeness: DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness,
-      },
+      affective: { ...DEFAULT_NPC_AFFECTIVE_STATE.affective },
+      cognitive: { ...DEFAULT_NPC_AFFECTIVE_STATE.cognitive },
+      relational: { ...DEFAULT_NPC_AFFECTIVE_STATE.relational },
+      motivational: { ...DEFAULT_NPC_AFFECTIVE_STATE.motivational },
     },
   };
 }
@@ -236,29 +226,21 @@ function checkTerminationConditionGroup(
   const results: boolean[] = [];
   const logic = group.logic ?? 'all';
 
-  if (group.npcEmotions) {
-    for (const [key, cond] of Object.entries(group.npcEmotions)) {
-      if (!cond) continue;
-      const actual = state.npcEmotions[key as keyof NpcEmotions] ?? 0;
-      results.push(compareOp(actual, cond.operator, cond.value));
-    }
-  }
-  // New 4-layer affective-state conditions — safe no-op when state.npcAffectiveState is absent
-  if (group.cognitive && state.npcAffectiveState) {
+  if (group.cognitive) {
     for (const [key, cond] of Object.entries(group.cognitive)) {
       if (!cond) continue;
       const actual = state.npcAffectiveState.cognitive[key as 'confusion' | 'load'] ?? 0;
       results.push(compareOp(actual, cond.operator, cond.value));
     }
   }
-  if (group.relational && state.npcAffectiveState) {
+  if (group.relational) {
     for (const [key, cond] of Object.entries(group.relational)) {
       if (!cond) continue;
       const actual = state.npcAffectiveState.relational[key as 'trust' | 'rapport'] ?? 0;
       results.push(compareOp(actual, cond.operator, cond.value));
     }
   }
-  if (group.motivational && state.npcAffectiveState) {
+  if (group.motivational) {
     for (const [key, cond] of Object.entries(group.motivational)) {
       if (!cond) continue;
       const actual = state.npcAffectiveState.motivational[key as 'interest' | 'cooperativeness'] ?? 0;
@@ -326,10 +308,6 @@ export function applySimulationPatch(
   const patch = request.patch;
   const turnId = request.turnId;
 
-  // npcEmotions is derived from npcAffectiveState — do not update directly.
-  // It will be re-derived below after applying npcAffectiveStateDelta.
-  const newEmotions = { ...prev.npcEmotions };
-
   let newStage = prev.stage;
   if (patch.targetStage && stageAllowed(prev.stage, patch.targetStage)) {
     newStage = patch.targetStage;
@@ -388,27 +366,7 @@ export function applySimulationPatch(
   const totalIncidents = prev.summary.totalIncidents + (patch.incidentsToAdd?.length ?? 0);
   const totalTurns = prev.summary.totalTurns + (patch.turnScoresToAdd?.length ?? 0);
 
-  // Guard against legacy persisted states that may lack npcAffectiveState.
-  // Backfill from flat npcEmotions values (which are always present) so that
-  // any restored legacy session can be patched without throwing.
-  const prevAffective: NpcAffectiveState = prev.npcAffectiveState ?? {
-    affective: {
-      intensity: prev.npcEmotions.anger,
-      valence: DEFAULT_NPC_AFFECTIVE_STATE.affective.valence,
-    },
-    cognitive: {
-      confusion: prev.npcEmotions.confusion,
-      load: DEFAULT_NPC_AFFECTIVE_STATE.cognitive.load,
-    },
-    relational: {
-      trust: prev.npcEmotions.trust,
-      rapport: DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport,
-    },
-    motivational: {
-      interest: prev.npcEmotions.interest,
-      cooperativeness: DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness,
-    },
-  };
+  const prevAffective: NpcAffectiveState = prev.npcAffectiveState;
 
   // npcAffectiveState is the single source of truth — carry forward from prev.
   const newAffectiveState: NpcAffectiveState = {
@@ -419,7 +377,6 @@ export function applySimulationPatch(
   };
 
   // Apply npcAffectiveStateDelta — the only path for updating NPC emotional state.
-  // After applying, npcEmotions is re-derived for backward-compat (reports, API).
   if (patch.npcAffectiveStateDelta) {
     const d = patch.npcAffectiveStateDelta;
     if (d.affective) {
@@ -447,12 +404,6 @@ export function applySimulationPatch(
         newAffectiveState.motivational.cooperativeness = clamp(newAffectiveState.motivational.cooperativeness + d.motivational.cooperativeness);
     }
 
-    // Re-derive npcEmotions from the authoritative affective-state values.
-    // This is the ONLY place npcEmotions is updated — backward-compat for reports/API.
-    newEmotions.anger = newAffectiveState.affective.intensity;
-    newEmotions.confusion = newAffectiveState.cognitive.confusion;
-    newEmotions.trust = newAffectiveState.relational.trust;
-    newEmotions.interest = newAffectiveState.motivational.interest;
   }
 
   // maxAnger/minTrust track the session high-water marks using affective state values.
@@ -487,7 +438,6 @@ export function applySimulationPatch(
     version: prev.version + 1,
     stage: newStage,
     pressureLevel: newPressure,
-    npcEmotions: newEmotions,
     npcAffectiveState: newAffectiveState,
     timer: newTimer,
     currentScore,

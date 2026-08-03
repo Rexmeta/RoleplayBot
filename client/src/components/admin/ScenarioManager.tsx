@@ -125,11 +125,6 @@ const DIMENSION_LABELS: Record<string, string> = {
 
 function ConditionGroupSummary({ group, label }: { group: TerminationConditionGroup; label: string }) {
   const items: string[] = [];
-  if (group.npcEmotions) {
-    for (const [emotion, cond] of Object.entries(group.npcEmotions)) {
-      if (cond) items.push(`NPC ${emotion} ${OPERATOR_LABELS[cond.operator] ?? cond.operator} ${cond.value}`);
-    }
-  }
   if (group.currentScore) {
     items.push(`Score ${OPERATOR_LABELS[group.currentScore.operator] ?? group.currentScore.operator} ${group.currentScore.value}`);
   }

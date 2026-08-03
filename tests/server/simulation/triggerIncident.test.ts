@@ -18,8 +18,8 @@ describe('inferIncidentCandidate', () => {
 
   it('triggers customer_escalation when anger >= 85 and trust <= 20', () => {
     const state = createDefaultSimulationState();
-    state.npcEmotions.anger = 90;
-    state.npcEmotions.trust = 15;
+    state.npcAffectiveState.affective.intensity = 90;
+    state.npcAffectiveState.relational.trust = 15;
     const incident = inferIncidentCandidate(state, RUN_ID, 3, 'en');
     expect(incident).not.toBeNull();
     expect(incident!.type).toBe('customer_escalation');
@@ -39,7 +39,7 @@ describe('inferIncidentCandidate', () => {
 
   it('triggers manager_interrupt when anger >= 70 and turns >= 5', () => {
     const state = createDefaultSimulationState();
-    state.npcEmotions.anger = 75;
+    state.npcAffectiveState.affective.intensity = 75;
     state.summary.totalTurns = 6;
     const incident = inferIncidentCandidate(state, RUN_ID, 6, 'en');
     expect(incident).not.toBeNull();
@@ -48,7 +48,7 @@ describe('inferIncidentCandidate', () => {
 
   it('triggers compliance_warning when trust <= 25 and pressure >= 3', () => {
     const state = createDefaultSimulationState();
-    state.npcEmotions.trust = 20;
+    state.npcAffectiveState.relational.trust = 20;
     state.pressureLevel = 3;
     const incident = inferIncidentCandidate(state, RUN_ID, 4, 'en');
     expect(incident).not.toBeNull();
@@ -58,8 +58,8 @@ describe('inferIncidentCandidate', () => {
 
   it('includes id, turnIndex, createdAt on returned incident', () => {
     const state = createDefaultSimulationState();
-    state.npcEmotions.anger = 90;
-    state.npcEmotions.trust = 15;
+    state.npcAffectiveState.affective.intensity = 90;
+    state.npcAffectiveState.relational.trust = 15;
     const incident = inferIncidentCandidate(state, RUN_ID, 7, 'en');
     expect(incident).not.toBeNull();
     expect(typeof incident!.id).toBe('string');
@@ -70,8 +70,8 @@ describe('inferIncidentCandidate', () => {
 
   it('respects cooldown — returns null on second call immediately after first', () => {
     const state = createDefaultSimulationState();
-    state.npcEmotions.anger = 90;
-    state.npcEmotions.trust = 15;
+    state.npcAffectiveState.affective.intensity = 90;
+    state.npcAffectiveState.relational.trust = 15;
     const first = inferIncidentCandidate(state, RUN_ID, 1, 'en');
     expect(first).not.toBeNull();
     // cooldown is recorded after first trigger via checkIncidentCooldown (global cooldown)

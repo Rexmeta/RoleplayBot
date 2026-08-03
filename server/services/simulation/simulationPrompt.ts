@@ -78,7 +78,6 @@ export function buildPlayerConstraintsBlock(
 export function buildSimulationStateBlock(state: {
   stage: string;
   pressureLevel: number;
-  npcEmotions?: { anger: number; trust: number; confusion: number; interest: number };
   npcAffectiveState?: {
     affective?: { intensity?: number; valence?: number };
     cognitive?: { confusion?: number; load?: number };
@@ -97,7 +96,6 @@ export function buildSimulationStateBlock(state: {
     `pressureLevel=${state.pressureLevel}`,
     `currentScore=${state.currentScore}`,
   ];
-  // Prefer affective state (primary), fall back to flat emotions for legacy callers
   if (state.npcAffectiveState) {
     const aff = state.npcAffectiveState;
     const parts: string[] = [];
@@ -106,9 +104,6 @@ export function buildSimulationStateBlock(state: {
     if (aff.relational) parts.push(`relational(trust=${aff.relational.trust ?? '?'}, rapport=${aff.relational.rapport ?? '?'})`);
     if (aff.motivational) parts.push(`motivational(interest=${aff.motivational.interest ?? '?'}, cooperativeness=${aff.motivational.cooperativeness ?? '?'})`);
     if (parts.length > 0) lines.push(`npcAffectiveState: ${parts.join(' | ')}`);
-  } else if (state.npcEmotions) {
-    const e = state.npcEmotions;
-    lines.push(`npcEmotions: intensity=${e.anger}, trust=${e.trust}, confusion=${e.confusion}, interest=${e.interest}`);
   }
   if (lastScore) {
     lines.push(`latestTurnScore: clarity=${lastScore.clarity}, empathy=${lastScore.empathy}, actionPlan=${lastScore.actionPlan}`);

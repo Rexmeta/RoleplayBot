@@ -108,7 +108,7 @@ vi.mock('../../server/services/simulation/simulationEngine', () => ({
   applySimulationPatch: vi.fn().mockReturnValue({
     version: 1,
     stage: 'intro',
-    npcEmotions: { anger: 30, trust: 50, confusion: 20, interest: 50 },
+    npcAffectiveState: { affective: { intensity: 30, valence: 0 }, cognitive: { confusion: 20, load: 20 }, relational: { trust: 50, rapport: 50 }, motivational: { interest: 50, cooperativeness: 50 } },
     currentScore: 0,
     recentTurnScores: [],
     recentIncidents: [],

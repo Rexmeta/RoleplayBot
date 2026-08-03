@@ -32,8 +32,9 @@ export default function createSimulationRouter(isAuthenticated: any) {
     if (!state) {
       const stored = await storage.getSimulationState(personaRunId);
       if (stored) {
-        state = stored as unknown as SimulationState;
-        setSessionState(personaRunId, state);
+        setSessionState(personaRunId, stored as unknown as SimulationState);
+        // Re-read so state is the normalized (npcAffectiveState-ensured) version
+        state = getSessionState(personaRunId)!;
         storage.createSimulationEvent({
           personaRunId,
           scenarioRunId: personaRun?.scenarioRunId ?? null,

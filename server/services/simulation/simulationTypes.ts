@@ -12,18 +12,6 @@ export type SimulationEventType =
 export type PatchSource = 'gemini_tool' | 'server_evaluation' | 'server_rule' | 'admin';
 
 /**
- * @deprecated Use NpcAffectiveState instead. Kept for report/API backward compatibility.
- * Values are derived from NpcAffectiveState (intensity→anger, confusion→confusion,
- * trust→trust, interest→interest) and must not be set independently.
- */
-export interface NpcEmotions {
-  anger: number;
-  trust: number;
-  confusion: number;
-  interest: number;
-}
-
-/**
  * NpcAffectiveState — 4-layer structured NPC state model.
  * This is the single source of truth for NPC emotional state.
  * NpcEmotions is derived from this for backward compatibility.
@@ -96,8 +84,6 @@ export interface SimulationState {
   version: number;
   stage: ScenarioStage;
   pressureLevel: number;
-  /** @deprecated Derived from npcAffectiveState for backward compatibility only. Do not write directly. */
-  npcEmotions: NpcEmotions;
   /** Primary NPC state. All emotion logic reads and writes here. */
   npcAffectiveState: NpcAffectiveState;
   timer: TimerState;
@@ -205,13 +191,6 @@ export interface SimulationEvent {
   createdAt: Date;
 }
 
-export const DEFAULT_NPC_EMOTIONS: NpcEmotions = {
-  anger: 30,
-  trust: 50,
-  confusion: 20,
-  interest: 50,
-};
-
 export const DEFAULT_NPC_AFFECTIVE_STATE: NpcAffectiveState = {
   affective: {
     intensity: 30,
@@ -236,7 +215,6 @@ export function createDefaultSimulationState(): SimulationState {
     version: 0,
     stage: 'intro',
     pressureLevel: 1,
-    npcEmotions: { ...DEFAULT_NPC_EMOTIONS },
     npcAffectiveState: {
       affective: { ...DEFAULT_NPC_AFFECTIVE_STATE.affective },
       cognitive: { ...DEFAULT_NPC_AFFECTIVE_STATE.cognitive },

@@ -199,13 +199,6 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 // Agent API response type schemas
 // ─────────────────────────────────────────────────────────────
 
-export const agentNpcEmotionsSchema = z.object({
-  anger: z.number(),
-  trust: z.number(),
-  confusion: z.number(),
-  interest: z.number(),
-});
-
 export const agentNpcAffectiveStateSchema = z.object({
   affective: z.object({
     intensity: z.number().min(0).max(100),
@@ -245,9 +238,7 @@ export const agentSimulationStateSchema = z.object({
   version: z.number(),
   stage: z.enum(["intro", "conflict", "negotiation", "escalation", "resolution"]),
   pressureLevel: z.number(),
-  npcEmotions: agentNpcEmotionsSchema,
-  /** New 4-layer structured state — present alongside npcEmotions during gradual migration */
-  npcAffectiveState: agentNpcAffectiveStateSchema.optional(),
+  npcAffectiveState: agentNpcAffectiveStateSchema,
   currentScore: z.number(),
   recentTurnScores: z.array(agentTurnScoreSchema),
   summary: z.object({

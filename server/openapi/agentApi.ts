@@ -191,21 +191,10 @@ All errors follow a consistent envelope:
           requestId: { type: "string", example: "req_a1b2c3d4e5f6" },
         },
       },
-      NpcEmotions: {
-        type: "object",
-        required: ["anger", "trust", "confusion", "interest"],
-        description: "Current emotional state of the AI persona (0–100 scale).",
-        properties: {
-          anger: { type: "number", minimum: 0, maximum: 100, example: 45 },
-          trust: { type: "number", minimum: 0, maximum: 100, example: 30 },
-          confusion: { type: "number", minimum: 0, maximum: 100, example: 20 },
-          interest: { type: "number", minimum: 0, maximum: 100, example: 60 },
-        },
-      },
       NpcAffectiveState: {
         type: "object",
         required: ["affective", "cognitive", "relational", "motivational"],
-        description: "Structured 4-layer NPC state model. Introduced alongside `npcEmotions` for gradual migration to a richer emotional model.",
+        description: "Structured 4-layer NPC state model representing the NPC's full emotional and motivational state.",
         properties: {
           affective: {
             type: "object",
@@ -327,7 +316,7 @@ All errors follow a consistent envelope:
       },
       SimulationState: {
         type: "object",
-        required: ["version", "stage", "pressureLevel", "npcEmotions", "currentScore", "recentTurnScores", "summary"],
+        required: ["version", "stage", "pressureLevel", "npcAffectiveState", "currentScore", "recentTurnScores", "summary"],
         description:
           "Server-authoritative simulation state updated after every message turn.",
         properties: {
@@ -349,12 +338,7 @@ All errors follow a consistent envelope:
             example: 62,
             description: "Overall tension in the conversation (0 = calm, 100 = critical).",
           },
-          npcEmotions: { $ref: "#/components/schemas/NpcEmotions" },
-          npcAffectiveState: {
-            nullable: true,
-            allOf: [{ $ref: "#/components/schemas/NpcAffectiveState" }],
-            description: "New 4-layer structured NPC state. Present alongside `npcEmotions` during gradual migration. `null` for older sessions.",
-          },
+          npcAffectiveState: { $ref: "#/components/schemas/NpcAffectiveState" },
           currentScore: {
             type: "number",
             minimum: 1,
@@ -1159,7 +1143,7 @@ When \`Accept: text/event-stream\` **is** set the response body is a stream of S
                     version: 2,
                     stage: "conflict",
                     pressureLevel: 58,
-                    npcEmotions: { anger: 50, trust: 30, confusion: 15, interest: 60 },
+                    npcAffectiveState: { affective: { intensity: 50, valence: -0.2 }, cognitive: { confusion: 15, load: 25 }, relational: { trust: 30, rapport: 45 }, motivational: { interest: 60, cooperativeness: 55 } },
                     currentScore: 3.1,
                     recentTurnScores: [
                       {

@@ -413,7 +413,7 @@ export function FlowGraphBuilder({ defaultValue, onChange }: FlowGraphBuilderPro
 
 // ─── TerminationRulesBuilder ──────────────────────────────────────────────────
 
-type TermCondType = 'npcEmotion' | 'currentScore' | 'stage' | 'totalTurns' | 'consecutiveTurnsBelow';
+type TermCondType = 'affectiveLayer' | 'currentScore' | 'stage' | 'totalTurns' | 'consecutiveTurnsBelow';
 
 interface TermCondRow {
   _id: string;
@@ -438,29 +438,47 @@ interface TermFormState {
   maxTimeSec: string;
 }
 
+const AFFECTIVE_LAYER_FIELDS: { value: string; label: string }[] = [
+  { value: 'relational.trust', label: 'NPC 신뢰' },
+  { value: 'relational.rapport', label: 'NPC 친밀도' },
+  { value: 'cognitive.confusion', label: 'NPC 혼란' },
+  { value: 'cognitive.load', label: 'NPC 인지부하' },
+  { value: 'motivational.interest', label: 'NPC 흥미' },
+  { value: 'motivational.cooperativeness', label: 'NPC 협력' },
+];
+
+const AFFECTIVE_LAYER_LABELS: Record<string, string> = Object.fromEntries(
+  AFFECTIVE_LAYER_FIELDS.map(({ value, label }) => [value, label])
+);
+
 function newTermCondRow(condType: TermCondType = 'totalTurns'): TermCondRow {
-  return { _id: uid(), condType, emotion: 'anger', operator: 'gte', value: '70', stage: '', scoreThreshold: '40', turns: '3' };
+  return { _id: uid(), condType, emotion: 'relational.trust', operator: 'gte', value: '70', stage: '', scoreThreshold: '40', turns: '3' };
 }
 
 function termGroupToRows(group: TerminationConditionGroup | undefined): TermCondRow[] {
   if (!group) return [];
   const rows: TermCondRow[] = [];
-  if (group.npcEmotions) {
-    for (const [emotion, cond] of Object.entries(group.npcEmotions)) {
-      if (cond) rows.push({ _id: uid(), condType: 'npcEmotion', emotion, operator: cond.operator, value: String(cond.value), stage: '', scoreThreshold: '40', turns: '3' });
-    }
+  // Affective layer conditions
+  for (const [field, cond] of Object.entries(group.relational ?? {})) {
+    if (cond) rows.push({ _id: uid(), condType: 'affectiveLayer', emotion: `relational.${field}`, operator: cond.operator, value: String(cond.value), stage: '', scoreThreshold: '40', turns: '3' });
+  }
+  for (const [field, cond] of Object.entries(group.cognitive ?? {})) {
+    if (cond) rows.push({ _id: uid(), condType: 'affectiveLayer', emotion: `cognitive.${field}`, operator: cond.operator, value: String(cond.value), stage: '', scoreThreshold: '40', turns: '3' });
+  }
+  for (const [field, cond] of Object.entries(group.motivational ?? {})) {
+    if (cond) rows.push({ _id: uid(), condType: 'affectiveLayer', emotion: `motivational.${field}`, operator: cond.operator, value: String(cond.value), stage: '', scoreThreshold: '40', turns: '3' });
   }
   if (group.currentScore) {
-    rows.push({ _id: uid(), condType: 'currentScore', emotion: 'anger', operator: group.currentScore.operator, value: String(group.currentScore.value), stage: '', scoreThreshold: '40', turns: '3' });
+    rows.push({ _id: uid(), condType: 'currentScore', emotion: 'relational.trust', operator: group.currentScore.operator, value: String(group.currentScore.value), stage: '', scoreThreshold: '40', turns: '3' });
   }
   if (group.stage) {
-    rows.push({ _id: uid(), condType: 'stage', emotion: 'anger', operator: 'eq', value: '0', stage: group.stage, scoreThreshold: '40', turns: '3' });
+    rows.push({ _id: uid(), condType: 'stage', emotion: 'relational.trust', operator: 'eq', value: '0', stage: group.stage, scoreThreshold: '40', turns: '3' });
   }
   if (group.totalTurns) {
-    rows.push({ _id: uid(), condType: 'totalTurns', emotion: 'anger', operator: group.totalTurns.operator, value: String(group.totalTurns.value), stage: '', scoreThreshold: '40', turns: '3' });
+    rows.push({ _id: uid(), condType: 'totalTurns', emotion: 'relational.trust', operator: group.totalTurns.operator, value: String(group.totalTurns.value), stage: '', scoreThreshold: '40', turns: '3' });
   }
   if (group.consecutiveTurnsBelow) {
-    rows.push({ _id: uid(), condType: 'consecutiveTurnsBelow', emotion: 'anger', operator: 'lt', value: '0', stage: '', scoreThreshold: String(group.consecutiveTurnsBelow.scoreThreshold), turns: String(group.consecutiveTurnsBelow.turns) });
+    rows.push({ _id: uid(), condType: 'consecutiveTurnsBelow', emotion: 'relational.trust', operator: 'lt', value: '0', stage: '', scoreThreshold: String(group.consecutiveTurnsBelow.scoreThreshold), turns: String(group.consecutiveTurnsBelow.turns) });
   }
   return rows;
 }
@@ -469,9 +487,16 @@ function rowsToTermGroup(rows: TermCondRow[], logic: 'all' | 'any'): Termination
   if (rows.length === 0) return undefined;
   const group: TerminationConditionGroup = { logic };
   for (const row of rows) {
-    if (row.condType === 'npcEmotion') {
-      if (!group.npcEmotions) group.npcEmotions = {};
-      (group.npcEmotions as any)[row.emotion] = { operator: row.operator as any, value: parseFloat(row.value) || 0 };
+    if (row.condType === 'affectiveLayer') {
+      const [layer, field] = row.emotion.split('.');
+      const cond = { operator: row.operator as any, value: parseFloat(row.value) || 0 };
+      if (layer === 'relational') {
+        group.relational = { ...group.relational, [field]: cond } as TerminationConditionGroup['relational'];
+      } else if (layer === 'cognitive') {
+        group.cognitive = { ...group.cognitive, [field]: cond } as TerminationConditionGroup['cognitive'];
+      } else if (layer === 'motivational') {
+        group.motivational = { ...group.motivational, [field]: cond } as TerminationConditionGroup['motivational'];
+      }
     } else if (row.condType === 'currentScore') {
       group.currentScore = { operator: row.operator as any, value: parseFloat(row.value) || 0 };
     } else if (row.condType === 'stage') {
@@ -545,7 +570,7 @@ function TermCondRowEditor({ row, onChange, onRemove }: ConditionRowEditorProps)
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="npcEmotion">NPC 감정</SelectItem>
+          <SelectItem value="affectiveLayer">감정 레이어</SelectItem>
           <SelectItem value="currentScore">현재 점수</SelectItem>
           <SelectItem value="stage">스테이지</SelectItem>
           <SelectItem value="totalTurns">총 턴 수</SelectItem>
@@ -553,13 +578,13 @@ function TermCondRowEditor({ row, onChange, onRemove }: ConditionRowEditorProps)
         </SelectContent>
       </Select>
 
-      {row.condType === 'npcEmotion' && (
+      {row.condType === 'affectiveLayer' && (
         <Select value={row.emotion} onValueChange={v => onChange({ emotion: v })}>
-          <SelectTrigger className="h-6 text-xs w-24">
+          <SelectTrigger className="h-6 text-xs w-28">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {['anger', 'trust', 'confusion', 'interest'].map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+            {AFFECTIVE_LAYER_FIELDS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
           </SelectContent>
         </Select>
       )}
@@ -654,10 +679,15 @@ function TerminationRulesSummary({ value }: { value: TerminationRules | null }) 
 
   function groupBadges(group: TerminationConditionGroup, color: string) {
     const items: string[] = [];
-    if (group.npcEmotions) {
-      for (const [em, cond] of Object.entries(group.npcEmotions)) {
-        if (cond) items.push(`${em} ${OPERATOR_LABELS[cond.operator] ?? cond.operator} ${cond.value}`);
-      }
+    // Affective layer conditions
+    for (const [field, cond] of Object.entries(group.relational ?? {})) {
+      if (cond) items.push(`${AFFECTIVE_LAYER_LABELS[`relational.${field}`] ?? `relational.${field}`} ${OPERATOR_LABELS[cond.operator] ?? cond.operator} ${cond.value}`);
+    }
+    for (const [field, cond] of Object.entries(group.cognitive ?? {})) {
+      if (cond) items.push(`${AFFECTIVE_LAYER_LABELS[`cognitive.${field}`] ?? `cognitive.${field}`} ${OPERATOR_LABELS[cond.operator] ?? cond.operator} ${cond.value}`);
+    }
+    for (const [field, cond] of Object.entries(group.motivational ?? {})) {
+      if (cond) items.push(`${AFFECTIVE_LAYER_LABELS[`motivational.${field}`] ?? `motivational.${field}`} ${OPERATOR_LABELS[cond.operator] ?? cond.operator} ${cond.value}`);
     }
     if (group.currentScore) items.push(`점수 ${OPERATOR_LABELS[group.currentScore.operator] ?? group.currentScore.operator} ${group.currentScore.value}`);
     if (group.totalTurns) items.push(`턴 ${OPERATOR_LABELS[group.totalTurns.operator] ?? group.totalTurns.operator} ${group.totalTurns.value}`);

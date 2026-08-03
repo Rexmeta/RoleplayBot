@@ -36,9 +36,8 @@ describe('handleToolCall — update_npc_affective_state', () => {
     }, BASE_CTX);
     expect(result.success).toBe(true);
     const state = getSessionState(RUN_ID)!;
-    // npcEmotions are derived from npcAffectiveState
-    expect(state.npcEmotions.anger).toBe(40); // default 30 + 10
-    expect(state.npcEmotions.trust).toBe(45); // default 50 - 5
+    expect(state.npcAffectiveState.affective.intensity).toBe(40); // default 30 + 10
+    expect(state.npcAffectiveState.relational.trust).toBe(45); // default 50 - 5
   });
 
   it('clamps extreme delta instead of rejecting', () => {
@@ -48,7 +47,7 @@ describe('handleToolCall — update_npc_affective_state', () => {
     }, BASE_CTX);
     expect(result.success).toBe(true);
     const state = getSessionState(RUN_ID)!;
-    expect(state.npcEmotions.anger).toBe(60); // default 30 + clamped 30
+    expect(state.npcAffectiveState.affective.intensity).toBe(60); // default 30 + clamped 30
   });
 
   it('rejects missing reason field', () => {
@@ -84,7 +83,7 @@ describe('handleToolCall — update_npc_affective_state', () => {
     }, BASE_CTX);
     expect(overBoundary.success).toBe(true);
     const state = getSessionState(RUN_ID)!;
-    expect(state.npcEmotions.anger).toBe(60); // default 30 + clamped 30 (not 31)
+    expect(state.npcAffectiveState.affective.intensity).toBe(60); // default 30 + clamped 30 (not 31)
   });
 });
 

@@ -34,7 +34,7 @@ describe('applySimulationPatch', () => {
     });
     expect(state.version).toBe(1);
     expect(state.stage).toBe('intro');
-    expect(state.npcEmotions.anger).toBe(30);
+    expect(state.npcAffectiveState.affective.intensity).toBe(30);
   });
 
   it('applies emotion deltas correctly', () => {
@@ -44,9 +44,8 @@ describe('applySimulationPatch', () => {
       turnId: 'turn-1',
       patch: { npcAffectiveStateDelta: { affective: { intensity: 20 }, relational: { trust: -10 } } },
     });
-    // npcEmotions are derived from npcAffectiveState
-    expect(state.npcEmotions.anger).toBe(50);  // default 30 + 20
-    expect(state.npcEmotions.trust).toBe(40);  // default 50 - 10
+    expect(state.npcAffectiveState.affective.intensity).toBe(50);  // default 30 + 20
+    expect(state.npcAffectiveState.relational.trust).toBe(40);  // default 50 - 10
   });
 
   it('clamps emotions to 0-100', () => {
@@ -56,8 +55,8 @@ describe('applySimulationPatch', () => {
       turnId: 'turn-1',
       patch: { npcAffectiveStateDelta: { affective: { intensity: 200 }, relational: { trust: -200 } } },
     });
-    expect(state.npcEmotions.anger).toBe(100);
-    expect(state.npcEmotions.trust).toBe(0);
+    expect(state.npcAffectiveState.affective.intensity).toBe(100);
+    expect(state.npcAffectiveState.relational.trust).toBe(0);
   });
 
   it('advances stage forward only', () => {
@@ -116,7 +115,7 @@ describe('applySimulationPatch', () => {
     });
 
     // server_evaluation applied +15 (30→45), gemini_tool applies +25 (45→70) — no cap
-    expect(stateAfterTool.npcEmotions.anger).toBe(70);
+    expect(stateAfterTool.npcAffectiveState.affective.intensity).toBe(70);
   });
 
   it('no multi-stage jump within one turn (single patch advances by at most 1 stage)', () => {
@@ -157,7 +156,7 @@ describe('applySimulationPatch', () => {
       turnId,
       patch: { npcAffectiveStateDelta: { affective: { intensity: 20 } } }, // 30 + 20 = 50
     });
-    expect(stateAfterTool.npcEmotions.anger).toBe(50);
+    expect(stateAfterTool.npcAffectiveState.affective.intensity).toBe(50);
 
     // Now server_evaluation fires for the same turn — its delta is applied normally
     const stateAfterEval = applySimulationPatch(RUN_ID, {
@@ -166,7 +165,7 @@ describe('applySimulationPatch', () => {
       turnId,
       patch: { npcAffectiveStateDelta: { affective: { intensity: 5 } } }, // evaluation delta applied normally
     });
-    expect(stateAfterEval.npcEmotions.anger).toBe(55);
+    expect(stateAfterEval.npcAffectiveState.affective.intensity).toBe(55);
   });
 
   it('adds turn scores and updates summary', () => {
@@ -408,10 +407,10 @@ describe('Phase 1A — weighted scoring and average score semantics', () => {
       patch: { npcAffectiveStateDelta: { affective: { intensity: 15 } } },
     });
     // Simulate a DB save failing (storage is not mocked here; just verify state integrity)
-    expect(state.npcEmotions.anger).toBe(45); // 30 + 15
+    expect(state.npcAffectiveState.affective.intensity).toBe(45); // 30 + 15
     // In-memory context is still valid after the "failure"
     const stateAfter = getSessionState(RUN_ID)!;
-    expect(stateAfter.npcEmotions.anger).toBe(45);
+    expect(stateAfter.npcAffectiveState.affective.intensity).toBe(45);
     expect(stateAfter.version).toBe(1);
   });
 });
@@ -603,7 +602,7 @@ describe('evaluateFlowGraph', () => {
     const state = createDefaultSimulationState();
     state.stage = 'conflict';
     state.summary = { ...state.summary, totalTurns: 2 };
-    state.npcEmotions = { ...state.npcEmotions, anger: 80 };
+    state.npcAffectiveState = { ...state.npcAffectiveState, affective: { ...state.npcAffectiveState.affective, intensity: 80 } };
     const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
     expect(result).toBe('resolution');
   });
@@ -612,7 +611,7 @@ describe('evaluateFlowGraph', () => {
     const state = createDefaultSimulationState();
     state.stage = 'conflict';
     state.summary = { ...state.summary, totalTurns: 6 };
-    state.npcEmotions = { ...state.npcEmotions, anger: 30 };
+    state.npcAffectiveState = { ...state.npcAffectiveState, affective: { ...state.npcAffectiveState.affective, intensity: 30 } };
     const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
     expect(result).toBe('resolution');
   });
@@ -621,7 +620,7 @@ describe('evaluateFlowGraph', () => {
     const state = createDefaultSimulationState();
     state.stage = 'conflict';
     state.summary = { ...state.summary, totalTurns: 3 };
-    state.npcEmotions = { ...state.npcEmotions, anger: 50 };
+    state.npcAffectiveState = { ...state.npcAffectiveState, affective: { ...state.npcAffectiveState.affective, intensity: 50 } };
     const result = evaluateFlowGraph(state, SIMPLE_FLOW_GRAPH);
     expect(result).toBeNull();
   });
@@ -836,7 +835,7 @@ describe('applySimulationPatch — state immutability', () => {
     });
     const before = getSessionState(RUN_ID)!;
     const beforeVersion = before.version;
-    const beforeAnger = before.npcEmotions.anger;
+    const beforeIntensity = before.npcAffectiveState.affective.intensity;
 
     applySimulationPatch(RUN_ID, {
       source: 'server_evaluation', priority: 'normal', turnId: 't1',
@@ -844,7 +843,7 @@ describe('applySimulationPatch — state immutability', () => {
     });
 
     expect(before.version).toBe(beforeVersion);
-    expect(before.npcEmotions.anger).toBe(beforeAnger);
+    expect(before.npcAffectiveState.affective.intensity).toBe(beforeIntensity);
   });
 
   it('returns a new object reference on every patch', () => {
@@ -857,20 +856,20 @@ describe('applySimulationPatch — state immutability', () => {
     expect(s1).not.toBe(s2);
   });
 
-  it('does not mutate the npcEmotions sub-object of the previous state', () => {
+  it('does not mutate the npcAffectiveState sub-object of the previous state', () => {
     applySimulationPatch(RUN_ID, {
       source: 'server_evaluation', priority: 'normal', turnId: 't0', patch: {},
     });
     const before = getSessionState(RUN_ID)!;
-    const emotionsRef = before.npcEmotions;
+    const affectiveRef = before.npcAffectiveState;
 
     applySimulationPatch(RUN_ID, {
       source: 'server_evaluation', priority: 'normal', turnId: 't1',
       patch: { npcAffectiveStateDelta: { affective: { intensity: 10 }, relational: { trust: -5 } } },
     });
 
-    expect(emotionsRef.anger).toBe(30);
-    expect(emotionsRef.trust).toBe(50);
+    expect(affectiveRef.affective.intensity).toBe(30);
+    expect(affectiveRef.relational.trust).toBe(50);
   });
 });
 
@@ -886,7 +885,7 @@ describe('npcAffectiveState sync', () => {
     expect(state.npcAffectiveState!.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest);
   });
 
-  it('mirrors npcAffectiveStateDelta into affective layers and derives flat emotions', () => {
+  it('mirrors npcAffectiveStateDelta into affective layers', () => {
     const state = applySimulationPatch(RUN_ID, {
       source: 'server_evaluation', priority: 'normal', turnId: 't1',
       patch: {
@@ -903,9 +902,6 @@ describe('npcAffectiveState sync', () => {
     expect(state.npcAffectiveState!.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 10);
     expect(state.npcAffectiveState!.cognitive.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 5);
     expect(state.npcAffectiveState!.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest + 8);
-    // Flat emotions derived from affective state
-    expect(state.npcEmotions.anger).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 15);
-    expect(state.npcEmotions.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 10);
   });
 
   it('applies sequential affective deltas from server_evaluation and gemini_tool independently', () => {
@@ -921,14 +917,12 @@ describe('npcAffectiveState sync', () => {
       patch: { npcAffectiveStateDelta: { affective: { intensity: 25 } } },
     });
 
-    const flatAnger = state.npcEmotions.anger;
     const layeredIntensity = state.npcAffectiveState!.affective.intensity;
-    // Both should match: 30 + 30 + 25 = 85 (clamped to 100 at most)
-    expect(flatAnger).toBe(layeredIntensity);
-    expect(flatAnger).toBe(85);
+    // 30 + 30 + 25 = 85 (clamped to 100 at most)
+    expect(layeredIntensity).toBe(85);
   });
 
-  it('applies npcAffectiveStateDelta directly without affecting flat emotions', () => {
+  it('applies npcAffectiveStateDelta to affective-only fields (rapport, cooperativeness)', () => {
     const state = applySimulationPatch(RUN_ID, {
       source: 'server_evaluation', priority: 'normal', turnId: 't1',
       patch: {
@@ -941,44 +935,34 @@ describe('npcAffectiveState sync', () => {
     // Affective-only fields updated
     expect(state.npcAffectiveState!.relational.rapport).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.rapport + 10);
     expect(state.npcAffectiveState!.motivational.cooperativeness).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness + 5);
-    // Flat emotions untouched (rapport and cooperativeness have no flat counterpart)
-    expect(state.npcEmotions.anger).toBe(30);
-    expect(state.npcEmotions.trust).toBe(50);
+    // Unmapped fields unchanged
+    expect(state.npcAffectiveState!.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity);
+    expect(state.npcAffectiveState!.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust);
   });
 
-  it('re-derives flat npcEmotions from affective state when npcAffectiveStateDelta changes mapped keys', () => {
-    // Direct npcAffectiveStateDelta with trust/confusion/interest/intensity changes
-    // should propagate back into the flat npcEmotions so UI bars stay accurate.
+  it('applies npcAffectiveStateDelta to all mapped keys in npcAffectiveState', () => {
     const state = applySimulationPatch(RUN_ID, {
       source: 'server_evaluation', priority: 'normal', turnId: 't1',
       patch: {
         npcAffectiveStateDelta: {
-          relational: { trust: 20 },        // maps to npcEmotions.trust
-          cognitive: { confusion: 15 },     // maps to npcEmotions.confusion
-          motivational: { interest: -10 },  // maps to npcEmotions.interest
-          affective: { intensity: 25 },     // maps to npcEmotions.anger
+          relational: { trust: 20 },
+          cognitive: { confusion: 15 },
+          motivational: { interest: -10 },
+          affective: { intensity: 25 },
         },
       },
     });
 
-    const flat = state.npcEmotions;
     const layered = state.npcAffectiveState!;
 
-    // Flat values must equal their affective-layer counterparts
-    expect(flat.trust).toBe(layered.relational.trust);
-    expect(flat.confusion).toBe(layered.cognitive.confusion);
-    expect(flat.interest).toBe(layered.motivational.interest);
-    expect(flat.anger).toBe(layered.affective.intensity);
-
     // Sanity-check the actual values
-    expect(flat.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust + 20);       // 50 + 20 = 70
-    expect(flat.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 15); // 20 + 15 = 35
-    expect(flat.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest - 10);// 50 - 10 = 40
-    expect(flat.anger).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 25);     // 30 + 25 = 55
+    expect(layered.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust + 20);       // 70
+    expect(layered.cognitive.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 15); // 35
+    expect(layered.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest - 10); // 40
+    expect(layered.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 25);  // 55
   });
 
-  it('keeps both representations in sync when npcAffectiveStateDelta is applied to multiple layers', () => {
-    // Single npcAffectiveStateDelta patch covering multiple layers
+  it('applies npcAffectiveStateDelta to multiple layers correctly', () => {
     const state = applySimulationPatch(RUN_ID, {
       source: 'server_evaluation', priority: 'normal', turnId: 't1',
       patch: {
@@ -989,15 +973,9 @@ describe('npcAffectiveState sync', () => {
       },
     });
 
-    const flat = state.npcEmotions;
     const layered = state.npcAffectiveState!;
-
-    // After delta, flat must equal layered for every mapped key
-    expect(flat.trust).toBe(layered.relational.trust);
-    expect(flat.anger).toBe(layered.affective.intensity);
-
-    expect(flat.trust).toBe(65);
-    expect(flat.anger).toBe(38);
+    expect(layered.relational.trust).toBe(65);
+    expect(layered.affective.intensity).toBe(38);
   });
 
   it('does not diverge after sequential npcAffectiveStateDelta patches', () => {
@@ -1013,8 +991,7 @@ describe('npcAffectiveState sync', () => {
       patch: { npcAffectiveStateDelta: { relational: { trust: -10 } } }, // trust: 35 → 25
     });
 
-    expect(state.npcEmotions.trust).toBe(state.npcAffectiveState!.relational.trust);
-    expect(state.npcEmotions.trust).toBe(25);
+    expect(state.npcAffectiveState!.relational.trust).toBe(25);
   });
 });
 
@@ -1082,19 +1059,6 @@ describe('checkTerminationConditionGroup — affective layer conditions', () => 
     expect(evaluateTerminationRules(state, rules)).toBe('success');
   });
 
-  it('silently ignores layer conditions when npcAffectiveState is absent (backward compat)', () => {
-    const state = {
-      ...createDefaultSimulationState(),
-      npcAffectiveState: undefined,
-    };
-    const rules: TerminationRules = {
-      failure: {
-        relational: { trust: { operator: 'lte', value: 100 } }, // would always fire if evaluated
-      },
-    };
-    // Should not fire because npcAffectiveState is absent
-    expect(evaluateTerminationRules(state, rules)).toBeNull();
-  });
 });
 
 // ─── npcAffectiveState — full 4-layer delta and session-restore coverage ──────
@@ -1133,12 +1097,6 @@ describe('npcAffectiveState — npcAffectiveStateDelta covers all 4 sub-layers',
     expect(aff.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest + 7);
     expect(aff.motivational.cooperativeness).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.cooperativeness - 3);
 
-    // Mapped flat emotions are re-derived from the affective layer when npcAffectiveStateDelta is applied.
-    // Unmapped fields (rapport, cooperativeness, load, valence) have no flat counterpart and are not touched.
-    expect(state.npcEmotions.anger).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 10);     // 30 + 10 = 40
-    expect(state.npcEmotions.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 5);          // 50 - 5  = 45
-    expect(state.npcEmotions.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 15);  // 20 + 15 = 35
-    expect(state.npcEmotions.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest + 7);  // 50 + 7  = 57
   });
 });
 
@@ -1376,7 +1334,7 @@ describe('legacy state restore — npcAffectiveState absent', () => {
     // Restore legacy state into session
     getOrCreateSessionContext(RUN_ID, legacyState);
 
-    // Should not throw — engine must backfill from flat npcEmotions
+    // Should not throw — engine must initialize npcAffectiveState with defaults
     expect(() => {
       applySimulationPatch(RUN_ID, {
         source: 'server_evaluation', priority: 'normal', turnId: 't1',
@@ -1385,16 +1343,15 @@ describe('legacy state restore — npcAffectiveState absent', () => {
     }).not.toThrow();
 
     const state = getSessionState(RUN_ID)!;
-    // Flat anger is backfilled from legacy state's npcEmotions.anger (30) + delta (10) = 40
-    expect(state.npcEmotions.anger).toBe(40);
+    // intensity starts from default (30) + delta (10) = 40
+    expect(state.npcAffectiveState.affective.intensity).toBe(40);
     expect(state.npcAffectiveState).toBeDefined();
   });
 
-  it('backfills npcAffectiveState from flat npcEmotions values immediately on restore (before any patch)', () => {
-    // Legacy state with custom flat emotion values
+  it('initializes npcAffectiveState with defaults when absent on restore (before any patch)', () => {
+    // Legacy state without npcAffectiveState — normalization fills in defaults
     const legacyState = {
       ...createDefaultSimulationState(),
-      npcEmotions: { anger: 70, trust: 30, confusion: 45, interest: 60 },
       npcAffectiveState: undefined as any,
     };
 
@@ -1402,26 +1359,25 @@ describe('legacy state restore — npcAffectiveState absent', () => {
     getOrCreateSessionContext(RUN_ID, legacyState);
     const restored = getSessionState(RUN_ID)!;
 
-    // npcAffectiveState must be present and correctly backfilled WITHOUT requiring a patch first
+    // npcAffectiveState must be present with default values
     expect(restored.npcAffectiveState).toBeDefined();
-    expect(restored.npcAffectiveState.affective.intensity).toBe(70);  // anger → intensity
-    expect(restored.npcAffectiveState.relational.trust).toBe(30);     // trust → relational.trust
-    expect(restored.npcAffectiveState.cognitive.confusion).toBe(45);  // confusion → cognitive.confusion
-    expect(restored.npcAffectiveState.motivational.interest).toBe(60); // interest → motivational.interest
+    expect(restored.npcAffectiveState.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity);
+    expect(restored.npcAffectiveState.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust);
+    expect(restored.npcAffectiveState.cognitive.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion);
+    expect(restored.npcAffectiveState.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest);
   });
 
-  it('backfills npcAffectiveState via setSessionState as well (covers all restore paths)', () => {
+  it('initializes npcAffectiveState via setSessionState as well (covers all restore paths)', () => {
     // Simulate a DB restore via setSessionState (used in some route handlers)
     const legacyState = {
       ...createDefaultSimulationState(),
-      npcEmotions: { anger: 55, trust: 25, confusion: 60, interest: 40 },
       npcAffectiveState: undefined as any,
     };
     setSessionState(RUN_ID, legacyState);
     const restored = getSessionState(RUN_ID)!;
 
     expect(restored.npcAffectiveState).toBeDefined();
-    expect(restored.npcAffectiveState.affective.intensity).toBe(55);
-    expect(restored.npcAffectiveState.relational.trust).toBe(25);
+    expect(restored.npcAffectiveState.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity);
+    expect(restored.npcAffectiveState.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust);
   });
 });

@@ -23,6 +23,7 @@ const STAGE_BG_COLORS: Record<string, string> = {
   resolution: 'bg-green-50 border-green-200',
 };
 
+
 function getDominantAffective(npcAffectiveState: NpcAffectiveState): { key: string; value: number } | null {
   const flat: Record<string, number> = {
     intensity: npcAffectiveState.affective.intensity,

@@ -28,13 +28,6 @@ interface Incident {
   createdAt: string;
 }
 
-interface NpcEmotions {
-  anger: number;
-  trust: number;
-  confusion: number;
-  interest: number;
-}
-
 interface NpcAffectiveState {
   affective: { intensity: number; valence: number };
   cognitive: { confusion: number; load: number };
@@ -44,8 +37,7 @@ interface NpcAffectiveState {
 
 interface SimulationState {
   version: number;
-  npcEmotions: NpcEmotions;
-  npcAffectiveState?: NpcAffectiveState;
+  npcAffectiveState: NpcAffectiveState;
   recentIncidents: Incident[];
 }
 
@@ -83,17 +75,6 @@ function isTurnScore(v: unknown): v is TurnScore {
   );
 }
 
-function isNpcEmotions(v: unknown): v is NpcEmotions {
-  if (!v || typeof v !== "object") return false;
-  const e = v as Record<string, unknown>;
-  return (
-    typeof e.anger === "number" &&
-    typeof e.trust === "number" &&
-    typeof e.confusion === "number" &&
-    typeof e.interest === "number"
-  );
-}
-
 function isNpcAffectiveState(v: unknown): v is NpcAffectiveState {
   if (!v || typeof v !== "object") return false;
   const a = v as Record<string, unknown>;
@@ -107,7 +88,7 @@ function isNpcAffectiveState(v: unknown): v is NpcAffectiveState {
 function isSimulationState(v: unknown): v is SimulationState {
   if (!v || typeof v !== "object") return false;
   const s = v as Record<string, unknown>;
-  return isNpcEmotions(s.npcEmotions) && typeof s.version === "number";
+  return isNpcAffectiveState(s.npcAffectiveState) && typeof s.version === "number";
 }
 
 function isIncident(v: unknown): v is Incident {
@@ -183,25 +164,18 @@ export function computeEmotionDeltasByTurn(events: SimulationEventRecord[]): Map
   for (const ev of events) {
     if (ev.eventType !== "auto_evaluation") continue;
     if (!isSimulationState(ev.stateAfter)) continue;
-    const after = ev.stateAfter.npcEmotions;
-    const before = isSimulationState(ev.stateBefore) ? ev.stateBefore.npcEmotions : null;
-    if (!before) continue;
-
-    const afterAff = isNpcAffectiveState(ev.stateAfter.npcAffectiveState)
-      ? ev.stateAfter.npcAffectiveState
-      : null;
-    const beforeAff = isSimulationState(ev.stateBefore) && isNpcAffectiveState(ev.stateBefore.npcAffectiveState)
-      ? ev.stateBefore.npcAffectiveState
-      : null;
+    if (!isSimulationState(ev.stateBefore)) continue;
+    const afterAff = ev.stateAfter.npcAffectiveState;
+    const beforeAff = ev.stateBefore.npcAffectiveState;
 
     result.set(ev.turnIndex, {
-      trust: after.trust - before.trust,
-      interest: after.interest - before.interest,
-      anger: after.anger - before.anger,
-      confusion: after.confusion - before.confusion,
-      rapport: afterAff && beforeAff ? afterAff.relational.rapport - beforeAff.relational.rapport : 0,
-      cognitiveLoad: afterAff && beforeAff ? afterAff.cognitive.load - beforeAff.cognitive.load : 0,
-      cooperativeness: afterAff && beforeAff ? afterAff.motivational.cooperativeness - beforeAff.motivational.cooperativeness : 0,
+      trust: afterAff.relational.trust - beforeAff.relational.trust,
+      interest: afterAff.motivational.interest - beforeAff.motivational.interest,
+      anger: afterAff.affective.intensity - beforeAff.affective.intensity,
+      confusion: afterAff.cognitive.confusion - beforeAff.cognitive.confusion,
+      rapport: afterAff.relational.rapport - beforeAff.relational.rapport,
+      cognitiveLoad: afterAff.cognitive.load - beforeAff.cognitive.load,
+      cooperativeness: afterAff.motivational.cooperativeness - beforeAff.motivational.cooperativeness,
     });
   }
   return result;
@@ -215,40 +189,31 @@ interface EmotionTrendPoint {
   anger: number;
   confusion: number;
   interest: number;
-  /** Affective-only fields — present when npcAffectiveState was stored on the event */
-  rapport: number | null;
-  cognitiveLoad: number | null;
-  cooperativeness: number | null;
+  rapport: number;
+  cognitiveLoad: number;
+  cooperativeness: number;
 }
 
 /**
- * Extract absolute NPC emotion + affective-only values from stateAfter of auto_evaluation events,
+ * Extract absolute NPC emotion values from stateAfter of auto_evaluation events,
  * one point per turn (latest entry wins when a turn has duplicates).
- *
- * Prefers npcAffectiveState values when available (newer sessions).
- * Falls back to npcEmotions flat values for legacy session data.
+ * Events without npcAffectiveState are skipped.
  */
 export function computeEmotionTrend(events: SimulationEventRecord[]): EmotionTrendPoint[] {
   const byTurn = new Map<number, EmotionTrendPoint>();
   for (const ev of events) {
     if (ev.eventType !== "auto_evaluation") continue;
     if (!isSimulationState(ev.stateAfter)) continue;
-    const aff = isNpcAffectiveState(ev.stateAfter.npcAffectiveState) ? ev.stateAfter.npcAffectiveState : null;
-    const flat = ev.stateAfter.npcEmotions;
-    // Prefer affective state (primary source of truth), fall back to flat for old sessions
-    const anger = aff ? aff.affective.intensity : flat.anger;
-    const trust = aff ? aff.relational.trust : flat.trust;
-    const confusion = aff ? aff.cognitive.confusion : flat.confusion;
-    const interest = aff ? aff.motivational.interest : flat.interest;
+    const aff = ev.stateAfter.npcAffectiveState;
     byTurn.set(ev.turnIndex, {
       turnIndex: ev.turnIndex,
-      trust,
-      anger,
-      confusion,
-      interest,
-      rapport: aff ? aff.relational.rapport : null,
-      cognitiveLoad: aff ? aff.cognitive.load : null,
-      cooperativeness: aff ? aff.motivational.cooperativeness : null,
+      trust: aff.relational.trust,
+      anger: aff.affective.intensity,
+      confusion: aff.cognitive.confusion,
+      interest: aff.motivational.interest,
+      rapport: aff.relational.rapport,
+      cognitiveLoad: aff.cognitive.load,
+      cooperativeness: aff.motivational.cooperativeness,
     });
   }
   return Array.from(byTurn.values()).sort((a, b) => a.turnIndex - b.turnIndex);

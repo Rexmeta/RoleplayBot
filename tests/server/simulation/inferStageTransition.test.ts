@@ -26,7 +26,7 @@ describe('inferStageTransition', () => {
   it('transitions conflict → negotiation on high anger', () => {
     const state = createDefaultSimulationState();
     state.stage = 'conflict';
-    state.npcEmotions.anger = 75;
+    state.npcAffectiveState.affective.intensity = 75;
     expect(inferStageTransition(state)).toBe('negotiation');
   });
 
@@ -40,31 +40,31 @@ describe('inferStageTransition', () => {
   it('transitions negotiation → escalation when anger high and trust very low', () => {
     const state = createDefaultSimulationState();
     state.stage = 'negotiation';
-    state.npcEmotions.anger = 90;
-    state.npcEmotions.trust = 20;
+    state.npcAffectiveState.affective.intensity = 90;
+    state.npcAffectiveState.relational.trust = 20;
     expect(inferStageTransition(state)).toBe('escalation');
   });
 
   it('transitions negotiation → resolution when trust high and anger low', () => {
     const state = createDefaultSimulationState();
     state.stage = 'negotiation';
-    state.npcEmotions.trust = 70;
-    state.npcEmotions.anger = 30;
+    state.npcAffectiveState.relational.trust = 70;
+    state.npcAffectiveState.affective.intensity = 30;
     expect(inferStageTransition(state)).toBe('resolution');
   });
 
   it('transitions escalation → resolution when trust high and anger low', () => {
     const state = createDefaultSimulationState();
     state.stage = 'escalation';
-    state.npcEmotions.trust = 70;
-    state.npcEmotions.anger = 30;
+    state.npcAffectiveState.relational.trust = 70;
+    state.npcAffectiveState.affective.intensity = 30;
     expect(inferStageTransition(state)).toBe('resolution');
   });
 
   it('returns null when no transition condition is met', () => {
     const state = createDefaultSimulationState();
     state.stage = 'conflict';
-    state.npcEmotions.anger = 30;
+    state.npcAffectiveState.affective.intensity = 30;
     state.pressureLevel = 1;
     expect(inferStageTransition(state)).toBeNull();
   });

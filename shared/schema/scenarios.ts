@@ -152,8 +152,6 @@ export const evaluationHarnessSchema: z.ZodType<EvaluationHarness> = z.object({
 export type TerminationOutcome = 'success' | 'failure' | 'timeout';
 
 export interface TerminationConditionGroup {
-  /** @deprecated Use cognitive/relational/motivational layer conditions instead. Kept for backward compatibility. */
-  npcEmotions?: Partial<Record<'anger' | 'trust' | 'confusion' | 'interest', { operator: ConditionOperator; value: number }>>;
   /** Cognitive layer conditions on NpcAffectiveState.cognitive fields */
   cognitive?: Partial<Record<'confusion' | 'load', { operator: ConditionOperator; value: number }>>;
   /** Relational layer conditions on NpcAffectiveState.relational fields */
@@ -179,12 +177,6 @@ const npcEmotionConditionSchema = z.object({
 });
 
 const terminationConditionGroupSchema: z.ZodType<TerminationConditionGroup> = z.object({
-  npcEmotions: z.object({
-    anger: npcEmotionConditionSchema.optional(),
-    trust: npcEmotionConditionSchema.optional(),
-    confusion: npcEmotionConditionSchema.optional(),
-    interest: npcEmotionConditionSchema.optional(),
-  }).optional(),
   cognitive: z.object({
     confusion: npcEmotionConditionSchema.optional(),
     load: npcEmotionConditionSchema.optional(),

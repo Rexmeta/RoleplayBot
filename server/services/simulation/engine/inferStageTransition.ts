@@ -8,7 +8,8 @@ import { evaluateFlowGraph } from '../simulationEngine';
  * Used when no FlowGraph is configured.
  */
 export function inferStageTransition(state: SimulationState): ScenarioStage | null {
-  const { anger, trust } = state.npcEmotions;
+  const anger = state.npcAffectiveState.affective.intensity;
+  const trust = state.npcAffectiveState.relational.trust;
   const pressure = state.pressureLevel;
   const stage = state.stage;
   const { totalTurns } = state.summary;

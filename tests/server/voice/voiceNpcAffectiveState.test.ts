@@ -4,9 +4,9 @@
  * Confirms that after the emotion migration:
  *  1. update_npc_affective_state tool calls produce npcAffectiveStateDelta patches
  *     (never npcEmotionDelta or direct npcEmotions writes)
- *  2. npcEmotions is always derived from npcAffectiveState, not set independently
- *  3. The evaluation path (applySimulationPatch with npcAffectiveStateDelta) also
- *     re-derives npcEmotions correctly
+ *  2. npcAffectiveState is the sole source of truth for NPC emotional state
+ *  3. The evaluation path (applySimulationPatch with npcAffectiveStateDelta) updates
+ *     npcAffectiveState correctly
  *  4. analyzeEmotion (emotionAnalyzer) only returns UI labels — no NPC state side effects
  */
 
@@ -85,7 +85,7 @@ describe('update_npc_affective_state tool — patch format', () => {
   });
 });
 
-// ── 2. npcAffectiveState is updated; npcEmotions is derived ────────────────
+// ── 2. npcAffectiveState is the sole source of truth ──────────────────────
 
 describe('update_npc_affective_state tool — state mutation', () => {
   it('increments npcAffectiveState.affective.intensity by the delta', () => {
@@ -101,7 +101,7 @@ describe('update_npc_affective_state tool — state mutation', () => {
     );
   });
 
-  it('re-derives npcEmotions.anger from npcAffectiveState.affective.intensity', () => {
+  it('updates npcAffectiveState.affective.intensity with intensity delta', () => {
     const result = handleToolCall('update_npc_affective_state', {
       intensityDelta: 20,
       reason: 'customer upset',
@@ -109,11 +109,12 @@ describe('update_npc_affective_state tool — state mutation', () => {
 
     expect(result.success).toBe(true);
     const state = result.currentState!;
-    // npcEmotions.anger must equal affective.intensity (the derivation rule)
-    expect(state.npcEmotions.anger).toBe(state.npcAffectiveState.affective.intensity);
+    expect(state.npcAffectiveState.affective.intensity).toBe(
+      DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 20
+    );
   });
 
-  it('re-derives npcEmotions.trust from npcAffectiveState.relational.trust', () => {
+  it('updates npcAffectiveState.relational.trust with trust delta', () => {
     const result = handleToolCall('update_npc_affective_state', {
       trustDelta: -15,
       reason: 'broken promise',
@@ -121,10 +122,12 @@ describe('update_npc_affective_state tool — state mutation', () => {
 
     expect(result.success).toBe(true);
     const state = result.currentState!;
-    expect(state.npcEmotions.trust).toBe(state.npcAffectiveState.relational.trust);
+    expect(state.npcAffectiveState.relational.trust).toBe(
+      DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 15
+    );
   });
 
-  it('re-derives npcEmotions.confusion from npcAffectiveState.cognitive.confusion', () => {
+  it('updates npcAffectiveState.cognitive.confusion with confusion delta', () => {
     const result = handleToolCall('update_npc_affective_state', {
       confusionDelta: 12,
       reason: 'unclear policy',
@@ -132,10 +135,12 @@ describe('update_npc_affective_state tool — state mutation', () => {
 
     expect(result.success).toBe(true);
     const state = result.currentState!;
-    expect(state.npcEmotions.confusion).toBe(state.npcAffectiveState.cognitive.confusion);
+    expect(state.npcAffectiveState.cognitive.confusion).toBe(
+      DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 12
+    );
   });
 
-  it('re-derives npcEmotions.interest from npcAffectiveState.motivational.interest', () => {
+  it('updates npcAffectiveState.motivational.interest with interest delta', () => {
     const result = handleToolCall('update_npc_affective_state', {
       interestDelta: -8,
       reason: 'disengaged customer',
@@ -143,14 +148,16 @@ describe('update_npc_affective_state tool — state mutation', () => {
 
     expect(result.success).toBe(true);
     const state = result.currentState!;
-    expect(state.npcEmotions.interest).toBe(state.npcAffectiveState.motivational.interest);
+    expect(state.npcAffectiveState.motivational.interest).toBe(
+      DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest - 8
+    );
   });
 });
 
-// ── 3. Cumulative deltas keep npcEmotions in sync ──────────────────────────
+// ── 3. Cumulative deltas accumulate in npcAffectiveState ──────────────────
 
 describe('update_npc_affective_state tool — cumulative calls', () => {
-  it('accumulates deltas across two calls and keeps npcEmotions derived', () => {
+  it('accumulates deltas across two calls in npcAffectiveState', () => {
     handleToolCall('update_npc_affective_state', {
       intensityDelta: 10,
       reason: 'first escalation',
@@ -165,10 +172,9 @@ describe('update_npc_affective_state tool — cumulative calls', () => {
     const state = result2.currentState!;
     const expected = DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 20;
     expect(state.npcAffectiveState.affective.intensity).toBe(expected);
-    expect(state.npcEmotions.anger).toBe(expected);
   });
 
-  it('session state reflects the latest derived npcEmotions after multiple patches', () => {
+  it('session state reflects the latest npcAffectiveState after multiple patches', () => {
     // Apply two patches via the engine directly (simulating evaluation path)
     applySimulationPatch(RUN_ID, {
       source: 'server_evaluation',
@@ -186,8 +192,6 @@ describe('update_npc_affective_state tool — cumulative calls', () => {
     const state = getSessionState(RUN_ID)!;
     const expectedTrust = DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 15;
     expect(state.npcAffectiveState.relational.trust).toBe(expectedTrust);
-    // npcEmotions.trust must mirror the authoritative value
-    expect(state.npcEmotions.trust).toBe(state.npcAffectiveState.relational.trust);
   });
 });
 
@@ -211,7 +215,6 @@ describe('update_npc_affective_state tool — clamping', () => {
 
     expect(result.success).toBe(true);
     expect(result.currentState!.npcAffectiveState.affective.intensity).toBe(100);
-    expect(result.currentState!.npcEmotions.anger).toBe(100);
   });
 
   it('clamps npcAffectiveState.relational.trust to minimum 0', () => {
@@ -224,7 +227,6 @@ describe('update_npc_affective_state tool — clamping', () => {
 
     const state = getSessionState(RUN_ID)!;
     expect(state.npcAffectiveState.relational.trust).toBe(0);
-    expect(state.npcEmotions.trust).toBe(0);
   });
 });
 
@@ -260,7 +262,7 @@ describe('evaluation path (applySimulationPatch) — npcAffectiveState as source
     );
   });
 
-  it('npcEmotions stays consistent with npcAffectiveState after evaluation patch', () => {
+  it('npcAffectiveState is updated correctly after evaluation patch', () => {
     const state = applySimulationPatch(RUN_ID, {
       source: 'server_evaluation',
       priority: 'normal',
@@ -275,11 +277,10 @@ describe('evaluation path (applySimulationPatch) — npcAffectiveState as source
       },
     });
 
-    // All four flat emotion fields must mirror their affective counterparts
-    expect(state.npcEmotions.anger).toBe(state.npcAffectiveState.affective.intensity);
-    expect(state.npcEmotions.trust).toBe(state.npcAffectiveState.relational.trust);
-    expect(state.npcEmotions.confusion).toBe(state.npcAffectiveState.cognitive.confusion);
-    expect(state.npcEmotions.interest).toBe(state.npcAffectiveState.motivational.interest);
+    expect(state.npcAffectiveState.affective.intensity).toBe(DEFAULT_NPC_AFFECTIVE_STATE.affective.intensity + 18);
+    expect(state.npcAffectiveState.relational.trust).toBe(DEFAULT_NPC_AFFECTIVE_STATE.relational.trust - 12);
+    expect(state.npcAffectiveState.cognitive.confusion).toBe(DEFAULT_NPC_AFFECTIVE_STATE.cognitive.confusion + 9);
+    expect(state.npcAffectiveState.motivational.interest).toBe(DEFAULT_NPC_AFFECTIVE_STATE.motivational.interest - 6);
   });
 
   it('a patch without npcAffectiveStateDelta does not change affective values', () => {
@@ -303,7 +304,6 @@ describe('evaluation path (applySimulationPatch) — npcAffectiveState as source
     });
 
     expect(after.npcAffectiveState.affective.intensity).toBe(intensityBefore);
-    expect(after.npcEmotions.anger).toBe(intensityBefore);
   });
 });
 
@@ -337,7 +337,6 @@ describe('analyzeEmotion (emotionAnalyzer) — UI label only, no state writes', 
     // Session state must be unchanged
     const stateAfter = getSessionState(RUN_ID)!;
     expect(stateAfter.npcAffectiveState.relational.trust).toBe(trustBefore);
-    expect(stateAfter.npcEmotions.trust).toBe(trustBefore);
   });
 
   it('analyzeUserEmotion returns a UserAffectState without touching npcAffectiveState', async () => {
@@ -366,7 +365,6 @@ describe('analyzeEmotion (emotionAnalyzer) — UI label only, no state writes', 
     // No side effects on session state
     const stateAfter = getSessionState(RUN_ID)!;
     expect(stateAfter.npcAffectiveState.affective.intensity).toBe(intensityBefore);
-    expect(stateAfter.npcEmotions.anger).toBe(intensityBefore);
   });
 });
 

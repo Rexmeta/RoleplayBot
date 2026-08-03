@@ -6,33 +6,31 @@ import {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function makeEmotions(overrides: Partial<{ anger: number; trust: number; confusion: number; interest: number }> = {}) {
-  return { anger: 10, trust: 60, confusion: 20, interest: 50, ...overrides };
-}
-
 function makeAffective(overrides: {
+  intensity?: number;
+  trust?: number;
+  confusion?: number;
+  interest?: number;
   rapport?: number;
   load?: number;
   cooperativeness?: number;
 } = {}) {
-  const { rapport = 70, load = 30, cooperativeness = 55 } = overrides;
+  const { intensity = 10, trust = 60, confusion = 20, interest = 50, rapport = 70, load = 30, cooperativeness = 55 } = overrides;
   return {
-    affective: { intensity: 0.5, valence: 0.3 },
-    cognitive: { confusion: 20, load },
-    relational: { trust: 60, rapport },
-    motivational: { interest: 50, cooperativeness },
+    affective: { intensity, valence: 0.3 },
+    cognitive: { confusion, load },
+    relational: { trust, rapport },
+    motivational: { interest, cooperativeness },
   };
 }
 
 function makeSimState(opts: {
   version?: number;
-  emotions?: ReturnType<typeof makeEmotions>;
   affective?: ReturnType<typeof makeAffective> | null;
 } = {}) {
-  const { version = 1, emotions = makeEmotions(), affective = null } = opts;
+  const { version = 1, affective = makeAffective() } = opts;
   const state: Record<string, unknown> = {
     version,
-    npcEmotions: emotions,
     recentIncidents: [],
   };
   if (affective !== null) {
@@ -78,25 +76,23 @@ describe('computeEmotionTrend', () => {
     expect(computeEmotionTrend([ev])).toEqual([]);
   });
 
-  it('ignores auto_evaluation events with invalid stateAfter (missing npcEmotions)', () => {
+  it('ignores auto_evaluation events with invalid stateAfter (missing npcAffectiveState)', () => {
     const ev = makeEvent({ stateAfter: { version: 1, recentIncidents: [] } });
     expect(computeEmotionTrend([ev])).toEqual([]);
   });
 
   it('extracts basic emotion values for a single turn', () => {
-    const emotions = makeEmotions({ anger: 15, trust: 65, confusion: 25, interest: 55 });
-    const ev = makeEvent({ turnIndex: 0, stateAfter: makeSimState({ emotions }) });
+    const aff = makeAffective({ intensity: 15, trust: 65, confusion: 25, interest: 55 });
+    const ev = makeEvent({ turnIndex: 0, stateAfter: makeSimState({ affective: aff }) });
     const trend = computeEmotionTrend([ev]);
     expect(trend).toHaveLength(1);
     expect(trend[0]).toMatchObject({ turnIndex: 0, anger: 15, trust: 65, confusion: 25, interest: 55 });
   });
 
-  it('sets rapport, cognitiveLoad, cooperativeness to null when npcAffectiveState is absent', () => {
+  it('ignores events when stateAfter lacks npcAffectiveState', () => {
     const ev = makeEvent({ turnIndex: 1, stateAfter: makeSimState({ affective: null }) });
     const trend = computeEmotionTrend([ev]);
-    expect(trend[0].rapport).toBeNull();
-    expect(trend[0].cognitiveLoad).toBeNull();
-    expect(trend[0].cooperativeness).toBeNull();
+    expect(trend).toHaveLength(0);
   });
 
   it('extracts rapport, cognitiveLoad, cooperativeness when npcAffectiveState is present', () => {
@@ -119,18 +115,18 @@ describe('computeEmotionTrend', () => {
   it('latest entry wins when a turn has duplicate events', () => {
     const first = makeEvent({
       turnIndex: 0,
-      stateAfter: makeSimState({ emotions: makeEmotions({ trust: 40 }) }),
+      stateAfter: makeSimState({ affective: makeAffective({ trust: 40 }) }),
     });
     const last = makeEvent({
       turnIndex: 0,
-      stateAfter: makeSimState({ emotions: makeEmotions({ trust: 80 }) }),
+      stateAfter: makeSimState({ affective: makeAffective({ trust: 80 }) }),
     });
     const trend = computeEmotionTrend([first, last]);
     expect(trend).toHaveLength(1);
     expect(trend[0].trust).toBe(80);
   });
 
-  it('handles multiple turns where only some have npcAffectiveState', () => {
+  it('ignores events without npcAffectiveState while processing those that have it', () => {
     const withAff = makeEvent({
       turnIndex: 0,
       stateAfter: makeSimState({ affective: makeAffective({ rapport: 70 }) }),
@@ -140,8 +136,8 @@ describe('computeEmotionTrend', () => {
       stateAfter: makeSimState({ affective: null }),
     });
     const trend = computeEmotionTrend([withAff, withoutAff]);
+    expect(trend).toHaveLength(1);
     expect(trend[0].rapport).toBe(70);
-    expect(trend[1].rapport).toBeNull();
   });
 
   it('correctly reads rapport from relational.rapport in npcAffectiveState', () => {
@@ -195,8 +191,8 @@ describe('computeEmotionDeltasByTurn', () => {
   });
 
   it('computes correct trust and anger deltas for a single turn', () => {
-    const before = makeSimState({ emotions: makeEmotions({ trust: 40, anger: 20 }) });
-    const after  = makeSimState({ emotions: makeEmotions({ trust: 55, anger: 10 }) });
+    const before = makeSimState({ affective: makeAffective({ trust: 40, intensity: 20 }) });
+    const after  = makeSimState({ affective: makeAffective({ trust: 55, intensity: 10 }) });
     const ev = makeEvent({ turnIndex: 1, stateBefore: before, stateAfter: after });
     const deltas = computeEmotionDeltasByTurn([ev]);
     expect(deltas.get(1)?.trust).toBe(15);
@@ -204,42 +200,36 @@ describe('computeEmotionDeltasByTurn', () => {
   });
 
   it('computes correct interest and confusion deltas', () => {
-    const before = makeSimState({ emotions: makeEmotions({ interest: 30, confusion: 50 }) });
-    const after  = makeSimState({ emotions: makeEmotions({ interest: 45, confusion: 35 }) });
+    const before = makeSimState({ affective: makeAffective({ interest: 30, confusion: 50 }) });
+    const after  = makeSimState({ affective: makeAffective({ interest: 45, confusion: 35 }) });
     const ev = makeEvent({ turnIndex: 0, stateBefore: before, stateAfter: after });
     const deltas = computeEmotionDeltasByTurn([ev]);
     expect(deltas.get(0)?.interest).toBe(15);
     expect(deltas.get(0)?.confusion).toBe(-15);
   });
 
-  it('sets rapport, cognitiveLoad, cooperativeness to 0 when both states lack npcAffectiveState', () => {
+  it('ignores events where both states lack npcAffectiveState', () => {
     const before = makeSimState({ affective: null });
     const after  = makeSimState({ affective: null });
     const ev = makeEvent({ turnIndex: 0, stateBefore: before, stateAfter: after });
     const deltas = computeEmotionDeltasByTurn([ev]);
-    expect(deltas.get(0)?.rapport).toBe(0);
-    expect(deltas.get(0)?.cognitiveLoad).toBe(0);
-    expect(deltas.get(0)?.cooperativeness).toBe(0);
+    expect(deltas.size).toBe(0);
   });
 
-  it('sets rapport, cognitiveLoad, cooperativeness to 0 when only stateAfter has npcAffectiveState', () => {
+  it('ignores events where stateBefore lacks npcAffectiveState', () => {
     const before = makeSimState({ affective: null });
     const after  = makeSimState({ affective: makeAffective({ rapport: 70 }) });
     const ev = makeEvent({ turnIndex: 0, stateBefore: before, stateAfter: after });
     const deltas = computeEmotionDeltasByTurn([ev]);
-    expect(deltas.get(0)?.rapport).toBe(0);
-    expect(deltas.get(0)?.cognitiveLoad).toBe(0);
-    expect(deltas.get(0)?.cooperativeness).toBe(0);
+    expect(deltas.size).toBe(0);
   });
 
-  it('sets rapport, cognitiveLoad, cooperativeness to 0 when only stateBefore has npcAffectiveState', () => {
+  it('ignores events where stateAfter lacks npcAffectiveState', () => {
     const before = makeSimState({ affective: makeAffective({ rapport: 70 }) });
     const after  = makeSimState({ affective: null });
     const ev = makeEvent({ turnIndex: 0, stateBefore: before, stateAfter: after });
     const deltas = computeEmotionDeltasByTurn([ev]);
-    expect(deltas.get(0)?.rapport).toBe(0);
-    expect(deltas.get(0)?.cognitiveLoad).toBe(0);
-    expect(deltas.get(0)?.cooperativeness).toBe(0);
+    expect(deltas.size).toBe(0);
   });
 
   it('computes correct rapport delta when both states have npcAffectiveState', () => {
@@ -269,13 +259,13 @@ describe('computeEmotionDeltasByTurn', () => {
   it('computes deltas for multiple turns independently', () => {
     const ev0 = makeEvent({
       turnIndex: 0,
-      stateBefore: makeSimState({ emotions: makeEmotions({ trust: 40 }), affective: makeAffective({ rapport: 50 }) }),
-      stateAfter:  makeSimState({ emotions: makeEmotions({ trust: 60 }), affective: makeAffective({ rapport: 70 }) }),
+      stateBefore: makeSimState({ affective: makeAffective({ trust: 40, rapport: 50 }) }),
+      stateAfter:  makeSimState({ affective: makeAffective({ trust: 60, rapport: 70 }) }),
     });
     const ev1 = makeEvent({
       turnIndex: 1,
-      stateBefore: makeSimState({ emotions: makeEmotions({ trust: 60 }), affective: makeAffective({ rapport: 70 }) }),
-      stateAfter:  makeSimState({ emotions: makeEmotions({ trust: 50 }), affective: makeAffective({ rapport: 65 }) }),
+      stateBefore: makeSimState({ affective: makeAffective({ trust: 60, rapport: 70 }) }),
+      stateAfter:  makeSimState({ affective: makeAffective({ trust: 50, rapport: 65 }) }),
     });
     const deltas = computeEmotionDeltasByTurn([ev0, ev1]);
     expect(deltas.get(0)?.trust).toBe(20);
@@ -287,13 +277,13 @@ describe('computeEmotionDeltasByTurn', () => {
   it('overwrites earlier entry for the same turnIndex with later event', () => {
     const ev_first = makeEvent({
       turnIndex: 0,
-      stateBefore: makeSimState({ emotions: makeEmotions({ trust: 10 }) }),
-      stateAfter:  makeSimState({ emotions: makeEmotions({ trust: 20 }) }),
+      stateBefore: makeSimState({ affective: makeAffective({ trust: 10 }) }),
+      stateAfter:  makeSimState({ affective: makeAffective({ trust: 20 }) }),
     });
     const ev_last = makeEvent({
       turnIndex: 0,
-      stateBefore: makeSimState({ emotions: makeEmotions({ trust: 50 }) }),
-      stateAfter:  makeSimState({ emotions: makeEmotions({ trust: 90 }) }),
+      stateBefore: makeSimState({ affective: makeAffective({ trust: 50 }) }),
+      stateAfter:  makeSimState({ affective: makeAffective({ trust: 90 }) }),
     });
     const deltas = computeEmotionDeltasByTurn([ev_first, ev_last]);
     expect(deltas.size).toBe(1);
@@ -302,11 +292,9 @@ describe('computeEmotionDeltasByTurn', () => {
 
   it('all three affective deltas are computed correctly in a single event', () => {
     const before = makeSimState({
-      emotions: makeEmotions(),
       affective: makeAffective({ rapport: 60, load: 50, cooperativeness: 40 }),
     });
     const after = makeSimState({
-      emotions: makeEmotions(),
       affective: makeAffective({ rapport: 80, load: 30, cooperativeness: 70 }),
     });
     const ev = makeEvent({ turnIndex: 5, stateBefore: before, stateAfter: after });
