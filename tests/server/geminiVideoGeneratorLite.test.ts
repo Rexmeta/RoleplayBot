@@ -359,10 +359,6 @@ describe('generateAvatarClip — seed image fallback when neutralImageUrl is pro
     expect(typeof args[0].image.mimeType).toBe('string');
     expect(args[0].image.mimeType.length).toBeGreaterThan(0);
 
-    // lastFrame (same seed image) must also be set for identity-preserving loop
-    expect(args[0].config?.lastFrame).toBeDefined();
-    expect(args[0].config.lastFrame.imageBytes).toBe(fakeBuffer.toString('base64'));
-
     expect(result.success).toBe(true);
   });
 });

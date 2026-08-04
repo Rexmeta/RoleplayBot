@@ -586,8 +586,7 @@ export async function generateAvatarClip(
     const generateParams: any = { model: effectiveModel, prompt: videoPrompt };
     if (seedImage) {
       generateParams.image = seedImage;
-      generateParams.config = { lastFrame: seedImage };
-      console.log(`🖼️ 시드 이미지 설정 완료 (첫 프레임+마지막 프레임, ${seedImage.mimeType}, ${Math.round(seedImage.imageBytes.length * 3 / 4)} bytes raw)`);
+      console.log(`🖼️ 시드 이미지 설정 완료 (첫 프레임, ${seedImage.mimeType}, ${Math.round(seedImage.imageBytes.length * 3 / 4)} bytes raw)`);
     }
 
     const operation = await withRetry(

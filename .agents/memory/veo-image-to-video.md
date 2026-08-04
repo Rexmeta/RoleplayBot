@@ -3,29 +3,35 @@ name: Veo image-to-video constraints (Gemini API)
 description: What works and what doesn't for seed images in Veo avatar clip generation on Gemini API
 ---
 
-## Rules
+## Confirmed NOT supported on Gemini API (return 400 immediately)
+- `config.referenceImages` — Vertex AI only
+- `config.personGeneration: 'allow_adult'` — removed from Gemini API
+- `config.lastFrame` — Vertex AI only
 
-**`config.referenceImages` is Vertex AI only.** Gemini API returns `400: referenceImages parameter is not supported`. Never use it regardless of model.
+The official Google docs show all three, but they silently apply only to Vertex AI.
 
-**`config.personGeneration: 'allow_adult'` is also unsupported** on Gemini API (`400: allow_adult for personGeneration is currently not supported`). Never pass this field.
-
-**The correct Gemini API image-to-video approach** — works on all 3 Veo models (Lite, Fast, Full):
+## Only confirmed working on Gemini API
 ```js
-generateParams.image = seedImage;           // top-level first frame
-generateParams.config = { lastFrame: seedImage }; // same image = identity-preserving loop
+// All 3 Veo models (Lite / Fast / Full) support this
+generateParams.image = { imageBytes: base64, mimeType: 'image/jpeg' }; // first frame
+// No config overrides for the image — just image at top level
 ```
-Using the same image for both first and last frame forces the video to start and end with the exact same face, creating a seamless loop where identity is locked at both endpoints.
+The video starts from the seed image face. Appearance drift across frames is possible but the first frame is locked to the seed image.
 
-**Do NOT prompt about faces/skin/hair.** Text like "Preserve the exact face, skin tone, hair" triggers RAI content filters. Keep prompts motion-only (posture, pose, movement).
+## RAI filter behavior
+- Person face images are sometimes (not always) rejected by Veo's RAI filter
+- When rejected: `raiMediaFilteredCount > 0`, `generatedVideos` is empty
+- Do NOT silently fall back to text-only — that produces a random person
+- Return a clear error; let the operator retry or change the image
 
-**Do NOT silently fall back to text-only generation** when the seed image is filtered. That produces a completely different person. Return a clear error instead.
+## Prompt rules
+- Do NOT mention faces, skin tone, hair, or appearance in the prompt — triggers RAI filters
+- Keep prompts motion-only: posture, eye blinks, breathing, camera lock
 
 ## How to apply
+In `generateAvatarClip()` (`server/services/gemini-video-generator.ts`):
+- Set `generateParams.image = seedImage` when seed image present
+- No `config` block at all when using image (no personGeneration, no referenceImages, no lastFrame)
+- On RAI filter: explicit error, never silent fallback
 
-- `generateAvatarClip()` in `server/services/gemini-video-generator.ts`
-- Set `generateParams.image` AND `generateParams.config.lastFrame` to the same `{ imageBytes, mimeType }` object
-- No `config.personGeneration`, no `config.referenceImages`
-- No model forcing — all 3 Veo models support this
-- On RAI filter: fail with explicit error, never silent fallback
-
-**Why:** `referenceImages` and `personGeneration` both return 400 on Gemini API regardless of model. The `image` + `config.lastFrame` pattern is confirmed working from official docs and live testing.
+**Why:** Each of referenceImages / personGeneration / lastFrame was tested live and returned 400 on Gemini API. Only top-level `image` passes without error.
