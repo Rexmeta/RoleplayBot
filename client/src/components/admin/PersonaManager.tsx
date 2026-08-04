@@ -33,11 +33,6 @@ const emotionKeyMap: Record<string, string> = {
   '당혹': 'embarrassment'
 };
 
-const VIDEO_MODELS = [
-  { value: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (720p · 오디오 없음)', recommended: true },
-  { value: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (720p · 오디오 없음)' },
-] as const;
-
 // MBTI 페르소나 타입 정의
 interface MBTIPersona {
   id: string;
@@ -194,7 +189,6 @@ interface MBTIPersonaFormData {
       당혹: string;
     };
   };
-  modelVideoOverride?: string;
   freeChatAvailable: boolean;
   freeChatDescription: string;
   storeListed?: boolean;
@@ -777,7 +771,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         gender,
         neutralImageUrl: neutralImageUrl || undefined,
         extraPrompt: extraPrompt?.trim() || undefined,
-        modelVideoOverride: formData.modelVideoOverride || undefined,
       });
       const { jobId } = await startResponse.json();
       if (!jobId) throw new Error('서버에서 작업 ID를 받지 못했습니다.');
@@ -836,7 +829,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } },
         female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } }
       },
-      modelVideoOverride: '',
       videos: { enabled: false, avatarId: '', clips: { male: {}, female: {} } },
     });
     setRawInputs({
@@ -912,7 +904,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
           }
         }
       },
-      modelVideoOverride: (persona as any).modelVideoOverride || '',
       freeChatAvailable: (persona as any).freeChatAvailable ?? false,
       freeChatDescription: (persona as any).freeChatDescription ?? '',
       storeListed: (persona as any).storeListed ?? false,
@@ -1528,28 +1519,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                     <i className="fas fa-video text-violet-600"></i>
                     비디오 아바타
                   </h3>
-                </div>
-
-                {/* 비디오 모델 오버라이드 */}
-                <div className="flex flex-col gap-1.5 mb-4">
-                  <Label className="text-xs font-medium text-slate-600">비디오 모델 오버라이드</Label>
-                  <Select
-                    value={formData.modelVideoOverride || '__global__'}
-                    onValueChange={(v) => setFormData(prev => ({ ...prev, modelVideoOverride: v === '__global__' ? '' : v }))}
-                  >
-                    <SelectTrigger className="w-full sm:w-72 text-sm border-slate-300">
-                      <SelectValue placeholder="전역 기본값 사용" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__global__">전역 기본값 사용</SelectItem>
-                      {VIDEO_MODELS.map(m => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}{(m as any).recommended ? ' ★' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-slate-400">설정 시 이 페르소나의 클립 생성에 전역 모델보다 우선 적용됩니다.</p>
                 </div>
 
                 {/* 활성화 스위치 + Avatar ID */}
