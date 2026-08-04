@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Hoist mock refs ───────────────────────────────────────────────────────────
 const { mockGetModelForFeature, mockGenerateVideos } = vi.hoisted(() => ({
-  mockGetModelForFeature: vi.fn().mockResolvedValue('veo-3.1-generate-lite-preview'),
+  mockGetModelForFeature: vi.fn().mockResolvedValue('veo-3.1-lite-generate-preview'),
   mockGenerateVideos: vi.fn(),
 }));
 
@@ -61,7 +61,7 @@ import { generateIntroVideo, generateAvatarClip } from '../../server/services/ge
 // ─────────────────────────────────────────────────────────────────────────────
 
 function resetMocks() {
-  mockGetModelForFeature.mockReset().mockResolvedValue('veo-3.1-generate-lite-preview');
+  mockGetModelForFeature.mockReset().mockResolvedValue('veo-3.1-lite-generate-preview');
   const fakeOp = {
     done: true,
     response: { generatedVideos: [{ video: { videoBytes: 'AA==' } }] },

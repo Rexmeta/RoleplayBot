@@ -1,1 +1,2 @@
 - [Gemini Live valid models](gemini-live-models.md) — SDK v1.15.0 실제 유효 모델명은 `gemini-live-2.5-flash-preview` (not `native-audio`); always v1beta
+- [Veo model names](veo-model-names.md) — 올바른 순서: `veo-3.1-lite-generate-preview` (lite-generate, not generate-lite); generateAudio는 SDK v1.15+에서 config에 넣으면 즉시 에러

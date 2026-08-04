@@ -40,7 +40,7 @@ const FEATURE_ENV_KEYS: Record<AIFeature, string> = {
 
 const FEATURE_DEFAULTS: Partial<Record<AIFeature, string>> = {
   image: 'gemini-2.5-flash-image',
-  video: 'veo-2.0-generate-001',
+  video: 'veo-3.1-lite-generate-preview',
 };
 
 /**

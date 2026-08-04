@@ -79,7 +79,7 @@ function makeDoneOperation() {
   };
 }
 
-const LITE_MODEL = 'veo-3.1-generate-lite-preview';
+const LITE_MODEL = 'veo-3.1-lite-generate-preview';
 
 // ── generateIntroVideo ────────────────────────────────────────────────────────
 
