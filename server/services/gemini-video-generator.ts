@@ -578,23 +578,16 @@ export async function generateAvatarClip(
       }
     }
 
-    // config.referenceImages with referenceType "asset" is the correct Gemini API
-    // approach per the official docs (https://ai.google.dev/gemini-api/docs/veo#reference-images).
-    // IMPORTANT: only veo-3.1-generate-preview (full model) supports referenceImages.
-    // Lite/Fast models return "referenceImages parameter is not supported".
-    // When a seed image is present we therefore always force the full model.
-    const REFERENCE_IMAGE_MODEL = 'veo-3.1-generate-preview';
-    const effectiveModel = seedImage ? REFERENCE_IMAGE_MODEL : videoModel;
-    if (seedImage && effectiveModel !== videoModel) {
-      console.log(`🔀 시드 이미지 사용: 모델 ${videoModel} → ${effectiveModel} (referenceImages는 풀 모델만 지원)`);
-    }
-
+    // Correct Gemini API image-to-video approach (all 3 Veo models support this):
+    //   image        → top-level first frame
+    //   config.lastFrame → last frame (same image = perfect loop, identity preserved)
+    // Do NOT use config.referenceImages — that is Vertex AI only and returns 400 on Gemini API.
+    const effectiveModel = videoModel;
     const generateParams: any = { model: effectiveModel, prompt: videoPrompt };
     if (seedImage) {
-      generateParams.config = {
-        referenceImages: [{ image: seedImage, referenceType: 'asset' }],
-      };
-      console.log(`🖼️ 참조 이미지 설정 완료 (referenceType=asset, ${seedImage.mimeType}, ${Math.round(seedImage.imageBytes.length * 3 / 4)} bytes raw)`);
+      generateParams.image = seedImage;
+      generateParams.config = { lastFrame: seedImage };
+      console.log(`🖼️ 시드 이미지 설정 완료 (첫 프레임+마지막 프레임, ${seedImage.mimeType}, ${Math.round(seedImage.imageBytes.length * 3 / 4)} bytes raw)`);
     }
 
     const operation = await withRetry(

@@ -107,11 +107,11 @@ describe('generateIntroVideo — Lite model, no audio', () => {
     expect(args[0].config?.generateAudio).toBeUndefined();
   });
 
-  it('calls generateVideos with config.personGeneration set to allow_adult', async () => {
+  it('does not send config.personGeneration (not supported by Gemini API)', async () => {
     await generateIntroVideo({ scenarioId: 'sc-001', scenarioTitle: '프로젝트 킥오프' });
 
     const [args] = mockGenerateVideos.mock.calls;
-    expect(args[0].config?.personGeneration).toBe('allow_adult');
+    expect(args[0].config?.personGeneration).toBeUndefined();
   });
 
   it('returns success: true with a non-empty videoUrl', async () => {
@@ -165,11 +165,11 @@ describe('generateAvatarClip — Lite model, no audio', () => {
     expect(args[0].config?.generateAudio).toBeUndefined();
   });
 
-  it('calls generateVideos with config.personGeneration set to allow_adult', async () => {
+  it('does not send config.personGeneration (not supported by Gemini API)', async () => {
     await generateAvatarClip({ personaId: 'persona-x', state: 'idle' });
 
     const [args] = mockGenerateVideos.mock.calls;
-    expect(args[0].config?.personGeneration).toBe('allow_adult');
+    expect(args[0].config?.personGeneration).toBeUndefined();
   });
 
   it('returns success: true with a non-empty videoUrl', async () => {
@@ -351,13 +351,17 @@ describe('generateAvatarClip — seed image fallback when neutralImageUrl is pro
     expect(mockGenerateVideos).toHaveBeenCalledTimes(1);
     const [args] = mockGenerateVideos.mock.calls;
 
-    // image must be present and carry the base64 payload + mimeType
+    // image (first frame) must be present with base64 payload + mimeType
     expect(args[0].image).toBeDefined();
     expect(typeof args[0].image.imageBytes).toBe('string');
     expect(args[0].image.imageBytes.length).toBeGreaterThan(0);
     expect(args[0].image.imageBytes).toBe(fakeBuffer.toString('base64'));
     expect(typeof args[0].image.mimeType).toBe('string');
     expect(args[0].image.mimeType.length).toBeGreaterThan(0);
+
+    // lastFrame (same seed image) must also be set for identity-preserving loop
+    expect(args[0].config?.lastFrame).toBeDefined();
+    expect(args[0].config.lastFrame.imageBytes).toBe(fakeBuffer.toString('base64'));
 
     expect(result.success).toBe(true);
   });
