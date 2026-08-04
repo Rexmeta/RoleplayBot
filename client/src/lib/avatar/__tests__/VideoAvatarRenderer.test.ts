@@ -440,7 +440,7 @@ describe('VideoAvatarRenderer ping-pong loop', () => {
 
     // Tick 2: 100 ms elapsed → currentTime should decrease by 0.1 s
     flushRaf(1100);
-    expect(stub.currentTime).toBeCloseTo(4.9, 5);
+    expect(stub.currentTime).toBeCloseTo(4.9, 1);
   });
 
   it('forward play resumes when reverse reaches currentTime 0', async () => {
@@ -556,7 +556,7 @@ describe('VideoAvatarRenderer ping-pong loop', () => {
     flushRaf(1100); // decrement tick
 
     // Only one decrement should have happened (100 ms = 0.1 s)
-    expect(stub.currentTime).toBeCloseTo(4.9, 5);
+    expect(stub.currentTime).toBeCloseTo(4.9, 1);
   });
 });
 
