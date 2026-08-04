@@ -299,7 +299,7 @@ export class MediaStorageService {
     scenarioTitle: string
   ): Promise<string> {
     const safeTitle = scenarioTitle
-      .replace(/[^a-zA-Z0-9가-힣\s]/g, '')
+      .replace(/[^a-zA-Z0-9가-힣\s\-]/g, '')
       .replace(/\s+/g, '-')
       .substring(0, 50);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
