@@ -105,6 +105,13 @@ describe('generateIntroVideo — Lite model, no audio', () => {
     expect(args[0].config?.generateAudio).toBeUndefined();
   });
 
+  it('calls generateVideos with config.personGeneration set to allow_adult', async () => {
+    await generateIntroVideo({ scenarioId: 'sc-001', scenarioTitle: '프로젝트 킥오프' });
+
+    const [args] = mockGenerateVideos.mock.calls;
+    expect(args[0].config?.personGeneration).toBe('allow_adult');
+  });
+
   it('returns success: true with a non-empty videoUrl', async () => {
     const result = await generateIntroVideo({
       scenarioId: 'sc-001',
@@ -154,6 +161,13 @@ describe('generateAvatarClip — Lite model, no audio', () => {
 
     const [args] = mockGenerateVideos.mock.calls;
     expect(args[0].config?.generateAudio).toBeUndefined();
+  });
+
+  it('calls generateVideos with config.personGeneration set to allow_adult', async () => {
+    await generateAvatarClip({ personaId: 'persona-x', state: 'idle' });
+
+    const [args] = mockGenerateVideos.mock.calls;
+    expect(args[0].config?.personGeneration).toBe('allow_adult');
   });
 
   it('returns success: true with a non-empty videoUrl', async () => {

@@ -89,7 +89,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     console.log(`🎥 비디오 모델: ${videoModel}${request.modelOverride ? ' (시나리오 오버라이드)' : ''}`);
 
     const operation = await withRetry(
-      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt }),
+      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } }),
       3, 'generateVideos-intro',
     );
 
@@ -138,7 +138,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     if (!generatedVideos || generatedVideos.length === 0) {
       return {
         success: false,
-        error: '생성된 비디오가 없습니다.',
+        error: '생성된 비디오가 없습니다. 프롬프트가 콘텐츠 정책에 의해 필터링되었을 수 있습니다.',
         prompt: videoPrompt
       };
     }
@@ -575,7 +575,7 @@ export async function generateAvatarClip(
       }
     }
 
-    const generateParams: any = { model: videoModel, prompt: videoPrompt };
+    const generateParams: any = { model: videoModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } };
     if (seedImage) generateParams.image = seedImage;
 
     const operation = await withRetry(
@@ -609,7 +609,7 @@ export async function generateAvatarClip(
 
     const generatedVideos = result.response?.generatedVideos;
     if (!generatedVideos?.length) {
-      return { success: false, error: '생성된 비디오가 없습니다.' };
+      return { success: false, error: '생성된 비디오가 없습니다. 프롬프트가 콘텐츠 정책에 의해 필터링되었을 수 있습니다.' };
     }
 
     const videoData = generatedVideos[0].video;

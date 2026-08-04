@@ -125,7 +125,7 @@ describe('Video model override – generateAvatarClip', () => {
       state: 'idle',
     });
 
-    expect(mockGetModelForFeature).toHaveBeenCalledWith('video');
+    expect(mockGetModelForFeature).toHaveBeenCalledWith('avatar_video');
   });
 
   it('falls back to getModelForFeature when modelOverride is empty string', async () => {
@@ -135,6 +135,6 @@ describe('Video model override – generateAvatarClip', () => {
       modelOverride: '',
     });
 
-    expect(mockGetModelForFeature).toHaveBeenCalledWith('video');
+    expect(mockGetModelForFeature).toHaveBeenCalledWith('avatar_video');
   });
 });
