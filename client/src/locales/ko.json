@@ -1617,12 +1617,12 @@
       },
       "geminiVeo31": {
         "label": "Gemini Veo 3.1",
-        "description": "고품질 영상 생성 모델",
-        "pricing": "영상 생성 전용 (Veo 접근 권한 필요)"
+        "description": "1080p 고품질 영상 · 오디오 포함",
+        "pricing": "영상 + 오디오 생성 (Veo 접근 권한 필요)"
       },
       "geminiVeo31Lite": {
         "label": "Gemini Veo 3.1 Lite",
-        "description": "720p 영상 전용, 비용 최소화 (추천)",
+        "description": "720p 영상 전용, 비용 최소화",
         "pricing": "영상 생성 전용 · 오디오 없음 (Veo 접근 권한 필요)"
       },
       "geminiVeo31Fast": {
