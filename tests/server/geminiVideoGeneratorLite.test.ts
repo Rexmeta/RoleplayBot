@@ -64,6 +64,8 @@ import {
   generateAvatarClip,
 } from '../../server/services/gemini-video-generator';
 
+import { mediaStorage } from '../../server/services/mediaStorage';
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** A minimal done-operation response with one video whose bytes are inline. */
@@ -292,5 +294,47 @@ describe('generateAvatarClip — error and timeout paths', () => {
     expect(result.success).toBe(false);
     expect(typeof result.error).toBe('string');
     expect(result.error!.length).toBeGreaterThan(0);
+  });
+});
+
+// ── generateAvatarClip — seed image fallback ──────────────────────────────────
+
+describe('generateAvatarClip — seed image fallback when neutralImageUrl is provided', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetModelForFeature.mockResolvedValue(LITE_MODEL);
+    mockGenerateVideos.mockResolvedValue(makeDoneOperation());
+  });
+
+  it('still calls generateVideos without an image param when readImageBuffer throws', async () => {
+    vi.mocked(mediaStorage.readImageBuffer).mockRejectedValueOnce(
+      new Error('storage unavailable'),
+    );
+
+    const result = await generateAvatarClip({
+      personaId: 'persona-x',
+      state: 'idle',
+      neutralImageUrl: '/images/persona-x-neutral.jpg',
+    });
+
+    expect(mockGenerateVideos).toHaveBeenCalledTimes(1);
+    const [args] = mockGenerateVideos.mock.calls;
+    expect(args[0].image).toBeUndefined();
+    expect(result.success).toBe(true);
+  });
+
+  it('still calls generateVideos without an image param when readImageBuffer returns null', async () => {
+    vi.mocked(mediaStorage.readImageBuffer).mockResolvedValueOnce(null);
+
+    const result = await generateAvatarClip({
+      personaId: 'persona-x',
+      state: 'listening',
+      neutralImageUrl: '/images/persona-x-neutral.jpg',
+    });
+
+    expect(mockGenerateVideos).toHaveBeenCalledTimes(1);
+    const [args] = mockGenerateVideos.mock.calls;
+    expect(args[0].image).toBeUndefined();
+    expect(result.success).toBe(true);
   });
 });
