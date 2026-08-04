@@ -60,6 +60,8 @@ export interface VideoGenerationRequest {
   scenarioTitle: string;
   description?: string;
   customPrompt?: string;
+  /** Per-scenario video model override; falls back to global `model_video` setting when omitted. */
+  modelOverride?: string;
   context?: {
     situation: string;
     stakes: string;
@@ -83,7 +85,8 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     console.log(`🎬 Gemini Veo 비디오 생성 요청: ${request.scenarioTitle}`);
     console.log(`프롬프트: ${videoPrompt}`);
 
-    const videoModel = await getModelForFeature('video');
+    const videoModel = request.modelOverride || await getModelForFeature('video');
+    console.log(`🎥 비디오 모델: ${videoModel}${request.modelOverride ? ' (시나리오 오버라이드)' : ''}`);
 
     const operation = await withRetry(
       () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt, config: { generateAudio: false } }),
@@ -414,6 +417,8 @@ export interface AvatarClipRequest {
   neutralImageUrl?: string;
   /** Optional free-text rider appended after the base state prompt. */
   extraPrompt?: string;
+  /** Per-persona video model override; falls back to global `model_video` setting when omitted. */
+  modelOverride?: string;
 }
 
 /**
@@ -538,9 +543,10 @@ export async function generateAvatarClip(
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const videoPrompt = generateAvatarClipPrompt(request);
-    const videoModel = await getModelForFeature('video');
+    const videoModel = request.modelOverride || await getModelForFeature('video');
 
     console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${request.state} / gender:${request.gender ?? 'unspecified'}`);
+    console.log(`🎥 비디오 모델: ${videoModel}${request.modelOverride ? ' (페르소나 오버라이드)' : ''}`);
     console.log(`프롬프트: ${videoPrompt}`);
 
     // Build optional seed image parameter.

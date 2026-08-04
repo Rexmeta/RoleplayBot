@@ -610,6 +610,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
           scenarioTitle: scenario.title,
           description: scenario.description,
           customPrompt: customPrompt,
+          modelOverride: (scenario as any).modelVideoOverride || undefined,
           context: {
             situation: scenario.context?.situation || scenario.description,
             stakes: scenario.context?.stakes || '',

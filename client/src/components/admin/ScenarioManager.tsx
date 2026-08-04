@@ -67,6 +67,7 @@ interface ScenarioFormData {
   imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
   introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
   introVideoMode?: 'none' | 'default' | 'custom'; // 인트로 비디오 모드
+  modelVideoOverride?: string; // 비디오 모델 오버라이드 (전역 설정 우선순위 최상위)
   videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
   targetDurationMinutes?: number; // 시나리오별 목표 대화 시간(분)
@@ -107,6 +108,11 @@ interface ScenarioFormData {
 interface ScenarioManagerProps {
   onGoToPersonas?: () => void;
 }
+
+const VIDEO_MODELS = [
+  { value: 'veo-3.1-generate-lite-preview', label: 'Veo 3.1 Lite (720p · Video only)', recommended: true },
+  { value: 'veo-3.1-generate-preview', label: 'Veo 3.1 (1080p · With audio)' },
+] as const;
 
 const HARNESS_ALL_INCIDENT_TYPES = [
   'executive_join', 'customer_escalation', 'deadline_pressure',
@@ -430,6 +436,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     imagePrompt: '', // 이미지 프롬프트 초기값 추가
     introVideoUrl: '', // 인트로 비디오 URL 초기값 추가
     introVideoMode: 'none', // 인트로 비디오 모드 초기값
+    modelVideoOverride: '',
     videoPrompt: '', // 비디오 프롬프트 초기값 추가
     objectiveType: '', // 목표 유형 초기값 추가
     targetDurationMinutes: 7,
@@ -681,6 +688,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       imagePrompt: scenario.imagePrompt || '',
       introVideoUrl: scenario.introVideoUrl || '',
       introVideoMode: (scenario as any).introVideoMode || (scenario.introVideoUrl ? 'custom' : 'none'),
+      modelVideoOverride: (scenario as any).modelVideoOverride || '',
       videoPrompt: scenario.videoPrompt || '',
       objectiveType: scenario.objectiveType || '',
       isDemo: scenario.isDemo || false,
@@ -884,6 +892,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       imagePrompt: '', // 이미지 프롬프트 초기화 추가
       introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
       introVideoMode: 'none', // 인트로 비디오 모드 초기화
+      modelVideoOverride: '',
       videoPrompt: '', // 비디오 프롬프트 초기화 추가
       objectiveType: '', // 목표 유형 초기화
       targetDurationMinutes: 7,
@@ -964,6 +973,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       imagePrompt: (originalScenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
       introVideoUrl: (originalScenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
       introVideoMode: (originalScenario as any).introVideoMode || ((originalScenario as any).introVideoUrl ? 'custom' : 'none'),
+      modelVideoOverride: (originalScenario as any).modelVideoOverride || '',
       videoPrompt: (originalScenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
       objectiveType: (originalScenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
       targetDurationMinutes: (originalScenario as any).targetDurationMinutes ?? 7,
@@ -1806,8 +1816,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return;
     }
     const exportData = scenarios.map(s => {
-      const { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, videoPrompt, objectiveType, isDemo, isPublic } = s as any;
-      return { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, videoPrompt, objectiveType, isDemo, isPublic, categoryId: (s as any).categoryId, evaluationCriteriaSetId: (s as any).evaluationCriteriaSetId };
+      const { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, modelVideoOverride, videoPrompt, objectiveType, isDemo, isPublic } = s as any;
+      return { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, modelVideoOverride, videoPrompt, objectiveType, isDemo, isPublic, categoryId: (s as any).categoryId, evaluationCriteriaSetId: (s as any).evaluationCriteriaSetId };
     });
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2143,6 +2153,28 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       <span className="font-medium text-slate-700">커스텀 비디오</span>
                       <span className="text-xs text-slate-500 text-center">시나리오별 영상</span>
                     </button>
+                  </div>
+
+                  {/* 비디오 모델 오버라이드 */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-medium text-slate-600">비디오 모델 오버라이드</Label>
+                    <Select
+                      value={formData.modelVideoOverride || '__global__'}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, modelVideoOverride: v === '__global__' ? '' : v }))}
+                    >
+                      <SelectTrigger className="w-full sm:w-72 text-sm border-slate-300">
+                        <SelectValue placeholder="전역 기본값 사용" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__global__">전역 기본값 사용</SelectItem>
+                        {VIDEO_MODELS.map(m => (
+                          <SelectItem key={m.value} value={m.value}>
+                            {m.label}{(m as any).recommended ? ' ★' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-400">설정 시 시스템 전역 비디오 모델보다 우선 적용됩니다.</p>
                   </div>
 
                   {/* 기본 비디오 미리보기 + 교체 UI */}

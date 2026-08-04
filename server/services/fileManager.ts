@@ -193,6 +193,7 @@ export class FileManagerService {
       imagePrompt: dbScenario.imagePrompt || undefined,
       introVideoUrl: dbScenario.introVideoUrl || undefined,
       introVideoMode: dbScenario.introVideoMode || 'none',
+      modelVideoOverride: dbScenario.modelVideoOverride || undefined,
       videoPrompt: dbScenario.videoPrompt || undefined,
       objectiveType: dbScenario.objectiveType || undefined,
       context: dbScenario.context || undefined,
@@ -384,6 +385,7 @@ export class FileManagerService {
         imagePrompt: scenario.imagePrompt || null,
         introVideoUrl: scenario.introVideoUrl || null,
         introVideoMode: scenario.introVideoMode || 'none',
+        modelVideoOverride: (scenario as any).modelVideoOverride || null,
         videoPrompt: scenario.videoPrompt || null,
         objectiveType: scenario.objectiveType || null,
         context: scenario.context || null,
@@ -436,6 +438,7 @@ export class FileManagerService {
         if (scenario.imagePrompt !== undefined) updates.imagePrompt = scenario.imagePrompt;
         if (scenario.introVideoUrl !== undefined) updates.introVideoUrl = scenario.introVideoUrl;
         if (scenario.introVideoMode !== undefined) updates.introVideoMode = scenario.introVideoMode;
+        if ((scenario as any).modelVideoOverride !== undefined) updates.modelVideoOverride = (scenario as any).modelVideoOverride || null;
         if (scenario.videoPrompt !== undefined) updates.videoPrompt = scenario.videoPrompt;
         if (scenario.objectiveType !== undefined) updates.objectiveType = scenario.objectiveType;
         if (scenario.context !== undefined) updates.context = scenario.context;
@@ -619,6 +622,7 @@ export class FileManagerService {
       voice: dbPersona.voice,
       images: dbPersona.images || null,
       videos: dbPersona.videos ?? null,
+      modelVideoOverride: dbPersona.modelVideoOverride || undefined,
       freeChatAvailable: dbPersona.freeChatAvailable || false,
       freeChatDescription: dbPersona.freeChatDescription || '',
       storeListed: dbPersona.storeListed || false,
@@ -649,6 +653,7 @@ export class FileManagerService {
           voice: personaData.voice || null,
           images: personaData.images || null,
           videos: personaData.videos || null,
+          modelVideoOverride: personaData.modelVideoOverride || null,
           storeListed: personaData.storeListed || false,
           storePriceUsd: personaData.storePriceUsd ?? null,
           storePackId: personaData.storePackId ?? null,
@@ -694,6 +699,7 @@ export class FileManagerService {
           voice: personaData.voice,
           images: personaData.images,
           videos: personaData.videos ?? null,
+          modelVideoOverride: personaData.modelVideoOverride || null,
           freeChatAvailable: personaData.freeChatAvailable ?? false,
           freeChatDescription: personaData.freeChatDescription ?? '',
           storeListed: personaData.storeListed ?? false,
