@@ -1657,160 +1657,106 @@ export default function SystemAdminPage() {
                   {t('systemAdmin.settings.aiModelStatusDesc')}
                 </p>
               </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('systemAdmin.settings.table.feature')}</TableHead>
-                        <TableHead>{t('systemAdmin.settings.table.description')}</TableHead>
-                        <TableHead>{t('systemAdmin.settings.table.model')}</TableHead>
-                        <TableHead className="text-center">{t('systemAdmin.settings.table.configurable')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {FEATURE_MODEL_INFO.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{t(`systemAdmin.features.${item.id}.name`)}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{t(`systemAdmin.features.${item.id}.description`)}</TableCell>
-                          <TableCell>
-                            {item.configurable && 'settingKey' in item ? (
-                              <Badge variant="outline" className="text-blue-600 border-blue-200">
-                                {(() => {
-                                  const allModels = [...AI_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS, ...AVATAR_VIDEO_MODELS, ...GEMINI_LIVE_MODELS];
-                                  const selectedModel = allModels.find(m => m.value === featureModels[item.settingKey!]);
-                                  return selectedModel ? t(`systemAdmin.models.${selectedModel.modelKey}.label`) : (item as any).defaultModel;
-                                })()}
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-gray-600">{t(`systemAdmin.models.${(item as any).fixedModelKey}.label`)}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {item.configurable ? (
-                              <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-gray-400 mx-auto" />
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <CardTitle>{t('systemAdmin.settings.aiModelConfig')}</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {t('systemAdmin.settings.aiModelConfigDesc')}
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {settingsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {FEATURE_MODEL_INFO.filter(f => f.configurable && 'settingKey' in f).map((feature) => {
-                      const supportedProviders: string[] = 'supportedProviders' in feature && feature.supportedProviders ? feature.supportedProviders : [];
-                      const modelsToShow = getStaticModelsForFeature(feature.id, supportedProviders);
-                      const currentModelValue = featureModels[feature.settingKey!];
-
-                      return (
-                      <div key={feature.id} className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-base">{t(`systemAdmin.features.${feature.id}.name`)}</h4>
-                          <Badge variant="secondary" className="text-xs">{t(`systemAdmin.features.${feature.id}.description`)}</Badge>
-                          {supportedProviders.length === 1 && (
-                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
-                              {t('systemAdmin.settings.onlySupported', { provider: supportedProviders[0] })}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4">
-                          {modelsToShow.map((model) => {
-                            const isProviderSupported = supportedProviders.length === 0 || supportedProviders.includes(model.provider);
-                            const isDisabled = Boolean(model.disabled) || !isProviderSupported;
-                            const isSelected = currentModelValue === model.value;
-
-                            return (
-                              <div
-                                key={model.value}
-                                className={`p-3 border rounded-lg transition-colors ${
-                                  isDisabled
-                                    ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60 pointer-events-none"
-                                    : isSelected
-                                      ? "border-blue-500 bg-blue-50 cursor-pointer"
-                                      : "border-gray-200 hover:border-gray-300 cursor-pointer"
-                                }`}
-                                onClick={() => !isDisabled && handleFeatureModelChange(feature.settingKey!, model.value)}
-                                data-testid={`model-option-${feature.id}-${model.value}`}
-                                aria-disabled={isDisabled ? true : undefined}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                                    isDisabled
-                                      ? "border-gray-300"
-                                      : isSelected
-                                        ? "border-blue-500"
-                                        : "border-gray-300"
-                                  }`}>
-                                    {isSelected && !isDisabled && (
-                                      <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      <span className="font-medium text-sm truncate max-w-[120px]">{t(`systemAdmin.models.${model.modelKey}.label`)}</span>
-                                      {model.recommended && (
-                                        <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
-                                      )}
-                                      {Boolean(model.disabled) && (
-                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">{t('systemAdmin.settings.preparing')}</Badge>
-                                      )}
-                                      {!isProviderSupported && !model.disabled && (
-                                        <Badge variant="outline" className="text-[10px] px-1 py-0 text-gray-500">{t('systemAdmin.settings.unsupported')}</Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{t(`systemAdmin.models.${model.modelKey}.description`)}</p>
-                                    <p className="text-[10px] text-blue-600 font-mono mt-1 truncate">{t(`systemAdmin.models.${model.modelKey}.pricing`)}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            );
+                  <>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t('systemAdmin.settings.table.feature')}</TableHead>
+                            <TableHead>{t('systemAdmin.settings.table.description')}</TableHead>
+                            <TableHead>{t('systemAdmin.settings.table.model')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {FEATURE_MODEL_INFO.map((item) => {
+                            const allModels = [...AI_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS, ...AVATAR_VIDEO_MODELS, ...GEMINI_LIVE_MODELS];
+                            if (item.configurable && 'settingKey' in item) {
+                              const supportedProviders: string[] = 'supportedProviders' in item && item.supportedProviders ? item.supportedProviders : [];
+                              const modelsToShow = getStaticModelsForFeature(item.id, supportedProviders);
+                              const currentValue = featureModels[item.settingKey!];
+                              return (
+                                <TableRow key={item.id}>
+                                  <TableCell className="font-medium whitespace-nowrap">{t(`systemAdmin.features.${item.id}.name`)}</TableCell>
+                                  <TableCell className="text-muted-foreground text-sm">{t(`systemAdmin.features.${item.id}.description`)}</TableCell>
+                                  <TableCell>
+                                    <Select
+                                      value={currentValue}
+                                      onValueChange={(val) => handleFeatureModelChange(item.settingKey!, val)}
+                                    >
+                                      <SelectTrigger className="w-full min-w-[220px]" data-testid={`model-select-${item.id}`}>
+                                        <SelectValue>
+                                          {(() => {
+                                            const m = allModels.find(m => m.value === currentValue);
+                                            return m ? (
+                                              <span className="flex items-center gap-1.5">
+                                                {t(`systemAdmin.models.${m.modelKey}.label`)}
+                                                {m.recommended && (
+                                                  <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
+                                                )}
+                                              </span>
+                                            ) : currentValue;
+                                          })()}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {modelsToShow.map((model) => {
+                                          const isProviderSupported = supportedProviders.length === 0 || supportedProviders.includes(model.provider);
+                                          const isDisabled = Boolean(model.disabled) || !isProviderSupported;
+                                          return (
+                                            <SelectItem
+                                              key={model.value}
+                                              value={model.value}
+                                              disabled={isDisabled}
+                                              data-testid={`model-option-${item.id}-${model.value}`}
+                                            >
+                                              <div className="flex flex-col gap-0.5 py-0.5">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="font-medium">{t(`systemAdmin.models.${model.modelKey}.label`)}</span>
+                                                  {model.recommended && (
+                                                    <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
+                                                  )}
+                                                  {Boolean(model.disabled) && (
+                                                    <Badge variant="secondary" className="text-[10px] px-1 py-0">{t('systemAdmin.settings.preparing')}</Badge>
+                                                  )}
+                                                  {!isProviderSupported && !model.disabled && (
+                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 text-gray-500">{t('systemAdmin.settings.unsupported')}</Badge>
+                                                  )}
+                                                </div>
+                                                <span className="text-xs text-muted-foreground">{t(`systemAdmin.models.${model.modelKey}.description`)}</span>
+                                                <span className="text-[10px] text-blue-600 font-mono">{t(`systemAdmin.models.${model.modelKey}.pricing`)}</span>
+                                              </div>
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            } else {
+                              const fixedModelKey = (item as any).fixedModelKey;
+                              return (
+                                <TableRow key={item.id}>
+                                  <TableCell className="font-medium whitespace-nowrap">{t(`systemAdmin.features.${item.id}.name`)}</TableCell>
+                                  <TableCell className="text-muted-foreground text-sm">{t(`systemAdmin.features.${item.id}.description`)}</TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-gray-500">{t(`systemAdmin.models.${fixedModelKey}.label`)}</span>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            }
                           })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                    
-                    {FEATURE_MODEL_INFO.filter(f => !f.configurable).length > 0 && (
-                      <div className="pt-4 border-t">
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">{t('systemAdmin.settings.fixedModels')}</h4>
-                        <div className="grid gap-2 md:grid-cols-2">
-                          {FEATURE_MODEL_INFO.filter(f => !f.configurable).map((feature) => (
-                            <div key={feature.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                              <div>
-                                <p className="font-medium text-sm">{t(`systemAdmin.features.${feature.id}.name`)}</p>
-                                <p className="text-xs text-muted-foreground">{t(`systemAdmin.features.${feature.id}.description`)}</p>
-                              </div>
-                              <Badge variant="outline" className="text-gray-600">{t(`systemAdmin.models.${(feature as any).fixedModelKey}.label`)}</Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center gap-4 pt-4 border-t">
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-2">
                       <Button
                         onClick={handleSaveSettings}
                         disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
@@ -1832,7 +1778,7 @@ export default function SystemAdminPage() {
                         <span className="text-sm text-amber-600">{t('systemAdmin.settings.hasChanges')}</span>
                       )}
                     </div>
-                  </div>
+                  </>
                 )}
               </CardContent>
             </Card>
