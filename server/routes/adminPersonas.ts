@@ -87,7 +87,8 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
         });
 
         if (result.success && result.videoUrl) {
-          videoJobStore.setDone(jobId, result.videoUrl, state, resolvedGender);
+          const usedModel = result.metadata?.model;
+          videoJobStore.setDone(jobId, result.videoUrl, state, resolvedGender, usedModel);
 
           // Auto-save the generated clip directly into the persona's DB record.
           // This means the user doesn't need to click "Save" after generation,
@@ -104,8 +105,17 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
                   [state]: result.videoUrl,
                 },
               };
+              // Also persist the model used for each clip slot.
+              const currentClipModels = (currentVideos.clipModels ?? {}) as Record<string, Record<string, string>>;
+              const updatedClipModels = usedModel ? {
+                ...currentClipModels,
+                [resolvedGender]: {
+                  ...(currentClipModels[resolvedGender] ?? {}),
+                  [state]: usedModel,
+                },
+              } : currentClipModels;
               await storage.updateMbtiPersona(personaId, {
-                videos: { ...currentVideos, clips: updatedClips },
+                videos: { ...currentVideos, clips: updatedClips, clipModels: updatedClipModels },
               });
               console.log(`✅ [videoJob:${jobId}] 클립 자동 저장 완료: ${personaId}/${resolvedGender}/${state}`);
             }

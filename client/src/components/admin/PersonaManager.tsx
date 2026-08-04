@@ -219,6 +219,10 @@ interface MBTIPersonaFormData {
       male?: Partial<Record<string, string>>;
       female?: Partial<Record<string, string>>;
     };
+    clipModels?: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    };
   };
 }
 
@@ -716,9 +720,12 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
           const doneState: string = data.result.state || state;
           // Persist the stable storage key (not the expiring signed URL) so saved clips don't break
           const persistUrl: string = data.result.storageKey || data.result.videoUrl;
+          const doneModel: string | undefined = data.result.model;
           setFormData(prev => {
             const prevClips = prev.videos?.clips ?? {};
             const genderClips = prevClips[doneGender] ?? {};
+            const prevClipModels = prev.videos?.clipModels ?? {};
+            const genderModels = prevClipModels[doneGender] ?? {};
             return {
               ...prev,
               videos: {
@@ -727,6 +734,12 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 clips: {
                   ...prevClips,
                   [doneGender]: { ...genderClips, [doneState]: persistUrl },
+                },
+                clipModels: {
+                  ...prevClipModels,
+                  [doneGender]: doneModel
+                    ? { ...genderModels, [doneState]: doneModel }
+                    : genderModels,
                 },
               },
             };
@@ -929,7 +942,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       storePackId: (persona as any).storePackId ?? null,
       videos: (() => {
         const pv = (persona as any).videos;
-        if (!pv) return { enabled: false, avatarId: persona.id, clips: { male: {}, female: {} } };
+        if (!pv) return { enabled: false, avatarId: persona.id, clips: { male: {}, female: {} }, clipModels: { male: {}, female: {} } };
         // Backward compat: if clips is flat (has clip-state keys directly), migrate to { male: clips }
         const rawClips = pv.clips ?? {};
         const CLIP_STATES = ['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'];
@@ -937,10 +950,12 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         const normalizedClips = isFlat
           ? { male: rawClips as Partial<Record<string, string>>, female: {} }
           : { male: rawClips.male ?? {}, female: rawClips.female ?? {} };
+        const rawClipModels = pv.clipModels ?? {};
         return {
           enabled: pv.enabled ?? false,
           avatarId: pv.avatarId ?? persona.id,
           clips: normalizedClips,
+          clipModels: { male: rawClipModels.male ?? {}, female: rawClipModels.female ?? {} },
         };
       })(),
     });
@@ -1548,7 +1563,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       onCheckedChange={(checked) =>
                         setFormData(prev => ({
                           ...prev,
-                          videos: { enabled: checked, avatarId: prev.videos?.avatarId ?? prev.id, clips: prev.videos?.clips ?? { male: {}, female: {} } },
+                          videos: { enabled: checked, avatarId: prev.videos?.avatarId ?? prev.id, clips: prev.videos?.clips ?? { male: {}, female: {} }, clipModels: prev.videos?.clipModels },
                         }))
                       }
                     />
@@ -1566,7 +1581,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       onChange={(e) =>
                         setFormData(prev => ({
                           ...prev,
-                          videos: { enabled: prev.videos?.enabled ?? false, avatarId: e.target.value, clips: prev.videos?.clips ?? { male: {}, female: {} } },
+                          videos: { enabled: prev.videos?.enabled ?? false, avatarId: e.target.value, clips: prev.videos?.clips ?? { male: {}, female: {} }, clipModels: prev.videos?.clipModels },
                         }))
                       }
                       placeholder="아바타 ID (기본: 페르소나 ID)"
@@ -1625,10 +1640,23 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                     const clipUrl = formData.videos?.clips?.[videoGender]?.[state] ?? '';
                     const clipKey = `${videoGender}:${state}`;
                     const isGenerating = generatingVideoClip.has(clipKey);
+                    const clipModel = formData.videos?.clipModels?.[videoGender]?.[state];
+                    const modelLabel = clipModel
+                      ? clipModel.includes('lite') ? 'Lite'
+                        : clipModel.includes('fast') ? 'Fast'
+                        : 'Full'
+                      : null;
                     return (
                       <div key={state} className="border border-slate-200 rounded-lg p-3 bg-slate-50 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-700">{state}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-slate-700">{state}</span>
+                            {modelLabel && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-violet-300 text-violet-700 bg-violet-50 font-mono">
+                                {modelLabel}
+                              </Badge>
+                            )}
+                          </div>
                           {clipUrl && (
                             <a href={toMediaUrl(clipUrl)} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[80px]">보기</a>
                           )}
@@ -1656,6 +1684,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                                   enabled: prev.videos?.enabled ?? false,
                                   avatarId: prev.videos?.avatarId ?? prev.id,
                                   clips: { ...prevClips, [videoGender]: { ...genderClips, [state]: e.target.value } },
+                                  clipModels: prev.videos?.clipModels,
                                 },
                               };
                             })

@@ -67,6 +67,7 @@ interface ScenarioFormData {
   imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
   introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
   introVideoMode?: 'none' | 'default' | 'custom'; // 인트로 비디오 모드
+  introVideoModel?: string; // 생성에 사용된 비디오 모델
   modelVideoOverride?: string; // 비디오 모델 오버라이드 (전역 설정 우선순위 최상위)
   videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
@@ -689,6 +690,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       imagePrompt: scenario.imagePrompt || '',
       introVideoUrl: scenario.introVideoUrl || '',
       introVideoMode: (scenario as any).introVideoMode || (scenario.introVideoUrl ? 'custom' : 'none'),
+      introVideoModel: (scenario as any).introVideoModel || '',
       modelVideoOverride: (scenario as any).modelVideoOverride || '',
       videoPrompt: scenario.videoPrompt || '',
       objectiveType: scenario.objectiveType || '',
@@ -974,6 +976,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       imagePrompt: (originalScenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
       introVideoUrl: (originalScenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
       introVideoMode: (originalScenario as any).introVideoMode || ((originalScenario as any).introVideoUrl ? 'custom' : 'none'),
+      introVideoModel: (originalScenario as any).introVideoModel || '',
       modelVideoOverride: (originalScenario as any).modelVideoOverride || '',
       videoPrompt: (originalScenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
       objectiveType: (originalScenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
@@ -1426,7 +1429,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
         if (data.status === 'done' && data.result?.videoUrl) {
           setIsGeneratingVideo(false);
-          setFormData(prev => ({ ...prev, introVideoUrl: data.result.videoUrl, introVideoMode: 'custom' }));
+          setFormData(prev => ({
+            ...prev,
+            introVideoUrl: data.result.videoUrl,
+            introVideoMode: 'custom',
+            introVideoModel: data.result.model || prev.introVideoModel || '',
+          }));
           toast({
             title: t('admin.scenarioManager.toast.videoGenerated', '비디오 생성 완료'),
             description: t('admin.scenarioManager.toast.videoGeneratedDesc', '인트로 비디오가 생성되었습니다.'),
@@ -1672,7 +1680,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       const data = await response.json();
       
       if (data.success) {
-        setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoMode: 'none' }));
+        setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoMode: 'none', introVideoModel: '' }));
         toast({
           title: t('admin.scenarioManager.toast.videoDeleted', 'Video Deleted'),
           description: t('admin.scenarioManager.toast.videoDeletedDesc', 'Intro video has been deleted.'),
@@ -2275,7 +2283,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         id="introVideoUrl"
                         value={formData.introVideoUrl || ''}
                         onChange={(e) => {
-                          setFormData(prev => ({ ...prev, introVideoUrl: e.target.value }));
+                          setFormData(prev => ({ ...prev, introVideoUrl: e.target.value, introVideoModel: '' }));
                           if (e.target.value) setVideoLoadFailed(false);
                         }}
                         placeholder="비디오 URL을 입력하세요 (예: /scenarios/videos/intro.webm)"
@@ -2363,7 +2371,18 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       )}
                       {!isGeneratingVideo && !videoLoadFailed && formData.introVideoUrl && (
                         <div className="mt-3">
-                          <p className="text-sm text-slate-600 mb-2">비디오 미리보기 (클릭하면 전체보기):</p>
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="text-sm text-slate-600">비디오 미리보기 (클릭하면 전체보기):</p>
+                            {formData.introVideoModel && (() => {
+                              const m = formData.introVideoModel;
+                              const label = m.includes('lite') ? 'Lite' : m.includes('fast') ? 'Fast' : 'Full';
+                              return (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-violet-300 text-violet-700 bg-violet-50 font-mono">
+                                  {label}
+                                </Badge>
+                              );
+                            })()}
+                          </div>
                           <div
                             className="relative w-full bg-slate-900 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
                             onClick={() => setVideoPreviewUrl(toMediaUrl(formData.introVideoUrl) || null)}
@@ -2377,7 +2396,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               preload="metadata"
                               onError={() => {
                                 setVideoLoadFailed(true);
-                                setFormData(prev => ({ ...prev, introVideoUrl: '' }));
+                                setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoModel: '' }));
                               }}
                               data-testid="scenario-video-preview"
                             />

@@ -619,9 +619,11 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
         });
 
         if (result.success && result.videoUrl) {
+          const usedModel = result.metadata?.model;
           await fileManager.updateScenario(scenarioId, {
             introVideoUrl: result.videoUrl,
-            introVideoMode: 'custom'
+            introVideoMode: 'custom',
+            ...(usedModel ? { introVideoModel: usedModel } : {}),
           } as any);
 
           if (oldVideoPath && oldVideoPath !== result.videoUrl) {
@@ -629,7 +631,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
           }
 
           console.log(`✅ 시나리오 인트로 비디오 생성 완료: ${result.videoUrl}`);
-          videoJobStore.setDone(jobId, result.videoUrl, 'intro', '');
+          videoJobStore.setDone(jobId, result.videoUrl, 'intro', '', usedModel);
         } else {
           videoJobStore.setError(jobId, result.error || '비디오 생성 실패');
         }

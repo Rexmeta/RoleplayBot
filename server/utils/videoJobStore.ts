@@ -14,7 +14,7 @@ export interface VideoJobRecord {
   clipState: string;
   gender: string;
   status: VideoJobStatus;
-  result?: { videoUrl: string; state: string; gender: string; storageKey?: string };
+  result?: { videoUrl: string; state: string; gender: string; storageKey?: string; model?: string };
   error?: string;
   createdAt: number;
 }
@@ -108,18 +108,18 @@ export class VideoJobStore {
     ).catch(e => console.warn('[videoJobStore] DB setRunning failed:', e.message));
   }
 
-  setDone(jobId: string, videoUrl: string, state: string, gender: string): void {
+  setDone(jobId: string, videoUrl: string, state: string, gender: string, model?: string): void {
     const record = this.jobs.get(jobId);
     if (record) {
       record.status = 'done';
-      record.result = { videoUrl, state, gender };
+      record.result = { videoUrl, state, gender, ...(model ? { model } : {}) };
     }
 
     pool.query(
       `UPDATE video_generation_jobs
          SET status = 'done', result_data = $2::jsonb, updated_at = NOW()
        WHERE job_id = $1`,
-      [jobId, JSON.stringify({ videoUrl, state, gender })],
+      [jobId, JSON.stringify({ videoUrl, state, gender, ...(model ? { model } : {}) })],
     ).catch(e => console.warn('[videoJobStore] DB setDone failed:', e.message));
   }
 
