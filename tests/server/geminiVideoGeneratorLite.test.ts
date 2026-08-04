@@ -1,7 +1,10 @@
 /**
  * Tests that `generateIntroVideo` and `generateAvatarClip` correctly forward
- * the Lite model name and `generateAudio: false` to the Veo API, and that
- * both functions return a non-empty videoUrl on success.
+ * the Lite model name to the Veo API, and that both functions return a
+ * non-empty videoUrl on success.
+ *
+ * Note: `generateAudio` is NOT passed — the @google/genai SDK v1.15+ throws
+ * "generateAudio parameter is not supported in Gemini API" when it is present.
  *
  * The @google/genai SDK, aiServiceFactory, mediaStorage, and aiUsageTracker
  * are all stubbed so no real network calls are made.
@@ -95,11 +98,11 @@ describe('generateIntroVideo — Lite model, no audio', () => {
     expect(args[0]).toMatchObject({ model: LITE_MODEL });
   });
 
-  it('calls generateVideos with generateAudio: false', async () => {
+  it('calls generateVideos without a config block (generateAudio not supported by SDK)', async () => {
     await generateIntroVideo({ scenarioId: 'sc-001', scenarioTitle: '프로젝트 킥오프' });
 
     const [args] = mockGenerateVideos.mock.calls;
-    expect(args[0]).toMatchObject({ config: { generateAudio: false } });
+    expect(args[0].config?.generateAudio).toBeUndefined();
   });
 
   it('returns success: true with a non-empty videoUrl', async () => {
@@ -146,11 +149,11 @@ describe('generateAvatarClip — Lite model, no audio', () => {
     expect(args[0]).toMatchObject({ model: LITE_MODEL });
   });
 
-  it('calls generateVideos with generateAudio: false', async () => {
+  it('calls generateVideos without generateAudio in config (not supported by SDK)', async () => {
     await generateAvatarClip({ personaId: 'persona-x', state: 'speaking' });
 
     const [args] = mockGenerateVideos.mock.calls;
-    expect(args[0]).toMatchObject({ config: { generateAudio: false } });
+    expect(args[0].config?.generateAudio).toBeUndefined();
   });
 
   it('returns success: true with a non-empty videoUrl', async () => {
@@ -173,7 +176,7 @@ describe('generateAvatarClip — Lite model, no audio', () => {
     expect(mockGetVideosOperation).not.toHaveBeenCalled();
   });
 
-  it('passes generateAudio: false for all valid clip states', async () => {
+  it('uses the Lite model for all valid clip states without generateAudio', async () => {
     const VALID_STATES = [
       'idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause',
     ] as const;
@@ -186,7 +189,7 @@ describe('generateAvatarClip — Lite model, no audio', () => {
       await generateAvatarClip({ personaId: 'persona-x', state });
 
       const [args] = mockGenerateVideos.mock.calls;
-      expect(args[0].config?.generateAudio).toBe(false);
+      expect(args[0].config?.generateAudio).toBeUndefined();
       expect(args[0].model).toBe(LITE_MODEL);
     }
   });
