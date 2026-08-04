@@ -231,8 +231,8 @@ const GEMINI_LIVE_MODELS: ModelInfo[] = [
 ];
 
 const AVATAR_VIDEO_MODELS: ModelInfo[] = [
-  { value: "veo-3.1-lite-generate-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: true, description: "720p · 시드 이미지 있으면 자동으로 Veo 3.1로 업그레이드" },
-  { value: "veo-3.1-fast-generate-preview", modelKey: "geminiVeo31Fast", provider: "Google", recommended: false, description: "720p 빠른 생성 · 시드 이미지 있으면 자동으로 Veo 3.1로 업그레이드" },
+  { value: "veo-3.1-lite-generate-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: true, description: "720p · 오디오 포함 (비용 최소화)" },
+  { value: "veo-3.1-fast-generate-preview", modelKey: "geminiVeo31Fast", provider: "Google", recommended: false, description: "720p · 오디오 포함 (빠른 생성)" },
 ];
 
 function getStaticModelsForFeature(featureId: string, supportedProviders: string[]): ModelInfo[] {

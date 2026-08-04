@@ -523,7 +523,17 @@ export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
   const base = stateDescriptions[state] ?? stateDescriptions['idle'];
   // Append caller-supplied extra prompt after the base description.
   const extra = request.extraPrompt?.trim();
-  return extra ? `${base} ${extra}` : base;
+  const motion = extra ? `${base} ${extra}` : base;
+
+  // When a seed image is provided, prepend an explicit identity-preservation instruction
+  // so Veo uses the reference image as the visual basis rather than generating a new person.
+  const imageAnchor = request.neutralImageUrl
+    ? 'Use the provided reference image as the visual basis for this video. ' +
+      'Preserve the exact face, skin tone, hair, clothing, and setting from the reference image. ' +
+      'Do not change the person\'s appearance in any way. '
+    : '';
+
+  return `${imageAnchor}${motion}`;
 }
 
 /**
@@ -575,20 +585,13 @@ export async function generateAvatarClip(
       }
     }
 
-    // Lite/Fast models are text-to-video only — they silently ignore the image parameter.
-    // Auto-upgrade to the full model when a seed image is present so the generated clip
-    // actually matches the persona's appearance.
-    const IMAGE_TO_VIDEO_MODEL = 'veo-3.1-generate-preview';
-    const TEXT_ONLY_MODELS = ['veo-3.1-lite-generate-preview', 'veo-3.1-fast-generate-preview'];
-    const effectiveModel = seedImage && TEXT_ONLY_MODELS.includes(videoModel)
-      ? IMAGE_TO_VIDEO_MODEL
-      : videoModel;
-    if (effectiveModel !== videoModel) {
-      console.log(`🔀 시드 이미지 사용: 모델 자동 업그레이드 ${videoModel} → ${effectiveModel} (Lite/Fast는 참조 이미지 미지원)`);
-    }
+    const effectiveModel = videoModel;
 
     const generateParams: any = { model: effectiveModel, prompt: videoPrompt };
-    if (seedImage) generateParams.image = seedImage;
+    if (seedImage) {
+      generateParams.image = seedImage;
+      console.log(`🖼️ 시드 이미지 사용 (image-to-video): model=${effectiveModel}`);
+    }
 
     const operation = await withRetry(
       () => genAI.models.generateVideos(generateParams),
