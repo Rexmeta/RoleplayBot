@@ -468,45 +468,50 @@ export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
   // styleHint is intentionally not injected — appearance is provided via seed image.
 
   // Design principles for all states:
-  // 1. Seamless perfect loop — the clip must end on the exact same frame it starts so
-  //    continuous playback never shows a visible cut or jump.
-  // 2. idle / listening / thinking — ultra-minimal motion only: natural eye blinks and
-  //    imperceptible micro-movements of the neck. No head turns, no body sway, no gestures.
-  // 3. Mouth stays completely still in every state (lip movement is handled externally by TTS).
+  // 1. Seamless perfect loop — clip ends on the identical frame it started; no visible cut.
+  // 2. Camera is always locked off — no zoom, pan, dolly, or any camera movement whatsoever.
+  // 3. All states except "speaking": lips remain sealed shut; mouth does not open at all.
+  // 4. idle / listening / thinking / speaking_pause: near-zero motion; only eye blinks.
+  // 5. speaking: natural animated expression including mouth movement is intentional.
   const stateDescriptions: Record<AvatarClipState, string> = {
     idle:
-      'Upper body of a person sitting in a neutral resting pose. ' +
-      'Extremely subtle motion: only natural eye blinks and imperceptible micro-movement of the neck. ' +
-      'No head movement, no body sway, no gestures. Mouth completely closed and motionless. Calm neutral expression. ' +
-      'Soft indoor background, soft lighting, no text. ' +
+      'Upper body of a person sitting completely still in a neutral resting pose. ' +
+      'Only motion allowed: natural eye blinks. ' +
+      'Lips sealed shut — mouth does not open. No head movement whatsoever, no nodding, no tilting. ' +
+      'No body sway, no gestures, no shoulder movement. Calm, neutral expression. ' +
+      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
       'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
     listening:
-      'Upper body of a person in a fixed, attentive seated pose, leaning very slightly forward. ' +
-      'Extremely subtle motion: only natural eye blinks and faint micro-movements of the neck. ' +
-      'No head tilts, no nodding, no body movement. Mouth completely closed and motionless. Focused, calm expression. ' +
-      'Soft indoor background, soft lighting, no text. ' +
+      'Upper body of a person sitting in a fixed attentive pose, holding perfectly still. ' +
+      'Only motion allowed: natural eye blinks. ' +
+      'Lips sealed shut — mouth does not open. No head tilting, no nodding, no body movement. ' +
+      'Focused, calm expression. ' +
+      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
       'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
     listening_nod:
-      'Upper body of a person doing one slow, small nod of acknowledgment, then returning to start position. ' +
-      'Head moves gently down then back up to the exact starting angle. Mouth closed. Relaxed shoulders. ' +
-      'Soft indoor background, soft lighting, no text. ' +
-      'Seamless perfect loop — head ends at the same position as the start. Loopable. 6 seconds.',
+      'Upper body of a person performing one single slow shallow nod — head dips only slightly then ' +
+      'returns to the exact starting position. ' +
+      'Lips sealed shut throughout — mouth does not open. No other body movement. ' +
+      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
+      'Seamless perfect loop — head ends at the exact same angle as the start. Loopable. 6 seconds.',
     thinking:
-      'Upper body of a person in quiet contemplation, completely still. ' +
-      'Extremely subtle motion: only natural eye blinks; eyes may shift gaze very slightly once then return. ' +
-      'No head movement, no body movement. Mouth completely closed and motionless. Thoughtful, calm expression. ' +
-      'Soft indoor background, soft lighting, no text. ' +
+      'Upper body of a person sitting completely still in quiet contemplation. ' +
+      'Only motion allowed: natural eye blinks; eyes may drift very slightly once then return to centre. ' +
+      'Lips sealed shut — mouth does not open. Zero head movement, zero body movement. ' +
+      'Thoughtful, calm expression. ' +
+      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
       'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
     speaking:
-      'Upper body of a person making one small, contained hand gesture — wrist-level only — then returning hands to rest. ' +
-      'Slight forward lean, engaged posture. Mouth closed and motionless throughout. ' +
-      'Soft indoor background, soft lighting, no text. ' +
-      'Seamless perfect loop — hands return to starting position by the final frame. Loopable. 6 seconds.',
+      'Upper body of a person engaged in lively conversation, animated posture and expressive face. ' +
+      'Lips and jaw articulate actively as if talking. ' +
+      'Small, contained wrist-level hand gesture once, returning to rest by the end. Slight forward lean. ' +
+      'Static locked-off camera — no zoom, no pan, no camera motion. Soft indoor lighting, no text. ' +
+      'Seamless perfect loop — pose and hands return to starting position by the final frame. Loopable. 6 seconds.',
     speaking_pause:
-      'Upper body of a person in a composed, upright resting pose between sentences. ' +
-      'Extremely subtle motion: only natural eye blinks and a single quiet breath. ' +
-      'No head movement, no gestures. Mouth gently closed and motionless. ' +
-      'Soft indoor background, soft lighting, no text. ' +
+      'Upper body of a person sitting still in a composed upright pose, momentarily paused. ' +
+      'Only motion allowed: natural eye blinks and a single slow breath. ' +
+      'Lips sealed shut — mouth does not open. No head movement, no gestures. ' +
+      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
       'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
   };
 
