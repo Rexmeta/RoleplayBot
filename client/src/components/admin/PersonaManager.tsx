@@ -37,6 +37,43 @@ function getAvatarClipErrorMessage(raw: string | undefined): string {
   return raw;
 }
 
+/**
+ * Derives a video model badge label (Lite/Fast/Full) from a persona's stored
+ * clipModels or modelVideoOverride. Returns null when no model data is present.
+ */
+function getVideoModelBadge(persona: any): { label: string; colorClass: string } | null {
+  // Check explicit per-persona override first
+  const override: string | undefined = persona.modelVideoOverride;
+  if (override) {
+    if (override.includes('lite')) return { label: 'Lite', colorClass: 'bg-violet-100 text-violet-800' };
+    if (override.includes('fast')) return { label: 'Fast', colorClass: 'bg-sky-100 text-sky-800' };
+    return { label: 'Full', colorClass: 'bg-emerald-100 text-emerald-800' };
+  }
+
+  // Collect all clip model strings from clipModels
+  const clipModels = persona.videos?.clipModels;
+  if (!clipModels) return null;
+
+  const allModels: string[] = [
+    ...Object.values(clipModels.male ?? {}).filter(Boolean),
+    ...Object.values(clipModels.female ?? {}).filter(Boolean),
+  ] as string[];
+
+  if (allModels.length === 0) return null;
+
+  const liteCount = allModels.filter(m => m.includes('lite')).length;
+  const fastCount = allModels.filter(m => m.includes('fast')).length;
+  const fullCount = allModels.length - liteCount - fastCount;
+
+  if (liteCount >= fastCount && liteCount >= fullCount) {
+    return { label: 'Lite', colorClass: 'bg-violet-100 text-violet-800' };
+  }
+  if (fastCount >= fullCount) {
+    return { label: 'Fast', colorClass: 'bg-sky-100 text-sky-800' };
+  }
+  return { label: 'Full', colorClass: 'bg-emerald-100 text-emerald-800' };
+}
+
 // 한글 감정명을 번역 키로 매핑
 const emotionKeyMap: Record<string, string> = {
   '중립': 'neutral',
@@ -1898,6 +1935,15 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       <Badge variant="outline" className="bg-green-100 text-green-800">
                         {t('admin.personaManager.usedInScenarios', { count: scenarioUsage.length })}
                       </Badge>
+                      {(() => {
+                        const videoBadge = getVideoModelBadge(persona);
+                        if (!videoBadge) return null;
+                        return (
+                          <Badge variant="outline" className={videoBadge.colorClass}>
+                            🎬 {videoBadge.label}
+                          </Badge>
+                        );
+                      })()}
                     </div>
                     {/* 번역 상태 뱃지 */}
                     {(() => {
