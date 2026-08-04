@@ -89,7 +89,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     console.log(`🎥 비디오 모델: ${videoModel}${request.modelOverride ? ' (시나리오 오버라이드)' : ''}`);
 
     const operation = await withRetry(
-      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt, config: { generateAudio: false } }),
+      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt }),
       3, 'generateVideos-intro',
     );
 
@@ -575,7 +575,7 @@ export async function generateAvatarClip(
       }
     }
 
-    const generateParams: any = { model: videoModel, prompt: videoPrompt, config: { generateAudio: false } };
+    const generateParams: any = { model: videoModel, prompt: videoPrompt };
     if (seedImage) generateParams.image = seedImage;
 
     const operation = await withRetry(
