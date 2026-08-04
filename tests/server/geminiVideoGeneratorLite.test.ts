@@ -337,4 +337,28 @@ describe('generateAvatarClip — seed image fallback when neutralImageUrl is pro
     expect(args[0].image).toBeUndefined();
     expect(result.success).toBe(true);
   });
+
+  it('forwards the seed image to generateVideos when readImageBuffer returns a valid buffer', async () => {
+    const fakeBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0]); // non-empty JPEG-like bytes
+    vi.mocked(mediaStorage.readImageBuffer).mockResolvedValueOnce(fakeBuffer);
+
+    const result = await generateAvatarClip({
+      personaId: 'persona-x',
+      state: 'idle',
+      neutralImageUrl: '/images/persona-x-neutral.jpg',
+    });
+
+    expect(mockGenerateVideos).toHaveBeenCalledTimes(1);
+    const [args] = mockGenerateVideos.mock.calls;
+
+    // image must be present and carry the base64 payload + mimeType
+    expect(args[0].image).toBeDefined();
+    expect(typeof args[0].image.imageBytes).toBe('string');
+    expect(args[0].image.imageBytes.length).toBeGreaterThan(0);
+    expect(args[0].image.imageBytes).toBe(fakeBuffer.toString('base64'));
+    expect(typeof args[0].image.mimeType).toBe('string');
+    expect(args[0].image.mimeType.length).toBeGreaterThan(0);
+
+    expect(result.success).toBe(true);
+  });
 });
