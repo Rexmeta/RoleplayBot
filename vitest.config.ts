@@ -7,6 +7,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/*.smoke.test.ts',
+    ],
     environmentMatchGlobs: [
       ['tests/client/**', 'happy-dom'],
       ['client/src/**/__tests__/**', 'happy-dom'],
