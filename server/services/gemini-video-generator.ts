@@ -585,20 +585,19 @@ export async function generateAvatarClip(
       }
     }
 
-    // Lite/Fast models are text-to-video only — they silently ignore the image parameter.
-    // Auto-upgrade to the full model when a seed image is present so the generated clip
-    // actually matches the persona's appearance.
-    const IMAGE_TO_VIDEO_MODEL = 'veo-3.1-generate-preview';
-    const TEXT_ONLY_MODELS = ['veo-3.1-lite-generate-preview', 'veo-3.1-fast-generate-preview'];
-    const effectiveModel = seedImage && TEXT_ONLY_MODELS.includes(videoModel)
-      ? IMAGE_TO_VIDEO_MODEL
-      : videoModel;
-    if (effectiveModel !== videoModel) {
-      console.log(`🔀 시드 이미지 사용: 모델 자동 업그레이드 ${videoModel} → ${effectiveModel} (Lite/Fast는 참조 이미지 미지원)`);
-    }
+    const effectiveModel = videoModel;
 
+    // Use config.referenceImages with referenceType "asset" — this is the correct Veo API
+    // for persona appearance guidance.  The top-level `image` parameter is for first-frame
+    // animation (image-to-video), which is a different use case and does NOT preserve
+    // identity.  See: https://ai.google.dev/gemini-api/docs/veo#reference-images
     const generateParams: any = { model: effectiveModel, prompt: videoPrompt };
-    if (seedImage) generateParams.image = seedImage;
+    if (seedImage) {
+      generateParams.config = {
+        referenceImages: [{ image: seedImage, referenceType: 'asset' }],
+      };
+      console.log(`🖼️ 참조 이미지 설정 완료 (referenceType=asset, ${seedImage.mimeType}, ${Math.round(seedImage.imageBytes.length * 3 / 4)} bytes raw)`);
+    }
 
     const operation = await withRetry(
       () => genAI.models.generateVideos(generateParams),
