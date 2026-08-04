@@ -13,7 +13,7 @@
  * environment's actual secrets.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ── Hoisted setup — runs before any module import ────────────────────────────
 
@@ -189,5 +189,91 @@ describe('generateAvatarClip — Lite model, no audio', () => {
       expect(args[0].config?.generateAudio).toBe(false);
       expect(args[0].model).toBe(LITE_MODEL);
     }
+  });
+});
+
+// ── generateIntroVideo — error and timeout paths ──────────────────────────────
+
+describe('generateIntroVideo — error and timeout paths', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    mockGetModelForFeature.mockResolvedValue(LITE_MODEL);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns success: false with a non-empty error when the operation resolves with result.error set', async () => {
+    mockGenerateVideos.mockResolvedValue({
+      name: 'operations/fake-error-op',
+      done: true,
+      error: { message: 'Veo content policy violation' },
+      response: null,
+    });
+
+    const result = await generateIntroVideo({ scenarioId: 'sc-err', scenarioTitle: '오류 시나리오' });
+
+    expect(result.success).toBe(false);
+    expect(typeof result.error).toBe('string');
+    expect(result.error!.length).toBeGreaterThan(0);
+  });
+
+  it('returns success: false when every poll attempt returns done: false (timeout path)', async () => {
+    const neverDone = { name: 'operations/never-done', done: false, error: null, response: null };
+    mockGenerateVideos.mockResolvedValue(neverDone);
+    mockGetVideosOperation.mockResolvedValue(neverDone);
+
+    const promise = generateIntroVideo({ scenarioId: 'sc-timeout', scenarioTitle: '타임아웃 시나리오' });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.success).toBe(false);
+    expect(typeof result.error).toBe('string');
+    expect(result.error!.length).toBeGreaterThan(0);
+  });
+});
+
+// ── generateAvatarClip — error and timeout paths ──────────────────────────────
+
+describe('generateAvatarClip — error and timeout paths', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    mockGetModelForFeature.mockResolvedValue(LITE_MODEL);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns success: false with a non-empty error when the operation resolves with result.error set', async () => {
+    mockGenerateVideos.mockResolvedValue({
+      name: 'operations/fake-error-op',
+      done: true,
+      error: { message: 'Avatar generation failed due to policy' },
+      response: null,
+    });
+
+    const result = await generateAvatarClip({ personaId: 'persona-x', state: 'idle' });
+
+    expect(result.success).toBe(false);
+    expect(typeof result.error).toBe('string');
+    expect(result.error!.length).toBeGreaterThan(0);
+  });
+
+  it('returns success: false when every poll attempt returns done: false (timeout path)', async () => {
+    const neverDone = { name: 'operations/never-done', done: false, error: null, response: null };
+    mockGenerateVideos.mockResolvedValue(neverDone);
+    mockGetVideosOperation.mockResolvedValue(neverDone);
+
+    const promise = generateAvatarClip({ personaId: 'persona-x', state: 'speaking' });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.success).toBe(false);
+    expect(typeof result.error).toBe('string');
+    expect(result.error!.length).toBeGreaterThan(0);
   });
 });
