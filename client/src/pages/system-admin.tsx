@@ -304,7 +304,7 @@ const FEATURE_MODEL_INFO = [
   {
     id: "video",
     settingKey: "model_video",
-    defaultModel: "veo-3.1-lite-generate-preview",
+    defaultModel: "veo-3.1-generate-preview",
     configurable: true,
     supportedProviders: ["Google"]
   },
@@ -795,7 +795,7 @@ export default function SystemAdminPage() {
     model_emotion: "gemini-2.5-flash",
     model_translation: "gemini-2.5-flash",
     model_image: "gemini-2.5-flash-image",
-    model_video: "veo-3.1-lite-generate-preview",
+    model_video: "veo-3.1-generate-preview",
     model_avatar_video: "veo-3.1-lite-generate-preview",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
