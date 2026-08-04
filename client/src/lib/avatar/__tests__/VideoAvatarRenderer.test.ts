@@ -646,6 +646,123 @@ describe('VideoAvatarRenderer ping-pong loop', () => {
   });
 });
 
+// ── pause / resume during reverse pass ───────────────────────────────────────
+
+describe('VideoAvatarRenderer pause/resume', () => {
+  type PrivateRenderer = Awaited<ReturnType<typeof makeRenderer>> & {
+    _startPingPong: (v: unknown) => void;
+    pingPongState: Map<unknown, {
+      direction: 'forward' | 'reverse';
+      rafId: number | null;
+      lastTimestamp: number;
+      endedListener: (() => void) | null;
+      isPaused: boolean;
+      tick: ((now: number) => void) | null;
+    }>;
+  };
+
+  let rafCallbacks: Map<number, (now: number) => void>;
+  let nextRafId: number;
+  let cancelledIds: Set<number>;
+
+  beforeEach(() => {
+    rafCallbacks = new Map();
+    nextRafId = 0;
+    cancelledIds = new Set();
+
+    vi.stubGlobal('requestAnimationFrame', (cb: (now: number) => void) => {
+      const id = ++nextRafId;
+      rafCallbacks.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+      cancelledIds.add(id);
+      rafCallbacks.delete(id);
+    });
+  });
+
+  function flushRaf(now: number) {
+    const entries = [...rafCallbacks.entries()];
+    for (const [id, cb] of entries) {
+      rafCallbacks.delete(id);
+      cb(now);
+    }
+  }
+
+  it('pause() while direction is reverse sets isPaused, cancels the RAF, and resets lastTimestamp', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    // videoInstances[0] is videoA, which is the initial frontVideo
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended'); // triggers startReverse → schedules first RAF
+
+    // Init tick: records lastTimestamp, schedules next RAF
+    flushRaf(1000);
+
+    const st = r.pingPongState.get(stub)!;
+    expect(st.direction).toBe('reverse');
+    const rafIdBeforePause = st.rafId;
+    expect(rafIdBeforePause).not.toBeNull();
+
+    r.pause();
+
+    expect(st.isPaused).toBe(true);
+    expect(st.rafId).toBeNull();
+    expect(st.lastTimestamp).toBe(0); // reset so resume won't produce a huge delta
+    expect(cancelledIds.has(rafIdBeforePause!)).toBe(true);
+  });
+
+  it('resume() while isPaused in reverse restarts the RAF with a zeroed lastTimestamp (no jump)', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+    flushRaf(1000); // init tick
+
+    r.pause();
+
+    const st = r.pingPongState.get(stub)!;
+    expect(st.isPaused).toBe(true);
+
+    r.resume();
+
+    expect(st.isPaused).toBe(false);
+    expect(st.lastTimestamp).toBe(0); // still zero — will be set on the first tick
+    expect(st.rafId).not.toBeNull(); // RAF was rescheduled
+
+    // First tick after resume should only initialise the timestamp — no decrement
+    // Even with a very large elapsed time the video must not jump
+    flushRaf(99999);
+    expect(stub.currentTime).toBe(3.0); // unchanged on the first post-resume tick
+  });
+
+  it('pause() while direction is forward calls native video pause and does not cancel any RAF', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    // _startPingPong in forward mode: attaches ended listener, no RAF running yet
+    r._startPingPong(stub);
+    const st = r.pingPongState.get(stub)!;
+    expect(st.direction).toBe('forward');
+
+    const pauseSpy = vi.spyOn(stub as any, 'pause');
+
+    r.pause();
+
+    // Native pause must have been invoked
+    expect(pauseSpy).toHaveBeenCalled();
+    // No RAF should have been scheduled or cancelled — we're still in forward mode
+    expect(cancelledIds.size).toBe(0);
+    // isPaused flag must remain false (the special reverse-pause branch was not taken)
+    expect(st.isPaused).toBe(false);
+  });
+});
+
 // ── destroy ───────────────────────────────────────────────────────────────────
 
 describe('VideoAvatarRenderer.destroy', () => {
