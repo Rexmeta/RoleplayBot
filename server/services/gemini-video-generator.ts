@@ -543,7 +543,7 @@ export async function generateAvatarClip(
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const videoPrompt = generateAvatarClipPrompt(request);
-    const videoModel = request.modelOverride || await getModelForFeature('video');
+    const videoModel = request.modelOverride || await getModelForFeature('avatar_video');
 
     console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${request.state} / gender:${request.gender ?? 'unspecified'}`);
     console.log(`🎥 비디오 모델: ${videoModel}${request.modelOverride ? ' (페르소나 오버라이드)' : ''}`);

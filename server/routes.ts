@@ -64,6 +64,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     { key: 'model_emotion', value: 'gemini-2.5-flash', description: 'AI model used for real-time emotion analysis' },
     { key: 'model_image', value: 'gemini-2.5-flash-image', description: 'AI model used for image generation (personas, scenarios)' },
     { key: 'model_video', value: 'veo-3.1-lite-generate-preview', description: 'AI model used for intro video generation' },
+    { key: 'model_avatar_video', value: 'veo-3.1-lite-generate-preview', description: 'AI model used for persona avatar clip generation' },
     { key: 'model_realtime', value: 'gemini-3.1-flash-live-preview', description: 'AI model used for real-time voice conversations' },
     { key: 'model_evaluation', value: 'gemini-2.5-flash', description: 'AI model used for per-turn LLM evaluation during voice conversations' },
     { key: 'model_summarization', value: 'gemini-2.5-flash', description: 'AI model used to summarize older messages in long voice sessions' },

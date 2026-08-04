@@ -219,8 +219,9 @@ const IMAGE_MODELS: ModelInfo[] = [
 ];
 
 const VIDEO_MODELS: ModelInfo[] = [
-  { value: "veo-3.1-generate-lite-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: true, description: "720p · Video only (비용 최소화)" },
-  { value: "veo-3.1-generate-preview", modelKey: "geminiVeo31", provider: "Google", recommended: false },
+  { value: "veo-3.1-lite-generate-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: true, description: "720p · 오디오 없음 (비용 최소화)" },
+  { value: "veo-3.1-fast-generate-preview", modelKey: "geminiVeo31Fast", provider: "Google", recommended: false, description: "720p · 오디오 없음 (빠른 생성)" },
+  { value: "veo-3.1-generate-preview", modelKey: "geminiVeo31", provider: "Google", recommended: false, description: "1080p · 오디오 포함" },
 ];
 
 const GEMINI_LIVE_MODELS: ModelInfo[] = [
@@ -229,10 +230,16 @@ const GEMINI_LIVE_MODELS: ModelInfo[] = [
   { value: "gpt-4o-mini-realtime-preview", modelKey: "gptMiniRealtimePreview", provider: "OpenAI Realtime", recommended: false },
 ];
 
+const AVATAR_VIDEO_MODELS: ModelInfo[] = [
+  { value: "veo-3.1-lite-generate-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: true, description: "720p · 오디오 없음 (비용 최소화)" },
+  { value: "veo-3.1-fast-generate-preview", modelKey: "geminiVeo31Fast", provider: "Google", recommended: false, description: "720p · 오디오 없음 (빠른 생성)" },
+];
+
 function getStaticModelsForFeature(featureId: string, supportedProviders: string[]): ModelInfo[] {
   if (featureId === "realtime") return GEMINI_LIVE_MODELS;
   if (featureId === "image") return IMAGE_MODELS;
   if (featureId === "video") return VIDEO_MODELS;
+  if (featureId === "avatar_video") return AVATAR_VIDEO_MODELS;
   if (supportedProviders.length === 0) return AI_MODELS;
   return AI_MODELS.filter(m => supportedProviders.includes(m.provider));
 }
@@ -297,7 +304,14 @@ const FEATURE_MODEL_INFO = [
   {
     id: "video",
     settingKey: "model_video",
-    defaultModel: "veo-3.1-generate-lite-preview",
+    defaultModel: "veo-3.1-lite-generate-preview",
+    configurable: true,
+    supportedProviders: ["Google"]
+  },
+  {
+    id: "avatar_video",
+    settingKey: "model_avatar_video",
+    defaultModel: "veo-3.1-lite-generate-preview",
     configurable: true,
     supportedProviders: ["Google"]
   },
@@ -781,7 +795,8 @@ export default function SystemAdminPage() {
     model_emotion: "gemini-2.5-flash",
     model_translation: "gemini-2.5-flash",
     model_image: "gemini-2.5-flash-image",
-    model_video: "veo-3.1-generate-lite-preview",
+    model_video: "veo-3.1-lite-generate-preview",
+    model_avatar_video: "veo-3.1-lite-generate-preview",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
@@ -1662,7 +1677,7 @@ export default function SystemAdminPage() {
                             {item.configurable && 'settingKey' in item ? (
                               <Badge variant="outline" className="text-blue-600 border-blue-200">
                                 {(() => {
-                                  const allModels = [...AI_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS, ...GEMINI_LIVE_MODELS];
+                                  const allModels = [...AI_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS, ...AVATAR_VIDEO_MODELS, ...GEMINI_LIVE_MODELS];
                                   const selectedModel = allModels.find(m => m.value === featureModels[item.settingKey!]);
                                   return selectedModel ? t(`systemAdmin.models.${selectedModel.modelKey}.label`) : (item as any).defaultModel;
                                 })()}

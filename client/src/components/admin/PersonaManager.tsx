@@ -34,8 +34,8 @@ const emotionKeyMap: Record<string, string> = {
 };
 
 const VIDEO_MODELS = [
-  { value: 'veo-3.1-generate-lite-preview', label: 'Veo 3.1 Lite (720p · Video only)', recommended: true },
-  { value: 'veo-3.1-generate-preview', label: 'Veo 3.1 (1080p · With audio)' },
+  { value: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (720p · 오디오 없음)', recommended: true },
+  { value: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (720p · 오디오 없음)' },
 ] as const;
 
 // MBTI 페르소나 타입 정의

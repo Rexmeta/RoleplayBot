@@ -1505,6 +1505,10 @@
         "name": "인트로 비디오 생성",
         "description": "시나리오 인트로 비디오 AI 생성"
       },
+      "avatar_video": {
+        "name": "페르소나 아바타 영상 생성",
+        "description": "페르소나 아바타 클립 AI 생성 (오디오 없음)"
+      },
       "translation": {
         "name": "번역",
         "description": "자동 번역 및 평가기준 번역에 사용하는 AI 모델"
@@ -1619,6 +1623,11 @@
       "geminiVeo31Lite": {
         "label": "Gemini Veo 3.1 Lite",
         "description": "720p 영상 전용, 비용 최소화 (추천)",
+        "pricing": "영상 생성 전용 · 오디오 없음 (Veo 접근 권한 필요)"
+      },
+      "geminiVeo31Fast": {
+        "label": "Gemini Veo 3.1 Fast",
+        "description": "720p 영상 전용, 빠른 생성",
         "pricing": "영상 생성 전용 · 오디오 없음 (Veo 접근 권한 필요)"
       }
     }
