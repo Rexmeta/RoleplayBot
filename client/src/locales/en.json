@@ -1593,6 +1593,11 @@
         "label": "Gemini Veo 3.1 Lite",
         "description": "720p video only, minimal cost (recommended)",
         "pricing": "Video generation only · No audio (Veo access required)"
+      },
+      "geminiVeo31Fast": {
+        "label": "Gemini Veo 3.1 Fast",
+        "description": "Fast video generation, balanced cost",
+        "pricing": "Video generation only (Veo access required)"
       }
     }
   }

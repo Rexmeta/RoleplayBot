@@ -1590,6 +1590,11 @@
         "label": "Gemini Veo 3.1 Lite",
         "description": "720p仅限视频，成本最低（推荐）",
         "pricing": "仅限视频生成·无音频（需要Veo访问权限）"
+      },
+      "geminiVeo31Fast": {
+        "label": "Gemini Veo 3.1 Fast",
+        "description": "快速视频生成，成本均衡",
+        "pricing": "仅限视频生成（需要Veo访问权限）"
       }
     }
   }
