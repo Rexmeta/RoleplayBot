@@ -2148,15 +2148,15 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to add scenarios model_video_override column:', err);
       }
 
-      // model_video_override column on mbti_personas
+      // model_video_override column on mbti_personas (drop — no longer used)
       try {
         await client.query(`
           ALTER TABLE "mbti_personas"
-            ADD COLUMN IF NOT EXISTS "model_video_override" varchar;
+            DROP COLUMN IF EXISTS "model_video_override";
         `);
-        console.log('✅ mbti_personas model_video_override column ensured');
+        console.log('✅ mbti_personas model_video_override column dropped');
       } catch (err) {
-        console.warn('⚠️ Failed to add mbti_personas model_video_override column:', err);
+        console.warn('⚠️ Failed to drop mbti_personas model_video_override column:', err);
       }
 
       console.log('✅ Database migrations completed successfully');

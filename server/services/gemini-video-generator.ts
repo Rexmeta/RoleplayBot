@@ -89,7 +89,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     console.log(`🎥 비디오 모델: ${videoModel}${request.modelOverride ? ' (시나리오 오버라이드)' : ''}`);
 
     const operation = await withRetry(
-      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt }),
+      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } }),
       3, 'generateVideos-intro',
     );
 
@@ -585,13 +585,20 @@ export async function generateAvatarClip(
       }
     }
 
-    const effectiveModel = videoModel;
-
-    const generateParams: any = { model: effectiveModel, prompt: videoPrompt };
-    if (seedImage) {
-      generateParams.image = seedImage;
-      console.log(`🖼️ 시드 이미지 사용 (image-to-video): model=${effectiveModel}`);
+    // Lite/Fast models are text-to-video only — they silently ignore the image parameter.
+    // Auto-upgrade to the full model when a seed image is present so the generated clip
+    // actually matches the persona's appearance.
+    const IMAGE_TO_VIDEO_MODEL = 'veo-3.1-generate-preview';
+    const TEXT_ONLY_MODELS = ['veo-3.1-lite-generate-preview', 'veo-3.1-fast-generate-preview'];
+    const effectiveModel = seedImage && TEXT_ONLY_MODELS.includes(videoModel)
+      ? IMAGE_TO_VIDEO_MODEL
+      : videoModel;
+    if (effectiveModel !== videoModel) {
+      console.log(`🔀 시드 이미지 사용: 모델 자동 업그레이드 ${videoModel} → ${effectiveModel} (Lite/Fast는 참조 이미지 미지원)`);
     }
+
+    const generateParams: any = { model: effectiveModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } };
+    if (seedImage) generateParams.image = seedImage;
 
     const operation = await withRetry(
       () => genAI.models.generateVideos(generateParams),
@@ -630,7 +637,7 @@ export async function generateAvatarClip(
         `⚠️ 아바타 클립 생성 결과 없음 — raiMediaFilteredCount=${filteredCount ?? 'N/A'}`,
         `reasons=${JSON.stringify(filteredReasons ?? [])}`,
         `hasSeedImage=${!!seedImage}`,
-        `model=${videoModel}`,
+        `model=${effectiveModel}`,
         `resultKeys=${Object.keys(result).join(',')}`,
         `responseFull=${JSON.stringify(result.response ?? {})}`,
       );
@@ -639,7 +646,7 @@ export async function generateAvatarClip(
       // (some Veo variants reject reference images containing persons even with personGeneration=allow_adult)
       if (seedImage) {
         console.log('🔄 시드 이미지 없이 재시도...');
-        const paramsNoImage: any = { model: videoModel, prompt: videoPrompt };
+        const paramsNoImage: any = { model: effectiveModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } };
         const opNoImage = await withRetry(
           () => genAI.models.generateVideos(paramsNoImage),
           3, 'generateVideos-avatar-noimageretry',

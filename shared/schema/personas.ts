@@ -49,7 +49,6 @@ export const mbtiPersonas = pgTable("mbti_personas", {
       female?: Partial<Record<string, string>>;
     };
   }>(),
-  modelVideoOverride: varchar("model_video_override"),
   freeChatAvailable: boolean("free_chat_available").notNull().default(false),
   freeChatDescription: text("free_chat_description"),
   storeListed: boolean("store_listed").notNull().default(false),
