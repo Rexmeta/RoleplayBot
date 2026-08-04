@@ -587,16 +587,14 @@ export async function generateAvatarClip(
 
     const effectiveModel = videoModel;
 
-    // Use config.referenceImages with referenceType "asset" — this is the correct Veo API
-    // for persona appearance guidance.  The top-level `image` parameter is for first-frame
-    // animation (image-to-video), which is a different use case and does NOT preserve
-    // identity.  See: https://ai.google.dev/gemini-api/docs/veo#reference-images
+    // config.referenceImages is Vertex AI only — not supported on Gemini API.
+    // The only image option available on Gemini API is the top-level `image` parameter,
+    // which Veo treats as the first frame of the animation.  The text prompt's
+    // imageAnchor instruction reinforces identity preservation across all frames.
     const generateParams: any = { model: effectiveModel, prompt: videoPrompt };
     if (seedImage) {
-      generateParams.config = {
-        referenceImages: [{ image: seedImage, referenceType: 'asset' }],
-      };
-      console.log(`🖼️ 참조 이미지 설정 완료 (referenceType=asset, ${seedImage.mimeType}, ${Math.round(seedImage.imageBytes.length * 3 / 4)} bytes raw)`);
+      generateParams.image = seedImage;
+      console.log(`🖼️ 시드 이미지 설정 완료 (첫 프레임, ${seedImage.mimeType}, ${Math.round(seedImage.imageBytes.length * 3 / 4)} bytes raw)`);
     }
 
     const operation = await withRetry(
