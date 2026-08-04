@@ -19,6 +19,24 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 import { toMediaUrl } from '@/lib/mediaUrl';
 
+/**
+ * Returns a user-friendly error description for avatar clip generation failures.
+ * Content-policy blocks get a distinct, actionable message; other errors pass through as-is.
+ */
+function getAvatarClipErrorMessage(raw: string | undefined): string {
+  if (!raw) return '클립 생성 실패';
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes('콘텐츠 정책') ||
+    lower.includes('content polic') ||
+    lower.includes('content filter') ||
+    lower.includes('필터링되었을 수 있습니다')
+  ) {
+    return '비디오 프롬프트가 콘텐츠 정책에 의해 차단되었습니다 — 페르소나 설명을 조정한 후 다시 시도해 주세요.';
+  }
+  return raw;
+}
+
 // 한글 감정명을 번역 키로 매핑
 const emotionKeyMap: Record<string, string> = {
   '중립': 'neutral',
@@ -718,7 +736,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         } else if (data.status === 'error') {
           localStorage.removeItem(videoJobKey(personaId, gender, state));
           setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${state}`); return s; });
-          toast({ title: '생성 오류', description: data.error || '클립 생성 실패', variant: 'destructive' });
+          toast({ title: '생성 오류', description: getAvatarClipErrorMessage(data.error), variant: 'destructive' });
         } else if (data.status === undefined && !data.jobId) {
           // Job expired from server store (> 30 min) — clear gracefully
           localStorage.removeItem(videoJobKey(personaId, gender, state));
@@ -787,7 +805,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     } catch (error: any) {
       localStorage.removeItem(videoJobKey(personaId, gender, state));
       setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(clipKey); return s; });
-      toast({ title: '생성 오류', description: error.message || '클립 생성 실패', variant: 'destructive' });
+      toast({ title: '생성 오류', description: getAvatarClipErrorMessage(error.message), variant: 'destructive' });
     }
   };
 
