@@ -1583,8 +1583,13 @@
       },
       "geminiVeo31": {
         "label": "Gemini Veo 3.1",
-        "description": "高品質動画生成モデル（推奨）",
+        "description": "高品質動画生成モデル",
         "pricing": "動画生成専用（Veoアクセス権限必要）"
+      },
+      "geminiVeo31Lite": {
+        "label": "Gemini Veo 3.1 Lite",
+        "description": "720p動画専用、コスト最小化（推奨）",
+        "pricing": "動画生成専用・音声なし（Veoアクセス権限必要）"
       }
     }
   }

@@ -86,7 +86,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     const videoModel = await getModelForFeature('video');
 
     const operation = await withRetry(
-      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt }),
+      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt, config: { generateAudio: false } }),
       3, 'generateVideos-intro',
     );
 
@@ -569,7 +569,7 @@ export async function generateAvatarClip(
       }
     }
 
-    const generateParams: any = { model: videoModel, prompt: videoPrompt };
+    const generateParams: any = { model: videoModel, prompt: videoPrompt, config: { generateAudio: false } };
     if (seedImage) generateParams.image = seedImage;
 
     const operation = await withRetry(

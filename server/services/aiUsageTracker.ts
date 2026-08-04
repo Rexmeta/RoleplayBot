@@ -22,6 +22,7 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'gemini-2.5-flash-image-preview': { input: 0.30, output: 2.50 }, // Image generation
   'gemini-2.0-flash-preview-image-generation': { input: 0.30, output: 2.50 }, // Image generation (legacy)
   'veo-3.1-generate-preview': { input: 0.00, output: 0.00 }, // Veo video generation (per-video pricing, not per-token)
+  'veo-3.1-generate-lite-preview': { input: 0.00, output: 0.00 }, // Veo Lite 720p video generation (per-video pricing, not per-token)
   
   // OpenAI models
   'gpt-4o': { input: 2.50, output: 10.00 },
@@ -32,6 +33,7 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
 // Video generation pricing (per video, not per token)
 export const VIDEO_PRICING: Record<string, number> = {
   'veo-3.1-generate-preview': 0.35, // USD per 8-second video (estimated)
+  'veo-3.1-generate-lite-preview': 0.18, // USD per 8-second video, 720p Lite (estimated)
 };
 
 // Feature types for categorization

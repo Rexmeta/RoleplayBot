@@ -219,7 +219,8 @@ const IMAGE_MODELS: ModelInfo[] = [
 ];
 
 const VIDEO_MODELS: ModelInfo[] = [
-  { value: "veo-3.1-generate-preview", modelKey: "geminiVeo31", provider: "Google", recommended: true },
+  { value: "veo-3.1-generate-lite-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: true, description: "720p · Video only (비용 최소화)" },
+  { value: "veo-3.1-generate-preview", modelKey: "geminiVeo31", provider: "Google", recommended: false },
 ];
 
 const GEMINI_LIVE_MODELS: ModelInfo[] = [
@@ -296,7 +297,7 @@ const FEATURE_MODEL_INFO = [
   {
     id: "video",
     settingKey: "model_video",
-    defaultModel: "veo-3.1-generate-preview",
+    defaultModel: "veo-3.1-generate-lite-preview",
     configurable: true,
     supportedProviders: ["Google"]
   },
@@ -780,7 +781,7 @@ export default function SystemAdminPage() {
     model_emotion: "gemini-2.5-flash",
     model_translation: "gemini-2.5-flash",
     model_image: "gemini-2.5-flash-image",
-    model_video: "veo-3.1-generate-preview",
+    model_video: "veo-3.1-generate-lite-preview",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
 
