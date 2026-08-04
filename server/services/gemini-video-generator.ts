@@ -89,7 +89,7 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
     console.log(`🎥 비디오 모델: ${videoModel}${request.modelOverride ? ' (시나리오 오버라이드)' : ''}`);
 
     const operation = await withRetry(
-      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } }),
+      () => genAI.models.generateVideos({ model: videoModel, prompt: videoPrompt }),
       3, 'generateVideos-intro',
     );
 
@@ -575,7 +575,7 @@ export async function generateAvatarClip(
       }
     }
 
-    const generateParams: any = { model: videoModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } };
+    const generateParams: any = { model: videoModel, prompt: videoPrompt };
     if (seedImage) generateParams.image = seedImage;
 
     const operation = await withRetry(
@@ -624,7 +624,7 @@ export async function generateAvatarClip(
       // (some Veo variants reject reference images containing persons even with personGeneration=allow_adult)
       if (seedImage) {
         console.log('🔄 시드 이미지 없이 재시도...');
-        const paramsNoImage: any = { model: videoModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } };
+        const paramsNoImage: any = { model: videoModel, prompt: videoPrompt };
         const opNoImage = await withRetry(
           () => genAI.models.generateVideos(paramsNoImage),
           3, 'generateVideos-avatar-noimageretry',
