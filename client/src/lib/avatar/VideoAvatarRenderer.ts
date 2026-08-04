@@ -60,7 +60,7 @@ const emotionToEnglish: Record<string, string> = {
 function createVideoElement(): HTMLVideoElement {
   const v = document.createElement('video');
   v.muted = true;
-  v.loop = true;
+  // loop is intentionally NOT set — ping-pong looping is managed manually
   v.playsInline = true;
   v.setAttribute('preload', 'auto');
   v.style.position = 'absolute';
@@ -157,6 +157,25 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
   /** Active cross-fade timer */
   private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ── Ping-pong state ───────────────────────────────────────────────────────
+  /**
+   * Per-video ping-pong tracking.
+   * direction:  'forward' — native browser playback is active.
+   *             'reverse' — RAF loop is stepping currentTime backwards.
+   * isPaused:   true when the renderer has been externally paused while in
+   *             reverse; RAF is suspended but state is kept so resume() can
+   *             restart it.
+   * tick:       stored so resume() can reschedule the RAF frame directly.
+   */
+  private pingPongState = new Map<HTMLVideoElement, {
+    direction: 'forward' | 'reverse';
+    rafId: number | null;
+    lastTimestamp: number;
+    endedListener: (() => void) | null;
+    isPaused: boolean;
+    tick: ((now: number) => void) | null;
+  }>();
 
   /** <link rel="preload"> elements injected into <head> for cleanup */
   private preloadLinks: HTMLLinkElement[] = [];
@@ -297,6 +316,8 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
     // ── Perform cross-fade ────────────────────────────────────────────────
     back.play().catch(() => { /* autoplay may be blocked — silent fail */ });
+    // Attach ping-pong loop to the newly active back buffer
+    this._startPingPong(back);
 
     back.style.opacity = '1';
     this.frontVideo.style.opacity = '0';
@@ -305,12 +326,16 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     this.emit();
 
     if (this.fadeTimer) clearTimeout(this.fadeTimer);
+    // Capture current front reference before the async timer fires
+    const prevFront = this.frontVideo;
     this.fadeTimer = setTimeout(() => {
       if (this.destroyed) return;
+      // Stop ping-pong on the now-hidden video before clearing it
+      this._stopPingPong(prevFront);
       // Pause and clear the now-hidden video to save resources
-      this.frontVideo.pause();
-      this.frontVideo.removeAttribute('src');
-      this.frontVideo.load();
+      prevFront.pause();
+      prevFront.removeAttribute('src');
+      prevFront.load();
       // Swap buffers
       this.frontIsA = !this.frontIsA;
       this.isTransitioning = false;
@@ -368,6 +393,105 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     await this._crossFadeTo(src, fallbackSrc);
   }
 
+  // ── Ping-pong methods ─────────────────────────────────────────────────────
+
+  /**
+   * Attach ping-pong looping to `videoEl`.
+   *
+   * Forward playback is left to the browser.  When the video reaches its end
+   * (`ended` event) we switch to a reverse RAF loop that steps `currentTime`
+   * backwards using real elapsed wall-clock time (ms → seconds).  When
+   * `currentTime` reaches 0 we flip back to forward and call `play()` again.
+   */
+  private _startPingPong(videoEl: HTMLVideoElement): void {
+    // Clean up any previous binding on this element first
+    this._stopPingPong(videoEl);
+
+    const state = {
+      direction: 'forward' as 'forward' | 'reverse',
+      rafId: null as number | null,
+      lastTimestamp: 0,
+      endedListener: null as (() => void) | null,
+      isPaused: false,
+      tick: null as ((now: number) => void) | null,
+    };
+    this.pingPongState.set(videoEl, state);
+
+    const startReverse = () => {
+      state.direction = 'reverse';
+      state.lastTimestamp = 0; // reset; will be initialised on first RAF tick
+
+      const tick = (now: number) => {
+        // Check if this RAF loop is still the active one for this element,
+        // and bail out if the renderer has been paused externally.
+        const current = this.pingPongState.get(videoEl);
+        if (!current || current.rafId === null || current.isPaused) return;
+
+        if (state.lastTimestamp === 0) {
+          // First tick — just record timestamp and continue
+          state.lastTimestamp = now;
+          state.rafId = requestAnimationFrame(tick);
+          return;
+        }
+
+        const deltaMs = now - state.lastTimestamp;
+        state.lastTimestamp = now;
+
+        const deltaSeconds = deltaMs / 1000;
+        const next = videoEl.currentTime - deltaSeconds;
+
+        if (next <= 0) {
+          // Reached the start — switch back to forward
+          videoEl.currentTime = 0;
+          state.direction = 'forward';
+          state.rafId = null;
+          state.tick = null;
+          if (!state.isPaused) {
+            // Re-attach ended listener for the next forward pass
+            videoEl.addEventListener('ended', startReverse, { once: true });
+            state.endedListener = startReverse;
+            videoEl.play().catch(() => { /* autoplay policy — silent fail */ });
+          } else {
+            // Paused at the boundary — re-attach listener so resume() triggers
+            // the next forward pass when the user unpauses.
+            videoEl.addEventListener('ended', startReverse, { once: true });
+            state.endedListener = startReverse;
+          }
+        } else {
+          videoEl.currentTime = next;
+          state.rafId = requestAnimationFrame(tick);
+        }
+      };
+
+      // Store tick on state so resume() can reschedule it after a pause
+      state.tick = tick;
+      state.rafId = requestAnimationFrame(tick);
+    };
+
+    // Kick off: listen for the first `ended` event to begin reverse pass
+    videoEl.addEventListener('ended', startReverse, { once: true });
+    state.endedListener = startReverse;
+  }
+
+  /**
+   * Cancel any active RAF loop and remove the `ended` listener for `videoEl`.
+   * Safe to call even if ping-pong was never started on the element.
+   */
+  private _stopPingPong(videoEl: HTMLVideoElement): void {
+    const state = this.pingPongState.get(videoEl);
+    if (!state) return;
+
+    if (state.rafId !== null) {
+      cancelAnimationFrame(state.rafId);
+      state.rafId = null;
+    }
+    if (state.endedListener) {
+      videoEl.removeEventListener('ended', state.endedListener);
+      state.endedListener = null;
+    }
+    this.pingPongState.delete(videoEl);
+  }
+
   // ── AvatarRenderer interface ──────────────────────────────────────────────
 
   initialize(
@@ -417,6 +541,8 @@ export class VideoAvatarRenderer implements AvatarRenderer {
       clearTimeout(this.fadeTimer);
       this.fadeTimer = null;
     }
+    // Stop ping-pong loops before clearing video elements
+    [this.videoA, this.videoB].forEach(v => this._stopPingPong(v));
     // Clean up video elements
     [this.videoA, this.videoB].forEach(v => {
       v.pause();
@@ -528,10 +654,32 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
   pause(): void {
     this.frontVideo.pause();
+    // Also suspend the reverse RAF loop if it's running on the front video
+    const ppState = this.pingPongState.get(this.frontVideo);
+    if (ppState && ppState.direction === 'reverse') {
+      ppState.isPaused = true;
+      if (ppState.rafId !== null) {
+        cancelAnimationFrame(ppState.rafId);
+        ppState.rafId = null;
+      }
+      // Reset lastTimestamp so we don't get a huge delta on resume
+      ppState.lastTimestamp = 0;
+    }
   }
 
   resume(): void {
-    this.frontVideo.play().catch(() => { /* autoplay policy */ });
+    const ppState = this.pingPongState.get(this.frontVideo);
+    if (ppState && ppState.direction === 'reverse' && ppState.isPaused) {
+      // Resume the reverse RAF loop
+      ppState.isPaused = false;
+      ppState.lastTimestamp = 0; // avoid big delta from pause gap
+      if (ppState.tick) {
+        ppState.rafId = requestAnimationFrame(ppState.tick);
+      }
+    } else {
+      // Forward direction — resume native video playback
+      this.frontVideo.play().catch(() => { /* autoplay policy */ });
+    }
   }
 
   // ── Preload helpers ───────────────────────────────────────────────────────
