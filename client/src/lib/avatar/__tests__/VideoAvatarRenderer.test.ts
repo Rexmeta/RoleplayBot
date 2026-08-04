@@ -378,6 +378,188 @@ describe('VideoAvatarRenderer.initialize displayImageUrl', () => {
   });
 });
 
+// ── _startPingPong / _stopPingPong ────────────────────────────────────────────
+
+describe('VideoAvatarRenderer ping-pong loop', () => {
+  type PrivateRenderer = Awaited<ReturnType<typeof makeRenderer>> & {
+    _startPingPong: (v: unknown) => void;
+    _stopPingPong: (v: unknown) => void;
+    pingPongState: Map<unknown, {
+      direction: 'forward' | 'reverse';
+      rafId: number | null;
+      lastTimestamp: number;
+      endedListener: (() => void) | null;
+      isPaused: boolean;
+      tick: ((now: number) => void) | null;
+    }>;
+  };
+
+  // Per-test RAF tracking
+  let rafCallbacks: Map<number, (now: number) => void>;
+  let nextRafId: number;
+  let cancelledIds: Set<number>;
+
+  beforeEach(() => {
+    rafCallbacks = new Map();
+    nextRafId = 0;
+    cancelledIds = new Set();
+
+    vi.stubGlobal('requestAnimationFrame', (cb: (now: number) => void) => {
+      const id = ++nextRafId;
+      rafCallbacks.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+      cancelledIds.add(id);
+      rafCallbacks.delete(id);
+    });
+  });
+
+  /** Run every currently-pending RAF callback with the given timestamp. */
+  function flushRaf(now: number) {
+    const entries = [...rafCallbacks.entries()];
+    for (const [id, cb] of entries) {
+      rafCallbacks.delete(id);
+      cb(now);
+    }
+  }
+
+  it('ended event triggers the reverse RAF loop and decrements currentTime', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 5.0;
+
+    r._startPingPong(stub);
+
+    // Fire ended → starts reverse pass
+    stub.dispatch('ended');
+
+    // Tick 1: initialise lastTimestamp only (no decrement yet)
+    flushRaf(1000);
+    expect(stub.currentTime).toBe(5.0); // unchanged on first tick
+
+    // Tick 2: 100 ms elapsed → currentTime should decrease by 0.1 s
+    flushRaf(1100);
+    expect(stub.currentTime).toBeCloseTo(4.9, 5);
+  });
+
+  it('forward play resumes when reverse reaches currentTime 0', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 0.05; // close to start so one big tick crosses zero
+
+    const playSpy = vi.spyOn(stub as any, 'play').mockResolvedValue(undefined);
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    // Tick 1: initialise timestamp
+    flushRaf(1000);
+
+    // Tick 2: 200 ms elapsed → next = 0.05 – 0.2 = –0.15 → boundary hit
+    flushRaf(1200);
+
+    expect(stub.currentTime).toBe(0);
+    expect(playSpy).toHaveBeenCalled();
+  });
+
+  it('after forward resumes at 0, a new ended listener is registered for the next cycle', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 0.05;
+
+    vi.spyOn(stub as any, 'play').mockResolvedValue(undefined);
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    flushRaf(1000); // init
+    flushRaf(1200); // boundary → forward resumes
+
+    // The state should be back to 'forward'
+    const st = r.pingPongState.get(stub);
+    expect(st?.direction).toBe('forward');
+    // A new endedListener must have been registered for the next cycle
+    expect(st?.endedListener).not.toBeNull();
+  });
+
+  it('_stopPingPong cancels the active RAF and removes the ended listener', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 5.0;
+
+    r._startPingPong(stub);
+
+    // Fire ended → RAF loop starts
+    stub.dispatch('ended');
+
+    // First tick — init timestamp, schedules next frame
+    flushRaf(1000);
+
+    // Capture which RAF ID is now pending
+    const pendingIds = [...rafCallbacks.keys()];
+    expect(pendingIds.length).toBeGreaterThan(0);
+
+    r._stopPingPong(stub);
+
+    // All pending RAF frames must have been cancelled
+    for (const id of pendingIds) {
+      expect(cancelledIds.has(id)).toBe(true);
+    }
+    // State entry must be removed
+    expect(r.pingPongState.has(stub)).toBe(false);
+    // ended listener must have been removed — dispatching again must not re-trigger reverse
+    const prevCurrentTime = stub.currentTime;
+    stub.dispatch('ended');
+    flushRaf(2000);
+    flushRaf(2100);
+    // currentTime should be unchanged (no active reverse loop)
+    expect(stub.currentTime).toBe(prevCurrentTime);
+  });
+
+  it('_stopPingPong removes the ended listener before reverse has started', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 5.0;
+
+    r._startPingPong(stub);
+    // Stop immediately (before ended fires)
+    r._stopPingPong(stub);
+
+    // Firing ended now should not schedule any RAF
+    stub.dispatch('ended');
+    expect(rafCallbacks.size).toBe(0);
+  });
+
+  it('calling _startPingPong twice does not create duplicate ended listeners', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo;
+
+    r._startPingPong(stub);
+    r._startPingPong(stub); // second call must clean up the first
+
+    const endedListeners = (stub as any)._listeners['ended'] ?? [];
+    expect(endedListeners.length).toBe(1);
+  });
+
+  it('calling _startPingPong twice does not create a duplicate RAF loop', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 5.0;
+
+    r._startPingPong(stub);
+    r._startPingPong(stub); // replaces first binding
+
+    // Fire ended once
+    stub.dispatch('ended');
+    flushRaf(1000); // init tick
+    flushRaf(1100); // decrement tick
+
+    // Only one decrement should have happened (100 ms = 0.1 s)
+    expect(stub.currentTime).toBeCloseTo(4.9, 5);
+  });
+});
+
 // ── destroy ───────────────────────────────────────────────────────────────────
 
 describe('VideoAvatarRenderer.destroy', () => {
