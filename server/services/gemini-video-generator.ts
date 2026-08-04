@@ -609,7 +609,78 @@ export async function generateAvatarClip(
 
     const generatedVideos = result.response?.generatedVideos;
     if (!generatedVideos?.length) {
-      return { success: false, error: '생성된 비디오가 없습니다. 프롬프트가 콘텐츠 정책에 의해 필터링되었을 수 있습니다.' };
+      const filteredCount = result.response?.raiMediaFilteredCount;
+      const filteredReasons = result.response?.raiMediaFilteredReasons;
+      console.warn(
+        `⚠️ 아바타 클립 생성 결과 없음 — raiMediaFilteredCount=${filteredCount ?? 'N/A'}`,
+        `reasons=${JSON.stringify(filteredReasons ?? [])}`,
+        `hasSeedImage=${!!seedImage}`,
+        `model=${videoModel}`,
+        `resultKeys=${Object.keys(result).join(',')}`,
+        `responseFull=${JSON.stringify(result.response ?? {})}`,
+      );
+
+      // If the request included a seed image and it was filtered, retry without the image
+      // (some Veo variants reject reference images containing persons even with personGeneration=allow_adult)
+      if (seedImage) {
+        console.log('🔄 시드 이미지 없이 재시도...');
+        const paramsNoImage: any = { model: videoModel, prompt: videoPrompt, config: { personGeneration: 'allow_adult' } };
+        const opNoImage = await withRetry(
+          () => genAI.models.generateVideos(paramsNoImage),
+          3, 'generateVideos-avatar-noimageretry',
+        );
+        let retryResult = opNoImage;
+        let retryAttempts = 0;
+        while (!retryResult.done && retryAttempts < VIDEO_CONFIG.maxPollingAttempts) {
+          await new Promise(resolve => setTimeout(resolve, VIDEO_CONFIG.pollingIntervalMs));
+          try {
+            retryResult = await withRetry(
+              () => genAI.operations.getVideosOperation({ operation: retryResult }),
+              3, `poll-avatar-noimageretry-${retryAttempts}`,
+            );
+          } catch (_) { /* keep polling */ }
+          retryAttempts++;
+          console.log(`⏳ 재시도 생성 중... (${retryAttempts}/${VIDEO_CONFIG.maxPollingAttempts})`);
+        }
+        const retryVideos = retryResult.done ? retryResult.response?.generatedVideos : undefined;
+        if (retryVideos?.length) {
+          console.log('✅ 시드 이미지 없이 재시도 성공');
+          // Continue with retryVideos by reassigning the outer variable
+          const retryVideoData = retryVideos[0].video;
+          if (retryVideoData) {
+            let retryBytes: Uint8Array | undefined;
+            if (retryVideoData.uri) {
+              retryBytes = await fetchVideoWithTimeout(retryVideoData.uri, apiKey!);
+            } else if (retryVideoData.videoBytes) {
+              if (typeof retryVideoData.videoBytes === 'string') {
+                const bin = atob(retryVideoData.videoBytes);
+                retryBytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) retryBytes[i] = bin.charCodeAt(i);
+              } else {
+                retryBytes = retryVideoData.videoBytes as Uint8Array;
+              }
+            }
+            if (retryBytes) {
+              const safePersonaId2 = request.personaId.replace(/[^a-zA-Z0-9]/g, '-');
+              const safeState2    = (request.state as string).replace(/_/g, '-');
+              const gender2       = request.gender ?? 'unknown';
+              const timestamp2    = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+              const fixedKey2     = `videos/avatar-${safePersonaId2}-${gender2}-${safeState2}-${timestamp2}.webm`;
+              const storagePath2  = await mediaStorage.saveToFixedPath(Buffer.from(retryBytes), fixedKey2, 'video/webm');
+              trackVideoUsage({ model: videoModel, provider: 'gemini', metadata: { personaId: request.personaId, state: request.state, durationSeconds: 6 } });
+              console.log(`✅ 아바타 클립 생성 완료 (이미지 없음 폴백): ${storagePath2}`);
+              return { success: true, videoUrl: storagePath2, prompt: videoPrompt, metadata: { model: videoModel, provider: 'gemini', durationSeconds: 6, savedLocally: true } };
+            }
+          }
+        }
+        const retryFilteredReasons = retryResult.response?.raiMediaFilteredReasons;
+        console.warn('⚠️ 재시도도 실패 — reasons:', JSON.stringify(retryFilteredReasons ?? []));
+        const reasonStr = retryFilteredReasons?.join(', ') ?? filteredReasons?.join(', ') ?? '알 수 없음';
+        return { success: false, error: `생성된 비디오가 없습니다 (콘텐츠 정책 차단). 사유: ${reasonStr}` };
+      }
+
+      const reasonStr = filteredReasons?.join(', ') ?? '알 수 없음';
+      return { success: false, error: `생성된 비디오가 없습니다 (콘텐츠 정책 차단). 사유: ${reasonStr}` };
     }
 
     const videoData = generatedVideos[0].video;
