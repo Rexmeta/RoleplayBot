@@ -523,17 +523,10 @@ export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
   const base = stateDescriptions[state] ?? stateDescriptions['idle'];
   // Append caller-supplied extra prompt after the base description.
   const extra = request.extraPrompt?.trim();
-  const motion = extra ? `${base} ${extra}` : base;
-
-  // When a seed image is provided, prepend an explicit identity-preservation instruction
-  // so Veo uses the reference image as the visual basis rather than generating a new person.
-  const imageAnchor = request.neutralImageUrl
-    ? 'Use the provided reference image as the visual basis for this video. ' +
-      'Preserve the exact face, skin tone, hair, clothing, and setting from the reference image. ' +
-      'Do not change the person\'s appearance in any way. '
-    : '';
-
-  return `${imageAnchor}${motion}`;
+  // Note: do NOT prepend identity-preservation hints about faces/skin-tone —
+  // such phrasing triggers Veo's RAI person-generation filter.
+  // The `image` parameter (first frame) already guides appearance without prompt text.
+  return extra ? `${base} ${extra}` : base;
 }
 
 /**
