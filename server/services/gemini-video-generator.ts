@@ -575,7 +575,19 @@ export async function generateAvatarClip(
       }
     }
 
-    const generateParams: any = { model: videoModel, prompt: videoPrompt };
+    // Lite/Fast models are text-to-video only — they silently ignore the image parameter.
+    // Auto-upgrade to the full model when a seed image is present so the generated clip
+    // actually matches the persona's appearance.
+    const IMAGE_TO_VIDEO_MODEL = 'veo-3.1-generate-preview';
+    const TEXT_ONLY_MODELS = ['veo-3.1-lite-generate-preview', 'veo-3.1-fast-generate-preview'];
+    const effectiveModel = seedImage && TEXT_ONLY_MODELS.includes(videoModel)
+      ? IMAGE_TO_VIDEO_MODEL
+      : videoModel;
+    if (effectiveModel !== videoModel) {
+      console.log(`🔀 시드 이미지 사용: 모델 자동 업그레이드 ${videoModel} → ${effectiveModel} (Lite/Fast는 참조 이미지 미지원)`);
+    }
+
+    const generateParams: any = { model: effectiveModel, prompt: videoPrompt };
     if (seedImage) generateParams.image = seedImage;
 
     const operation = await withRetry(
@@ -667,9 +679,9 @@ export async function generateAvatarClip(
               const timestamp2    = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
               const fixedKey2     = `videos/avatar-${safePersonaId2}-${gender2}-${safeState2}-${timestamp2}.webm`;
               const storagePath2  = await mediaStorage.saveToFixedPath(Buffer.from(retryBytes), fixedKey2, 'video/webm');
-              trackVideoUsage({ model: videoModel, provider: 'gemini', metadata: { personaId: request.personaId, state: request.state, durationSeconds: 6 } });
+              trackVideoUsage({ model: effectiveModel, provider: 'gemini', metadata: { personaId: request.personaId, state: request.state, durationSeconds: 6 } });
               console.log(`✅ 아바타 클립 생성 완료 (이미지 없음 폴백): ${storagePath2}`);
-              return { success: true, videoUrl: storagePath2, prompt: videoPrompt, metadata: { model: videoModel, provider: 'gemini', durationSeconds: 6, savedLocally: true } };
+              return { success: true, videoUrl: storagePath2, prompt: videoPrompt, metadata: { model: effectiveModel, provider: 'gemini', durationSeconds: 6, savedLocally: true } };
             }
           }
         }
@@ -716,7 +728,7 @@ export async function generateAvatarClip(
     );
 
     trackVideoUsage({
-      model: videoModel,
+      model: effectiveModel,
       provider: 'gemini',
       metadata: { personaId: request.personaId, state: request.state, durationSeconds: 6 },
     });
@@ -727,7 +739,7 @@ export async function generateAvatarClip(
       success: true,
       videoUrl: storagePath,
       prompt: videoPrompt,
-      metadata: { model: videoModel, provider: 'gemini', durationSeconds: 6, savedLocally: true },
+      metadata: { model: effectiveModel, provider: 'gemini', durationSeconds: 6, savedLocally: true },
     };
   } catch (error: any) {
     console.error('아바타 클립 생성 오류:', error);
