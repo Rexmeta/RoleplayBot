@@ -632,63 +632,16 @@ export async function generateAvatarClip(
         `responseFull=${JSON.stringify(result.response ?? {})}`,
       );
 
-      // If the request included a seed image and it was filtered, retry without the image
-      // (some Veo variants reject reference images containing persons even with personGeneration=allow_adult)
+      // Do NOT silently fall back to text-only generation — that would produce a
+      // completely different person and mislead the operator into thinking the
+      // seed image was used.  Return a clear error so the user can act on it.
       if (seedImage) {
-        console.log('🔄 시드 이미지 없이 재시도...');
-        const paramsNoImage: any = { model: effectiveModel, prompt: videoPrompt };
-        const opNoImage = await withRetry(
-          () => genAI.models.generateVideos(paramsNoImage),
-          3, 'generateVideos-avatar-noimageretry',
-        );
-        let retryResult = opNoImage;
-        let retryAttempts = 0;
-        while (!retryResult.done && retryAttempts < VIDEO_CONFIG.maxPollingAttempts) {
-          await new Promise(resolve => setTimeout(resolve, VIDEO_CONFIG.pollingIntervalMs));
-          try {
-            retryResult = await withRetry(
-              () => genAI.operations.getVideosOperation({ operation: retryResult }),
-              3, `poll-avatar-noimageretry-${retryAttempts}`,
-            );
-          } catch (_) { /* keep polling */ }
-          retryAttempts++;
-          console.log(`⏳ 재시도 생성 중... (${retryAttempts}/${VIDEO_CONFIG.maxPollingAttempts})`);
-        }
-        const retryVideos = retryResult.done ? retryResult.response?.generatedVideos : undefined;
-        if (retryVideos?.length) {
-          console.log('✅ 시드 이미지 없이 재시도 성공');
-          // Continue with retryVideos by reassigning the outer variable
-          const retryVideoData = retryVideos[0].video;
-          if (retryVideoData) {
-            let retryBytes: Uint8Array | undefined;
-            if (retryVideoData.uri) {
-              retryBytes = await fetchVideoWithTimeout(retryVideoData.uri, apiKey!);
-            } else if (retryVideoData.videoBytes) {
-              if (typeof retryVideoData.videoBytes === 'string') {
-                const bin = atob(retryVideoData.videoBytes);
-                retryBytes = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) retryBytes[i] = bin.charCodeAt(i);
-              } else {
-                retryBytes = retryVideoData.videoBytes as Uint8Array;
-              }
-            }
-            if (retryBytes) {
-              const safePersonaId2 = request.personaId.replace(/[^a-zA-Z0-9]/g, '-');
-              const safeState2    = (request.state as string).replace(/_/g, '-');
-              const gender2       = request.gender ?? 'unknown';
-              const timestamp2    = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-              const fixedKey2     = `videos/avatar-${safePersonaId2}-${gender2}-${safeState2}-${timestamp2}.webm`;
-              const storagePath2  = await mediaStorage.saveToFixedPath(Buffer.from(retryBytes), fixedKey2, 'video/webm');
-              trackVideoUsage({ model: effectiveModel, provider: 'gemini', metadata: { personaId: request.personaId, state: request.state, durationSeconds: 6 } });
-              console.log(`✅ 아바타 클립 생성 완료 (이미지 없음 폴백): ${storagePath2}`);
-              return { success: true, videoUrl: storagePath2, prompt: videoPrompt, metadata: { model: effectiveModel, provider: 'gemini', durationSeconds: 6, savedLocally: true } };
-            }
-          }
-        }
-        const retryFilteredReasons = retryResult.response?.raiMediaFilteredReasons;
-        console.warn('⚠️ 재시도도 실패 — reasons:', JSON.stringify(retryFilteredReasons ?? []));
-        const reasonStr = retryFilteredReasons?.join(', ') ?? filteredReasons?.join(', ') ?? '알 수 없음';
-        return { success: false, error: `생성된 비디오가 없습니다 (콘텐츠 정책 차단). 사유: ${reasonStr}` };
+        const reasonStr = filteredReasons?.join(', ') ?? '알 수 없음';
+        console.warn(`⚠️ 시드 이미지가 RAI 필터에 의해 거부됨 (사유: ${reasonStr}) — 이미지 없이 생성하려면 중립 이미지를 제거하고 다시 시도하세요.`);
+        return {
+          success: false,
+          error: `시드 이미지가 콘텐츠 안전 필터에 의해 거부되었습니다 (사유: ${reasonStr}). 페르소나의 중립 이미지를 변경하거나, 이미지 없이 생성하려면 중립 이미지를 제거한 후 다시 시도해 주세요.`,
+        };
       }
 
       const reasonStr = filteredReasons?.join(', ') ?? '알 수 없음';

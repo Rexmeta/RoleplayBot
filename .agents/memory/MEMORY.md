@@ -1,2 +1,3 @@
 - [Gemini Live valid models](gemini-live-models.md) — SDK v1.15.0 실제 유효 모델명은 `gemini-live-2.5-flash-preview` (not `native-audio`); always v1beta
 - [Veo model names](veo-model-names.md) — 올바른 순서: `veo-3.1-lite-generate-preview` (lite-generate, not generate-lite); generateAudio는 SDK v1.15+에서 config에 넣으면 즉시 에러
+- [Veo image-to-video constraints](veo-image-to-video.md) — referenceImages/personGeneration 둘 다 Gemini API 미지원; 사람 얼굴 이미지는 RAI 필터에 자주 차단; silent fallback 금지
