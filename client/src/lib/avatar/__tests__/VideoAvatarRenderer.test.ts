@@ -644,6 +644,76 @@ describe('VideoAvatarRenderer ping-pong loop', () => {
     stub.dispatch('ended');
     expect(rafCallbacks.size).toBe(0);
   });
+
+  // ── Tick-level delta-clamp tests ────────────────────────────────────────────
+
+  it('normal delta (< 50 ms): currentTime decrements by the exact elapsed amount', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    // Tick 1: initialise lastTimestamp (no movement)
+    flushRaf(2000);
+    expect(stub.currentTime).toBe(3.0);
+
+    // Tick 2: 30 ms elapsed — well under the 50 ms cap, no clamp applied
+    flushRaf(2030);
+    // Expected: 3.0 - 0.030 = 2.970
+    expect(stub.currentTime).toBeCloseTo(2.970, 5);
+  });
+
+  it('large delta (> 50 ms): clamp caps the step at 50 ms worth of time', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 10.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    // Tick 1: initialise timestamp
+    flushRaf(5000);
+    expect(stub.currentTime).toBe(10.0);
+
+    // Tick 2: 300 ms of elapsed wall-clock time (tab backgrounded, etc.)
+    // Clamp fires: max step is 50 ms → 0.050 s decrement
+    flushRaf(5300);
+    expect(stub.currentTime).toBeCloseTo(9.95, 5);
+  });
+
+  it('delta that overshoots currentTime=0: clamps currentTime to 0 and flips direction to forward', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    // Place currentTime very close to the start so even a tiny step crosses zero
+    stub.currentTime = 0.01;
+
+    const playSpy = vi.spyOn(stub as any, 'play').mockResolvedValue(undefined);
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    // Tick 1: initialise timestamp
+    flushRaf(3000);
+    expect(stub.currentTime).toBe(0.01); // untouched
+
+    // Tick 2: 40 ms elapsed → step = 0.040 s → next = 0.01 – 0.040 = –0.030 → overshoots
+    flushRaf(3040);
+
+    // currentTime must be clamped to exactly 0, not negative
+    expect(stub.currentTime).toBe(0);
+
+    // play() must have been called to restart forward playback
+    expect(playSpy).toHaveBeenCalled();
+
+    // direction must have flipped back to forward
+    const st = r.pingPongState.get(stub);
+    expect(st?.direction).toBe('forward');
+
+    // No RAF frame should be pending (reverse loop exited)
+    expect(rafCallbacks.size).toBe(0);
+  });
 });
 
 // ── pause / resume during reverse pass ───────────────────────────────────────
