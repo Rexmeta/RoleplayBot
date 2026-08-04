@@ -30,6 +30,13 @@ const AVATAR_STATES: AvatarState[] = [
 
 const CROSS_FADE_DURATION_MS = 200;
 
+/**
+ * Maximum time delta (ms) applied per RAF tick during the reverse pass.
+ * Clamping this prevents large jumps when the tab is backgrounded or the
+ * device is slow and a single frame takes >50 ms to render.
+ */
+const PING_PONG_MAX_DELTA_MS = 50;
+
 // ── Emotion overlay colours (shared with ImageAvatarRenderer for consistency) ──
 
 const emotionOverlayColors: Record<string, string> = {
@@ -434,9 +441,13 @@ export class VideoAvatarRenderer implements AvatarRenderer {
           return;
         }
 
-        const deltaMs = now - state.lastTimestamp;
+        const rawDeltaMs = now - state.lastTimestamp;
         state.lastTimestamp = now;
 
+        // Clamp the delta to avoid large time jumps on slow devices or after
+        // the tab has been backgrounded.  PING_PONG_MAX_DELTA_MS controls the
+        // maximum step size and can be tuned at the top of this file.
+        const deltaMs = Math.min(rawDeltaMs, PING_PONG_MAX_DELTA_MS);
         const deltaSeconds = deltaMs / 1000;
         const next = videoEl.currentTime - deltaSeconds;
 
