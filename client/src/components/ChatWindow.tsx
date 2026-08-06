@@ -779,9 +779,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          {/* Chat Header */}
-          <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
+        <div className={inputMode === 'realtime-voice' ? '' : 'bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden'}>
+          {inputMode !== 'realtime-voice' && (
+            /* Chat Header */
+            <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
                 <div className="flex-shrink-0" data-testid="chat-header-persona-image">
@@ -826,44 +827,43 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
               </div>
 
-              {inputMode !== 'realtime-voice' && (
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (progressInfo.stage === 'complete') {
-                            handleFeedbackRequest();
-                          } else {
-                            handleEndRealtimeConversation();
-                          }
-                        }}
-                        data-testid="button-end-conversation-header"
-                        className={`shrink-0 text-xs h-8 px-3 border transition-all duration-300 ${progressInfo.endButtonClass}${isButtonAnimating ? ' animate-btn-pop' : ''}`}
-                      >
-                        {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
-                        {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
-                        {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
-                        {progressInfo.showBadge && <span className="mr-1 bg-white/20 rounded px-1 text-xs font-mono">{currentTurn}/{targetTurns}</span>}
-                        {t(progressInfo.endButtonLabelKey)}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      {progressInfo.stage === 'early'
-                        ? t('chat.exitWarningTooltip', { count: turnsLeft })
-                        : progressInfo.stage === 'mid'
-                        ? t('chat.progressBadgeTooltip', { current: currentTurn, target: targetTurns })
-                        : progressInfo.stage === 'nearEnd'
-                        ? t('chat.almostDoneTitle')
-                        : t('chat.getFeedback')}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (progressInfo.stage === 'complete') {
+                          handleFeedbackRequest();
+                        } else {
+                          handleEndRealtimeConversation();
+                        }
+                      }}
+                      data-testid="button-end-conversation-header"
+                      className={`shrink-0 text-xs h-8 px-3 border transition-all duration-300 ${progressInfo.endButtonClass}${isButtonAnimating ? ' animate-btn-pop' : ''}`}
+                    >
+                      {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
+                      {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
+                      {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
+                      {progressInfo.showBadge && <span className="mr-1 bg-white/20 rounded px-1 text-xs font-mono">{currentTurn}/{targetTurns}</span>}
+                      {t(progressInfo.endButtonLabelKey)}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {progressInfo.stage === 'early'
+                      ? t('chat.exitWarningTooltip', { count: turnsLeft })
+                      : progressInfo.stage === 'mid'
+                      ? t('chat.progressBadgeTooltip', { current: currentTurn, target: targetTurns })
+                      : progressInfo.stage === 'nearEnd'
+                      ? t('chat.almostDoneTitle')
+                      : t('chat.getFeedback')}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-          </div>
+            </div>
+          )}
 
           {/* Main Content */}
           <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
