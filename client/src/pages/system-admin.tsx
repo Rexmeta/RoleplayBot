@@ -219,8 +219,8 @@ const IMAGE_MODELS: ModelInfo[] = [
 ];
 
 const VIDEO_MODELS: ModelInfo[] = [
-  { value: "veo-3.1-lite-generate-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: false, description: "720p · 오디오 없음 (비용 최소화)" },
-  { value: "veo-3.1-fast-generate-preview", modelKey: "geminiVeo31Fast", provider: "Google", recommended: false, description: "720p · 오디오 없음 (빠른 생성)" },
+  { value: "veo-3.1-lite-generate-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: false, description: "720p · 비용 최소화" },
+  { value: "veo-3.1-fast-generate-preview", modelKey: "geminiVeo31Fast", provider: "Google", recommended: false, description: "720p · 빠른 생성" },
   { value: "veo-3.1-generate-preview", modelKey: "geminiVeo31", provider: "Google", recommended: true, description: "1080p · 오디오 포함" },
 ];
 
