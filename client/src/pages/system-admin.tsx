@@ -800,6 +800,7 @@ export default function SystemAdminPage() {
     model_avatar_video: "veo-3.1-lite-generate-preview",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
+  const [operatorVideoAvatarEnabled, setOperatorVideoAvatarEnabled] = useState(false);
 
   const VOICE_AUDIO_DEFAULTS = {
     agc_target_rms: 0.15,
@@ -1086,6 +1087,33 @@ export default function SystemAdminPage() {
     saveSettingsMutation.mutate(settings);
   };
 
+  const saveVideoAvatarAccessMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const response = await apiRequest("PUT", "/api/system-admin/settings", {
+        category: "features",
+        key: "operator_video_avatar_enabled",
+        value: enabled,
+        description: "Allow operators to manage video avatar clips and scenario video-avatar settings",
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/video-avatar-access"] });
+      toast({
+        title: t('systemAdmin.settings.videoAvatarAccess.savedTitle', 'Video avatar access updated'),
+        description: t('systemAdmin.settings.videoAvatarAccess.savedDescription', 'The operator access policy has been saved.'),
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: t('systemAdmin.settings.saveFailed'),
+        description: error.message || t('systemAdmin.settings.saveFailedDesc'),
+        variant: "destructive",
+      });
+    },
+  });
+
   // Initialize models from saved settings
   useEffect(() => {
     const newFeatureModels: Record<string, string> = { ...featureModels };
@@ -1120,6 +1148,10 @@ export default function SystemAdminPage() {
     if (voiceChanged) {
       setVoiceAudioSettings(newVoiceAudio);
     }
+    const videoAvatarSetting = systemSettings.find(
+      s => s.category === "features" && s.key === "operator_video_avatar_enabled",
+    );
+    setOperatorVideoAvatarEnabled(videoAvatarSetting?.value === "true");
     setHasVoiceAudioChanges(false);
   }, [systemSettings]);
 
@@ -1781,6 +1813,42 @@ export default function SystemAdminPage() {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('systemAdmin.settings.videoAvatarAccess.title', 'Video avatar access')}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    'systemAdmin.settings.videoAvatarAccess.description',
+                    'When enabled, operators can manage persona video clips and enable video avatars in scenarios within their existing access scope. System admins always retain access.',
+                  )}
+                </p>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium">
+                    {operatorVideoAvatarEnabled
+                      ? t('systemAdmin.settings.videoAvatarAccess.enabled', 'Enabled for operators')
+                      : t('systemAdmin.settings.videoAvatarAccess.disabled', 'Disabled for operators')}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t(
+                      'systemAdmin.settings.videoAvatarAccess.hint',
+                      'Turning this off hides the controls for operators and blocks direct video-avatar API requests. Existing clips and scenario settings are preserved.',
+                    )}
+                  </p>
+                </div>
+                <Switch
+                  checked={operatorVideoAvatarEnabled}
+                  disabled={saveVideoAvatarAccessMutation.isPending}
+                  onCheckedChange={(enabled) => {
+                    setOperatorVideoAvatarEnabled(enabled);
+                    saveVideoAvatarAccessMutation.mutate(enabled);
+                  }}
+                  data-testid="switch-operator-video-avatar-access"
+                />
               </CardContent>
             </Card>
 

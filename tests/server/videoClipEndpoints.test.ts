@@ -31,6 +31,7 @@ vi.mock('../../server/middleware/authMiddleware', () => ({
 vi.mock('../../server/storage', () => ({
   storage: {
     getAllPersonaTranslationLocales: vi.fn().mockResolvedValue([]),
+    getSystemSetting: vi.fn().mockResolvedValue({ value: 'false' }),
   },
 }));
 
@@ -66,6 +67,7 @@ import createAdminPersonasRouter from '../../server/routes/adminPersonas';
 
 // ─── Test helpers ──────────────────────────────────────────────────────────
 function isAuthenticated(_req: any, _res: any, next: any) {
+  _req.user = { id: 'admin-1', role: 'admin' };
   next();
 }
 
@@ -82,6 +84,21 @@ function buildApp() {
 
 const PERSONA_ID = 'persona-abc';
 
+function operatorAuthenticated(req: any, _res: any, next: any) {
+  req.user = { id: 'operator-1', role: 'operator' };
+  next();
+}
+
+function buildOperatorApp() {
+  const app = express();
+  app.use(express.json());
+  app.use(createAdminPersonasRouter(operatorAuthenticated));
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    res.status(err.status || err.statusCode || 500).json({ error: err.message });
+  });
+  return app;
+}
+
 // ─── POST generate-clip ────────────────────────────────────────────────────
 
 describe('POST /api/admin/personas/:id/video/generate-clip', () => {
@@ -89,6 +106,26 @@ describe('POST /api/admin/personas/:id/video/generate-clip', () => {
     vi.clearAllMocks();
     // Default: store.create returns a minimal record
     mockVideoJobStore.create.mockReturnValue({ jobId: 'test-job-id', status: 'pending', createdAt: Date.now() });
+  });
+
+  it('blocks an operator when global video-avatar access is disabled', async () => {
+    const res = await request(buildOperatorApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
+      .send({ behavior: 'listening', emotion: 'neutral' });
+
+    expect(res.status).toBe(403);
+    expect(mockVideoJobStore.create).not.toHaveBeenCalled();
+  });
+
+  it('allows an operator when global video-avatar access is enabled', async () => {
+    const { storage } = await import('../../server/storage');
+    vi.mocked(storage.getSystemSetting).mockResolvedValueOnce({ value: 'true' } as any);
+
+    const res = await request(buildOperatorApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
+      .send({ behavior: 'listening', emotion: 'neutral' });
+
+    expect(res.status).toBe(202);
   });
 
   it('returns 202 with a jobId when behavior and emotion are valid', async () => {

@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { VALID_REALTIME_MODEL_VALUES } from "../../shared/realtimeModels";
+import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "../services/videoAvatarAccess";
 
 export default function createSystemAdminRouter(isAuthenticated: any) {
   const router = Router();
@@ -307,12 +308,19 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
         `Invalid realtime model: "${value}". Must be one of: ${[...VALID_REALTIME_MODEL_VALUES].join(', ')}`
       );
     }
+    if (category === VIDEO_AVATAR_ACCESS_SETTING.category && key === VIDEO_AVATAR_ACCESS_SETTING.key) {
+      if (typeof value !== "boolean" && value !== "true" && value !== "false") {
+        throw createHttpError(400, "operator_video_avatar_enabled must be a boolean");
+      }
+    }
 
     const user = req.user;
     const setting = await storage.upsertSystemSetting({
       category,
       key,
-      value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+      value: category === VIDEO_AVATAR_ACCESS_SETTING.category && key === VIDEO_AVATAR_ACCESS_SETTING.key
+        ? String(parseBooleanSetting(String(value)))
+        : typeof value === 'object' ? JSON.stringify(value) : String(value),
       description,
       updatedBy: user?.id,
     });
@@ -343,11 +351,18 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
           `Invalid realtime model: "${value}". Must be one of: ${[...VALID_REALTIME_MODEL_VALUES].join(', ')}`
         );
       }
+      if (category === VIDEO_AVATAR_ACCESS_SETTING.category && key === VIDEO_AVATAR_ACCESS_SETTING.key) {
+        if (typeof value !== "boolean" && value !== "true" && value !== "false") {
+          throw createHttpError(400, "operator_video_avatar_enabled must be a boolean");
+        }
+      }
 
       const saved = await storage.upsertSystemSetting({
         category,
         key,
-        value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+        value: category === VIDEO_AVATAR_ACCESS_SETTING.category && key === VIDEO_AVATAR_ACCESS_SETTING.key
+          ? String(parseBooleanSetting(String(value)))
+          : typeof value === 'object' ? JSON.stringify(value) : String(value),
         description,
         updatedBy: user?.id,
       });

@@ -25,6 +25,7 @@ import { PlayerConstraintsBuilder } from './PlayerConstraintsBuilder';
 import { NpcBehaviorHarnessBuilder } from './NpcBehaviorHarnessBuilder';
 import { DifficultyProfileBuilder } from './DifficultyProfileBuilder';
 import { toMediaUrl } from '@/lib/mediaUrl';
+import { useAuth } from '@/hooks/useAuth';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
 import { validateScenario } from '@shared/scenarioValidator';
 import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder, EvaluationHarnessBuilder } from './StateMachineBuilders';
@@ -295,6 +296,7 @@ function ScenarioQualityPanel({
 export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const currentLang = i18n.language;
   const defaultSourceLocale = useDefaultSourceLocale();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -492,6 +494,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return response.json();
     },
   });
+
+  const { data: videoAvatarAccess } = useQuery<{ operatorEnabled: boolean }>({
+    queryKey: ['/api/settings/video-avatar-access'],
+    staleTime: 1000 * 60,
+  });
+  const canManageVideoAvatar = user?.role === 'admin' || videoAvatarAccess?.operatorEnabled === true;
   
   // 편집용 원본 데이터 조회 (번역 적용 안됨)
   const { data: originalScenarios } = useQuery<ComplexScenario[]>({
@@ -2633,7 +2641,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     );
                   })()}
                   
-                  <div className="flex items-center gap-3">
+                  {canManageVideoAvatar && <div className="flex items-center gap-3">
                     <Switch
                       id="useVideoAvatar"
                       checked={formData.useVideoAvatar || false}
@@ -2645,7 +2653,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     <span className="text-xs text-slate-500">
                       {formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
                     </span>
-                  </div>
+                  </div>}
 
                   <div className="flex items-center gap-3">
                     <Switch

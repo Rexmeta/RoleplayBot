@@ -76,7 +76,10 @@ import createAdminPersonasRouter from '../../server/routes/adminPersonas';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function isAuthenticated(_req: any, _res: any, next: any) { next(); }
+function isAuthenticated(req: any, _res: any, next: any) {
+  req.user = { id: 'admin-1', role: 'admin' };
+  next();
+}
 
 function buildApp() {
   const app = express();

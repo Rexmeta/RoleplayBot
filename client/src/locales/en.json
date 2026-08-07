@@ -1321,7 +1321,16 @@
       "anonymizationPreviewNextRun": "Next scheduled run",
       "anonymizationPreviewEligible": "Users to be anonymized",
       "anonymizationPreviewLoading": "Calculating...",
-      "anonymizationPreviewNone": "No users currently eligible"
+      "anonymizationPreviewNone": "No users currently eligible",
+      "videoAvatarAccess": {
+        "title": "Video avatar access",
+        "description": "When enabled, operators can manage persona video clips and enable video avatars in scenarios within their existing organization and category scope. System admins always retain access.",
+        "enabled": "Enabled for operators",
+        "disabled": "Disabled for operators",
+        "hint": "Turning this off hides the controls for operators and blocks direct video-avatar API requests. Existing clips and scenario settings are preserved.",
+        "savedTitle": "Video avatar access updated",
+        "savedDescription": "The operator access policy has been saved."
+      }
     },
     "aiUsage": {
       "dateRange": "Date Range",

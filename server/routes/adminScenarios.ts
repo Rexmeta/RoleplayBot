@@ -17,6 +17,7 @@ import { isOperatorOrAdmin } from "../middleware/authMiddleware";
 import { validateScenario } from "../services/scenarios/scenarioValidator";
 import { mediaStorage } from "../services/mediaStorage";
 import { videoJobStore } from "../utils/videoJobStore";
+import { requireVideoAvatarManagementAccess } from "../services/videoAvatarAccess";
 
 const AI_STREAM_TIMEOUT_MS = 55_000;
 
@@ -333,6 +334,9 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     const user = (req as any).user;
 
     let scenarioData = req.body;
+    if (scenarioData.useVideoAvatar === true) {
+      await requireVideoAvatarManagementAccess(req);
+    }
     const sourceLocale = scenarioData.sourceLocale || user.preferredLanguage || 'ko';
 
     if (user.role === 'operator') {
@@ -431,6 +435,13 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     const existingScenarios = await fileManager.getAllScenarios();
     const existingScenario = existingScenarios.find((s: any) => s.id === scenarioId);
+    if (
+      user.role === "operator" &&
+      req.body.useVideoAvatar !== undefined &&
+      req.body.useVideoAvatar !== (existingScenario as any)?.useVideoAvatar
+    ) {
+      await requireVideoAvatarManagementAccess(req);
+    }
     const sourceLocale = req.body.sourceLocale || existingScenario?.sourceLocale || 'ko';
 
     // Pre-save validation

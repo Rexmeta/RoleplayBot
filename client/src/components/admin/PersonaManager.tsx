@@ -18,6 +18,7 @@ import { MoreVertical, RefreshCw, Languages, Download, Upload } from 'lucide-rea
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 import { toMediaUrl } from '@/lib/mediaUrl';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Video avatar clip library: behaviour (decided by the audio stream) × emotion
@@ -326,6 +327,7 @@ interface PersonaManagerProps {
 export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = {}) {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const prevTriggerRef = useRef(0);
 
@@ -434,6 +436,12 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     queryKey: ['/api/admin/personas'],
     queryFn: () => fetch('/api/admin/personas').then(res => res.json())
   });
+
+  const { data: videoAvatarAccess } = useQuery<{ operatorEnabled: boolean }>({
+    queryKey: ['/api/settings/video-avatar-access'],
+    staleTime: 1000 * 60,
+  });
+  const canManageVideoAvatar = user?.role === 'admin' || videoAvatarAccess?.operatorEnabled === true;
 
   // 활성 언어 목록 조회 (번역 상태 뱃지용)
   const { data: activeLanguages = [] } = useQuery<{ code: string; name: string; nativeName: string; isDefault: boolean }[]>({
@@ -1718,8 +1726,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 </div>
               </div>
 
-              {/* 비디오 아바타 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+              {/* Video management is deliberately absent for operators when disabled. */}
+              {canManageVideoAvatar && <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <i className="fas fa-video text-violet-600"></i>
@@ -1966,7 +1974,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 {!editingPersona && (
                   <p className="text-sm text-slate-500 mt-3">페르소나를 먼저 저장한 후 클립을 생성할 수 있습니다.</p>
                 )}
-              </div>
+              </div>}
 
               {/* 자유 대화 설정 섹션 */}
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">

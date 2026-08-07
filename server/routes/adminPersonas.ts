@@ -16,6 +16,7 @@ import {
   type AvatarClipEmotion,
 } from "../services/gemini-video-generator";
 import { videoJobStore } from "../utils/videoJobStore";
+import { hasVideoAvatarConfiguration, requireVideoAvatarManagementAccess } from "../services/videoAvatarAccess";
 
 const videoUpload = multer({
   storage: multer.memoryStorage(),
@@ -54,12 +55,21 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
   }));
 
   router.post("/api/admin/personas", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    if (hasVideoAvatarConfiguration(req.body?.videos)) {
+      await requireVideoAvatarManagementAccess(req);
+    }
     const persona = await fileManager.createMBTIPersona(req.body);
     const transformedPersona = await transformPersonaMedia(persona);
     res.json(transformedPersona);
   }));
 
   router.put("/api/admin/personas/:id", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    if ((req as any).user.role === "operator" && req.body?.videos !== undefined) {
+      const existing = await storage.getMbtiPersona(req.params.id);
+      if (JSON.stringify(existing?.videos ?? null) !== JSON.stringify(req.body.videos ?? null)) {
+        await requireVideoAvatarManagementAccess(req);
+      }
+    }
     const persona = await fileManager.updateMBTIPersona(req.params.id, req.body);
     const transformedPersona = await transformPersonaMedia(persona);
     res.json(transformedPersona);
@@ -71,6 +81,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
    * On completion the clip is automatically saved to the persona's `videos.clips` in the DB.
    */
   router.post("/api/admin/personas/:id/video/generate-clip", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    await requireVideoAvatarManagementAccess(req);
     const personaId = req.params.id;
     const { behavior, emotion, styleHint, gender, neutralImageUrl, extraPrompt } = req.body as {
       behavior?: string;
@@ -181,6 +192,7 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
    * Falls back to DB when the job is not in memory (e.g. after a server restart).
    */
   router.get("/api/admin/personas/:id/video/generate-clip/status", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    await requireVideoAvatarManagementAccess(req);
     const { jobId } = req.query as { jobId?: string };
     if (!jobId) throw createHttpError(400, 'jobId query parameter is required');
 
@@ -213,6 +225,10 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
     "/api/admin/personas/:id/video/upload-clip",
     isAuthenticated,
     isOperatorOrAdmin,
+    asyncHandler(async (req, _res, next) => {
+      await requireVideoAvatarManagementAccess(req);
+      next();
+    }),
     videoUpload.single('file'),
     asyncHandler(async (req: any, res) => {
       const personaId = req.params.id;
