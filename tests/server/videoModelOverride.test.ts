@@ -110,7 +110,7 @@ describe('Video model override – generateAvatarClip', () => {
   it('uses modelOverride and does NOT call getModelForFeature', async () => {
     await generateAvatarClip({
       personaId: 'test-persona',
-      state: 'idle',
+      behavior: 'listening',
       modelOverride: 'veo-3.1-generate-preview',
     });
 
@@ -122,7 +122,7 @@ describe('Video model override – generateAvatarClip', () => {
   it('falls back to getModelForFeature when modelOverride is absent', async () => {
     await generateAvatarClip({
       personaId: 'test-persona',
-      state: 'idle',
+      behavior: 'listening',
     });
 
     expect(mockGetModelForFeature).toHaveBeenCalledWith('avatar_video');
@@ -131,7 +131,7 @@ describe('Video model override – generateAvatarClip', () => {
   it('falls back to getModelForFeature when modelOverride is empty string', async () => {
     await generateAvatarClip({
       personaId: 'test-persona',
-      state: 'idle',
+      behavior: 'listening',
       modelOverride: '',
     });
 

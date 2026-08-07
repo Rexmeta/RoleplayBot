@@ -8,6 +8,13 @@
 
 import type { AvatarState } from './types';
 
+export type VideoAvatarEmotionBucket = 'positive' | 'neutral' | 'negative';
+export type VideoAvatarBehavior = 'listening' | 'speaking';
+/** Clip library keys: behaviour (audio stream) × emotion (LLM). */
+export type VideoAvatarClipSlots = Partial<
+  Record<`${VideoAvatarBehavior}_${VideoAvatarEmotionBucket}`, string>
+>;
+
 // ── Persona descriptor passed to initialize() ────────────────────────────────
 
 export interface AvatarPersonaInfo {
@@ -24,16 +31,13 @@ export interface AvatarPersonaInfo {
     enabled?: boolean;
     avatarId?: string;
     /**
-     * Clip URLs — either the new gender-separated shape
-     *   `{ male?: { idle: url, ... }, female?: { idle: url, ... } }`
-     * or the legacy flat shape
-     *   `{ idle: url, ... }`.
-     * Consumers must use resolveGenderedClips() to normalise before access.
+     * Clip URLs keyed by behaviour × emotion:
+     *   `{ male?: { listening_positive: url, speaking_neutral: url, … }, … }`.
      */
     clips?: {
-      male?: Partial<Record<string, string>>;
-      female?: Partial<Record<string, string>>;
-    } | Partial<Record<string, string>>;
+      male?: VideoAvatarClipSlots;
+      female?: VideoAvatarClipSlots;
+    };
   };
 }
 

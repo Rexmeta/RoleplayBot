@@ -1,0 +1,145 @@
+1. Idle
+The person remains relaxed and attentive.
+
+Maintain gentle eye contact with the camera.
+
+Natural blinking.
+
+Subtle breathing.
+
+Very slight natural facial micro-movements.
+
+Return naturally to the starting pose by the end of the loop.
+
+포인트
+
+No head movement
+No body movement
+
+이런 문장은 제거했습니다.
+
+사람은 숨만 쉬어도 몸이 움직이기 때문에 너무 강한 제약입니다.
+
+2. Listening
+The person is listening attentively.
+
+Maintain calm eye contact.
+
+Natural blinking.
+
+Slight attentive facial expression.
+
+Minimal natural breathing.
+
+Return naturally to the starting pose by the end of the loop.
+
+Idle와 거의 동일하지만 표정만 조금 다릅니다.
+
+3. Listening Nod
+The person performs one gentle nod while listening.
+
+The nod is slow, subtle, and natural.
+
+Maintain eye contact before and after the nod.
+
+Natural blinking.
+
+Return smoothly to the original pose by the end of the loop.
+
+여기서는
+
+head dips only slightly
+
+같은 기계적인 설명보다
+
+gentle natural nod
+
+가 훨씬 잘 동작합니다.
+
+4. Thinking
+The person pauses thoughtfully.
+
+Eyes briefly shift slightly away, then naturally return to the camera.
+
+Natural blinking.
+
+Relaxed thoughtful expression.
+
+Minimal breathing.
+
+Return naturally to the starting pose by the end of the loop.
+
+생각하는 모습은 눈동자의 작은 이동만 있어도 충분합니다.
+
+5. Speaking
+The person is speaking naturally.
+
+Subtle lip movement synchronized with natural speech.
+
+Gentle facial expressions.
+
+One small natural hand gesture near chest level.
+
+Maintain seated posture.
+
+Return naturally to the starting pose by the end of the loop.
+
+기존의
+
+animated posture
+
+는 제거했습니다.
+
+Veo는 이것 때문에 몸 전체를 움직이는 경우가 있습니다.
+
+6. Speaking Pause
+The person pauses after speaking.
+
+Relaxed closed-mouth expression.
+
+Natural blinking.
+
+Gentle breathing.
+
+Maintain eye contact.
+
+Return naturally to the starting pose by the end of the loop.
+제가 추가로 추천하는 공통 문장
+
+RoleplayBot에서는 이 문장이 상당히 중요합니다.
+
+Preserve the identity of the reference person exactly.
+
+Do not change age, gender, ethnicity, hairstyle, clothing, facial structure, or background.
+
+그리고
+
+Maintain the same framing and composition as the reference image.
+
+이것도 추가하는 것이 좋습니다.
+
+Safety Filter를 고려한 표현 변경
+
+현재 프롬프트에서 아래 표현들은 바꾸는 것을 권장합니다.
+
+현재	추천
+gazing directly forward at the viewer	looking directly at the camera
+perfectly still	remaining relaxed and steady
+lips sealed shut	mouth closed naturally
+no head movement	minimal natural movement
+no body movement	maintain seated posture
+no nodding	remain attentive
+perfect loop	seamless loop
+first and last frames identical	return naturally to the starting pose
+
+특히 **lips sealed shut**는 사람을 부자연스럽게 묘사하는 표현이라 생성 품질을 떨어뜨릴 수 있습니다. mouth closed naturally 정도가 더 자연스럽고 안정적입니다.
+
+RoleplayBot에 맞는 추가 제안
+
+현재는 상태마다 프롬프트 전체를 따로 관리하고 있는데, 유지보수를 고려하면 다음 구조를 추천합니다.
+
+공통 Base Prompt: 인물, 사무실, 카메라, 조명, 동일성 유지
+State Prompt: idle, listening, thinking, speaking처럼 행동만 정의
+Global Constraints: 6-second seamless loop, static camera, no text
+
+이렇게 분리하면 프롬프트 길이가 40~60% 정도 줄고, 상태 간 일관성도 높아집니다. 특히 동일한 시드 이미지에서 여러 감정·상태 영상을 생성하는 RoleplayBot 구조에 더 적합합니다.

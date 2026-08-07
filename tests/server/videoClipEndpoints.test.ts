@@ -52,6 +52,9 @@ vi.mock('../../server/services/gcsStorage', () => ({
 
 vi.mock('../../server/services/gemini-video-generator', () => ({
   generateAvatarClip: mockGenerateAvatarClip,
+  avatarClipSlot: (behavior: string, emotion: string) => `${behavior}_${emotion}`,
+  AVATAR_CLIP_BEHAVIORS: ['listening', 'speaking'],
+  AVATAR_CLIP_EMOTIONS: ['positive', 'neutral', 'negative'],
 }));
 
 vi.mock('../../server/utils/videoJobStore', () => ({
@@ -88,10 +91,10 @@ describe('POST /api/admin/personas/:id/video/generate-clip', () => {
     mockVideoJobStore.create.mockReturnValue({ jobId: 'test-job-id', status: 'pending', createdAt: Date.now() });
   });
 
-  it('returns 202 with a jobId when state is valid', async () => {
+  it('returns 202 with a jobId when behavior and emotion are valid', async () => {
     const res = await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'idle' });
+      .send({ behavior: 'listening', emotion: 'neutral' });
 
     expect(res.status).toBe(202);
     expect(res.body).toHaveProperty('jobId');
@@ -102,12 +105,12 @@ describe('POST /api/admin/personas/:id/video/generate-clip', () => {
   it('calls videoJobStore.create() exactly once', async () => {
     await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'speaking' });
+      .send({ behavior: 'speaking', emotion: 'positive' });
 
     expect(mockVideoJobStore.create).toHaveBeenCalledTimes(1);
   });
 
-  it('returns 400 when state is missing', async () => {
+  it('returns 400 when behavior is missing', async () => {
     const res = await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
       .send({});
@@ -115,33 +118,60 @@ describe('POST /api/admin/personas/:id/video/generate-clip', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 400 when state is not a valid AvatarClipState', async () => {
+  it('returns 400 when behavior is not a valid AvatarClipBehavior', async () => {
     const res = await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'flying' });
+      .send({ behavior: 'flying', emotion: 'neutral' });
 
     expect(res.status).toBe(400);
   });
 
-  it('accepts all valid AvatarClipState values', async () => {
-    const VALID_STATES = ['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'];
-    for (const state of VALID_STATES) {
+  it('returns 400 when emotion is missing', async () => {
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
+      .send({ behavior: 'listening' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when emotion is not a valid AvatarClipEmotion', async () => {
+    const res = await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
+      .send({ behavior: 'listening', emotion: 'ecstatic' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts all six behaviour × emotion combinations', async () => {
+    const BEHAVIORS = ['listening', 'speaking'];
+    const EMOTIONS = ['positive', 'neutral', 'negative'];
+    for (const behavior of BEHAVIORS) for (const emotion of EMOTIONS) {
       vi.clearAllMocks();
-      mockVideoJobStore.create.mockReturnValue({ jobId: `job-${state}`, status: 'pending', createdAt: Date.now() });
+      mockVideoJobStore.create.mockReturnValue({ jobId: `job-${behavior}-${emotion}`, status: 'pending', createdAt: Date.now() });
 
       const res = await request(buildApp())
         .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-        .send({ state });
+        .send({ behavior, emotion });
 
       expect(res.status).toBe(202);
     }
+  });
+
+  it('records the job under the compound behaviour_emotion slot', async () => {
+    await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
+      .send({ behavior: 'speaking', emotion: 'negative', gender: 'female' });
+
+    expect(mockVideoJobStore.create).toHaveBeenCalledWith(
+      expect.any(String), PERSONA_ID, 'speaking_negative', 'female',
+    );
   });
 
   it('does not call generateAvatarClip synchronously (fire-and-forget)', async () => {
     // generateAvatarClip should not be called before the response is sent
     await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'idle' });
+      .send({ behavior: 'listening', emotion: 'neutral' });
 
     // The background job runs via setImmediate; at this point in the sync
     // test flow, generate may or may not have been called, but the 202
@@ -153,7 +183,7 @@ describe('POST /api/admin/personas/:id/video/generate-clip', () => {
   it('forwards the optional styleHint body field (does not 400)', async () => {
     const res = await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'idle', styleHint: 'cinematic' });
+      .send({ behavior: 'listening', emotion: 'neutral', styleHint: 'cinematic' });
 
     expect(res.status).toBe(202);
   });
@@ -221,7 +251,7 @@ describe('GET /api/admin/personas/:id/video/generate-clip/status', () => {
     mockVideoJobStore.get.mockReturnValue({
       jobId: 'job-done',
       status: 'done',
-      result: { videoUrl: 'https://example.com/clip.mp4', state: 'idle' },
+      result: { videoUrl: 'https://example.com/clip.mp4', slot: 'listening_neutral' },
       createdAt: Date.now(),
     });
 
@@ -231,7 +261,7 @@ describe('GET /api/admin/personas/:id/video/generate-clip/status', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('done');
-    expect(res.body.result).toMatchObject({ videoUrl: 'https://example.com/clip.mp4', state: 'idle', storageKey: 'https://example.com/clip.mp4' });
+    expect(res.body.result).toMatchObject({ videoUrl: 'https://example.com/clip.mp4', slot: 'listening_neutral', storageKey: 'https://example.com/clip.mp4' });
     expect(res.body.error).toBeNull();
   });
 
@@ -274,7 +304,7 @@ describe('GET /api/admin/personas/:id/video/generate-clip/status', () => {
     mockVideoJobStore.get.mockReturnValue({
       jobId: 'specific-job',
       status: 'done',
-      result: { videoUrl: 'https://cdn/v.mp4', state: 'speaking' },
+      result: { videoUrl: 'https://cdn/v.mp4', slot: 'speaking_neutral' },
       createdAt: Date.now(),
     });
 

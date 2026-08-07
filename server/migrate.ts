@@ -1048,7 +1048,8 @@ export async function runMigrations(): Promise<void> {
         { table: 'feedbacks', column: 'score_adjustments', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedbacks' AND column_name='score_adjustments') THEN ALTER TABLE "feedbacks" ADD COLUMN "score_adjustments" jsonb; END IF; END $$;` },
         { table: 'persona_runs', column: 'termination_reason', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='termination_reason') THEN ALTER TABLE "persona_runs" ADD COLUMN "termination_reason" text; END IF; END $$;` },
         { table: 'persona_runs', column: 'feedback_status', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_status') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_status" varchar; END IF; END $$;` },
-        { table: 'persona_runs', column: 'feedback_job_started_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_started_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_started_at" timestamp; END IF; END $$;` }
+        { table: 'persona_runs', column: 'feedback_job_started_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_started_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_started_at" timestamp; END IF; END $$;` },
+        { table: 'scenarios', column: 'use_video_avatar', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='use_video_avatar') THEN ALTER TABLE "scenarios" ADD COLUMN "use_video_avatar" boolean NOT NULL DEFAULT false; END IF; END $$;` }
       );
 
       for (const patch of criticalColumnPatches) {

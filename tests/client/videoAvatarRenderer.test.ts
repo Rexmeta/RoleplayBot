@@ -3,8 +3,9 @@
  *
  * Covers:
  * 1. AvatarRendererFactory: `hint='video'` → VideoAvatarRenderer; `undefined` → ImageAvatarRenderer
- * 2. VideoAvatarRenderer: explicit `persona.videos.clips` URLs are used directly (with toMediaUrl
- *    normalization) instead of convention-based /avatars/{id}/{emotion}/{state}.mp4 paths.
+ * 2. VideoAvatarRenderer: explicit `persona.videos.clips` URLs (gender → behaviour_emotion slot)
+ *    are used directly (with toMediaUrl normalization) instead of convention-based
+ *    /avatars/{id}/{emotion}/{behaviour}.mp4 paths.
  * 3. VideoAvatarRenderer: falls back to convention path when clips is absent.
  */
 
@@ -134,26 +135,29 @@ describe('VideoAvatarRenderer — explicit clips URL support', () => {
       {
         id: 'intp',
         name: 'Test',
+        gender: 'male',
         videos: {
           enabled: true,
           avatarId: 'intp',
-          clips: { idle: 'videos/avatar-intp-idle.webm' },
+          clips: { male: { listening_neutral: 'videos/avatar-intp-listening-neutral.mp4' } },
         },
       },
       'conv-1',
     );
 
-    // _play is called inside initialize for 'idle'; give it a tick to resolve
+    // _play is called inside initialize for the idle state; give it a tick to resolve
     await new Promise(resolve => setTimeout(resolve, 10));
 
     expect(crossFadeSpy).toHaveBeenCalledWith(
-      '/objects?key=videos%2Favatar-intp-idle.webm',
+      '/objects?key=videos%2Favatar-intp-listening-neutral.mp4',
+      undefined,
+      'explicit',
     );
 
     renderer.destroy();
   });
 
-  it('uses the idle clip as fallback for states not in clips map', async () => {
+  it('falls back to the behaviour neutral clip for emotions without their own clip', async () => {
     const renderer = await makeRenderer();
     const crossFadeSpy = vi.spyOn(renderer as any, '_crossFadeTo').mockResolvedValue(undefined);
 
@@ -161,22 +165,52 @@ describe('VideoAvatarRenderer — explicit clips URL support', () => {
       {
         id: 'intp',
         name: 'Test',
+        gender: 'male',
         videos: {
           enabled: true,
           avatarId: 'intp',
-          clips: { idle: 'videos/avatar-intp-idle.webm' }, // only idle provided
+          // Only the neutral listening clip exists for this persona.
+          clips: { male: { listening_neutral: 'videos/avatar-intp-listening-neutral.mp4' } },
         },
       },
       'conv-1',
     );
     await new Promise(resolve => setTimeout(resolve, 10));
 
-    // playState for 'thinking' — not in clips → falls back to 'idle' clip
-    renderer.playState('thinking');
+    // 'thinking' collapses to the listening behaviour; 'happy' has no positive clip.
+    renderer.playState('thinking', 'happy');
     await new Promise(resolve => setTimeout(resolve, 10));
 
     const calls = crossFadeSpy.mock.calls.map(c => c[0]);
-    expect(calls.some(u => u.includes('avatar-intp-idle'))).toBe(true);
+    expect(calls.every(u => u.includes('avatar-intp-listening-neutral'))).toBe(true);
+
+    renderer.destroy();
+  });
+
+  it('falls back to the other gender map when the requested gender has no clips', async () => {
+    const renderer = await makeRenderer();
+    const crossFadeSpy = vi.spyOn(renderer as any, '_crossFadeTo').mockResolvedValue(undefined);
+
+    renderer.initialize(
+      {
+        id: 'intp',
+        name: 'Test',
+        gender: 'female',
+        videos: {
+          enabled: true,
+          avatarId: 'intp',
+          clips: { male: { listening_neutral: 'videos/avatar-intp-male-listening-neutral.mp4' } },
+        },
+      },
+      'conv-1',
+    );
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(crossFadeSpy).toHaveBeenLastCalledWith(
+      '/objects?key=videos%2Favatar-intp-male-listening-neutral.mp4',
+      undefined,
+      'explicit',
+    );
 
     renderer.destroy();
   });
@@ -195,13 +229,84 @@ describe('VideoAvatarRenderer — explicit clips URL support', () => {
     );
     await new Promise(resolve => setTimeout(resolve, 10));
 
-    // Should use /avatars/intp/neutral/idle.mp4 convention
-    // (neutral emotion + idle state → no separate fallback, so 2nd arg is undefined)
+    // Should use /avatars/intp/neutral/listening.mp4 convention
+    // (neutral emotion → no separate fallback, so 2nd arg is undefined)
     expect(crossFadeSpy).toHaveBeenCalledWith(
-      '/avatars/intp/neutral/idle.mp4',
+      '/avatars/intp/neutral/listening.mp4',
       undefined,
     );
 
+    renderer.destroy();
+  });
+
+  it('selects the clip for the collapsed behaviour × emotion bucket', async () => {
+    const renderer = await makeRenderer();
+    const crossFadeSpy = vi.spyOn(renderer as any, '_crossFadeTo').mockResolvedValue(undefined);
+
+    renderer.initialize(
+      {
+        id: 'intp',
+        name: 'Test',
+        gender: 'male',
+        videos: {
+          enabled: true,
+          clips: {
+            male: {
+              listening_positive: 'videos/intp-listening-positive.mp4',
+              listening_neutral: 'videos/intp-listening-neutral.mp4',
+              speaking_negative: 'videos/intp-speaking-negative.mp4',
+            },
+          },
+        },
+      },
+      'conv-1',
+    );
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    renderer.playState('listening', 'happy');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(crossFadeSpy).toHaveBeenLastCalledWith(
+      '/objects?key=videos%2Fintp-listening-positive.mp4',
+      undefined,
+      'explicit',
+    );
+
+    renderer.playState('speaking', 'angry');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(crossFadeSpy).toHaveBeenLastCalledWith(
+      '/objects?key=videos%2Fintp-speaking-negative.mp4',
+      undefined,
+      'explicit',
+    );
+
+    renderer.destroy();
+  });
+
+  it('uses the behavior-neutral clip when the detailed LLM emotion has no specific group clip', async () => {
+    const renderer = await makeRenderer();
+    const crossFadeSpy = vi.spyOn(renderer as any, '_crossFadeTo').mockResolvedValue(undefined);
+
+    renderer.initialize(
+      {
+        id: 'intp',
+        name: 'Test',
+        gender: 'female',
+        videos: {
+          enabled: true,
+          clips: { female: { listening_neutral: 'videos/intp-listening-neutral.mp4' } },
+        },
+      },
+      'conv-1',
+    );
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    renderer.playState('thinking', 'curious');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(crossFadeSpy).toHaveBeenLastCalledWith(
+      '/objects?key=videos%2Fintp-listening-neutral.mp4',
+      undefined,
+      'explicit',
+    );
     renderer.destroy();
   });
 });

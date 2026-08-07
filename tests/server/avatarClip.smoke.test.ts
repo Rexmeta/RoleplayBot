@@ -78,11 +78,11 @@ describe.skipIf(!HAS_API_KEY)(
   'generateAvatarClip – Veo policy smoke test [smoke]',
   () => {
     it(
-      'state=idle returns no policy error (real Veo call)',
+      'behavior=listening returns no policy error (real Veo call)',
       async (ctx) => {
         const result = await generateAvatarClip({
           personaId: 'smoke-test-persona',
-          state: 'idle',
+          behavior: 'listening',
           // No neutralImageUrl — text-only prompt keeps the test self-contained.
         });
 

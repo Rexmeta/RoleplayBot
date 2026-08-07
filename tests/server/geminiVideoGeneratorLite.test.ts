@@ -151,7 +151,7 @@ describe('generateAvatarClip — Lite model, no audio', () => {
   });
 
   it('calls generateVideos with the Lite model', async () => {
-    await generateAvatarClip({ personaId: 'persona-x', state: 'idle' });
+    await generateAvatarClip({ personaId: 'persona-x', behavior: 'listening' });
 
     expect(mockGenerateVideos).toHaveBeenCalledTimes(1);
     const [args] = mockGenerateVideos.mock.calls;
@@ -159,21 +159,21 @@ describe('generateAvatarClip — Lite model, no audio', () => {
   });
 
   it('calls generateVideos without generateAudio in config (not supported by SDK)', async () => {
-    await generateAvatarClip({ personaId: 'persona-x', state: 'speaking' });
+    await generateAvatarClip({ personaId: 'persona-x', behavior: 'speaking' });
 
     const [args] = mockGenerateVideos.mock.calls;
     expect(args[0].config?.generateAudio).toBeUndefined();
   });
 
   it('does not send config.personGeneration (not supported by Gemini API)', async () => {
-    await generateAvatarClip({ personaId: 'persona-x', state: 'idle' });
+    await generateAvatarClip({ personaId: 'persona-x', behavior: 'listening' });
 
     const [args] = mockGenerateVideos.mock.calls;
     expect(args[0].config?.personGeneration).toBeUndefined();
   });
 
   it('returns success: true with a non-empty videoUrl', async () => {
-    const result = await generateAvatarClip({ personaId: 'persona-x', state: 'listening' });
+    const result = await generateAvatarClip({ personaId: 'persona-x', behavior: 'listening' });
 
     expect(result.success).toBe(true);
     expect(typeof result.videoUrl).toBe('string');
@@ -181,28 +181,27 @@ describe('generateAvatarClip — Lite model, no audio', () => {
   });
 
   it('returns the Lite model name in metadata', async () => {
-    const result = await generateAvatarClip({ personaId: 'persona-x', state: 'thinking' });
+    const result = await generateAvatarClip({ personaId: 'persona-x', behavior: 'listening', emotion: 'positive' });
 
     expect(result.metadata?.model).toBe(LITE_MODEL);
   });
 
   it('does not call getVideosOperation when operation is already done', async () => {
-    await generateAvatarClip({ personaId: 'persona-x', state: 'idle' });
+    await generateAvatarClip({ personaId: 'persona-x', behavior: 'listening' });
 
     expect(mockGetVideosOperation).not.toHaveBeenCalled();
   });
 
-  it('uses the Lite model for all valid clip states without generateAudio', async () => {
-    const VALID_STATES = [
-      'idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause',
-    ] as const;
+  it('uses the Lite model for every behaviour × emotion slot without generateAudio', async () => {
+    const BEHAVIORS = ['listening', 'speaking'] as const;
+    const EMOTIONS = ['positive', 'neutral', 'negative'] as const;
 
-    for (const state of VALID_STATES) {
+    for (const behavior of BEHAVIORS) for (const emotion of EMOTIONS) {
       vi.clearAllMocks();
       mockGetModelForFeature.mockResolvedValue(LITE_MODEL);
       mockGenerateVideos.mockResolvedValue(makeDoneOperation());
 
-      await generateAvatarClip({ personaId: 'persona-x', state });
+      await generateAvatarClip({ personaId: 'persona-x', behavior, emotion });
 
       const [args] = mockGenerateVideos.mock.calls;
       expect(args[0].config?.generateAudio).toBeUndefined();
@@ -275,7 +274,7 @@ describe('generateAvatarClip — error and timeout paths', () => {
       response: null,
     });
 
-    const result = await generateAvatarClip({ personaId: 'persona-x', state: 'idle' });
+    const result = await generateAvatarClip({ personaId: 'persona-x', behavior: 'listening' });
 
     expect(result.success).toBe(false);
     expect(typeof result.error).toBe('string');
@@ -287,7 +286,7 @@ describe('generateAvatarClip — error and timeout paths', () => {
     mockGenerateVideos.mockResolvedValue(neverDone);
     mockGetVideosOperation.mockResolvedValue(neverDone);
 
-    const promise = generateAvatarClip({ personaId: 'persona-x', state: 'speaking' });
+    const promise = generateAvatarClip({ personaId: 'persona-x', behavior: 'speaking' });
     await vi.runAllTimersAsync();
     const result = await promise;
 
@@ -313,7 +312,7 @@ describe('generateAvatarClip — seed image fallback when neutralImageUrl is pro
 
     const result = await generateAvatarClip({
       personaId: 'persona-x',
-      state: 'idle',
+      behavior: 'listening',
       neutralImageUrl: '/images/persona-x-neutral.jpg',
     });
 
@@ -328,7 +327,7 @@ describe('generateAvatarClip — seed image fallback when neutralImageUrl is pro
 
     const result = await generateAvatarClip({
       personaId: 'persona-x',
-      state: 'listening',
+      behavior: 'listening',
       neutralImageUrl: '/images/persona-x-neutral.jpg',
     });
 
@@ -344,7 +343,7 @@ describe('generateAvatarClip — seed image fallback when neutralImageUrl is pro
 
     const result = await generateAvatarClip({
       personaId: 'persona-x',
-      state: 'idle',
+      behavior: 'listening',
       neutralImageUrl: '/images/persona-x-neutral.jpg',
     });
 

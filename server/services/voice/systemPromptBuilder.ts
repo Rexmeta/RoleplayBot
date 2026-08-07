@@ -194,6 +194,8 @@ export function buildSystemInstructions(
     `❌ "(잠시 침묵)" ❌ "(한숨)" ❌ "(고개를 끄덕이며)" ❌ "(미소를 지으며)"`,
     `❌ "(회의실로 향하며)" ❌ "(서류를 넘기며)" ❌ "(잠시 생각하며)"`,
     `❌ "(눈을 마주치며)" ❌ "(걱정스러운 표정으로)" ❌ "(단호하게)"`,
+    `❌ "상황을 모면하고 원래 하려던 보고를 재촉함" ❌ "상황의 심각성을 강조하며 상세 보고를 요구"`,
+    `❌ "evades the situation and presses for the report" ❌ "emphasizes the seriousness and demands details"`,
     `❌ "(silence)" ❌ "(sighs)" ❌ "(nodding)" ❌ "(walking to the meeting room)"`,
     `❌ "(沈黙)" ❌ "(ため息)" ❌ "(うなずきながら)" ❌ "(沉默)" ❌ "(叹气)"`,
     ``,

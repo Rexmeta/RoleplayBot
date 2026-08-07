@@ -1,14 +1,15 @@
 /**
  * VideoAvatarRenderer
  *
- * Implements AvatarRenderer using looping MP4 video clips per avatar state.
+ * Implements AvatarRenderer using looping MP4 clips selected by
+ * behaviour (decided by the audio stream) × emotion (decided by the LLM).
  * Two <video> elements are used in a Double Buffer pattern for Cross Fade
- * transitions between states, eliminating black-frame flicker.
+ * transitions, eliminating black-frame flicker.
  *
  * Asset path convention:
- *   /avatars/{avatarId}/{emotion}/{state}.mp4
- * Fallback (when emotion-specific asset is absent):
- *   /avatars/{avatarId}/neutral/{state}.mp4
+ *   /avatars/{avatarId}/{emotion}/{behavior}.mp4
+ * Fallback (when the emotion-specific asset is absent):
+ *   /avatars/{avatarId}/neutral/{behavior}.mp4
  *
  * Activate via: VITE_AVATAR_RENDERER=video
  */
@@ -17,18 +18,16 @@ import type { AvatarState } from './types';
 import type { AvatarRenderer, AvatarPersonaInfo } from './AvatarRenderer';
 import { toMediaUrl } from '@/lib/mediaUrl';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const AVATAR_STATES: AvatarState[] = [
-  'idle',
-  'listening',
-  'listening_nod',
-  'thinking',
-  'speaking',
-  'speaking_pause',
-];
-
 const CROSS_FADE_DURATION_MS = 200;
+
+/**
+ * How long to wait for `canplay` before giving up on a clip.
+ *
+ * Cached clips settle in well under 50 ms, but a cold object-storage fetch of a
+ * multi-megabyte clip needs noticeably longer than that; too tight a budget
+ * reports a healthy clip as a timeout and drops the avatar back to the still.
+ */
+const CLIP_LOAD_TIMEOUT_MS = 5000;
 
 /**
  * Maximum time delta (ms) applied per RAF tick during the reverse pass.
@@ -81,48 +80,79 @@ function createVideoElement(): HTMLVideoElement {
   return v;
 }
 
-/** Build the asset URL for a given avatarId / emotion / state */
-function videoUrl(avatarId: string, emotion: string, state: AvatarState): string {
-  return `/avatars/${avatarId}/${emotion}/${state}.mp4`;
+export type VideoEmotionBucket = 'positive' | 'neutral' | 'negative';
+export type VideoBehavior = 'listening' | 'speaking';
+
+export const VIDEO_BEHAVIORS: readonly VideoBehavior[] = ['listening', 'speaking'];
+export const VIDEO_EMOTION_BUCKETS: readonly VideoEmotionBucket[] = ['positive', 'neutral', 'negative'];
+
+/** Build the asset URL for a given avatarId / emotion / behaviour */
+function videoUrl(avatarId: string, emotion: string, behavior: VideoBehavior): string {
+  return `/avatars/${avatarId}/${emotion}/${behavior}.mp4`;
 }
 
-const CLIP_STATES_SET = new Set([
-  'idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause',
+const POSITIVE_EMOTIONS = new Set([
+  'happy', 'excited', 'determined', 'curious', 'surprised', 'positive',
+  '기쁨', '즐거움', '흥분', '호기심', '놀람', '단호',
+]);
+const NEGATIVE_EMOTIONS = new Set([
+  'sad', 'angry', 'anxious', 'tired', 'disappointed', 'confused', 'concerned', 'negative',
+  '슬픔', '분노', '불안', '피로', '실망', '당혹', '걱정',
 ]);
 
 /**
- * Resolve a URL from the explicit clips map.
- * Supports both the new gender-separated shape ({ male?: {...}, female?: {...} })
- * and the legacy flat shape ({ idle: url, ... }).
- * Fallback order: requested gender → male → female → legacy flat → idle
+ * Collapse the LLM's detailed emotion label into the initial commercial
+ * release's three reusable video groups. This is deliberately separate from
+ * the state machine: the audio stream owns behavior, while the LLM owns affect.
+ */
+export function toVideoEmotionBucket(emotion: string | undefined): VideoEmotionBucket {
+  const normalized = (emotion ?? '').trim().toLowerCase();
+  if (POSITIVE_EMOTIONS.has(normalized)) return 'positive';
+  if (NEGATIVE_EMOTIONS.has(normalized)) return 'negative';
+  return 'neutral';
+}
+
+/**
+ * The audio stream has richer internal phases, but a first-release clip library
+ * has two observable behaviors. User audio always maps to listening; AI audio
+ * maps to speaking. Transitional/inactive phases use listening as a quiet,
+ * neutral-safe visual fallback.
+ */
+export function toVideoBehavior(state: AvatarState): VideoBehavior {
+  return state === 'speaking' || state === 'speaking_pause' ? 'speaking' : 'listening';
+}
+
+/** Resolve the six-slot clip identifier shown by the avatar diagnostics. */
+export function toVideoClipSlot(
+  state: AvatarState,
+  emotion: string | undefined,
+): `${VideoBehavior}_${VideoEmotionBucket}` {
+  return `${toVideoBehavior(state)}_${toVideoEmotionBucket(emotion)}`;
+}
+
+/**
+ * Resolve a clip URL for the requested behaviour × emotion.
+ *
+ * Fallback order: requested gender → male → female, then the behaviour's
+ * neutral clip when that persona has no clip for the requested emotion.
  */
 function resolveClipUrl(
   clips: Record<string, any>,
   state: AvatarState,
+  emotion: string | undefined,
   gender?: string,
 ): string | undefined {
   if (!clips) return undefined;
 
-  // Detect shape: flat if any top-level key is a clip-state name
-  const isFlat = Object.keys(clips).some(k => CLIP_STATES_SET.has(k));
+  const preferredGender = gender === 'female' ? 'female' : 'male';
+  const genderMap = clips[preferredGender] ?? clips['male'] ?? clips['female'];
+  if (!genderMap || typeof genderMap !== 'object') return undefined;
 
-  if (!isFlat) {
-    // New gender-separated shape
-    const preferredGender = gender === 'female' ? 'female' : 'male';
-    const genderMap: Partial<Record<string, string>> | undefined =
-      clips[preferredGender] ?? clips['male'] ?? clips['female'];
-    if (genderMap && typeof genderMap === 'object') {
-      return (genderMap as Partial<Record<string, string>>)[state]
-        ?? (genderMap as Partial<Record<string, string>>)['idle']
-        ?? undefined;
-    }
-    return undefined;
-  }
+  const slots = genderMap as Partial<Record<string, string>>;
+  const behavior = toVideoBehavior(state);
+  const bucket = toVideoEmotionBucket(emotion);
 
-  // Legacy flat shape
-  return (clips as Partial<Record<string, string>>)[state]
-    ?? (clips as Partial<Record<string, string>>)['idle']
-    ?? undefined;
+  return slots[`${behavior}_${bucket}`] ?? slots[`${behavior}_neutral`] ?? undefined;
 }
 
 // ── VideoAvatarRenderer ───────────────────────────────────────────────────────
@@ -136,6 +166,19 @@ export class VideoAvatarRenderer implements AvatarRenderer {
   isInitialLoading = true;
   isOverlayFading = false;
   currentEmotion = 'neutral';
+  /**
+   * True when the current clip and its fallback could not be made playable.
+   * Consumers retain the static portrait behind the video buffers and use this
+   * flag to explain that the animation is temporarily unavailable.
+   */
+  isVideoUnavailable = false;
+  /**
+   * URL of the clip currently visible in the front buffer, and which
+   * resolution path produced it.  Purely diagnostic — the development-only
+   * debug overlay reads these to show what is actually playing.
+   */
+  activeClipUrl = '';
+  activeClipSource: 'explicit' | 'convention' | 'convention-fallback' | 'none' = 'none';
 
   // ── Internal ──────────────────────────────────────────────────────────────
   private persona: AvatarPersonaInfo | null = null;
@@ -153,7 +196,8 @@ export class VideoAvatarRenderer implements AvatarRenderer {
   /** Which buffer is currently the "front" (visible) one */
   private frontIsA = true;
 
-  private currentState: AvatarState = 'idle';
+  /** The state the renderer is currently playing (read by the debug overlay). */
+  currentState: AvatarState = 'idle';
   private currentEmotionEn = 'neutral';
 
   /**
@@ -186,6 +230,10 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
   /** <link rel="preload"> elements injected into <head> for cleanup */
   private preloadLinks: HTMLLinkElement[] = [];
+  /** True once the React portrait has connected containerEl to the document. */
+  private isMounted = false;
+  /** Idle playback requested by initialize before the container was mounted. */
+  private pendingInitialPlayback = false;
 
   constructor() {
     this.containerEl = document.createElement('div');
@@ -198,6 +246,25 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     this.videoB = createVideoElement();
     this.containerEl.appendChild(this.videoA);
     this.containerEl.appendChild(this.videoB);
+  }
+
+  /**
+   * Called by VideoAvatarPortrait after it attaches containerEl to React's DOM.
+   * Video loading is deliberately deferred until this point: starting it while
+   * detached produces inconsistent canplay/autoplay behaviour across browsers.
+   */
+  mount(): void {
+    if (this.destroyed || this.isMounted) return;
+    this.isMounted = true;
+    if (this.pendingInitialPlayback) {
+      this.pendingInitialPlayback = false;
+      void this._play('idle', 'neutral');
+    }
+  }
+
+  /** Mark the native container as detached without disposing the renderer. */
+  unmount(): void {
+    this.isMounted = false;
   }
 
   // ── Subscription ─────────────────────────────────────────────────────────
@@ -229,23 +296,23 @@ export class VideoAvatarRenderer implements AvatarRenderer {
    * - If the emotion has NOT been probed yet → try it optimistically; the
    *   video's onerror handler will retry with neutral if it 404s.
    */
-  private resolveEmotionFolder(avatarId: string, emotion: string, state: AvatarState): string {
+  private resolveEmotionFolder(avatarId: string, emotion: string, behavior: VideoBehavior): string {
     const avatarCache = this.availabilityCache[avatarId];
     if (!avatarCache) return emotion; // nothing probed yet — be optimistic
 
     const emotionCache = avatarCache[emotion];
     if (emotionCache !== undefined) {
       // This emotion has been probed at some point
-      if (emotionCache[state] === true) return emotion;           // confirmed present
-      if (emotionCache[state] === false) {
+      if (emotionCache[behavior] === true) return emotion;        // confirmed present
+      if (emotionCache[behavior] === false) {
         // Confirmed absent — fall back to neutral if available
-        if (avatarCache['neutral']?.[state] === true) return 'neutral';
+        if (avatarCache['neutral']?.[behavior] === true) return 'neutral';
         return 'neutral'; // last resort even if neutral probe hasn't confirmed it
       }
-      // emotionCache[state] === undefined: state not probed yet for this emotion
+      // emotionCache[behavior] === undefined: not probed yet for this emotion
       // → optimistic: try emotion
     }
-    // emotion not in cache at all, or state not probed → optimistic
+    // emotion not in cache at all, or behaviour not probed → optimistic
     return emotion;
   }
 
@@ -295,22 +362,29 @@ export class VideoAvatarRenderer implements AvatarRenderer {
    * 4. If the fallback is also not `'ready'`, abort the whole swap — the current
    *    front video (or static image background) stays visible; no blank frame.
    */
-  private async _crossFadeTo(src: string, fallbackSrc?: string): Promise<void> {
+  private async _crossFadeTo(
+    src: string,
+    fallbackSrc?: string,
+    sourceKind: 'explicit' | 'convention' = 'convention',
+  ): Promise<void> {
     if (this.destroyed) return;
 
     const back = this.backVideo;
+    let usedSrc = src;
+    let usedFallback = false;
 
     // ── Attempt primary source ────────────────────────────────────────────
-    // 2 s for initial/uncached loads; cached clips fire canplay in < 50 ms.
-    let result = await this._loadVideo(back, src, 2000);
+    let result = await this._loadVideo(back, src, CLIP_LOAD_TIMEOUT_MS);
     if (this.destroyed) return;
 
     // ── Fallback to neutral on error or timeout ───────────────────────────
     if (result !== 'ready' && fallbackSrc && fallbackSrc !== src) {
       if (result === 'error') this._markUnavailable(src);
 
-      result = await this._loadVideo(back, fallbackSrc, 2000);
+      result = await this._loadVideo(back, fallbackSrc, CLIP_LOAD_TIMEOUT_MS);
       if (this.destroyed) return;
+      usedSrc = fallbackSrc;
+      usedFallback = true;
     }
 
     // ── Abort if nothing is playable — keep current front video visible ───
@@ -318,10 +392,26 @@ export class VideoAvatarRenderer implements AvatarRenderer {
       back.pause();
       back.removeAttribute('src');
       back.load();
+      this.isVideoUnavailable = true;
+      this.activeClipUrl = '';
+      this.activeClipSource = 'none';
+      console.warn('[VideoAvatar] Clip unavailable; showing the static portrait instead.', {
+        src,
+        fallbackSrc,
+        result,
+        state: this.currentState,
+      });
+      this.emit();
       return;
     }
 
     // ── Perform cross-fade ────────────────────────────────────────────────
+    this.activeClipUrl = usedSrc;
+    this.activeClipSource = usedFallback ? 'convention-fallback' : sourceKind;
+    if (this.isVideoUnavailable) {
+      this.isVideoUnavailable = false;
+    }
+    this.emit();
     back.play().catch(() => { /* autoplay may be blocked — silent fail */ });
     // Attach ping-pong loop to the newly active back buffer
     this._startPingPong(back);
@@ -351,50 +441,53 @@ export class VideoAvatarRenderer implements AvatarRenderer {
   }
 
   /**
-   * Parse a video URL back to emotion/state and mark it absent in the cache.
-   * URL pattern: /avatars/{id}/{emotion}/{state}.mp4
+   * Parse a video URL back to emotion/behaviour and mark it absent in the cache.
+   * URL pattern: /avatars/{id}/{emotion}/{behavior}.mp4
    */
   private _markUnavailable(src: string): void {
     const match = src.match(/\/avatars\/([^/]+)\/([^/]+)\/([^/]+)\.mp4$/);
     if (!match) return;
-    const [, avatarId, emotion, state] = match;
+    const [, avatarId, emotion, behavior] = match;
     if (!this.availabilityCache[avatarId]) this.availabilityCache[avatarId] = {};
     if (!this.availabilityCache[avatarId][emotion]) this.availabilityCache[avatarId][emotion] = {};
-    this.availabilityCache[avatarId][emotion][state] = false;
+    this.availabilityCache[avatarId][emotion][behavior] = false;
   }
 
   /**
-   * Start playing a state + emotion combination.
+   * Start playing a behaviour × emotion combination.
    *
    * Priority:
-   * 1. If persona.videos.clips has an entry for this state → use it directly.
-   * 2. Fall back to the convention-based avatarId/emotion/state.mp4 path.
+   * 1. If persona.videos.clips has a behaviour+emotion entry → use it directly.
+   * 2. Fall back to the convention-based avatarId/emotion/behavior.mp4 path.
    * Neutral is always the fallback for the convention path.
    */
   private async _play(state: AvatarState, emotionEn: string): Promise<void> {
     if (!this.persona || this.destroyed) return;
 
-    // ── Explicit clips override (persona-level video URLs) ─────────────────
+    const behavior = toVideoBehavior(state);
+
+    // ── Explicit clips (persona-level video URLs) ──────────────────────────
     const clips = this.persona.videos?.clips;
     if (clips) {
-      const rawUrl = resolveClipUrl(clips as Record<string, any>, state, this.persona.gender);
+      const rawUrl = resolveClipUrl(clips as Record<string, any>, state, emotionEn, this.persona.gender);
       if (rawUrl) {
-        // Normalize storage-key style refs (e.g. "videos/avatar-xxx-idle.webm")
+        // Normalize storage-key style refs (e.g. "videos/avatar-xxx-listening-neutral.mp4")
         // to browser-playable URLs, using the same policy as other media assets.
         const explicitUrl = toMediaUrl(rawUrl) || rawUrl;
-        await this._crossFadeTo(explicitUrl);
+        await this._crossFadeTo(explicitUrl, undefined, 'explicit');
         return;
       }
     }
 
     // ── Convention-based path ──────────────────────────────────────────────
     const avatarId = this.persona.videos?.avatarId ?? this.persona.id;
-    const resolvedEmotion = this.resolveEmotionFolder(avatarId, emotionEn, state);
-    const src = videoUrl(avatarId, resolvedEmotion, state);
+    const bucket = toVideoEmotionBucket(emotionEn);
+    const resolvedEmotion = this.resolveEmotionFolder(avatarId, bucket, behavior);
+    const src = videoUrl(avatarId, resolvedEmotion, behavior);
 
     // Provide neutral as a fallback whenever we're trying a non-neutral clip
     const fallbackSrc = resolvedEmotion !== 'neutral'
-      ? videoUrl(avatarId, 'neutral', state)
+      ? videoUrl(avatarId, 'neutral', behavior)
       : undefined;
 
     await this._crossFadeTo(src, fallbackSrc);
@@ -435,10 +528,10 @@ export class VideoAvatarRenderer implements AvatarRenderer {
         if (!current || current.rafId === null || current.isPaused) return;
 
         if (state.lastTimestamp === 0) {
-          // First tick — just record timestamp and continue
-          state.lastTimestamp = now;
-          state.rafId = requestAnimationFrame(tick);
-          return;
+          // First tick — seed 16 ms before `now` so this tick immediately
+          // applies one frame's worth of movement rather than freezing for
+          // a full frame before reverse begins.
+          state.lastTimestamp = now - 16;
         }
 
         const rawDeltaMs = now - state.lastTimestamp;
@@ -519,6 +612,9 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     this.currentState = 'idle';
     this.currentEmotionEn = 'neutral';
     this.currentEmotion = 'neutral';
+    this.isVideoUnavailable = false;
+    this.activeClipUrl = '';
+    this.activeClipSource = 'none';
     this.isInitialLoading = true;
     this.isOverlayFading = false;
     this.overlayColor = 'rgba(0, 0, 0, 0)';
@@ -542,8 +638,12 @@ export class VideoAvatarRenderer implements AvatarRenderer {
       }, 500);
     });
 
-    // Start playing idle immediately (optimistic — may 404 and retry with neutral).
-    this._play('idle', 'neutral');
+    // The React portrait attaches containerEl after this initialization effect.
+    // Start the normal optimistic load now (preserving the renderer contract),
+    // then have mount() retry once the element is in the document.  That retry
+    // covers browsers which do not reliably load a detached <video>.
+    this.pendingInitialPlayback = true;
+    void this._play('idle', 'neutral');
   }
 
   destroy(): void {
@@ -582,7 +682,10 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
     if (stateChanged || emotionChanged) {
       this.currentState = state;
-      this._play(state, emotionEn);
+      // State changes can be received after a mounted renderer is temporarily
+      // detached during a React update. Preserve the existing immediate
+      // behaviour here; only initialize() defers its first idle load until mount.
+      void this._play(state, emotionEn);
     }
   }
 
@@ -595,7 +698,7 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     this.overlayColor = emotionOverlayColors[emotionEn] ?? 'rgba(0, 0, 0, 0)';
     this.emit();
 
-    this._play(this.currentState, emotionEn);
+    void this._play(this.currentState, emotionEn);
   }
 
   async preloadAssets(): Promise<void> {
@@ -604,38 +707,32 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     // If explicit clips are provided, preload those and skip convention probing.
     const clips = this.persona.videos?.clips;
     if (clips) {
-      // Collect all clip URLs regardless of flat vs gender-separated shape
       const allUrls: string[] = [];
-      const isFlat = Object.keys(clips).some(k => CLIP_STATES_SET.has(k));
-      if (isFlat) {
-        allUrls.push(
-          ...Object.values(clips as Partial<Record<string, string>>)
-            .filter((v): v is string => typeof v === 'string' && !!v),
-        );
-      } else {
-        for (const genderMap of Object.values(clips as Record<string, any>)) {
-          if (genderMap && typeof genderMap === 'object') {
-            allUrls.push(
-              ...Object.values(genderMap as Partial<Record<string, string>>)
-                .filter((v): v is string => typeof v === 'string' && !!v),
-            );
-          }
+      for (const genderMap of Object.values(clips as Record<string, any>)) {
+        if (genderMap && typeof genderMap === 'object') {
+          allUrls.push(
+            ...Object.values(genderMap as Partial<Record<string, string>>)
+              .filter((v): v is string => typeof v === 'string' && !!v),
+          );
         }
       }
-      const probes = allUrls.map(src =>
-        this._probeVideo(src).then(available => {
-          if (available) this._injectPreloadLink(src);
-        }),
-      );
+      const probes = allUrls.map(rawSrc => {
+        // Convert storage-key paths (e.g. "videos/avatar-cp-male-listening-neutral.mp4")
+        // to browser-accessible URLs before probing and preloading.
+        const url = toMediaUrl(rawSrc) || rawSrc;
+        return this._probeVideo(url).then(available => {
+          if (available) this._injectPreloadLink(url);
+        });
+      });
       await Promise.allSettled(probes);
       return;
     }
 
     const avatarId = this.persona.videos?.avatarId ?? this.persona.id;
 
-    // Probe all state assets for the current emotion + neutral fallback.
+    // Probe both behaviours for the current emotion bucket + neutral fallback.
     const emotionsToProbe = Array.from(
-      new Set([this.currentEmotionEn, 'neutral']),
+      new Set([toVideoEmotionBucket(this.currentEmotionEn), 'neutral']),
     );
 
     if (!this.availabilityCache[avatarId]) {
@@ -648,12 +745,12 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     for (const emotion of emotionsToProbe) {
       if (!cache[emotion]) cache[emotion] = {};
 
-      for (const state of AVATAR_STATES) {
-        if (cache[emotion][state] !== undefined) continue; // already probed
+      for (const behavior of VIDEO_BEHAVIORS) {
+        if (cache[emotion][behavior] !== undefined) continue; // already probed
 
-        const src = videoUrl(avatarId, emotion, state);
+        const src = videoUrl(avatarId, emotion, behavior);
         const p = this._probeVideo(src).then(available => {
-          cache[emotion][state] = available;
+          cache[emotion][behavior] = available;
           if (available) this._injectPreloadLink(src);
         });
         probes.push(p);

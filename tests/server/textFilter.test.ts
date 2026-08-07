@@ -5,6 +5,7 @@ import {
   filterThinkingText,
   computeReasoningScore,
   REASONING_SCORE_THRESHOLD,
+  isStageDirectionText,
 } from '../../server/services/voice/textFilter';
 
 // ─── isThinkingText ───────────────────────────────────────────────────────────
@@ -276,6 +277,26 @@ describe('filterThinkingText — Korean mode (default)', () => {
     const result = filterThinkingText(mixed, 'ko', { strictMode: true });
     // Should be stripped because English word count >> Korean char count
     expect(result.trim()).toBe('');
+  });
+
+  it('removes Korean scenario-direction text while retaining the spoken dialogue', () => {
+    const text = '생산라인 문제, 더 자세히 이야기해보세요. 지금 매우 중요한 상황이니까 확실하게 말해주셔야 됩니다.\n상대방이 내 침묵에 의문을 제기하자 상황을 모면하고, 원래 하려던 보고를 재촉함. 상황의 심각성을 강조하며 상세 보고 요구.';
+    const result = filterThinkingText(text, 'ko');
+
+    expect(result).toContain('생산라인 문제');
+    expect(result).not.toContain('상황을 모면');
+    expect(result).not.toContain('상세 보고 요구');
+  });
+});
+
+describe('isStageDirectionText', () => {
+  it('recognizes Korean scenario notes that must not be spoken', () => {
+    expect(isStageDirectionText('상황을 모면하고 원래 하려던 보고를 재촉함.')).toBe(true);
+    expect(isStageDirectionText('상황의 심각성을 강조하며 상세 보고 요구.')).toBe(true);
+  });
+
+  it('does not mistake real Korean dialogue for a stage direction', () => {
+    expect(isStageDirectionText('생산라인 문제를 더 자세히 말씀해 주세요.')).toBe(false);
   });
 });
 

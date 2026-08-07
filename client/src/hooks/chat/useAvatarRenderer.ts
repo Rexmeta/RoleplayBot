@@ -32,7 +32,10 @@ interface PersonaInfo {
   videos?: {
     enabled?: boolean;
     avatarId?: string;
-    clips?: Partial<Record<string, string>>;
+    clips?: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    } | Partial<Record<string, string>>;
   };
 }
 
@@ -40,6 +43,12 @@ interface UseAvatarRendererOptions {
   persona: PersonaInfo;
   conversationId: string;
   onReady?: () => void;
+  /**
+   * When the scenario explicitly sets useVideoAvatar=false, force image mode
+   * regardless of the persona's videos.enabled flag.
+   * undefined/true = respect the persona's own setting.
+   */
+  scenarioUseVideoAvatar?: boolean;
 }
 
 export interface UseAvatarRendererResult {
@@ -71,6 +80,7 @@ export function useAvatarRenderer({
   persona,
   conversationId,
   onReady,
+  scenarioUseVideoAvatar,
 }: UseAvatarRendererOptions): UseAvatarRendererResult {
   // `rendererInstance` is state so that a type swap (image → video) causes
   // the persona effect to re-run and re-initialize the new renderer.
@@ -92,7 +102,8 @@ export function useAvatarRenderer({
   // env-var is the global fallback.  We track the persona ID so that switching
   // to a video-enabled persona from an image-only one (or vice versa) triggers
   // a renderer swap.
-  const videosEnabled = persona.videos?.enabled ?? false;
+  // scenarioUseVideoAvatar=false overrides the persona setting (operator-level off switch).
+  const videosEnabled = (scenarioUseVideoAvatar !== false) && (persona.videos?.enabled ?? false);
   useEffect(() => {
     let cancelled = false;
 
@@ -121,6 +132,13 @@ export function useAvatarRenderer({
   // Depends on `rendererInstance` so it automatically re-runs after a swap.
   useEffect(() => {
     const renderer = rendererInstance;
+
+    // Subscribe BEFORE initialize() so that the emit() call inside initialize()
+    // (which sets displayImageUrl, overlayColor, etc.) is not lost.
+    // Without this ordering the first emit fires with no subscribers, React never
+    // re-renders, and the portrait stays blank until preloadAssets() finishes.
+    const unsubscribe = renderer.subscribe(() => forceUpdate(n => n + 1));
+
     renderer.initialize(
       {
         id: persona.id,
@@ -135,9 +153,12 @@ export function useAvatarRenderer({
       () => onReadyRef.current?.(),
     );
 
-    const unsubscribe = renderer.subscribe(() => forceUpdate(n => n + 1));
     return unsubscribe; // React calls this on cleanup (dep change or unmount)
-  }, [rendererInstance, persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, conversationId]);
+  // NOTE: persona.videos intentionally included — when clips arrive or enabled
+  // flag changes after mount (e.g. from a scenario refresh), the renderer must
+  // reinitialize with the new video configuration.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rendererInstance, persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, persona.videos, conversationId]);
 
   // ── Step 3: Destroy on unmount ─────────────────────────────────────────────
   // Uses ref so it always reaches the most-recent renderer instance.

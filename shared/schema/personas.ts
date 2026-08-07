@@ -3,6 +3,24 @@ import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, doub
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+/** The compact emotion axis used by the first commercial video-avatar release. */
+export type VideoAvatarEmotion = "positive" | "neutral" | "negative";
+/** Voice-stream behavior axis used for video-avatar selection. */
+export type VideoAvatarBehavior = "listening" | "speaking";
+export type VideoAvatarClipSlot = `${VideoAvatarBehavior}_${VideoAvatarEmotion}`;
+export type VideoAvatarClipSlots = Partial<Record<VideoAvatarClipSlot, string>>;
+
+/** Every clip slot in the library: 2 behaviours × 3 emotions. */
+export const VIDEO_AVATAR_BEHAVIORS: readonly VideoAvatarBehavior[] = ["listening", "speaking"];
+export const VIDEO_AVATAR_EMOTIONS: readonly VideoAvatarEmotion[] = ["positive", "neutral", "negative"];
+export const VIDEO_AVATAR_CLIP_SLOTS: readonly VideoAvatarClipSlot[] = VIDEO_AVATAR_BEHAVIORS.flatMap(
+  behavior => VIDEO_AVATAR_EMOTIONS.map(emotion => `${behavior}_${emotion}` as VideoAvatarClipSlot),
+);
+export type GenderedVideoAvatarClipSlots = {
+  male?: VideoAvatarClipSlots;
+  female?: VideoAvatarClipSlots;
+};
+
 export const mbtiPersonas = pgTable("mbti_personas", {
   id: varchar("id").primaryKey(),
   mbti: varchar("mbti").notNull(),
@@ -44,9 +62,17 @@ export const mbtiPersonas = pgTable("mbti_personas", {
   videos: jsonb("videos").$type<{
     enabled: boolean;
     avatarId?: string;
+    /**
+     * Video-avatar asset map, keyed by behaviour × emotion:
+     * `{ male: { listening_positive: "…", speaking_neutral: "…" }, … }`.
+     *
+     * Behaviour is decided by the realtime audio stream, emotion by the LLM.
+     * Six slots per gender cover the full library; finer emotions later only
+     * add slots without changing the shape.
+     */
     clips?: {
-      male?: Partial<Record<string, string>>;
-      female?: Partial<Record<string, string>>;
+      male?: VideoAvatarClipSlots;
+      female?: VideoAvatarClipSlots;
     };
   }>(),
   freeChatAvailable: boolean("free_chat_available").notNull().default(false),
@@ -104,21 +130,28 @@ export const personaUserScenes = pgTable("persona_user_scenes", {
 });
 
 /**
- * Normalize the `videos.clips` field from the legacy flat shape
- * (`{ idle: url, ... }`) to the gender-separated shape
- * (`{ male: { idle: url, ... }, female: {} }`).
- * Returns the value unchanged if it is already in the new format.
+ * Normalize the `videos.clips` field to the gender-separated shape and drop
+ * any key that is not one of the six behaviour × emotion slots.
+ *
+ * Retired state-only keys (idle / thinking / listening_nod / speaking_pause …)
+ * are discarded here so a stale record can never resurrect a legacy clip.
  */
 export function normalizeVideoClips(
   clips: Record<string, any> | undefined | null,
-): { male?: Partial<Record<string, string>>; female?: Partial<Record<string, string>> } {
+): { male: VideoAvatarClipSlots; female: VideoAvatarClipSlots } {
+  const pickSlots = (value: unknown): VideoAvatarClipSlots => {
+    if (!value || typeof value !== 'object') return {};
+    const source = value as Record<string, unknown>;
+    const result: Record<string, string> = {};
+    for (const slot of VIDEO_AVATAR_CLIP_SLOTS) {
+      const url = source[slot];
+      if (typeof url === 'string' && url.trim() !== '') result[slot] = url;
+    }
+    return result as VideoAvatarClipSlots;
+  };
+
   if (!clips) return { male: {}, female: {} };
-  const CLIP_STATES = ['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'];
-  const isFlat = Object.keys(clips).some(k => CLIP_STATES.includes(k));
-  if (isFlat) {
-    return { male: clips as Partial<Record<string, string>>, female: {} };
-  }
-  return clips as { male?: Partial<Record<string, string>>; female?: Partial<Record<string, string>> };
+  return { male: pickSlots(clips.male), female: pickSlots(clips.female) };
 }
 
 export const insertMbtiPersonaSchema = createInsertSchema(mbtiPersonas).omit({

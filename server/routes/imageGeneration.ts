@@ -478,6 +478,51 @@ router.post('/generate-persona-base', asyncHandler(async (req, res) => {
   });
 }));
 
+/**
+ * Concise appearance description suitable for use inside a Veo video prompt.
+ * Omits photography-specific language ("portrait photograph", "headshot", etc.)
+ * and returns only the person/attire/setting details Veo needs to render appearance.
+ */
+export function generatePersonaAppearanceHint(
+  mbti: string,
+  gender: string,
+  personalityTraits: string[],
+): string {
+  const genderEn = gender === 'male' ? 'man' : 'woman';
+
+  const mbtiVisualTraits: Record<string, string> = {
+    'ENFJ': 'warm smile, friendly eyes, approachable expression',
+    'ENFP': 'bright eyes, enthusiastic expression, creative vibe',
+    'ENTJ': 'confident gaze, strong presence, professional demeanor',
+    'ENTP': 'sharp eyes, curious expression, innovative look',
+    'ESFJ': 'gentle smile, caring expression, welcoming presence',
+    'ESFP': 'lively expression, energetic vibe, fun personality',
+    'ESTJ': 'serious expression, organized demeanor, professional look',
+    'ESTP': 'confident smile, active vibe, dynamic presence',
+    'INFJ': 'thoughtful eyes, calm expression, deep presence',
+    'INFP': 'gentle expression, creative aura, dreamy look',
+    'INTJ': 'analytical gaze, focused expression, strategic presence',
+    'INTP': 'curious eyes, thoughtful expression, intellectual vibe',
+    'ISFJ': 'kind smile, warm presence, reliable demeanor',
+    'ISFP': 'soft expression, artistic vibe, gentle presence',
+    'ISTJ': 'composed expression, practical demeanor, steady presence',
+    'ISTP': 'calm eyes, practical look, independent vibe',
+  };
+
+  const visualTrait = mbtiVisualTraits[mbti] || 'neutral expression, professional demeanor';
+
+  let traitDescription = '';
+  if (personalityTraits && personalityTraits.length > 0) {
+    const traitsEn = personalityTraits.slice(0, 2).map(escapeHtml).join(', ');
+    traitDescription = `, showing ${traitsEn}`;
+  }
+
+  return (
+    `A ${genderEn} with ${visualTrait}${traitDescription}. ` +
+    `Business casual attire. Modern office background with natural professional lighting.`
+  );
+}
+
 function generatePersonaImagePrompt(
   mbti: string,
   gender: string,

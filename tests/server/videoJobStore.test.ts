@@ -8,11 +8,11 @@ vi.mock('../../server/storage/db', () => ({
 
 // Convenience helpers so every test doesn't repeat the three extra args.
 const PERSONA = 'persona-1';
-const STATE   = 'idle';
+const SLOT    = 'listening_neutral';
 const GENDER  = 'male';
 function mkStore() { return new VideoJobStore(); }
 function create(store: VideoJobStore, jobId: string) {
-  return store.create(jobId, PERSONA, STATE, GENDER);
+  return store.create(jobId, PERSONA, SLOT, GENDER);
 }
 
 // ─── create() ────────────────────────────────────────────────────────────────
@@ -90,33 +90,33 @@ describe('VideoJobStore – setDone()', () => {
   it('transitions status to done and stores result', async () => {
     const store = mkStore();
     create(store, 'job-d');
-    store.setDone('job-d', 'https://example.com/clip.mp4', 'idle', 'male');
+    store.setDone('job-d', 'https://example.com/clip.mp4', 'listening_neutral', 'male');
     const record = (await store.get('job-d'))!;
     expect(record.status).toBe('done');
-    expect(record.result).toEqual({ videoUrl: 'https://example.com/clip.mp4', state: 'idle', gender: 'male' });
+    expect(record.result).toEqual({ videoUrl: 'https://example.com/clip.mp4', slot: 'listening_neutral', gender: 'male' });
     expect(record.error).toBeUndefined();
   });
 
-  it('stores the exact videoUrl and state provided', async () => {
+  it('stores the exact videoUrl and slot provided', async () => {
     const store = mkStore();
     create(store, 'job-url');
-    store.setDone('job-url', 'https://cdn.test/video.mp4', 'speaking', 'female');
+    store.setDone('job-url', 'https://cdn.test/video.mp4', 'speaking_positive', 'female');
     expect((await store.get('job-url'))!.result!.videoUrl).toBe('https://cdn.test/video.mp4');
-    expect((await store.get('job-url'))!.result!.state).toBe('speaking');
+    expect((await store.get('job-url'))!.result!.slot).toBe('speaking_positive');
   });
 
   it('does nothing for an unknown jobId (no throw)', () => {
     const store = mkStore();
-    expect(() => store.setDone('ghost', 'url', 'idle', 'male')).not.toThrow();
+    expect(() => store.setDone('ghost', 'url', 'listening_neutral', 'male')).not.toThrow();
   });
 
   it('overwrites a prior result if called twice', async () => {
     const store = mkStore();
     create(store, 'job-ow');
-    store.setDone('job-ow', 'https://first.mp4', 'idle', 'male');
-    store.setDone('job-ow', 'https://second.mp4', 'speaking', 'male');
+    store.setDone('job-ow', 'https://first.mp4', 'listening_neutral', 'male');
+    store.setDone('job-ow', 'https://second.mp4', 'speaking_negative', 'male');
     expect((await store.get('job-ow'))!.result!.videoUrl).toBe('https://second.mp4');
-    expect((await store.get('job-ow'))!.result!.state).toBe('speaking');
+    expect((await store.get('job-ow'))!.result!.slot).toBe('speaking_negative');
   });
 });
 

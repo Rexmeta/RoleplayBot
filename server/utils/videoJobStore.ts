@@ -11,10 +11,11 @@ export type VideoJobStatus = 'pending' | 'running' | 'done' | 'error';
 export interface VideoJobRecord {
   jobId: string;
   personaId: string;
-  clipState: string;
+  /** Clip slot being generated, e.g. "speaking_negative" (DB column: clip_state). */
+  clipSlot: string;
   gender: string;
   status: VideoJobStatus;
-  result?: { videoUrl: string; state: string; gender: string; storageKey?: string; model?: string };
+  result?: { videoUrl: string; slot: string; gender: string; storageKey?: string; model?: string };
   error?: string;
   createdAt: number;
 }
@@ -25,11 +26,11 @@ export class VideoJobStore {
   private jobs = new Map<string, VideoJobRecord>();
 
   /** Register a new job in memory and fire-and-forget persist to DB. */
-  create(jobId: string, personaId: string, clipState: string, gender: string): VideoJobRecord {
+  create(jobId: string, personaId: string, clipSlot: string, gender: string): VideoJobRecord {
     const record: VideoJobRecord = {
       jobId,
       personaId,
-      clipState,
+      clipSlot,
       gender,
       status: 'pending',
       createdAt: Date.now(),
@@ -42,7 +43,7 @@ export class VideoJobStore {
          (job_id, persona_id, clip_state, gender, status, created_at, updated_at)
        VALUES ($1, $2, $3, $4, 'pending', NOW(), NOW())
        ON CONFLICT (job_id) DO NOTHING`,
-      [jobId, personaId, clipState, gender],
+      [jobId, personaId, clipSlot, gender],
     ).catch(e => console.warn('[videoJobStore] DB create failed:', e.message));
 
     return record;
@@ -74,7 +75,7 @@ export class VideoJobStore {
         return {
           jobId: row.job_id,
           personaId: row.persona_id,
-          clipState: row.clip_state,
+          clipSlot: row.clip_state,
           gender: row.gender,
           status: 'error',
           error: '서버가 재시작되었습니다. 생성 버튼을 다시 눌러주세요.',
@@ -85,7 +86,7 @@ export class VideoJobStore {
       return {
         jobId: row.job_id,
         personaId: row.persona_id,
-        clipState: row.clip_state,
+        clipSlot: row.clip_state,
         gender: row.gender,
         status: row.status as VideoJobStatus,
         result: row.result_data ?? undefined,
@@ -108,18 +109,18 @@ export class VideoJobStore {
     ).catch(e => console.warn('[videoJobStore] DB setRunning failed:', e.message));
   }
 
-  setDone(jobId: string, videoUrl: string, state: string, gender: string, model?: string): void {
+  setDone(jobId: string, videoUrl: string, slot: string, gender: string, model?: string): void {
     const record = this.jobs.get(jobId);
     if (record) {
       record.status = 'done';
-      record.result = { videoUrl, state, gender, ...(model ? { model } : {}) };
+      record.result = { videoUrl, slot, gender, ...(model ? { model } : {}) };
     }
 
     pool.query(
       `UPDATE video_generation_jobs
          SET status = 'done', result_data = $2::jsonb, updated_at = NOW()
        WHERE job_id = $1`,
-      [jobId, JSON.stringify({ videoUrl, state, gender, ...(model ? { model } : {}) })],
+      [jobId, JSON.stringify({ videoUrl, slot, gender, ...(model ? { model } : {}) })],
     ).catch(e => console.warn('[videoJobStore] DB setDone failed:', e.message));
   }
 

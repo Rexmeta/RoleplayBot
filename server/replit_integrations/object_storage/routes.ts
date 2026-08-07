@@ -45,7 +45,7 @@ export function registerObjectStorageRoutes(app: Express): void {
     }
 
     if (isCloudRun()) {
-      await streamFromGCS(key, res);
+      await streamFromGCS(key, res, false, req.headers.range as string | undefined);
     } else {
       try {
         const svc = new ObjectStorageService();
@@ -53,7 +53,7 @@ export function registerObjectStorageRoutes(app: Express): void {
         if (!file) {
           if (isGCSAvailable()) {
             console.log(`[Object Storage] Replit OS miss → GCS fallback for key="${key}"`);
-            const served = await streamFromGCS(key, res);
+            const served = await streamFromGCS(key, res, false, req.headers.range as string | undefined);
             if (served) {
               writeThroughToReplitOS(key).catch(() => {});
             }
@@ -62,7 +62,7 @@ export function registerObjectStorageRoutes(app: Express): void {
           console.warn(`[Object Storage] Key not found: "${key}"`);
           return res.status(404).json({ error: "Object not found", key });
         }
-        await svc.downloadObject(file, res);
+        await svc.downloadObject(file, res, 3600, req);
       } catch (error) {
         if (error instanceof SidecarUnavailableError) {
           console.error(`[Object Storage] Sidecar unavailable for key="${key}":`, error.message);

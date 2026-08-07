@@ -74,6 +74,53 @@ function normalisePersonaForDb(persona: ScenarioPersona): {
   };
 }
 
+/**
+ * Shape of the `images` jsonb column on an MBTI persona record.
+ * Expression maps are keyed by the Korean emotion label used across the app.
+ */
+type MbtiPersonaImages = {
+  base?: string;
+  style?: string;
+  male?: { expressions?: Record<string, string> };
+  female?: { expressions?: Record<string, string> };
+} | null | undefined;
+
+/** Emotion keys that represent the neutral/base portrait, in preference order. */
+const NEUTRAL_EXPRESSION_KEYS = ['중립', 'neutral'];
+
+/**
+ * Pick a usable base portrait for a scenario persona from an MBTI persona's `images`.
+ *
+ * Preference order: requested gender's neutral → the other gender's neutral → `base`.
+ * Empty strings are treated as absent (the DB stores `""` placeholders for
+ * expressions that have not been generated yet).
+ *
+ * Returns undefined when the MBTI record holds no usable portrait, so callers can
+ * leave the persona's `image` untouched rather than writing an empty value.
+ */
+export function resolveMbtiBaseImage(
+  images: MbtiPersonaImages,
+  gender?: string,
+): string | undefined {
+  if (!images) return undefined;
+
+  const preferred = gender === 'female' ? 'female' : 'male';
+  const secondary = preferred === 'female' ? 'male' : 'female';
+
+  for (const genderKey of [preferred, secondary] as const) {
+    const expressions = images[genderKey]?.expressions;
+    if (!expressions) continue;
+    for (const key of NEUTRAL_EXPRESSION_KEYS) {
+      const candidate = expressions[key];
+      if (typeof candidate === 'string' && candidate.trim() !== '') return candidate;
+    }
+  }
+
+  if (typeof images.base === 'string' && images.base.trim() !== '') return images.base;
+
+  return undefined;
+}
+
 export class FileManagerService {
   
   // 🚀 경량화된 시나리오 카운트 조회 (캐시 사용) - 데이터베이스 기반
@@ -221,6 +268,7 @@ export class FileManagerService {
       difficultyProfile: (dbScenario as any).difficultyProfile ?? undefined,
       sourceLocale: (dbScenario as any).sourceLocale ?? undefined,
       analyticsSpec: (dbScenario as any).analyticsSpec ?? undefined,
+      useVideoAvatar: (dbScenario as any).useVideoAvatar ?? false,
     };
   }
   
@@ -275,11 +323,33 @@ export class FileManagerService {
             ? persona.personaRef.replace('.json', '')
             : persona.id;
 
-          if (mbtiId && !withMbti.videos) {
+          // Always fetch DB videos when the persona doesn't have explicit clip URLs.
+          // Checking only `!withMbti.videos` was too strict — a scenario JSON may
+          // include a stub `videos: { enabled: false }` that has no clips, which
+          // previously blocked propagation of the real DB clips.
+          //
+          // The base `image` is propagated too: scenario personas persisted through
+          // `normalisePersonaForDb` frequently carry no image at all, which leaves the
+          // chat portrait with no static fallback behind the video buffers (blank frame
+          // whenever a clip fails to load).
+          const needsVideos = !withMbti.videos?.clips;
+          const needsImage = !withMbti.image;
+
+          if (mbtiId && (needsVideos || needsImage)) {
             try {
               const dbMbti = await storage.getMbtiPersona(mbtiId);
-              if (dbMbti?.videos) {
-                return { ...withMbti, videos: dbMbti.videos };
+              if (dbMbti) {
+                const patch: Record<string, unknown> = {};
+                if (needsVideos && dbMbti.videos) {
+                  patch.videos = dbMbti.videos;
+                }
+                if (needsImage) {
+                  const baseImage = resolveMbtiBaseImage(dbMbti.images, withMbti.gender);
+                  if (baseImage) patch.image = baseImage;
+                }
+                if (Object.keys(patch).length > 0) {
+                  return { ...withMbti, ...patch };
+                }
               }
             } catch {
               // Non-critical: skip if lookup fails
@@ -385,6 +455,9 @@ export class FileManagerService {
         imagePrompt: scenario.imagePrompt || null,
         introVideoUrl: scenario.introVideoUrl || null,
         introVideoMode: scenario.introVideoMode || 'none',
+        // Must be written on create; otherwise the column default (false) wins and the
+        // admin's video-avatar toggle silently resets on the first reload.
+        useVideoAvatar: (scenario as any).useVideoAvatar ?? false,
         modelVideoOverride: (scenario as any).modelVideoOverride || null,
         videoPrompt: scenario.videoPrompt || null,
         objectiveType: scenario.objectiveType || null,
@@ -464,6 +537,7 @@ export class FileManagerService {
         if ((scenario as any).playerConstraints !== undefined) updates.playerConstraints = (scenario as any).playerConstraints;
         if ((scenario as any).difficultyProfile !== undefined) updates.difficultyProfile = (scenario as any).difficultyProfile;
         if ((scenario as any).sourceLocale !== undefined) updates.sourceLocale = (scenario as any).sourceLocale;
+        if ((scenario as any).useVideoAvatar !== undefined) updates.useVideoAvatar = (scenario as any).useVideoAvatar;
         
         const updated = await storage.updateScenario(id, updates);
         this.invalidateScenarioCountCache();

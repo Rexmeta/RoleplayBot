@@ -1,6 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
+import sharp from 'sharp';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { trackVideoUsage } from './aiUsageTracker';
@@ -351,6 +353,138 @@ async function convertToWebM(inputPath: string, outputPath: string): Promise<str
   }
 }
 
+/** Normalised avatar clip bytes plus the container they are actually in. */
+export interface NormalizedClip {
+  buffer: Buffer;
+  extension: 'mp4';
+  contentType: 'video/mp4';
+  /** `w:h:x:y` when letterbox padding was cropped away, otherwise null. */
+  crop: string | null;
+}
+
+/**
+ * Bring a raw Veo avatar clip into a state the browser can actually play.
+ *
+ * Two problems are fixed here, both of which made avatar clips unusable:
+ *
+ * 1. **Container mismatch.** Veo returns H.264/AAC in an MP4 container, but the
+ *    clip used to be stored under a `.webm` key with a `video/webm` content
+ *    type. Chrome refuses to decode an MP4 that claims to be WebM, so `canplay`
+ *    never fired and every clip fell back to the static portrait.
+ *
+ * 2. **Baked-in letterbox.** Veo sometimes renders a square frame padded into
+ *    the requested 9:16 canvas with solid black bars. `object-fit: cover` then
+ *    puts one of those bars across the top of the portrait as a black band.
+ *    `cropdetect` finds the real content rectangle so the bars never ship.
+ *
+ * The crop is only applied when it is both meaningful and sane; anything
+ * unexpected leaves the frame untouched rather than guessing at a crop.
+ */
+export async function normalizeAvatarClip(videoBytes: Uint8Array): Promise<NormalizedClip> {
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'avatar-clip-'));
+  const inputPath = path.join(workDir, 'source.mp4');
+  const outputPath = path.join(workDir, 'normalized.mp4');
+
+  const passthrough: NormalizedClip = {
+    // Veo hands back MP4 regardless, so this stays truthful even when ffmpeg is
+    // unavailable — only the letterbox crop is lost.
+    buffer: Buffer.from(videoBytes),
+    extension: 'mp4',
+    contentType: 'video/mp4',
+    crop: null,
+  };
+
+  try {
+    fs.writeFileSync(inputPath, Buffer.from(videoBytes));
+
+    const crop = await detectLetterboxCrop(inputPath);
+    // Re-encode only when cropping; otherwise copy the streams so a clean clip
+    // is never degraded by a pointless generation loss.
+    const videoArgs = crop
+      ? `-vf "crop=${crop}" -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -c:a copy`
+      : `-c copy`;
+    const command = `ffmpeg -hide_banner -y -i "${inputPath}" ${videoArgs} -movflags +faststart "${outputPath}"`;
+
+    console.log(`🎬 아바타 클립 정규화: ${crop ? `letterbox 제거 (crop=${crop})` : '컨테이너 유지 (letterbox 없음)'}`);
+    await execAsync(command, { timeout: 180000 });
+
+    if (!fs.existsSync(outputPath)) {
+      throw new Error('정규화된 클립 파일이 생성되지 않았습니다.');
+    }
+
+    return {
+      buffer: fs.readFileSync(outputPath),
+      extension: 'mp4',
+      contentType: 'video/mp4',
+      crop,
+    };
+  } catch (error: any) {
+    // A normalisation failure must not throw away an expensive generation; the
+    // raw bytes are still playable, just possibly letterboxed.
+    console.warn(`⚠️ 아바타 클립 정규화 실패 — 원본 바이트를 그대로 저장합니다: ${error?.message ?? error}`);
+    return passthrough;
+  } finally {
+    fs.rmSync(workDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Run ffmpeg's `cropdetect` over the opening frames and return a `w:h:x:y`
+ * crop string when the clip carries solid letterbox padding.
+ *
+ * Returns null when the frame is already full-bleed, when detection fails, or
+ * when the proposed crop looks implausible (a too-aggressive crop would cut
+ * into the persona's face, which is far worse than leaving a black bar).
+ */
+async function detectLetterboxCrop(inputPath: string): Promise<string | null> {
+  // ffmpeg reports cropdetect on stderr, but never rely on a single stream here:
+  // a shell-level redirect would move the lines to stdout and silently skip the
+  // crop, which is exactly how the black bars shipped in the first place.
+  let probeOutput = '';
+  try {
+    const { stdout, stderr } = await execAsync(
+      `ffmpeg -hide_banner -i "${inputPath}" -vf cropdetect=24:2:0 -frames:v 90 -f null -`,
+      { timeout: 60000, maxBuffer: 10 * 1024 * 1024 },
+    );
+    probeOutput = `${stderr ?? ''}${stdout ?? ''}`;
+  } catch (error: any) {
+    // execAsync rejects on a non-zero exit; the crop lines may still be present.
+    probeOutput = `${error?.stderr ?? ''}${error?.stdout ?? ''}`;
+  }
+
+  // cropdetect refines its guess frame by frame; the last report is the stable one.
+  const cropPattern = /crop=(\d+):(\d+):(\d+):(\d+)/g;
+  let lastMatch: RegExpExecArray | null = null;
+  let match: RegExpExecArray | null;
+  while ((match = cropPattern.exec(probeOutput)) !== null) {
+    lastMatch = match;
+  }
+  if (!lastMatch) return null;
+
+  const [cropW, cropH, cropX, cropY] = lastMatch.slice(1, 5).map(Number);
+
+  const dimensions = await execAsync(
+    `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${inputPath}"`,
+    { timeout: 30000 },
+  );
+  const [sourceW, sourceH] = dimensions.stdout.trim().split(',').map(Number);
+  if (!sourceW || !sourceH) return null;
+
+  // Nothing to do when cropdetect just reports the full frame.
+  if (cropW === sourceW && cropH === sourceH) return null;
+
+  // Guard against a runaway crop: keep at least half of each dimension and
+  // require the crop window to sit inside the source frame.
+  const withinFrame = cropX >= 0 && cropY >= 0 && cropX + cropW <= sourceW && cropY + cropH <= sourceH;
+  const keepsEnough = cropW >= sourceW * 0.5 && cropH >= sourceH * 0.5;
+  if (!withinFrame || !keepsEnough) {
+    console.warn(`⚠️ cropdetect 결과가 비정상적이라 무시합니다: crop=${cropW}:${cropH}:${cropX}:${cropY} (원본 ${sourceW}x${sourceH})`);
+    return null;
+  }
+
+  return `${cropW}:${cropH}:${cropX}:${cropY}`;
+}
+
 export async function deleteIntroVideo(videoUrl: string): Promise<boolean> {
   try {
     // Skip if empty or null
@@ -401,21 +535,44 @@ export function getVideoGenerationStatus(): { available: boolean; reason?: strin
 
 // ── Avatar clip generation ────────────────────────────────────────────────────
 
-export type AvatarClipState =
-  | 'idle'
-  | 'listening'
-  | 'listening_nod'
-  | 'thinking'
-  | 'speaking'
-  | 'speaking_pause';
+/**
+ * Observable avatar behaviour, decided by the realtime audio stream:
+ * user audio → listening, AI audio → speaking.
+ */
+export type AvatarClipBehavior = 'listening' | 'speaking';
+
+/** Affect group, decided by the LLM's emotion label. */
+export type AvatarClipEmotion = 'positive' | 'neutral' | 'negative';
+
+export const AVATAR_CLIP_BEHAVIORS: readonly AvatarClipBehavior[] = ['listening', 'speaking'];
+export const AVATAR_CLIP_EMOTIONS: readonly AvatarClipEmotion[] = ['positive', 'neutral', 'negative'];
+
+/** Storage/DB slot key for a behaviour × emotion pair, e.g. "speaking_negative". */
+export type AvatarClipSlot = `${AvatarClipBehavior}_${AvatarClipEmotion}`;
+
+export function avatarClipSlot(behavior: AvatarClipBehavior, emotion: AvatarClipEmotion): AvatarClipSlot {
+  return `${behavior}_${emotion}`;
+}
+
+/**
+ * The complete clip library for one gender: 2 behaviours × 3 emotions.
+ * Adding finer emotions later (happy/excited, angry/sad) only adds slots —
+ * the behaviour dimension and every consumer stay unchanged.
+ */
+export const AVATAR_CLIP_SLOTS: readonly AvatarClipSlot[] = AVATAR_CLIP_BEHAVIORS.flatMap(
+  behavior => AVATAR_CLIP_EMOTIONS.map(emotion => avatarClipSlot(behavior, emotion)),
+);
 
 export interface AvatarClipRequest {
   personaId: string;
-  state: AvatarClipState;
+  /** Audio-stream driven behaviour. */
+  behavior: AvatarClipBehavior;
+  /** LLM driven affect group. Defaults to neutral. */
+  emotion?: AvatarClipEmotion;
   styleHint?: string;
   gender?: 'male' | 'female';
   neutralImageUrl?: string;
-  /** Optional free-text rider appended after the base state prompt. */
+  /** Optional free-text rider appended after the base behaviour prompt. */
   extraPrompt?: string;
   /** Per-persona video model override; falls back to global `model_video` setting when omitted. */
   modelOverride?: string;
@@ -438,6 +595,22 @@ export const AVATAR_PROMPT_BANNED_TERMS: readonly string[] = [
 ];
 
 /**
+ * Aspect ratio for every persona avatar clip.
+ *
+ * Avatar clips always fill a tall portrait frame in the chat view, so they are
+ * pinned to 9:16 and never take an override from the caller. Requesting any
+ * other ratio makes Veo pad the frame with black bars, which `object-fit: cover`
+ * then exposes as a black band above the persona.
+ */
+export const AVATAR_CLIP_ASPECT_RATIO = '9:16' as const;
+
+const AVATAR_EMOTION_DIRECTION: Record<AvatarClipEmotion, string> = {
+  positive: 'Warm, encouraging demeanor. Subtle positive energy while remaining natural and professional.',
+  neutral: 'Calm, composed neutral demeanor. Natural and professional.',
+  negative: 'Quietly concerned, empathetic demeanor. Restrained and professional, never exaggerated.',
+};
+
+/**
  * Validate a styleHint value against the banned-term list.
  * Throws a descriptive Error if the hint contains a prohibited term.
  */
@@ -454,14 +627,14 @@ export function validateStyleHint(styleHint: string): void {
 }
 
 /**
- * Build a Veo prompt for an avatar clip state.
+ * Build a Veo prompt for an avatar clip slot (behaviour × emotion).
  *
  * Design intent: prompts describe ONLY body posture and motion — no appearance,
  * no ethnicity, no gender.  The person's looks come from the seed image.
- * Mouth is kept closed/still in every state to avoid lip-sync policy issues.
+ * Affect is expressed through demeanour only, never through explicit face wording.
  */
 export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
-  const { state, styleHint } = request;
+  const { behavior, styleHint, emotion = 'neutral' } = request;
 
   // Reject styleHints that contain policy-violating language.
   // Even though the hint is not injected into the prompt today, we validate it
@@ -472,65 +645,28 @@ export function generateAvatarClipPrompt(request: AvatarClipRequest): string {
 
   // styleHint is intentionally not injected — appearance is provided via seed image.
 
-  // Design principles for all states:
-  // 1. Seamless perfect loop — clip ends on the identical frame it started; no visible cut.
-  // 2. Camera is always locked off — no zoom, pan, dolly, or any camera movement whatsoever.
-  // 3. All states except "speaking": lips remain sealed shut; mouth does not open at all.
-  // 4. idle / listening / thinking / speaking_pause: near-zero motion; only eye blinks.
-  // 5. speaking: natural animated expression including mouth movement is intentional.
-  const stateDescriptions: Record<AvatarClipState, string> = {
-    idle:
-      'Upper body of a person sitting completely still in a neutral resting pose. ' +
-      'Only motion allowed: natural eye blinks. ' +
-      'Lips sealed shut — mouth does not open. No head movement whatsoever, no nodding, no tilting. ' +
-      'No body sway, no gestures, no shoulder movement. Calm, neutral expression. ' +
-      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
-      'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
+  // Only two behaviours exist: the clip loops while the user talks, or while
+  // the persona talks. Every other conversational nuance is carried by emotion.
+  const behaviorDescriptions: Record<AvatarClipBehavior, string> = {
     listening:
-      'Upper body of a person sitting in a fixed attentive pose, holding perfectly still. ' +
-      'Only motion allowed: natural eye blinks. ' +
-      'Lips sealed shut — mouth does not open. No head tilting, no nodding, no body movement. ' +
-      'Focused, calm expression. ' +
-      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
-      'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
-    listening_nod:
-      'Upper body of a person performing one single slow shallow nod — head dips only slightly then ' +
-      'returns to the exact starting position. ' +
-      'Lips sealed shut throughout — mouth does not open. No other body movement. ' +
-      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
-      'Seamless perfect loop — head ends at the exact same angle as the start. Loopable. 6 seconds.',
-    thinking:
-      'Upper body of a person sitting completely still in quiet contemplation. ' +
-      'Only motion allowed: natural eye blinks; eyes may drift very slightly once then return to centre. ' +
-      'Lips sealed shut — mouth does not open. Zero head movement, zero body movement. ' +
-      'Thoughtful, calm expression. ' +
-      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
-      'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
+      'Calm eye contact while attentively listening. Natural blinking. Minimal natural breathing. ' +
+      'Relaxed attentive posture, mouth closed naturally. Static camera.',
     speaking:
-      'Upper body of a person engaged in lively conversation, animated posture and expressive face. ' +
-      'Lips and jaw articulate actively as if talking. ' +
-      'Small, contained wrist-level hand gesture once, returning to rest by the end. Slight forward lean. ' +
-      'Static locked-off camera — no zoom, no pan, no camera motion. Soft indoor lighting, no text. ' +
-      'Seamless perfect loop — pose and hands return to starting position by the final frame. Loopable. 6 seconds.',
-    speaking_pause:
-      'Upper body of a person sitting still in a composed upright pose, momentarily paused. ' +
-      'Only motion allowed: natural eye blinks and a single slow breath. ' +
-      'Lips sealed shut — mouth does not open. No head movement, no gestures. ' +
-      'Static locked-off camera — no zoom, no pan, no movement. Soft indoor lighting, no text. ' +
-      'Seamless perfect loop — first and last frames identical. Loopable. 6 seconds.',
+      'Natural lip movement as if talking. Gentle expressions. Small natural hand gesture. ' +
+      'Maintains eye contact with the camera. Static camera. Soft indoor office lighting.',
   };
 
-  const base = stateDescriptions[state] ?? stateDescriptions['idle'];
-  // Append caller-supplied extra prompt after the base description.
+  const base = behaviorDescriptions[behavior] ?? behaviorDescriptions.listening;
+  const emotionDirection = AVATAR_EMOTION_DIRECTION[emotion] ?? AVATAR_EMOTION_DIRECTION.neutral;
+
   const extra = request.extraPrompt?.trim();
-  // Note: do NOT prepend identity-preservation hints about faces/skin-tone —
-  // such phrasing triggers Veo's RAI person-generation filter.
-  // The `image` parameter (first frame) already guides appearance without prompt text.
-  return extra ? `${base} ${extra}` : base;
+  return extra
+    ? `${base} ${emotionDirection} ${extra}`
+    : `${base} ${emotionDirection}`;
 }
 
 /**
- * Generate a single avatar clip (looping video for the given AvatarClipState)
+ * Generate a single avatar clip for one behaviour × emotion slot
  * using Gemini Veo and persist it to storage.
  */
 export async function generateAvatarClip(
@@ -547,27 +683,37 @@ export async function generateAvatarClip(
     const genAI = new GoogleGenAI({ apiKey });
     const videoPrompt = generateAvatarClipPrompt(request);
     const videoModel = request.modelOverride || await getModelForFeature('avatar_video');
+    const clipSlot = avatarClipSlot(request.behavior, request.emotion ?? 'neutral');
 
-    console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${request.state} / gender:${request.gender ?? 'unspecified'}`);
+    console.log(`🎬 아바타 클립 생성 요청: ${request.personaId} / ${clipSlot} / gender:${request.gender ?? 'unspecified'}`);
     console.log(`🎥 비디오 모델: ${videoModel}${request.modelOverride ? ' (페르소나 오버라이드)' : ''}`);
     console.log(`프롬프트: ${videoPrompt}`);
 
-    // Build optional seed image parameter.
-    // The Gemini API only accepts imageBytes (base64) — gcsUri is NOT supported.
-    // mediaStorage.readImageBuffer() handles the full storage chain:
-    //   Replit Object Storage sidecar → GCS fallback
-    // This works correctly even when the local sidecar cache is cold or files
-    // live only in GCS (the dual-write backend keeps them in sync).
+    // Load seed image when provided. WEBP is always converted to JPEG — Veo 3.1 has
+    // known instability with WEBP inputs that triggers raiMediaFilteredCount=1.
     let seedImage: { imageBytes: string; mimeType: string } | undefined;
     if (request.neutralImageUrl) {
       try {
         const key = request.neutralImageUrl.replace(/^\/+/, '');
-        const imgBuf = await mediaStorage.readImageBuffer(key);
-        if (imgBuf && imgBuf.byteLength > 0) {
+        const loadedBuf = await mediaStorage.readImageBuffer(key);
+        if (loadedBuf && loadedBuf.byteLength > 0) {
+          let imgBuf: Buffer = loadedBuf;
           const ext = path.extname(key).toLowerCase().replace('.', '');
-          const mimeType = ext === 'webp' ? 'image/webp'
-            : ext === 'png'  ? 'image/png'
-            : 'image/jpeg';
+          let mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+          // Veo 3.1 has known instability with WEBP seed images (triggers raiMediaFilteredCount=1).
+          // Always convert WEBP → JPEG before sending.
+          if (ext === 'webp') {
+            try {
+              imgBuf = await sharp(imgBuf).jpeg({ quality: 92 }).toBuffer();
+              mimeType = 'image/jpeg';
+              console.log(`🔄 시드 이미지 WEBP→JPEG 변환 완료 (${imgBuf.byteLength} bytes)`);
+            } catch (convertErr: any) {
+              console.warn(`⚠️ WEBP→JPEG 변환 실패, 원본 그대로 전송: ${convertErr.message}`);
+              mimeType = 'image/webp';
+            }
+          }
+
           seedImage = { imageBytes: imgBuf.toString('base64'), mimeType };
           console.log(`🖼️ 시드 이미지 로드: ${key} (${mimeType}, ${imgBuf.byteLength} bytes)`);
         } else {
@@ -578,12 +724,15 @@ export async function generateAvatarClip(
       }
     }
 
-    // Correct Gemini API image-to-video approach (all 3 Veo models support this):
-    //   image        → top-level first frame
-    //   config.lastFrame → last frame (same image = perfect loop, identity preserved)
-    // Do NOT use config.referenceImages — that is Vertex AI only and returns 400 on Gemini API.
     const effectiveModel = videoModel;
-    const generateParams: any = { model: effectiveModel, prompt: videoPrompt };
+    const generateParams: any = {
+      model: effectiveModel,
+      prompt: videoPrompt,
+      config: {
+        aspectRatio: AVATAR_CLIP_ASPECT_RATIO,
+      },
+    };
+    console.log(`📐 아바타 클립 종횡비: ${AVATAR_CLIP_ASPECT_RATIO} (세로형 고정)`);
     if (seedImage) {
       generateParams.image = seedImage;
       console.log(`🖼️ 시드 이미지 설정 완료 (첫 프레임, ${seedImage.mimeType}, ${Math.round(seedImage.imageBytes.length * 3 / 4)} bytes raw)`);
@@ -665,24 +814,30 @@ export async function generateAvatarClip(
 
     if (!videoBytes) return { success: false, error: '비디오 바이트를 추출할 수 없습니다.' };
 
-    // Build a stable, readable key that includes persona, gender and state.
+    // Build a stable, readable key that includes persona, gender and clip slot.
     // We use saveToFixedPath instead of saveVideo because saveVideo's safeTitle
     // sanitiser strips hyphens (e.g. "ac-idle" → "acidle"), producing garbled names.
     const safePersonaId = request.personaId.replace(/[^a-zA-Z0-9]/g, '-');
-    const safeState    = (request.state as string).replace(/_/g, '-'); // listening_nod → listening-nod
+    const safeSlot     = clipSlot.replace(/_/g, '-'); // speaking_negative → speaking-negative
     const gender       = request.gender ?? 'unknown';
     const timestamp    = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const fixedKey     = `videos/avatar-${safePersonaId}-${gender}-${safeState}-${timestamp}.webm`;
+
+    // Veo hands back H.264/AAC in MP4 and sometimes pads the frame with black
+    // letterbox bars; normalise both so the stored asset is playable and free of
+    // the black band that `object-fit: cover` would otherwise expose.
+    const normalized = await normalizeAvatarClip(videoBytes);
+
+    const fixedKey     = `videos/avatar-${safePersonaId}-${gender}-${safeSlot}-${timestamp}.${normalized.extension}`;
     const storagePath  = await mediaStorage.saveToFixedPath(
-      Buffer.from(videoBytes),
+      normalized.buffer,
       fixedKey,
-      'video/webm',
+      normalized.contentType,
     );
 
     trackVideoUsage({
       model: effectiveModel,
       provider: 'gemini',
-      metadata: { personaId: request.personaId, state: request.state, durationSeconds: 6 },
+      metadata: { personaId: request.personaId, slot: clipSlot, durationSeconds: 6 },
     });
 
     console.log(`✅ 아바타 클립 생성 완료: ${storagePath}`);

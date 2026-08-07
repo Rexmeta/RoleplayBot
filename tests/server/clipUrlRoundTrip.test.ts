@@ -16,6 +16,7 @@ import express from 'express';
 import request from 'supertest';
 
 import { toMediaUrl } from '../../client/src/lib/mediaUrl';
+import { toVideoBehavior, toVideoEmotionBucket } from '../../client/src/lib/avatar/VideoAvatarRenderer';
 
 // ─── Hoisted mocks ────────────────────────────────────────────────────────────
 const mockGenerateAvatarClip = vi.hoisted(() => vi.fn());
@@ -61,6 +62,9 @@ vi.mock('../../server/services/gcsStorage', () => ({
 
 vi.mock('../../server/services/gemini-video-generator', () => ({
   generateAvatarClip: mockGenerateAvatarClip,
+  avatarClipSlot: (behavior: string, emotion: string) => `${behavior}_${emotion}`,
+  AVATAR_CLIP_BEHAVIORS: ['listening', 'speaking'],
+  AVATAR_CLIP_EMOTIONS: ['positive', 'neutral', 'negative'],
 }));
 
 vi.mock('../../server/utils/videoJobStore', () => ({
@@ -90,7 +94,7 @@ function waitForBackground(): Promise<void> {
 }
 
 const PERSONA_ID   = 'persona-abc';
-const RAW_CLIP_KEY = 'videos/avatar-persona-abc-male-idle-uuid.webm';
+const RAW_CLIP_KEY = 'videos/avatar-persona-abc-male-listening-neutral-uuid.mp4';
 
 // ─── Section 1: Full generate → auto-save round-trip ─────────────────────────
 
@@ -125,7 +129,7 @@ describe('Full clip generate → auto-save → reload round-trip', () => {
   it('POST generate-clip returns 202 and then auto-saves the raw storage key via storage.updateMbtiPersona', async () => {
     await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'idle', gender: 'male' });
+      .send({ behavior: 'listening', emotion: 'neutral', gender: 'male' });
 
     // Wait for the setImmediate background job + mocked async awaits to settle
     await waitForBackground();
@@ -134,18 +138,18 @@ describe('Full clip generate → auto-save → reload round-trip', () => {
     expect(mockUpdateMbtiPersona).toHaveBeenCalledTimes(1);
     const [savedId, savedPayload] = mockUpdateMbtiPersona.mock.calls[0];
     expect(savedId).toBe(PERSONA_ID);
-    expect(savedPayload.videos.clips.male.idle).toBe(RAW_CLIP_KEY);
+    expect(savedPayload.videos.clips.male.listening_neutral).toBe(RAW_CLIP_KEY);
   });
 
   it('the auto-saved raw storage key is accessible in the browser via toMediaUrl()', async () => {
     await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'idle', gender: 'male' });
+      .send({ behavior: 'listening', emotion: 'neutral', gender: 'male' });
 
     await waitForBackground();
 
     // Extract whatever was persisted
-    const savedClipKey: string = mockUpdateMbtiPersona.mock.calls[0][1].videos.clips.male.idle;
+    const savedClipKey: string = mockUpdateMbtiPersona.mock.calls[0][1].videos.clips.male.listening_neutral;
 
     // The client calls toMediaUrl() at render time — the result must be a
     // browser-accessible /objects URL, not a bare key that would 404.
@@ -158,7 +162,7 @@ describe('Full clip generate → auto-save → reload round-trip', () => {
     // 1. Simulate generation completing and saving the clip
     await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'idle', gender: 'male' });
+      .send({ behavior: 'listening', emotion: 'neutral', gender: 'male' });
 
     await waitForBackground();
 
@@ -179,12 +183,28 @@ describe('Full clip generate → auto-save → reload round-trip', () => {
     const persona = res.body.find((p: any) => p.id === PERSONA_ID);
     expect(persona).toBeDefined();
 
-    const clipUrl: string = persona.videos.clips.male.idle;
+    const clipUrl: string = persona.videos.clips.male.listening_neutral;
     expect(clipUrl).toBe(RAW_CLIP_KEY);
 
     // 4. toMediaUrl() must convert it to a browser-accessible path
     expect(toMediaUrl(clipUrl)).toMatch(/^\/objects\?key=/);
     expect(toMediaUrl(clipUrl)).not.toBe(clipUrl);
+  });
+
+  it('persists a slot key that the client clip selector resolves to', async () => {
+    await request(buildApp())
+      .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
+      .send({ behavior: 'listening', emotion: 'neutral', gender: 'male' });
+
+    await waitForBackground();
+
+    const savedClips = mockUpdateMbtiPersona.mock.calls[0][1].videos.clips;
+
+    // The renderer collapses its richer internal state + the LLM emotion label
+    // into exactly the compound slot the server just wrote.
+    const selected = `${toVideoBehavior('thinking')}_${toVideoEmotionBucket('thoughtful')}`;
+    expect(selected).toBe('listening_neutral');
+    expect(savedClips.male[selected]).toBe(RAW_CLIP_KEY);
   });
 
   it('auto-save does not run when generateAvatarClip reports failure', async () => {
@@ -195,7 +215,7 @@ describe('Full clip generate → auto-save → reload round-trip', () => {
 
     await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'idle', gender: 'male' });
+      .send({ behavior: 'listening', emotion: 'neutral', gender: 'male' });
 
     await waitForBackground();
 
@@ -207,7 +227,7 @@ describe('Full clip generate → auto-save → reload round-trip', () => {
 
     await request(buildApp())
       .post(`/api/admin/personas/${PERSONA_ID}/video/generate-clip`)
-      .send({ state: 'idle', gender: 'male' });
+      .send({ behavior: 'listening', emotion: 'neutral', gender: 'male' });
 
     await waitForBackground();
 
@@ -219,8 +239,8 @@ describe('Full clip generate → auto-save → reload round-trip', () => {
 
 describe('toMediaUrl — clip URL formats returned by the API', () => {
   it('converts a raw GCS storage key (videos/…) to /objects?key=…', () => {
-    expect(toMediaUrl('videos/avatar-ac-male-idle-abc123.webm'))
-      .toBe('/objects?key=videos%2Favatar-ac-male-idle-abc123.webm');
+    expect(toMediaUrl('videos/avatar-ac-male-listening-neutral-abc123.mp4'))
+      .toBe('/objects?key=videos%2Favatar-ac-male-listening-neutral-abc123.mp4');
   });
 
   it('passes a signed HTTPS URL through unchanged (Cloud Run path)', () => {
@@ -246,10 +266,13 @@ describe('toMediaUrl — clip URL formats returned by the API', () => {
     expect(toMediaUrl('')).toBe('');
   });
 
-  it('all six clip states produce accessible /objects URLs when stored as raw keys', () => {
-    const states = ['idle', 'listening', 'listening_nod', 'thinking', 'speaking', 'speaking_pause'];
-    for (const state of states) {
-      const url = toMediaUrl(`videos/avatar-persona-male-${state}-abc.webm`);
+  it('all six clip slots produce accessible /objects URLs when stored as raw keys', () => {
+    const slots = [
+      'listening-positive', 'listening-neutral', 'listening-negative',
+      'speaking-positive', 'speaking-neutral', 'speaking-negative',
+    ];
+    for (const slot of slots) {
+      const url = toMediaUrl(`videos/avatar-persona-male-${slot}-abc.mp4`);
       expect(url).toMatch(/^\/objects\?key=/);
     }
   });

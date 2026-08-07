@@ -76,6 +76,7 @@ interface ScenarioFormData {
   minValidTurns?: number; // 최소 유효 턴 수
   isDemo?: boolean; // 게스트 데모용 시나리오 여부
   isPublic?: boolean; // 공개 여부
+  useVideoAvatar?: boolean; // 비디오 아바타 사용 여부
   autoTranslate?: boolean; // AI 자동 번역 여부
   storeListed?: boolean;
   storePriceUsd?: number | null;
@@ -446,6 +447,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     minValidTurns: 4,
     isDemo: false,
     isPublic: false,
+    useVideoAvatar: false,
     autoTranslate: true,
     storeListed: false,
     storePriceUsd: null,
@@ -696,6 +698,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       objectiveType: scenario.objectiveType || '',
       isDemo: scenario.isDemo || false,
       isPublic: scenario.isPublic || false,
+      useVideoAvatar: (scenario as any).useVideoAvatar || false,
       storeListed: (scenario as any).storeListed || false,
       storePriceUsd: (scenario as any).storePriceUsd ?? null,
       storePackId: (scenario as any).storePackId ?? null,
@@ -902,6 +905,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       targetTurns: 10,
       minValidTurns: 4,
       isPublic: false,
+      useVideoAvatar: false,
       autoTranslate: true,
       storeListed: false,
       storePriceUsd: null,
@@ -985,6 +989,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       minValidTurns: (originalScenario as any).minValidTurns ?? 4,
       isDemo: (originalScenario as any).isDemo || false,
       isPublic: (originalScenario as any).isPublic || false,
+      useVideoAvatar: (originalScenario as any).useVideoAvatar || false,
       storeListed: (originalScenario as any).storeListed || false,
       storePriceUsd: (originalScenario as any).storePriceUsd ?? null,
       storePackId: (originalScenario as any).storePackId ?? null,
@@ -2628,6 +2633,20 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     );
                   })()}
                   
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="useVideoAvatar"
+                      checked={formData.useVideoAvatar || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, useVideoAvatar: checked }))}
+                    />
+                    <Label htmlFor="useVideoAvatar" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      🎬 비디오 아바타 사용
+                    </Label>
+                    <span className="text-xs text-slate-500">
+                      {formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
+                    </span>
+                  </div>
+
                   <div className="flex items-center gap-3">
                     <Switch
                       id="isDemo"

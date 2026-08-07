@@ -233,6 +233,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   } = useAvatarRenderer({
     persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions, videos: activePersona.videos },
     conversationId, onReady,
+    scenarioUseVideoAvatar: scenario.useVideoAvatar,
   });
 
   // ── Avatar State Machine ──────────────────────────────────────────────────
@@ -307,6 +308,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
     onUserTranscription: (transcript) => {
       addRealtimeUserMessage(transcript);
+      // The final transcript is the only signal that the user's turn is over —
+      // `isRecording` stays true for the whole open-mic session, so without this
+      // the avatar would sit in `listening` until the AI starts speaking and
+      // `thinking` would never be reached in voice mode.
+      dispatchAvatarEvent({ type: 'UserSpeechEnd' });
     },
     onUserTranscriptionDelta: (_delta, accumulated) => { setPendingUserText(accumulated); },
     onAiSpeakingStart: () => {
@@ -357,6 +363,33 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       dispatchAvatarEvent({ type: 'UserSpeechEnd' });
     }
   }, [realtimeVoice.isRecording, dispatchAvatarEvent]);
+
+  // ── Text-mode avatar state dispatch ──────────────────────────────────────────
+  // In text / SSE mode there are no voice events, so we synthesize avatar-state
+  // transitions from isLoading (user just sent → thinking) and pendingAiMessage
+  // (AI is streaming → speaking / done → idle).
+  const prevTextLoadingRef = useRef(false);
+  const prevTextPendingRef = useRef(false);
+  useEffect(() => {
+    if (inputMode === 'realtime-voice') return; // voice mode wires its own events above
+    const wasLoading = prevTextLoadingRef.current;
+    const wasPending = prevTextPendingRef.current;
+    prevTextLoadingRef.current = isLoading;
+    prevTextPendingRef.current = Boolean(pendingAiMessage);
+
+    if (!wasLoading && isLoading) {
+      // User just sent a message — AI is thinking
+      dispatchAvatarEvent({ type: 'LLMThinkingStart' });
+    }
+    if (!wasPending && pendingAiMessage) {
+      // AI started streaming a response — switch to speaking clip
+      dispatchAvatarEvent({ type: 'TTSStart' });
+    }
+    if (wasPending && !pendingAiMessage) {
+      // AI finished — return to idle
+      dispatchAvatarEvent({ type: 'TTSEnd' });
+    }
+  }, [isLoading, pendingAiMessage, inputMode, dispatchAvatarEvent]);
 
   // ① Start WebSocket connection early (during video intro) so Gemini is warm by the time video ends.
   // Status is intentionally omitted from deps — connect() has its own idempotency guard and will
@@ -607,7 +640,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (!vv) return;
     const update = () => {
       setViewportHeight(vv.height);
-      setViewportOffsetTop(vv.offsetTop);
+      // `position: fixed` is resolved against the layout viewport, so adding
+      // `visualViewport.offsetTop` on top of it double-counts the offset and
+      // pushes the whole character panel down — leaving a black band above the
+      // avatar and cropping the clip off the bottom of the screen.
+      // The offset is only needed while the on-screen keyboard (or a pinch
+      // zoom) has actually shrunk the visual viewport; otherwise anchor to 0.
+      const layoutHeight = window.innerHeight || vv.height;
+      const isViewportShrunk = layoutHeight - vv.height > 120;
+      setViewportOffsetTop(isViewportShrunk ? Math.max(0, vv.offsetTop) : 0);
     };
     update();
     vv.addEventListener('resize', update);
@@ -977,6 +1018,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       isSessionEnding={isSessionEnding}
                       isTextMode={inputMode !== 'realtime-voice'}
                       avatarState={avatarState}
+                      fallbackImageUrl={activePersona.image}
                     />
                   ) : (
                     <CharacterPortrait displayImageUrl={displayImageUrl} overlayColor={overlayColor}
