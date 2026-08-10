@@ -1157,6 +1157,7 @@
   "voice": {
     "connectionError": "语音连接错误",
     "sessionEnded": "语音会话已结束",
+    "limitReachedFeedback": "已收集到足够的对话数据，正在准备您的反馈报告……",
     "bargeInDetected": "检测到打断",
     "sendError": "无法发送消息，请重试。",
     "saveError": "保存对话时出错。",

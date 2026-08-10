@@ -43,6 +43,10 @@ import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 const MAX_TURNS = 999;
 const SOFT_CLOSE_THRESHOLD = 0.8;
 
+export function isLimitReason(reason: string): boolean {
+  return ['conversation_completed', 'target_turns_reached', 'time_limit_reached'].includes(reason);
+}
+
 type PreviousMessage = { role: 'user' | 'ai'; content: string };
 
 interface ChatWindowProps {
@@ -65,6 +69,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLimitReached, setIsLimitReached] = useState(false);
   const [inputMode, setInputMode] = useState<'text' | 'realtime-voice'>(initialInputMode || 'realtime-voice');
   const [showInputMode, setShowInputMode] = useState(true);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
@@ -142,6 +147,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     mainChatScrollCleanupRef.current = () => node.removeEventListener('scroll', handleScroll);
   }, []);
   const handleSwitchToTextModeRef = useRef<(() => Promise<void>) | null>(null);
+  const handleGoToFeedbackRef = useRef<(() => Promise<void>) | null>(null);
+  const limitFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushRealtimeMessagesRef = useRef<((isFinal?: boolean) => Promise<void>) | null>(null);
   const pendingModeTransitionRef = useRef<'realtime-voice' | 'text' | undefined>(undefined);
 
@@ -330,9 +337,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
     onError: (error) => toast({ title: t('voice.connectionError'), description: error, variant: "destructive" }),
     onSessionTerminated: (reason) => {
-      toast({ title: t('voice.sessionEnded'), description: reason });
+      const reachedLimit = isLimitReason(reason);
+      if (!reachedLimit) {
+        toast({ title: t('voice.sessionEnded'), description: reason });
+      }
       setPendingAiMessage(false); setPendingUserMessage(false); setPendingUserText('');
       dispatchAvatarEvent({ type: 'ConversationEnd' });
+      if (reachedLimit) {
+        setIsLimitReached(true);
+        if (limitFeedbackTimerRef.current) {
+          clearTimeout(limitFeedbackTimerRef.current);
+        }
+        limitFeedbackTimerRef.current = setTimeout(() => {
+          limitFeedbackTimerRef.current = null;
+          handleGoToFeedbackRef.current?.().catch(console.error);
+        }, 2500);
+        return;
+       }
       pendingModeTransitionRef.current = 'realtime-voice';
       setInputMode('text');
       if (handleSwitchToTextModeRef.current) {
@@ -463,6 +484,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   });
 
   flushRealtimeMessagesRef.current = flushRealtimeMessages;
+  handleGoToFeedbackRef.current = handleGoToFeedback;
+
+  useEffect(() => {
+    return () => {
+      if (limitFeedbackTimerRef.current) {
+        clearTimeout(limitFeedbackTimerRef.current);
+        limitFeedbackTimerRef.current = null;
+      }
+    };
+  }, []);
 
   handleSwitchToTextModeRef.current = async () => {
     if (isSwitchingMode) return;
@@ -785,6 +816,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
         <h2 className="text-xl font-semibold text-slate-900 mb-2">피드백 준비 중...</h2>
         <p className="text-slate-600">잠시만 기다려 주세요.</p>
+      </div>
+    </div>
+  );
+  if (isLimitReached) return (
+    <div className="fixed inset-0 z-50 bg-white flex items-center justify-center" data-testid="voice-limit-reached-overlay">
+      <div className="px-6 text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-6"></div>
+        <p className="text-xl font-semibold text-slate-900">{t('voice.limitReachedFeedback')}</p>
       </div>
     </div>
   );

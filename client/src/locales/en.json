@@ -1160,6 +1160,7 @@
   "voice": {
     "connectionError": "Voice connection error",
     "sessionEnded": "Voice session ended",
+    "limitReachedFeedback": "Enough conversation data has been collected. Preparing your feedback report…",
     "bargeInDetected": "Interruption heard",
     "sendError": "Unable to send message. Please try again.",
     "saveError": "Error saving conversation.",
