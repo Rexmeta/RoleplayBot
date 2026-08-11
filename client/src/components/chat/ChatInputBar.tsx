@@ -184,7 +184,7 @@ export function ChatInputBar({
 
         {/* Compact connected control row */}
         {rv.status === 'connected' && !rv.isWaitingForGreeting && (
-          <div className="flex items-center gap-2 py-1.5 px-2">
+          <div className="flex flex-wrap items-center gap-2 py-1.5 px-2" data-testid="realtime-control-row">
             {/* End conversation button */}
             {(() => {
               const progressPct = rv.currentTurn !== undefined && rv.targetTurns
