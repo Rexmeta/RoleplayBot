@@ -292,7 +292,8 @@ describe('useAudioInputDevices', () => {
       await act(async () => {});
       expect(result.current.selectedInputDeviceId).toBe('bt-mic');
       expect(onBluetoothAutoSelected).toHaveBeenCalledTimes(1);
-      expect(onBluetoothAutoSelected).toHaveBeenCalledWith('bt-mic');
+      // No previous device was active; previousDeviceId is the empty string.
+      expect(onBluetoothAutoSelected).toHaveBeenCalledWith('bt-mic', '');
     });
 
     it('does not call onBluetoothAutoSelected when the user explicitly chose a device', async () => {
@@ -330,7 +331,90 @@ describe('useAudioInputDevices', () => {
       await act(async () => { deviceChangeHandler?.(); });
       expect(result.current.selectedInputDeviceId).toBe('bt-mic');
       expect(onBluetoothAutoSelected).toHaveBeenCalledTimes(1);
-      expect(onBluetoothAutoSelected).toHaveBeenCalledWith('bt-mic');
+      // No prior device was selected; previousDeviceId is the empty string.
+      expect(onBluetoothAutoSelected).toHaveBeenCalledWith('bt-mic', '');
+    });
+
+    it('passes the previously active device ID to onBluetoothAutoSelected so callers can revert on failure', async () => {
+      let deviceChangeHandler: (() => void) | null = null;
+      (navigator.mediaDevices.addEventListener as any).mockImplementation((event: string, handler: () => void) => {
+        if (event === 'devicechange') deviceChangeHandler = handler;
+      });
+      // Start with a wired mic that was auto-selected in a previous session.
+      localStorage.setItem(INPUT_DEVICE_KEY, 'wired-mic');
+      localStorage.setItem(INPUT_AUTO_SELECTED_KEY, '1');
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'wired-mic', label: 'USB Microphone' },
+      ]);
+      const onBluetoothAutoSelected = vi.fn();
+      const { result } = renderHook(() => useAudioInputDevices({ onBluetoothAutoSelected }));
+      await act(async () => {});
+      // No BT device yet; wired-mic remains selected.
+      expect(result.current.selectedInputDeviceId).toBe('wired-mic');
+
+      // Bluetooth mic appears mid-session.
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'wired-mic', label: 'USB Microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'AirPods Pro Microphone' },
+      ]);
+      await act(async () => { deviceChangeHandler?.(); });
+
+      // The callback receives both IDs so the handler can roll back on failure.
+      expect(onBluetoothAutoSelected).toHaveBeenCalledWith('bt-mic', 'wired-mic');
+      expect(result.current.selectedInputDeviceId).toBe('bt-mic');
+    });
+
+    it('reverts selectedInputDeviceId to the previous device when the caller signals a swap failure', async () => {
+      // Simulate the scenario from useRealtimeVoice: a Bluetooth mic connects
+      // mid-session while getUserMedia throws, so the handler must roll back the
+      // persisted selection to the device that was actually in use before the
+      // auto-selection occurred.
+      //
+      // Setup: no BT mic initially; the recording is using the default device
+      // (selectedInputDeviceId = '').  A BT mic then connects, triggering
+      // auto-selection.  The handler simulates swapMicrophoneStream failing and
+      // calls persistInputSelection with the previousDeviceId ('' = default).
+      let deviceChangeHandler: (() => void) | null = null;
+      (navigator.mediaDevices.addEventListener as any).mockImplementation((event: string, handler: () => void) => {
+        if (event === 'devicechange') deviceChangeHandler = handler;
+      });
+
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+      ]);
+
+      // The callback simulates swapMicrophoneStream failing: it receives
+      // previousDeviceId and immediately reverts via persistInputSelection.
+      let capturedPersist: ((id: string, msg: string | null) => void) | null = null;
+      const onBluetoothAutoSelected = vi.fn((newId: string, previousId: string) => {
+        // getUserMedia threw — roll back to the device that is actually open.
+        capturedPersist?.(previousId, null);
+      });
+
+      const { result } = renderHook(() => useAudioInputDevices({ onBluetoothAutoSelected }));
+      capturedPersist = result.current.persistInputSelection;
+      await act(async () => {});
+
+      // No BT device yet; default device in use.
+      expect(result.current.selectedInputDeviceId).toBe('');
+      expect(onBluetoothAutoSelected).not.toHaveBeenCalled();
+
+      // BT mic connects mid-session — auto-selected, then immediately reverted by
+      // the callback simulating a getUserMedia failure.
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'AirPods Pro Microphone' },
+      ]);
+      await act(async () => { deviceChangeHandler?.(); });
+
+      // The callback was invoked with the new and previous device IDs.
+      expect(onBluetoothAutoSelected).toHaveBeenCalledWith('bt-mic', '');
+      // After the simulated swap failure the persisted selection must be back to
+      // the device that is actually in use, not the one that failed.
+      expect(result.current.selectedInputDeviceId).toBe('');
+      expect(localStorage.getItem(INPUT_DEVICE_KEY)).toBeNull();
     });
 
 

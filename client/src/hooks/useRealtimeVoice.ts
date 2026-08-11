@@ -362,11 +362,19 @@ export function useRealtimeVoice({
       // re-acquire the default mic so recording doesn't sit on a dead track.
       if (isRecordingRef.current) swapMicrophoneStreamRef.current?.('');
     },
-    onBluetoothAutoSelected: (deviceId: string) => {
+    onBluetoothAutoSelected: async (deviceId: string, previousDeviceId: string) => {
       // A Bluetooth mic was connected mid-session and auto-selected. If we're
       // live, swap to it immediately so the user hears themselves in the new mic.
-      // swapMicrophoneStream reports the error and keeps the old mic on failure.
-      if (isRecordingRef.current) swapMicrophoneStreamRef.current?.(deviceId);
+      // On failure the persisted selection is reverted to the previously active
+      // device so the next recording attempt targets the mic that is actually open.
+      if (isRecordingRef.current) {
+        const ok = await swapMicrophoneStreamRef.current?.(deviceId);
+        if (ok === false) {
+          // swapMicrophoneStream failed — the audio pipeline kept the old stream.
+          // Roll back the persisted selection so it matches what is actually in use.
+          persistInputSelection(previousDeviceId, null);
+        }
+      }
     },
   });
 

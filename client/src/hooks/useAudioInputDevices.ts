@@ -74,7 +74,9 @@ interface UseAudioInputDevicesOptions {
   // Fired when a Bluetooth device is automatically selected (e.g. connected
   // mid-session via devicechange) so a live recording can swap to it immediately.
   // Only fires for auto-selection events; explicit user choices go via selectInputDevice.
-  onBluetoothAutoSelected?: (deviceId: string) => void;
+  // `previousDeviceId` is the device ID that was active before the auto-selection so
+  // the caller can revert the persisted selection if the swap fails.
+  onBluetoothAutoSelected?: (newDeviceId: string, previousDeviceId: string) => void;
 }
 
 export interface UseAudioInputDevicesReturn {
@@ -180,6 +182,9 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
       if (!userChoseInputRef.current && (!hasPersistedChoice || inputAutoSelectedRef.current)) {
         const btDevice = normalized.find(d => d.kind === 'bluetooth');
         if (btDevice && btDevice.deviceId !== selectedInputDeviceIdRef.current) {
+          // Capture the previous device ID before updating so the caller can
+          // revert the persisted selection if the mic swap fails.
+          const previousDeviceId = selectedInputDeviceIdRef.current;
           selectedInputDeviceIdRef.current = btDevice.deviceId;
           setSelectedInputDeviceId(btDevice.deviceId);
           inputAutoSelectedRef.current = true;
@@ -192,7 +197,8 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
           setInputMessage(`블루투스 기기(${btDevice.label})가 감지되어 자동으로 선택되었습니다.`);
           console.log(`🎙️ Auto-selected Bluetooth input: ${btDevice.label}`);
           // Notify the parent so a live recording can swap its mic stream immediately.
-          onBluetoothAutoSelectedRef.current?.(btDevice.deviceId);
+          // previousDeviceId is passed so the caller can revert on swap failure.
+          onBluetoothAutoSelectedRef.current?.(btDevice.deviceId, previousDeviceId);
           return;
         }
       }
