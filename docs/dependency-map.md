@@ -2,7 +2,7 @@
 
 > **Document purpose:** Architecture-audit input for future Platformization, Actor abstraction, Interaction/Trace, and AI Agent Evaluation work. No source files are modified by producing this document.
 >
-> **Audit date:** 2026-08-11  
+> **Audit date:** 2026-08-11 (initial) · **Updated:** 2026-08-11 (added missing voice, simulation, scenario, persona, avatar, auth, and cross-cutting service modules; documented undocumented route files; added §5.3 Cross-Cutting Supporting Services)
 > **Test baseline:** 74 test files passed (75 total; 1 heap-OOM worker crash on `useRealtimeVoiceVadSensitivity.test.ts` — pre-existing environment issue), 1778 tests passed, 15 skipped. Type-check (`npx tsc --noEmit`) reports pre-existing errors across `server/routes/analytics.ts`, `server/routes/conversations.ts`, `server/routes/routerHelpers.ts`, `server/services/aiUsageTracker.ts`, `server/routes/systemAdmin.ts`, `client/src/components/admin/ScenarioManager.tsx`, `client/src/components/report/SimulationReplayPanel.tsx`, `client/src/hooks/chat/useChatSession.ts`, `client/src/pages/home.tsx`, `client/src/pages/system-admin.tsx`, and `server/routes.ts`. All failures are pre-existing; this task made no source-code changes.
 
 ---
@@ -13,7 +13,7 @@
 2. [Architecture Legend](#2-architecture-legend)
 3. [System Context](#3-system-context)
 4. [Domain Map](#4-domain-map)
-5. [Supporting / Cross-Cutting Systems](#5-supporting--cross-cutting-systems)
+5. [Supporting / Cross-Cutting Systems](#5-supporting--cross-cutting-systems) (5.1 Storage, 5.2 AI/Model Providers, 5.3 Cross-Cutting Supporting Services, 5.4 Media)
 6. [Actor Abstraction Candidates](#6-actor-abstraction-candidates)
 7. [Runtime Data Flows](#7-runtime-data-flows)
 8. [Cross-Domain Dependency Matrix](#8-cross-domain-dependency-matrix)
@@ -154,6 +154,8 @@ Key methods: `getUserPersonas`, `getUserPersona`, `createUserPersona`, `updateUs
 - `server/utils/globalMBTICache.ts` — `GlobalMBTICache` singleton; preloads all MBTI JSON files into process memory; used by `mbtiLoader` to avoid repeated disk reads.
 - `server/storage/scenarios.ts` — `ScenariosMixin.getAllMbtiPersonas`, `getMbtiPersona`, `createMbtiPersona`, `updateMbtiPersona`, `deleteMbtiPersona`; MBTI persona CRUD lives in the Scenario storage mixin (historical coupling).
 - `server/services/fileManager.ts` — `FileManagerService`; wraps scenario/persona CRUD; resolves MBTI base images; provides path-safe file access.
+- `server/services/personaSceneGenerator.ts` — `generatePersonaScene`, `generateSceneOpeningLine`; uses Gemini (`@google/genai`) to generate and validate scene opening lines from a user idea and persona description; imports `GoogleGenAI` and `zod`.
+- `server/routes/userPersonaImage.ts` — standalone router (not factory-pattern); `POST /api/user-personas/:id/generate-expression/:emotion`; calls Gemini image generation API (`@google/genai`) to produce expression images for user-created personas; writes results via `mediaStorage`.
 
 **Routes / endpoints**
 
@@ -164,7 +166,9 @@ Key methods: `getUserPersonas`, `getUserPersona`, `createUserPersona`, `updateUs
 | PUT | `/api/admin/personas/:id` | JWT + admin | Admin |
 | POST | `/api/admin/personas/:id/generate-clip` | JWT + admin | Admin |
 | GET/POST/PUT/DELETE | `/api/user-personas/*` | JWT | Internal |
-| GET | `/api/persona-scenes/*` | JWT | Internal |
+| GET/POST/PUT/DELETE | `/api/persona-scenes/*` | JWT | Internal |
+| POST | `/api/persona-scenes/generate` | JWT | Internal |
+| POST | `/api/user-personas/:id/generate-expression/:emotion` | JWT | Internal |
 | GET/POST | `/api/v1/agent/personas` | API Key | External/Agent |
 
 **Client entry points**
@@ -207,6 +211,9 @@ Key methods: `getAllScenarios`, `getScenario`, `createScenario`, `updateScenario
 - `server/services/simulation/harnessReader.ts` — `readScenarioHarness`, `applyHarnessToSession`, `initSessionHarness`; reads scenario's `EvaluationHarness`, `FlowGraph`, `TerminationRules`, `NpcBehaviorHarness` at session start
 - `server/services/simulation/simulationPrompt.ts` — builds the simulation state block injected into AI prompts using scenario context
 - `server/services/voice/systemPromptBuilder.ts` — builds multi-persona / single-persona system instructions using scenario data
+- `server/services/aiScenarioGenerator.ts` — `generateScenarioWithAI`, `fillScenarioFieldsWithAI`, `generateEvaluationHarnessWithAI`, `generatePlayerConstraintsWithAI`, `generateNpcBehaviorHarnessWithAI`, `enhanceScenarioWithAI`; uses Gemini (`@google/genai` via `getModelForFeature`) to generate and enrich full scenario templates from admin prompts; admin-facing only.
+- `server/services/scenarios/overrideResolver.ts` — `applyScenarioOverride`, `applyEvalWeightsOverride`, `buildOverridePromptBlock`; applies operator-defined scenario overrides (terminology substitutions, forbidden phrases, evaluation weight adjustments) and injects them as prompt blocks. Imports `ScenarioOverrideData` from `@shared/schema`.
+- `server/services/scenarios/scenarioValidator.ts` — server-facing re-export barrel for shared scenario validation; re-exports `validateScenario` and validation types from `shared/scenarioValidator`; provides a stable import path for server-side consumers.
 
 **Routes / endpoints**
 
@@ -422,10 +429,16 @@ Key methods (in conversations mixin): `getFeedback`, `getFeedbackByPersonaRun`, 
 - `server/services/voice/openaiRealtimeAdapter.ts` — handles OpenAI Realtime WebSocket events; same responsibilities.
 - `server/services/voice/sessionManager.ts` — session lifecycle helpers; cleanup scheduler; usage tracking; status reporting.
 
-Sub-modules discovered in `replit.md` but not in the original task file list:
-- `server/services/voice/geminiReconnector.ts` — exponential-backoff reconnection for Gemini Live.
-- `server/services/voice/openaiReconnector.ts` — reconnection for OpenAI Realtime.
-- `server/services/voice/clientMessageHandler.ts` — handles all incoming client WebSocket messages.
+- `server/services/voice/geminiReconnector.ts` — exponential-backoff reconnection for Gemini Live; manages retry delays and session re-establishment.
+- `server/services/voice/openaiReconnector.ts` — reconnection for OpenAI Realtime; mirrors `geminiReconnector.ts` for the OpenAI provider path.
+- `server/services/voice/clientMessageHandler.ts` — handles all incoming client WebSocket messages (audio chunks, VAD events, control signals); dispatches to provider handlers.
+- `server/services/voice/textFilter.ts` — `stripSimulationToolCallText`, `filterThinkingText`, `isStageDirectionText`, `isThinkingText`, `isAINarrativeLine`, `computeReasoningScore`; strips hallucinated simulation tool-call text, stage directions, AI narrative lines, and reasoning/thinking blocks from voice transcripts before they reach the client or are persisted. No external imports.
+
+Sub-directory `server/services/voice/prompts/` — locale-keyed prompt content extracted from `systemPromptBuilder.ts`:
+
+- `server/services/voice/prompts/languageInstructions.ts` — `LANGUAGE_INSTRUCTIONS` record keyed by `LangCode` (`'ko' | 'en' | 'ja' | 'zh'`); per-language prohibition, requirement, and greeting instruction strings used in system prompts. Also exports `USER_PERSONA_LANG_PROHIBITION`.
+- `server/services/voice/prompts/sectionText.ts` — `SECTION_TEXT` record keyed by `LangCode`; locale-specific label strings for all system-prompt sections (identity, user info, scenario background, etc.). Imports `LangCode` from `languageInstructions.ts`.
+- `server/services/voice/prompts/userPersonaPrompt.ts` — `buildUserPersonaInstructions(userPersonaData, userName, userLanguage)`; builds the user-persona instruction block for user-created persona voice sessions. Imports `USER_PERSONA_LANG_PROHIBITION` from `languageInstructions.ts`.
 
 **Routes / endpoints**
 
@@ -467,6 +480,8 @@ Sub-modules discovered in `replit.md` but not in the original task file list:
 
 - `server/services/mediaStorage.ts` — `MediaStorageService`; serves/stores persona images and video clips; resolves storage backend (GCS, Replit Object Storage, dual, none).
 - `server/services/gcsStorage.ts` — GCS-specific operations; `streamGCSObject`, `transformToSignedUrl`, `listGCSFiles`, etc.
+- `server/services/gemini-video-generator.ts` — `generateAvatarVideoClip`, `generateVideoFromImage`; calls Gemini Veo via `@google/genai` (`getModelForFeature('video')`) to generate MP4 avatar clips from reference images; normalizes letterbox aspect ratios via `sharp` and `ffmpeg`; tracks video usage via `aiUsageTracker`; saves output via `mediaStorage`. Provider leakage: imports `GoogleGenAI` directly (not through `AIServiceFactory` adapter).
+- `server/services/videoAvatarAccess.ts` — `isVideoAvatarManagementAllowed`, `requireVideoAvatarManagementAccess`, `hasVideoAvatarConfiguration`, `parseBooleanSetting`; enforces feature-flag and role-based access control for video-avatar management endpoints; reads `VIDEO_AVATAR_ACCESS_SETTING` from `system_settings` via storage.
 
 **Routes / endpoints**
 
@@ -524,6 +539,7 @@ Key methods: `getUser`, `getUserByEmail`, `createUser`, `updateUser`, `upsertUse
 - `server/middleware/authMiddleware.ts` — `requireAuth`, `requireAdmin`, `requireOperator` middleware functions
 - `server/middleware/agentApiKeyMiddleware.ts` — `agentApiKeyAuth` middleware; verifies Bearer token, hashes against `agent_api_keys`, checks scopes/IP/expiry; enriches `req.agentKey`
 - `server/utils/agentApiKey.ts` — `generateAgentApiKey`, `hashApiKey`, `verifyApiKeyHash`, `extractKeyPrefix`, `computeExpiryDate`; uses HMAC-SHA256 with `AGENT_API_KEY_PEPPER` secret; key format `rpb_<env>_<8hex>_<32hex>`
+- `server/services/anonymizationScheduler.ts` — periodic background job; reads `privacy.data_retention_days` from `system_settings`; calls `storage.getAnonymizationCandidates` and `storage.anonymizeUser`; writes `audit_logs` entries via `db` directly; runs on a configurable interval and emits warnings before anonymization.
 
 **Routes / endpoints**
 
@@ -574,6 +590,13 @@ Key methods: `getUser`, `getUserByEmail`, `createUser`, `updateUser`, `upsertUse
 - `server/services/simulation/simulationRules.ts` — `inferEmotionPatch`; maps evaluation result to affective delta; applies `NpcBehaviorHarness` trust/escalation triggers.
 - `server/services/simulation/simulationPrompt.ts` — `buildSimulationStateBlock`; serializes `SimulationState` into a structured text block for injection into AI prompts.
 - `server/services/simulation/simulationToolHandler.ts` — handles AI tool calls during voice sessions (`npcAffectiveStateDelta`, `triggerIncident`, `updateScenarioState`); applies patches and logs events.
+- `server/services/simulation/simulationHarness.ts` — `normalizeSimulationHarness`, `resolveHarness`, `resolveCooldownsForType`, `ALL_INCIDENT_TYPES`, `DEFAULT_SIMULATION_HARNESS`; normalizes legacy harness field names (e.g. `emotionModel` → affective-layer names), provides defaults, and resolves per-incident-type cooldowns. Imports `SimulationHarness` from `@shared/schema/scenarios`.
+- `server/services/simulation/simulationTools.ts` — `SIMULATION_TOOLS`, `SWITCH_PERSONA_TOOL`, `getSimulationToolsConfig`, `getSimulationToolsWithPersonaSwitch`; defines Gemini/OpenAI function-tool declarations for AI-driven simulation state mutations (NPC affective deltas, incidents, persona switches). No external imports — pure tool schema definitions.
+- `server/services/simulation/validateGeminiTools.ts` — `validateGeminiToolDeclarations`, `assertValidGeminiTools`, `ValidationError`; recursively validates Gemini function declaration schemas against supported types at startup and runtime; throws on unsupported schema shapes. No external imports.
+- `server/services/simulation/incidentTemplates.ts` — `renderIncidentMessage`; stores per-incident-type message templates and renders them with runtime data (stage, pressure, persona context). Imports `IncidentType` from local `simulationTypes`.
+- `server/services/simulation/personaSwitchEvaluator.ts` — `evaluatePersonaSwitchRules`, `PersonaSwitchResult`; evaluates persona-switch rule conditions (operator/condition clauses) against current `SimulationState` and `TurnScore`; returns a switch decision with target persona index. Imports rule types from `@shared/schema/scenarios`.
+- `server/services/simulation/evaluateUserResponse.ts` *(top-level re-export shim)* — backward-compatibility barrel; re-exports `evaluateUserResponse`, `EvaluationInput`, `EvaluationResult` from `./engine/evaluateUserResponse`. Consumers that have not yet updated their import path use this file.
+- `server/services/simulation/engine/index.ts` — public barrel for the simulation engine sub-directory; re-exports stage-transition inference/resolution, incident inference/probability evaluation, and user-response evaluation with its input/result types from the three engine sub-modules.
 - `server/services/simulation/engine/evaluateUserResponse.ts` — per-turn LLM evaluation (see §4.4).
 - `server/services/simulation/engine/inferStageTransition.ts` — `inferStageTransition`, `resolveStageTransition`; rule-based + `FlowGraph`-based stage transitions.
 - `server/services/simulation/engine/triggerIncident.ts` — `inferIncidentCandidate`, `evaluateIncidentProbability`; constructs incident candidates from pressure/stage/difficulty.
@@ -614,11 +637,24 @@ The API Boundary is the HTTP/WebSocket surface that mediates between external cl
 
 | Category | Auth mechanism | Examples |
 |---|---|---|
-| Internal | JWT session cookie | `/api/conversations/*`, `/api/scenario-runs/*`, `/api/evaluation-criteria/*` |
-| Admin | JWT + `role=admin` or `role=operator` | `/api/admin/scenarios/*`, `/api/admin/agent-keys/*` |
+| Internal | JWT session cookie | `/api/conversations/*`, `/api/scenario-runs/*`, `/api/evaluation-criteria/*`, `/api/bookmarks/*`, `/api/subscriptions/*` |
+| Admin | JWT + `role=admin` or `role=operator` | `/api/admin/scenarios/*`, `/api/admin/agent-keys/*`, `/api/admin/languages/*`, `/api/admin/packs/*` |
 | Realtime | JWT token in query param → WebSocket | `/api/realtime-voice` |
 | Agent (External) | Bearer API key (HMAC-SHA256) | `/api/v1/agent/*` |
-| Public | None | `/api/media/objects` (signed key in param) |
+| Public | None | `/api/media/objects` (signed key in param), `/api/languages` (public language list) |
+
+**Additional route files not covered in domain sections above:**
+
+| Route file | Mount prefix | Auth | Notes |
+|---|---|---|---|
+| `server/routes/bookmarks.ts` | `/api/bookmarks` | JWT | User bookmark CRUD (GET/POST/DELETE) against `user_bookmarks` table via storage |
+| `server/routes/freeChat.ts` | `/` (root; router defines full paths `/api/free-chat/*`) | JWT + admin role check inside handler | Admin-only free-chat mode; starts an unstructured conversation with an MBTI persona without a scenario; persona must have `freeChatAvailable=true` |
+| `server/routes/hrAnalytics.ts` | `/` (root; router defines full paths `/api/analytics/hr/*`) | JWT + operator/admin role gate | HR analytics endpoints (team competency, member feedbacks, skill gap, growth trend, at-risk, benchmark targets, CSV/JSON export); reads `hrBenchmarkTargets` directly via `db`; plan-gated behind `hr_analytics` feature flag |
+| `server/routes/imageGeneration.ts` | `/api/image` | ⚠️ **UNAUTHENTICATED — no middleware at all** | Generates and saves scenario images, persona base images, persona expressions, and single expressions via Gemini image model; persists results via `mediaStorage`. All six mutation endpoints (`POST /api/image/generate-scenario-image`, `/generate-preview`, `/generate-persona-base`, `/generate-persona-expressions`, `/generate-persona-single-expression`, `/optimize-existing-images`) are reachable without a session token. This is a **serious unauthenticated mutation surface** — any caller can trigger AI image generation and overwrite stored media assets. Authentication must be added at the router level. Imports `GoogleGenAI` directly (provider leakage). |
+| `server/routes/translations.ts` | `/` (root; router defines full paths `/api/languages`, `/api/scenarios/:id/translations/*`, etc.) | Public (GET) + JWT + operator (PUT/POST/DELETE) | Scenario and persona i18n: locale listing, translation CRUD, AI-powered `generate-translation` and `auto-translate`; uses `getAIServiceForFeature` for AI translation |
+| `server/routes/store.ts` | `/api/store` | Public (optAuth for catalog) + JWT + system admin (admin ops) | Pack catalog and entitlements: `GET /api/store/packs` (public), `POST /api/store/packs/:id/checkout` (Stripe), `GET /api/store/my-library`, admin pack/entitlement CRUD, revenue summary; uses `stripeClient` |
+| `server/routes/subscriptions.ts` | `/api/subscriptions` | JWT | User and org subscription management: plan listing, current subscription, system-admin plan assignment; reads `plans` and `subscriptions` via storage |
+| `server/routes/userPersonaImage.ts` | `/api/user-personas` | JWT | Three endpoints on user-created personas: `POST /api/user-personas/:id/generate-image` (full avatar), `POST /:id/generate-expressions` (all expressions batch), `POST /:id/generate-expression/:emotion` (single expression); all use `isAuthenticated`; calls Gemini image model directly (provider leakage) |
 
 **Key coupling observations**
 
@@ -662,13 +698,18 @@ MemStorage provides in-memory stubs for all domains
   (enabled when USE_MEM_STORAGE=true)
 ```
 
-**Key constraint:** `IStorage` provides **logical isolation** (each domain's methods are namespaced), not **runtime isolation** (all domains share a single PostgreSQL connection pool via `server/storage/db.ts`). A single `db` export from `server/storage/db.ts` is imported directly by `realtimeVoiceService.ts` and `server/routes/agentApi.ts`, bypassing `IStorage`.
+**Key constraint:** `IStorage` provides **logical isolation** (each domain's methods are namespaced), not **runtime isolation** (all domains share a single PostgreSQL connection pool via `server/storage/db.ts`). A single `db` export from `server/storage/db.ts` is imported directly by `realtimeVoiceService.ts`, `server/routes/agentApi.ts`, `server/services/feedbackGenerationTracker.ts`, `server/services/anonymizationScheduler.ts`, and `server/routes/hrAnalytics.ts`, bypassing `IStorage`.
 
 **Schema:** `server/storage/db.ts` — exports `db` (Drizzle client), `pool` (node-postgres pool), `checkDatabaseConnection`.
 
 ### 5.2 AI / Model Providers
 
 **Responsibility:** Abstracts LLM and multimodal AI calls behind `AIServiceInterface`. Three provider adapters exist, selected at runtime by `AIServiceFactory` based on `system_settings`.
+
+**Interface definition** (`server/services/aiService.ts`):
+- Defines the shared `AIServiceInterface` contract implemented by all three provider adapters.
+- Exports `AIServiceConfig`, `ScenarioPersona`, `RoleplayScenario`, `EvaluationCriteriaWithDimensions`, `StrategyContext`, `StrategyReflectionEvaluation`, `StrategyEvaluationInput`, `SupportedLanguage`, `LANGUAGE_INSTRUCTIONS`, and `emotionEmojis`.
+- Imports schema types from `@shared/schema`; no SDK dependencies.
 
 **Provider adapters** (inside `server/services/providers/`):
 
@@ -705,7 +746,19 @@ The Gemini Live leakage remains a current architectural risk, but its future abs
 should be evaluated independently because realtime voice involves stateful streaming,
 session lifecycle, audio transport, tool calls, interruptions, and reconnect behavior.
 
-### 5.3 Media
+
+### 5.3 Cross-Cutting Supporting Services
+
+These services do not belong to a single core domain — they are shared utilities consumed across multiple domains and route layers.
+
+| Service | Responsibility | Key exports | Consumers |
+|---|---|---|---|
+| `server/services/conversationContextBuilder.ts` | Centralizes roleplay context construction: normalizes profile names, prepares conversation history, detects role hierarchy, builds speech/difficulty/MBTI guidance blocks, parses join-mode speaker segments. | `normalizeProfileName`, `prepareConversationHistory`, `buildHierarchySpeechGuide`, `buildDifficultyGuidelines`, `buildMBTIContextGuides`, `parseJoinModeSpeakerSegments` | Provider adapters (`OptimizedGeminiProvider`, `OpenAIProvider`), voice `systemPromptBuilder.ts` |
+| `server/services/conversationDifficultyPolicy.ts` | Provides difficulty-level policy for text and realtime voice modes: guidelines, soft-closing instructions, validation, defaults, async lookup, and cache invalidation. | `getDifficultyGuidelines`, `getDifficultyGuidelinesAsync`, `getRealtimeVoiceGuidelines`, `getTextModeGuidelines`, `getSoftClosingInstruction`, `validateDifficultyLevel`, `invalidateDifficultyCache` | Provider adapters, voice system prompt builder, scenario routes |
+| `server/services/feedbackGenerationTracker.ts` | Tracks in-flight feedback generation status in process memory and persists status to `persona_runs`; provides DB fallback for stale/process-independent checks. Imports `db` directly (bypasses `IStorage`). | `markGenerating`, `isGenerating`, `unmarkGenerating`, `markGenerationError`, `getGenerationError`, `isGeneratingWithDbFallback` | Feedback routes, agent API route |
+| `server/services/webhookDelivery.ts` | Dispatches agent lifecycle webhooks: encrypts/decrypts secrets (AES-256-GCM), signs requests (HMAC-SHA256), persists `agent_webhook_deliveries` rows, retries with exponential backoff, supports manual retry and test delivery. | `dispatchWebhook`, `manualRetryDelivery`, `fireTestWebhook`, `encryptWebhookSecret`, `decryptWebhookSecret`, `WebhookEventType`, `WebhookEventData` | `server/routes/agentApi.ts` (fires on session end); `server/routes/adminAgentKeys.ts` (manual retry/test) |
+
+### 5.4 Media
 
 **Responsibility:** Stores and serves binary media assets — persona images, video avatar clips, scenario intro videos, and user uploads. Two backends are supported, selectable via environment variables.
 
@@ -731,7 +784,6 @@ session lifecycle, audio transport, tool calls, interruptions, and reconnect beh
 - The `mbti_personas.videos.clips` JSONB stores raw storage keys (GCS object paths), not signed URLs. The admin route for avatar clip generation auto-saves the raw key returned by the video generator. The client-side `VideoAvatarRenderer` calls `toMediaUrl` at render time to obtain the serving URL.
 
 ---
-
 ## 6. Actor Abstraction Candidates
 
 The platform currently models exactly two participant roles in a conversation: a **User** (human learner) and a **Persona** (AI-driven NPC). The simulation and agent API introduce a third role (external AI agent), and the roadmap implies a fourth (Robot / Simulator). None of these are typed as first-class Actors in the current codebase.
@@ -760,7 +812,6 @@ The platform currently models exactly two participant roles in a conversation: a
 | `server/services/voice/systemPromptBuilder.ts` | Role distinction: "user/player" vs "NPC/persona" in prompt sections | System prompt assumes binary human vs. NPC structure |
 
 ---
-
 ## 7. Runtime Data Flows
 
 ### 7.1 Roleplay (Text Mode)
@@ -947,7 +998,6 @@ Persistence:
 > The nine **core domains** and the **cross-cutting / boundary systems** are presented in separate matrices below. API Boundary, Storage, AI/Model Providers, and Media are cross-cutting systems that serve all core domains; they are not core domains themselves (see §1 Purpose & Scope and §5 Supporting / Cross-Cutting Systems).
 
 `→` = direct import / storage call; `→→` = runtime data flow only (no compile-time import)
-
 ### 8a. Core Domain Dependency Matrix
 
 Rows and columns are the nine core domains only: Persona, Scenario, Session, Evaluation, Emotion, Voice, Avatar, Auth, Simulation.
@@ -1007,7 +1057,6 @@ Client → API Boundary → Application/Service → Domain Logic → Storage →
 | Provider Abstraction → Storage | ⚠️ (limited) | ✅ | Medium | `OptimizedGeminiProvider` calls `storage.getActiveFewShotExamplesByDimension` and `OpenAIProvider` calls MBTI persona storage methods — providers depend on storage for context loading; acceptable but increases provider coupling |
 
 ---
-
 ## 10. Snapshot Boundaries
 
 A snapshot is a copy of state captured at a specific point in time for audit, reproducibility, or isolation. The following boundaries have been identified:
@@ -1290,7 +1339,6 @@ Actor registry (notation only — not implemented):
 | `client/src/lib/scenario-system.ts` | `PlayerProfile` assumes human user attributes |
 
 ---
-
 ## 14. Test Coverage Map
 
 ### Overview

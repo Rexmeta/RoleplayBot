@@ -1,17 +1,18 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
-import { VALID_REALTIME_MODEL_VALUES } from "../shared/realtimeModels";
 
 /**
- * The migration allowlist is derived directly from the shared VALID_REALTIME_MODEL_VALUES
- * constant so it stays in sync automatically when models are added or removed in
- * shared/realtimeModels.ts — no manual update of this file is needed.
+ * Exact set of realtime model values that the migration considers valid/already-migrated.
  * Any value NOT in this set will be rewritten to 'gemini-3.1-flash-live-preview'.
- * Consumed by both the migration SQL below and the regression tests in
- * tests/server/realtimeModelValidation.test.ts.
+ * This constant is the single source of truth consumed by both the migration SQL
+ * and the regression tests in tests/server/realtimeModelValidation.test.ts.
  */
-export const REALTIME_MODEL_MIGRATION_ALLOWLIST: ReadonlySet<string> = VALID_REALTIME_MODEL_VALUES;
+export const REALTIME_MODEL_MIGRATION_ALLOWLIST: ReadonlySet<string> = new Set([
+  'gemini-3.1-flash-live-preview',
+  'gpt-4o-realtime-preview',
+  'gpt-4o-mini-realtime-preview',
+]);
 
 const migrationSQL = `
 -- 1. Users 테이블
