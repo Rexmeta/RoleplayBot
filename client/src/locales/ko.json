@@ -310,7 +310,9 @@
     "npcStatusHide": "NPC 패널 숨기기",
     "npcStatusPanel": "NPC 상태",
     "voiceGreetFirstHint": "먼저 인사를 건네보세요!",
-    "voiceGreetFirstHintSub": "마이크에 대고 자유롭게 말씀해 주세요."
+    "voiceGreetFirstHintSub": "마이크에 대고 자유롭게 말씀해 주세요.",
+    "switchToText": "텍스트",
+    "speakPrompt": "말씀해 주세요…"
   },
   "simulation": {
     "emotions": {
@@ -1641,5 +1643,87 @@
         "pricing": "영상 생성 전용 (Veo 접근 권한 필요)"
       }
     }
+  },
+  "audioSettings": {
+    "buttonLabel": "음성 설정",
+    "tooltip": "마이크·스피커·감도 설정",
+    "defaultDevice": "기본 기기",
+    "inputTitle": "마이크 입력",
+    "outputTitle": "스피커 출력",
+    "reasonBluetoothAuto": "블루투스 감지됨 — 자동 선택",
+    "reasonSaved": "저장된 선택",
+    "reasonDefault": "브라우저 기본값 사용 중",
+    "outputOsControlled": "OS 미디어 출력으로 자동 제어됨",
+    "recommended": "권장",
+    "loadDeviceList": "연결된 기기 목록 불러오기",
+    "retryPlayback": "재생 다시 시도"
+  },
+  "vad": {
+    "settingsTitle": "마이크 감도",
+    "autoDesc": "주변 소음을 측정해 자동 조절합니다",
+    "manualDesc": "수동으로 감도를 조절 중입니다",
+    "autoRecommended": "자동(권장)",
+    "sensitivity": {
+      "1": {
+        "label": "매우 낮음",
+        "desc": "아주 큰 소리만 인식 — 소음 많은 환경"
+      },
+      "2": {
+        "label": "낮음",
+        "desc": "큰 목소리에 반응 — 잡음이 많을 때"
+      },
+      "3": {
+        "label": "중간",
+        "desc": "일반 환경에 적합"
+      },
+      "4": {
+        "label": "높음",
+        "desc": "작은 소리도 감지 — 조용한 환경"
+      },
+      "5": {
+        "label": "매우 높음",
+        "desc": "매우 민감 — 배경소음 주의"
+      }
+    }
+  },
+  "audioInput": {
+    "defaultMic": "기본 마이크",
+    "defaultMicWithLabel": "기본 마이크 ({{label}})",
+    "micN": "마이크 {{n}}",
+    "prefixBluetooth": "블루투스 · ",
+    "prefixWired": "유선 · ",
+    "prefixBuiltin": "휴대폰 · ",
+    "unsupported": "이 브라우저에서는 마이크를 선택할 수 없습니다.",
+    "permissionNeeded": "연결된 블루투스·유선 마이크를 보려면 기기 목록 불러오기를 눌러 마이크 권한을 허용하세요.",
+    "bluetoothAutoSelected": "블루투스 기기({{label}})가 감지되어 자동으로 선택되었습니다.",
+    "deviceLost": "선택한 마이크가 연결 해제되어 기본 마이크로 전환했습니다.",
+    "enumError": "마이크 목록을 확인하지 못했습니다. 다시 시도하세요.",
+    "listUnsupported": "이 브라우저에서는 마이크 목록을 불러올 수 없습니다.",
+    "permissionDenied": "마이크 권한이 없어 연결된 마이크를 불러오지 못했습니다. 브라우저 권한을 허용한 뒤 다시 시도하세요.",
+    "unsupportedBrowser": "이 브라우저에서는 앱이 마이크를 직접 선택할 수 없습니다. 휴대폰 블루투스 메뉴에서 연결을 변경한 뒤 다시 시도하세요."
+  },
+  "audioOutput": {
+    "defaultDevice": "기본 출력 기기",
+    "defaultDeviceWithLabel": "기본 출력 기기 ({{label}})",
+    "deviceN": "출력 기기 {{n}}",
+    "prefixBluetooth": "블루투스 · ",
+    "prefixSpeaker": "스피커 · ",
+    "prefixWired": "유선 · ",
+    "resumeError": "음성 재생을 다시 시작하지 못했습니다. 재생 재시도를 눌러주세요.",
+    "unsupportedError": "이 브라우저에서는 앱에서 출력 기기를 직접 선택할 수 없습니다. 휴대폰 제어 센터 또는 블루투스 메뉴에서 출력 기기를 변경하세요.",
+    "pendingApply": "다음 음성 재생에 선택한 출력 기기를 적용합니다.",
+    "usingDefault": "기본 출력 기기를 사용합니다.",
+    "playingSelected": "선택한 출력 기기로 재생합니다.",
+    "playingDefault": "기본 출력 기기로 재생합니다.",
+    "changeError": "출력 기기를 변경하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도하세요.",
+    "permissionNeeded": "연결된 스피커·블루투스 기기를 보려면 기기 목록 불러오기를 눌러 마이크 권한을 허용하세요.",
+    "listUnavailable": "이 브라우저는 출력 기기 목록을 앱에 제공하지 않아 직접 선택할 수 없습니다. 블루투스 이어폰을 연결하면 휴대폰이 자동으로 전환하며, Android는 알림창의 미디어 출력, iPhone은 제어 센터에서 출력 기기를 바꿀 수 있습니다.",
+    "deviceLost": "선택한 출력 기기가 연결 해제되어 기본 출력 기기로 전환했습니다.",
+    "bluetoothAutoSelected": "블루투스 기기({{label}})가 감지되어 자동으로 선택되었습니다.",
+    "enumError": "출력 기기 목록을 확인하지 못했습니다. 다시 시도하세요.",
+    "listUnsupported": "이 브라우저에서는 출력 기기 목록을 불러올 수 없습니다.",
+    "permissionDenied": "마이크 권한이 없어 연결된 출력 기기를 불러오지 못했습니다. 브라우저 권한을 허용한 뒤 다시 시도하세요.",
+    "savedDeviceFailed": "저장된 출력 기기를 사용할 수 없어 기본 출력 기기로 전환했습니다.",
+    "unsupportedBrowser": "이 브라우저에서는 앱이 스피커·수화음·블루투스 기기를 직접 선택할 수 없습니다. 휴대폰 제어 센터 또는 블루투스 메뉴에서 출력 기기를 바꾼 뒤 재생을 다시 시도하세요."
   }
 }

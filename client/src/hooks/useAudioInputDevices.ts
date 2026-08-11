@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const INPUT_DEVICE_KEY = 'realtime_voice_input_device_id';
 // Tracks whether the user explicitly picked a device so that auto-selection on
@@ -36,20 +37,29 @@ function classifyInputLabel(label: string): AudioInputKind {
 // Browsers hide microphone labels until audio capture permission is granted, so
 // a connected Bluetooth headset's mic never appears as its own labelled choice
 // until the user grants permission once.
-function describeInputDevice(device: MediaDeviceInfo, index: number): AudioInputDeviceOption {
+function describeInputDevice(
+  device: MediaDeviceInfo,
+  index: number,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): AudioInputDeviceOption {
   const rawLabel = (device.label || '').trim();
   if (device.deviceId === 'default' || device.deviceId === '') {
     return {
       deviceId: device.deviceId,
-      label: rawLabel ? `기본 마이크 (${rawLabel.replace(/^default\s*-\s*/i, '')})` : '기본 마이크',
+      label: rawLabel
+        ? t('audioInput.defaultMicWithLabel', { label: rawLabel.replace(/^default\s*-\s*/i, '') })
+        : t('audioInput.defaultMic'),
       kind: 'default',
     };
   }
   if (!rawLabel) {
-    return { deviceId: device.deviceId, label: `마이크 ${index + 1}`, kind: 'other' };
+    return { deviceId: device.deviceId, label: t('audioInput.micN', { n: index + 1 }), kind: 'other' };
   }
   const kind = classifyInputLabel(rawLabel);
-  const prefix = kind === 'bluetooth' ? '블루투스 · ' : kind === 'wired' ? '유선 · ' : kind === 'builtin' ? '휴대폰 · ' : '';
+  const prefix =
+    kind === 'bluetooth' ? t('audioInput.prefixBluetooth') :
+    kind === 'wired'     ? t('audioInput.prefixWired') :
+    kind === 'builtin'   ? t('audioInput.prefixBuiltin') : '';
   return { deviceId: device.deviceId, label: `${prefix}${rawLabel}`, kind };
 }
 
@@ -98,6 +108,8 @@ export interface UseAudioInputDevicesReturn {
 }
 
 export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): UseAudioInputDevicesReturn {
+  const { t } = useTranslation();
+
   const [inputDevices, setInputDevices] = useState<AudioInputDeviceOption[]>([]);
   const [selectedInputDeviceId, setSelectedInputDeviceId] = useState('');
   const [inputStatus, setInputStatus] = useState<AudioInputStatus>('supported');
@@ -152,16 +164,16 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
       setInputStatus('unsupported');
       setInputDevices([]);
       setInputNeedsPermission(false);
-      setInputMessage('이 브라우저에서는 마이크를 선택할 수 없습니다.');
+      setInputMessage(t('audioInput.unsupported'));
       return;
     }
     try {
       const inputs = (await navigator.mediaDevices.enumerateDevices())
         .filter(device => device.kind === 'audioinput');
-      const described = inputs.map(describeInputDevice);
+      const described = inputs.map((device, index) => describeInputDevice(device, index, t));
       const normalized = described.some(device => device.deviceId === 'default' || device.deviceId === '')
         ? described
-        : [{ deviceId: '', label: '기본 마이크', kind: 'default' as const }, ...described];
+        : [{ deviceId: '', label: t('audioInput.defaultMic'), kind: 'default' as const }, ...described];
       setInputDevices(normalized);
 
       const labelsHidden = inputs.length === 0 || inputs.every(device => !(device.label || '').trim());
@@ -169,7 +181,7 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
         // Permission-gated list: the saved device is not proven gone, keep it.
         setInputNeedsPermission(true);
         setInputStatus('supported');
-        setInputMessage('연결된 블루투스·유선 마이크를 보려면 기기 목록 불러오기를 눌러 마이크 권한을 허용하세요.');
+        setInputMessage(t('audioInput.permissionNeeded'));
         return;
       }
 
@@ -194,7 +206,7 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
             localStorage.setItem(INPUT_AUTO_SELECTED_KEY, '1');
           } catch {}
           setInputStatus('supported');
-          setInputMessage(`블루투스 기기(${btDevice.label})가 감지되어 자동으로 선택되었습니다.`);
+          setInputMessage(t('audioInput.bluetoothAutoSelected', { label: btDevice.label }));
           console.log(`🎙️ Auto-selected Bluetooth input: ${btDevice.label}`);
           // Notify the parent so a live recording can swap its mic stream immediately.
           // previousDeviceId is passed so the caller can revert on swap failure.
@@ -204,31 +216,31 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
       }
 
       if (selectedInputDeviceIdRef.current && !normalized.some(device => device.deviceId === selectedInputDeviceIdRef.current)) {
-        persistInputSelection('', '선택한 마이크가 연결 해제되어 기본 마이크로 전환했습니다.');
+        persistInputSelection('', t('audioInput.deviceLost'));
         onSelectedDeviceLostRef.current?.();
       } else {
         setInputStatus('supported');
       }
     } catch {
-      reportInputError('마이크 목록을 확인하지 못했습니다. 다시 시도하세요.');
+      reportInputError(t('audioInput.enumError'));
     }
-  }, [persistInputSelection, reportInputError]);
+  }, [persistInputSelection, reportInputError, t]);
 
   const requestInputDevicePermission = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      reportInputError('이 브라우저에서는 마이크 목록을 불러올 수 없습니다.');
+      reportInputError(t('audioInput.listUnsupported'));
       return false;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
     } catch {
-      reportInputError('마이크 권한이 없어 연결된 마이크를 불러오지 못했습니다. 브라우저 권한을 허용한 뒤 다시 시도하세요.');
+      reportInputError(t('audioInput.permissionDenied'));
       return false;
     }
     await refreshInputDevices();
     return true;
-  }, [refreshInputDevices, reportInputError]);
+  }, [refreshInputDevices, reportInputError, t]);
 
   useEffect(() => {
     try {

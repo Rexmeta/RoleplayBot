@@ -3,6 +3,37 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAudioInputDevices, buildMicrophoneConstraints } from '../../client/src/hooks/useAudioInputDevices';
 
+// Provide a minimal react-i18next mock that resolves real Korean translations
+// so message assertions remain meaningful across i18n refactors.
+// The factory must be async and self-contained because vitest hoists vi.mock calls
+// before module-scope code runs, so top-level imports cannot be referenced here.
+vi.mock('react-i18next', () => {
+  // require() is synchronous — safe inside a vi.mock factory (no dynamic import hang).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ko = require('../../client/src/locales/ko.json') as Record<string, unknown>;
+
+  function resolveDotKey(obj: Record<string, unknown>, key: string): string {
+    const parts = key.split('.');
+    let val: unknown = obj;
+    for (const p of parts) {
+      if (val && typeof val === 'object') val = (val as Record<string, unknown>)[p];
+      else return key;
+    }
+    return typeof val === 'string' ? val : key;
+  }
+
+  // t must be a stable reference so useCallback([..., t]) deps don't change
+  // every render and cause an infinite re-render loop.
+  const t = (key: string, opts?: Record<string, unknown>) => {
+    const raw = resolveDotKey(ko, key);
+    return raw.replace(/\{\{(\w+)\}\}/g, (_: string, k: string) => String((opts ?? {})[k] ?? `{{${k}}}`));
+  };
+
+  return {
+    useTranslation: () => ({ t }),
+  };
+});
+
 const INPUT_DEVICE_KEY = 'realtime_voice_input_device_id';
 const INPUT_USER_CHOSE_KEY = 'realtime_voice_input_user_chose';
 const INPUT_AUTO_SELECTED_KEY = 'realtime_voice_input_auto_selected';

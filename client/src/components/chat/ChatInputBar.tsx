@@ -257,7 +257,7 @@ export function ChatInputBar({
                   : 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:scale-105'
               }`}
               data-testid="button-realtime-voice-record"
-              title={rv.isRecording ? "음성 입력을 중지하려면 클릭하세요" : "음성 입력을 시작하려면 클릭하세요"}
+              title={rv.isRecording ? t('chat.stopRecording') : t('chat.startRecording')}
             >
               {(rv.showMicPrompt || rv.isRecording) && !rv.isAISpeaking && (
                 <>
@@ -290,11 +290,11 @@ export function ChatInputBar({
               const cur = rv.vadSensitivity ?? 0;
               const vadAuto = cur === 0;
               const VAD_LEVELS = [
-                { value: 1, icon: '🔇', label: t('vad.sensitivity.1', { defaultValue: '매우 낮음' }), desc: t('vad.sensitivity.1.desc', { defaultValue: '아주 큰 소리만 인식 — 소음 많은 환경' }) },
-                { value: 2, icon: '🔈', label: t('vad.sensitivity.2', { defaultValue: '낮음' }),     desc: t('vad.sensitivity.2.desc', { defaultValue: '큰 목소리에 반응 — 잡음이 많을 때' }) },
-                { value: 3, icon: '🔉', label: t('vad.sensitivity.3', { defaultValue: '중간' }),     desc: t('vad.sensitivity.3.desc', { defaultValue: '일반 환경에 적합' }) },
-                { value: 4, icon: '🔊', label: t('vad.sensitivity.4', { defaultValue: '높음' }),     desc: t('vad.sensitivity.4.desc', { defaultValue: '작은 소리도 감지 — 조용한 환경' }) },
-                { value: 5, icon: '🎤', label: t('vad.sensitivity.5', { defaultValue: '매우 높음' }), desc: t('vad.sensitivity.5.desc', { defaultValue: '매우 민감 — 배경소음 주의' }) },
+                { value: 1, icon: '🔇', label: t('vad.sensitivity.1.label'), desc: t('vad.sensitivity.1.desc') },
+                { value: 2, icon: '🔈', label: t('vad.sensitivity.2.label'), desc: t('vad.sensitivity.2.desc') },
+                { value: 3, icon: '🔉', label: t('vad.sensitivity.3.label'), desc: t('vad.sensitivity.3.desc') },
+                { value: 4, icon: '🔊', label: t('vad.sensitivity.4.label'), desc: t('vad.sensitivity.4.desc') },
+                { value: 5, icon: '🎤', label: t('vad.sensitivity.5.label'), desc: t('vad.sensitivity.5.desc') },
               ] as const;
 
               // Sort devices: Bluetooth → wired → built-in/speaker → default → other
@@ -309,7 +309,8 @@ export function ChatInputBar({
                 kind === 'bluetooth' ? 'fa-bluetooth-b' : kind === 'wired' ? 'fa-headphones' : kind === 'speaker' ? 'fa-volume-up' : 'fa-mobile-alt';
 
               // Current-device chip: prefer the mic device (what the user speaks into).
-              const stripPrefix = (label: string) => label.replace(/^(블루투스|유선|휴대폰|스피커)\s*·\s*/, '');
+              // Strip the localised kind prefix (anything up to and including " · ")
+              const stripPrefix = (label: string) => label.replace(/^[^·]+·\s*/, '');
               const currentInput = rv.inputDevices?.find(d => d.deviceId === (rv.selectedInputDeviceId ?? ''));
               const currentOutput = rv.outputDevices?.find(d => d.deviceId === (rv.selectedOutputDeviceId ?? ''));
               const chipDevice = (currentInput && currentInput.kind !== 'default' ? currentInput : undefined)
@@ -320,8 +321,8 @@ export function ChatInputBar({
                 : 'fa-mobile-alt';
               const chipIsBluetooth = chipDevice?.kind === 'bluetooth';
 
-              const sortedInputs = sortDevices(rv.inputDevices?.length ? rv.inputDevices : [{ deviceId: '', label: '기본 마이크', kind: 'default' as const }]);
-              const sortedOutputs = sortDevices(rv.outputDevices?.length ? rv.outputDevices : [{ deviceId: '', label: '기본 출력 기기', kind: 'default' as const }]);
+              const sortedInputs = sortDevices(rv.inputDevices?.length ? rv.inputDevices : [{ deviceId: '', label: t('audioInput.defaultMic'), kind: 'default' as const }]);
+              const sortedOutputs = sortDevices(rv.outputDevices?.length ? rv.outputDevices : [{ deviceId: '', label: t('audioOutput.defaultDevice'), kind: 'default' as const }]);
 
               const inputReason = rv.inputAutoSelected
                 ? t('audioSettings.reasonBluetoothAuto', { defaultValue: '블루투스 감지됨 — 자동 선택' })
@@ -374,8 +375,7 @@ export function ChatInputBar({
                         </p>
                         {rv.inputStatus === 'unsupported' ? (
                           <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                            이 브라우저에서는 앱이 마이크를 직접 선택할 수 없습니다.
-                            휴대폰 블루투스 메뉴에서 연결을 변경한 뒤 다시 시도하세요.
+                            {t('audioInput.unsupportedBrowser')}
                           </p>
                         ) : (
                           <div className="mt-2 flex flex-col gap-1">
@@ -410,7 +410,7 @@ export function ChatInputBar({
                                 data-testid="button-load-input-devices"
                               >
                                 <i className="fas fa-sync-alt mr-2" />
-                                연결된 기기 목록 불러오기
+                                {t('audioSettings.loadDeviceList')}
                               </button>
                             )}
                           </div>
@@ -437,17 +437,14 @@ export function ChatInputBar({
                         </p>
                         {rv.outputStatus === 'unsupported' ? (
                           <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                            이 브라우저에서는 앱이 스피커·수화음·블루투스 기기를 직접 선택할 수 없습니다.
-                            휴대폰 제어 센터 또는 블루투스 메뉴에서 출력 기기를 바꾼 뒤 재생을 다시 시도하세요.
+                            {t('audioOutput.unsupportedBrowser')}
                           </p>
                         ) : rv.outputListUnavailable ? (
                           <p
                             className="mt-1.5 text-[11px] leading-relaxed text-slate-500"
                             data-testid="text-output-list-unavailable"
                           >
-                            이 브라우저는 출력 기기 목록을 앱에 제공하지 않아 여기서 직접 선택할 수 없습니다.
-                            블루투스 이어폰을 연결하면 휴대폰이 자동으로 전환하며,
-                            Android는 알림창의 미디어 출력 버튼, iPhone은 제어 센터에서 출력 기기를 바꿀 수 있습니다.
+                            {t('audioOutput.listUnavailable')}
                           </p>
                         ) : (
                           <div className="mt-2 flex flex-col gap-1">
@@ -483,7 +480,7 @@ export function ChatInputBar({
                                 data-testid="button-load-output-devices"
                               >
                                 <i className="fas fa-sync-alt mr-2" />
-                                연결된 기기 목록 불러오기
+                                {t('audioSettings.loadDeviceList')}
                               </button>
                             )}
                           </div>
@@ -499,7 +496,7 @@ export function ChatInputBar({
                             className="mt-2 text-[11px] font-medium text-purple-700 hover:text-purple-800"
                             data-testid="button-retry-audio-playback"
                           >
-                            <i className="fas fa-redo mr-1" />재생 다시 시도
+                            <i className="fas fa-redo mr-1" />{t('audioSettings.retryPlayback')}
                           </button>
                         )}
                       </div>
@@ -661,7 +658,7 @@ export function ChatInputBar({
       <AutoResizeTextarea
         value={userInput}
         onChange={(e) => onUserInputChange(e.target.value)}
-        placeholder={`메시지를 입력하세요... (최대 200자)`}
+        placeholder={t('chat.messageInputPlaceholder')}
         maxLength={200}
         rows={1}
         style={{ maxHeight: '120px' }}

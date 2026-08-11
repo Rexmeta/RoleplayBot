@@ -289,7 +289,9 @@
     "npcStatusHide": "Hide NPC Panel",
     "npcStatusPanel": "NPC Status",
     "voiceGreetFirstHint": "Say hello first!",
-    "voiceGreetFirstHintSub": "Speak freely into the microphone."
+    "voiceGreetFirstHintSub": "Speak freely into the microphone.",
+    "switchToText": "Text",
+    "speakPrompt": "Please speak…"
   },
   "simulation": {
     "emotions": {
@@ -1610,5 +1612,87 @@
         "pricing": "Video generation only (Veo access required)"
       }
     }
+  },
+  "audioSettings": {
+    "buttonLabel": "Audio Settings",
+    "tooltip": "Mic, speaker & sensitivity",
+    "defaultDevice": "Default device",
+    "inputTitle": "Microphone Input",
+    "outputTitle": "Speaker Output",
+    "reasonBluetoothAuto": "Bluetooth detected — auto-selected",
+    "reasonSaved": "Saved selection",
+    "reasonDefault": "Using browser default",
+    "outputOsControlled": "Controlled automatically by OS media output",
+    "recommended": "Recommended",
+    "loadDeviceList": "Load connected devices",
+    "retryPlayback": "Retry playback"
+  },
+  "vad": {
+    "settingsTitle": "Mic Sensitivity",
+    "autoDesc": "Automatically adjusts based on ambient noise",
+    "manualDesc": "Manually adjusting sensitivity",
+    "autoRecommended": "Auto (recommended)",
+    "sensitivity": {
+      "1": {
+        "label": "Very Low",
+        "desc": "Only very loud sounds — noisy environment"
+      },
+      "2": {
+        "label": "Low",
+        "desc": "Responds to loud voices — when noisy"
+      },
+      "3": {
+        "label": "Medium",
+        "desc": "Suitable for typical environments"
+      },
+      "4": {
+        "label": "High",
+        "desc": "Detects quiet sounds — quiet environment"
+      },
+      "5": {
+        "label": "Very High",
+        "desc": "Very sensitive — watch for background noise"
+      }
+    }
+  },
+  "audioInput": {
+    "defaultMic": "Default Microphone",
+    "defaultMicWithLabel": "Default Mic ({{label}})",
+    "micN": "Microphone {{n}}",
+    "prefixBluetooth": "Bluetooth · ",
+    "prefixWired": "Wired · ",
+    "prefixBuiltin": "Phone · ",
+    "unsupported": "Cannot select microphone in this browser.",
+    "permissionNeeded": "To see connected Bluetooth or wired mics, click Load connected devices to grant microphone permission.",
+    "bluetoothAutoSelected": "Bluetooth device ({{label}}) detected — automatically selected.",
+    "deviceLost": "Selected microphone disconnected — switched to default.",
+    "enumError": "Could not list microphones. Please try again.",
+    "listUnsupported": "Cannot list microphones in this browser.",
+    "permissionDenied": "Microphone permission denied — could not load connected devices. Allow microphone access in browser settings and try again.",
+    "unsupportedBrowser": "This browser does not allow the app to choose the microphone directly. Change the connection in your phone's Bluetooth menu and try again."
+  },
+  "audioOutput": {
+    "defaultDevice": "Default Output",
+    "defaultDeviceWithLabel": "Default Output ({{label}})",
+    "deviceN": "Output Device {{n}}",
+    "prefixBluetooth": "Bluetooth · ",
+    "prefixSpeaker": "Speaker · ",
+    "prefixWired": "Wired · ",
+    "resumeError": "Could not resume audio playback. Please tap Retry.",
+    "unsupportedError": "This browser does not support selecting output devices from the app. Change the output device from your phone's Control Center or Bluetooth menu.",
+    "pendingApply": "Selected output device will apply on next playback.",
+    "usingDefault": "Using default output device.",
+    "playingSelected": "Playing through selected device.",
+    "playingDefault": "Playing through default device.",
+    "changeError": "Could not change output device. Check the connection and try again.",
+    "permissionNeeded": "To see connected speakers or Bluetooth devices, click Load connected devices to grant microphone permission.",
+    "listUnavailable": "This browser does not share the output device list with the app — selection is unavailable here. Connecting Bluetooth earphones will switch automatically; on Android use Media Output in the notification shade, on iPhone use Control Center.",
+    "deviceLost": "Selected output device disconnected — switched to default.",
+    "bluetoothAutoSelected": "Bluetooth device ({{label}}) detected — automatically selected.",
+    "enumError": "Could not list output devices. Please try again.",
+    "listUnsupported": "Cannot list output devices in this browser.",
+    "permissionDenied": "Microphone permission denied — could not load connected output devices. Allow microphone access in browser settings and try again.",
+    "savedDeviceFailed": "Saved output device unavailable — switched to default.",
+    "unsupportedBrowser": "This browser does not allow the app to select speakers or Bluetooth devices directly. Change the output device from your phone's Control Center or Bluetooth menu, then retry."
   }
 }

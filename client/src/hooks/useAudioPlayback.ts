@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const DEFAULT_GAIN = 1.0;
 const OUTPUT_DEVICE_KEY = 'realtime_voice_output_device_id';
@@ -49,20 +50,29 @@ function classifyOutputLabel(label: string): AudioOutputKind {
 // Browsers only expose real device labels after audio capture permission is granted.
 // Until then enumerateDevices() returns a single unlabeled entry, which is why the
 // picker can look "stuck" on the default device even with earbuds connected.
-function describeOutputDevice(device: MediaDeviceInfo, index: number): AudioOutputDevice {
+function describeOutputDevice(
+  device: MediaDeviceInfo,
+  index: number,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): AudioOutputDevice {
   const rawLabel = (device.label || '').trim();
   if (device.deviceId === 'default' || device.deviceId === '') {
     return {
       deviceId: device.deviceId,
-      label: rawLabel ? `기본 출력 기기 (${rawLabel.replace(/^default\s*-\s*/i, '')})` : '기본 출력 기기',
+      label: rawLabel
+        ? t('audioOutput.defaultDeviceWithLabel', { label: rawLabel.replace(/^default\s*-\s*/i, '') })
+        : t('audioOutput.defaultDevice'),
       kind: 'default',
     };
   }
   if (!rawLabel) {
-    return { deviceId: device.deviceId, label: `출력 기기 ${index + 1}`, kind: 'other' };
+    return { deviceId: device.deviceId, label: t('audioOutput.deviceN', { n: index + 1 }), kind: 'other' };
   }
   const kind = classifyOutputLabel(rawLabel);
-  const prefix = kind === 'bluetooth' ? '블루투스 · ' : kind === 'speaker' ? '스피커 · ' : kind === 'wired' ? '유선 · ' : '';
+  const prefix =
+    kind === 'bluetooth' ? t('audioOutput.prefixBluetooth') :
+    kind === 'speaker'   ? t('audioOutput.prefixSpeaker') :
+    kind === 'wired'     ? t('audioOutput.prefixWired') : '';
   return { deviceId: device.deviceId, label: `${prefix}${rawLabel}`, kind };
 }
 
@@ -111,6 +121,8 @@ export function useAudioPlayback(
   isInterruptedRef: React.MutableRefObject<boolean>,
   agcConfig?: Partial<AgcConfig>
 ): UseAudioPlaybackReturn {
+  const { t } = useTranslation();
+
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [audioAmplitude, setAudioAmplitude] = useState(0);
   const [outputDevices, setOutputDevices] = useState<AudioOutputDevice[]>([]);
@@ -164,15 +176,15 @@ export function useAudioPlayback(
       if ((context as AudioContext).state !== 'running') throw new Error('AudioContext did not resume');
       return true;
     } catch {
-      reportOutputError('음성 재생을 다시 시작하지 못했습니다. 재생 재시도를 눌러주세요.');
+      reportOutputError(t('audioOutput.resumeError'));
       return false;
     }
-  }, [reportOutputError]);
+  }, [reportOutputError, t]);
 
   const selectOutputDevice = useCallback(async (deviceId: string) => {
     if (!supportsOutputSelection()) {
       setOutputStatus('unsupported');
-      setOutputMessage('이 브라우저에서는 앱에서 출력 기기를 직접 선택할 수 없습니다. 휴대폰 제어 센터 또는 블루투스 메뉴에서 출력 기기를 변경하세요.');
+      setOutputMessage(t('audioOutput.unsupportedError'));
       return false;
     }
     const context = playbackContextRef.current as any;
@@ -186,7 +198,7 @@ export function useAudioPlayback(
         localStorage.removeItem(OUTPUT_AUTO_SELECTED_KEY);
       } catch {}
       setOutputStatus('supported');
-      setOutputMessage(deviceId ? '다음 음성 재생에 선택한 출력 기기를 적용합니다.' : '기본 출력 기기를 사용합니다.');
+      setOutputMessage(deviceId ? t('audioOutput.pendingApply') : t('audioOutput.usingDefault'));
       return true;
     }
     setOutputStatus('selecting');
@@ -201,13 +213,13 @@ export function useAudioPlayback(
         localStorage.removeItem(OUTPUT_AUTO_SELECTED_KEY);
       } catch {}
       setOutputStatus('supported');
-      setOutputMessage(deviceId ? '선택한 출력 기기로 재생합니다.' : '기본 출력 기기로 재생합니다.');
+      setOutputMessage(deviceId ? t('audioOutput.playingSelected') : t('audioOutput.playingDefault'));
       return true;
     } catch {
-      reportOutputError('출력 기기를 변경하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도하세요.');
+      reportOutputError(t('audioOutput.changeError'));
       return false;
     }
-  }, [reportOutputError, supportsOutputSelection]);
+  }, [reportOutputError, supportsOutputSelection, t]);
 
   // User-explicit selection: marks userChoseOutput so auto-BT logic won't override.
   const selectOutputDeviceByUser = useCallback(async (deviceId: string) => {
@@ -228,10 +240,10 @@ export function useAudioPlayback(
     try {
       const allDevices = await navigator.mediaDevices.enumerateDevices();
       const outputs = allDevices.filter(device => device.kind === 'audiooutput');
-      const described = outputs.map(describeOutputDevice);
+      const described = outputs.map((device, index) => describeOutputDevice(device, index, t));
       const normalized = described.some(device => device.deviceId === 'default' || device.deviceId === '')
         ? described
-        : [{ deviceId: '', label: '기본 출력 기기', kind: 'default' as const }, ...described];
+        : [{ deviceId: '', label: t('audioOutput.defaultDevice'), kind: 'default' as const }, ...described];
       setOutputDevices(normalized);
 
       // Browsers hide labels and extra outputs until audio capture permission is
@@ -249,19 +261,19 @@ export function useAudioPlayback(
         // The list is permission-gated, not authoritative: a saved device is not
         // proven gone here, so keep the preference instead of dropping it.
         setOutputStatus('supported');
-        setOutputMessage('연결된 스피커·블루투스 기기를 보려면 기기 목록 불러오기를 눌러 마이크 권한을 허용하세요.');
+        setOutputMessage(t('audioOutput.permissionNeeded'));
       } else if (outputsHidden) {
         setOutputNeedsPermission(false);
         setOutputListUnavailable(true);
         setOutputStatus('supported');
-        setOutputMessage('이 브라우저는 출력 기기 목록을 앱에 제공하지 않아 직접 선택할 수 없습니다. 블루투스 이어폰을 연결하면 휴대폰이 자동으로 전환하며, Android는 알림창의 미디어 출력, iPhone은 제어 센터에서 출력 기기를 바꿀 수 있습니다.');
+        setOutputMessage(t('audioOutput.listUnavailable'));
       } else if (selectedOutputDeviceIdRef.current && !normalized.some(device => device.deviceId === selectedOutputDeviceIdRef.current)) {
         setOutputNeedsPermission(false);
         setOutputListUnavailable(false);
         const fellBack = await selectOutputDevice('');
         if (fellBack) {
           setOutputAutoSelected(false);
-          setOutputMessage('선택한 출력 기기가 연결 해제되어 기본 출력 기기로 전환했습니다.');
+          setOutputMessage(t('audioOutput.deviceLost'));
         }
       } else {
         setOutputNeedsPermission(false);
@@ -279,7 +291,7 @@ export function useAudioPlayback(
               outputAutoSelectedRef.current = true;
               setOutputAutoSelected(true);
               try { localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1'); } catch {}
-              setOutputMessage(`블루투스 기기(${btDevice.label})가 감지되어 자동으로 선택되었습니다.`);
+              setOutputMessage(t('audioOutput.bluetoothAutoSelected', { label: btDevice.label }));
               console.log(`🔊 Auto-selected Bluetooth output: ${btDevice.label}`);
               return;
             }
@@ -289,25 +301,25 @@ export function useAudioPlayback(
         setOutputStatus('supported');
       }
     } catch {
-      reportOutputError('출력 기기 목록을 확인하지 못했습니다. 다시 시도하세요.');
+      reportOutputError(t('audioOutput.enumError'));
     }
-  }, [reportOutputError, selectOutputDevice, supportsOutputSelection]);
+  }, [reportOutputError, selectOutputDevice, supportsOutputSelection, t]);
 
   const requestOutputDevicePermission = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      reportOutputError('이 브라우저에서는 출력 기기 목록을 불러올 수 없습니다.');
+      reportOutputError(t('audioOutput.listUnsupported'));
       return false;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
     } catch {
-      reportOutputError('마이크 권한이 없어 연결된 출력 기기를 불러오지 못했습니다. 브라우저 권한을 허용한 뒤 다시 시도하세요.');
+      reportOutputError(t('audioOutput.permissionDenied'));
       return false;
     }
     await refreshOutputDevices();
     return true;
-  }, [refreshOutputDevices, reportOutputError]);
+  }, [refreshOutputDevices, reportOutputError, t]);
 
   const ensureOutputDevice = useCallback(async (context: AudioContext) => {
     if (!selectedOutputDeviceIdRef.current || typeof (context as any).setSinkId !== 'function') return;
@@ -317,9 +329,9 @@ export function useAudioPlayback(
       selectedOutputDeviceIdRef.current = '';
       setSelectedOutputDeviceId('');
       try { localStorage.removeItem(OUTPUT_DEVICE_KEY); } catch {}
-      reportOutputError('저장된 출력 기기를 사용할 수 없어 기본 출력 기기로 전환했습니다.');
+      reportOutputError(t('audioOutput.savedDeviceFailed'));
     }
-  }, [reportOutputError]);
+  }, [reportOutputError, t]);
 
   const initializePlaybackContext = useCallback(async () => {
     if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
