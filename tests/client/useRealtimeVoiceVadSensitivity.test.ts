@@ -21,6 +21,17 @@ vi.mock('../../client/src/hooks/useAudioPlayback', () => ({
     playAudioDelta: vi.fn(),
     startAmplitudeAnalysis: vi.fn(),
     stopAmplitudeAnalysis: vi.fn(),
+    outputDevices: [],
+    selectedOutputDeviceId: '',
+    outputStatus: 'unsupported',
+    outputMessage: null,
+    outputNeedsPermission: false,
+    outputListUnavailable: false,
+    requestOutputDevicePermission: vi.fn(async () => false),
+    selectOutputDevice: vi.fn(),
+    refreshOutputDevices: vi.fn(),
+    initializePlaybackContext: vi.fn(async () => null),
+    resumePlayback: vi.fn(async () => true),
   }),
 }));
 

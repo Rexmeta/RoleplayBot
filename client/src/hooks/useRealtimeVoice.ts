@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAudioPlayback, type AgcConfig } from './useAudioPlayback';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
+import { useAudioInputDevices, buildMicrophoneConstraints, type AudioInputDeviceOption, type AudioInputStatus } from './useAudioInputDevices';
 
 const NOISE_FLOOR_DURATION_MS = 1500;
 const VAD_ENTRY_MULTIPLIER = 3.0;
@@ -127,7 +128,25 @@ interface UseRealtimeVoiceReturn {
   userAudioAmplitude: number;
   vadSensitivity: number;
   isBargeInActive: boolean;
+  outputDevices: { deviceId: string; label: string }[];
+  selectedOutputDeviceId: string;
+  outputStatus: 'supported' | 'unsupported' | 'selecting' | 'error';
+  outputMessage: string | null;
+  outputNeedsPermission: boolean;
+  outputListUnavailable: boolean;
+  inputDevices: AudioInputDeviceOption[];
+  selectedInputDeviceId: string;
+  inputStatus: AudioInputStatus;
+  inputMessage: string | null;
+  inputNeedsPermission: boolean;
   setVadSensitivity: (level: number) => void;
+  selectOutputDevice: (deviceId: string) => Promise<boolean>;
+  refreshOutputDevices: () => Promise<void>;
+  requestOutputDevicePermission: () => Promise<boolean>;
+  selectInputDevice: (deviceId: string) => Promise<boolean>;
+  refreshInputDevices: () => Promise<void>;
+  requestInputDevicePermission: () => Promise<boolean>;
+  retryAudioPlayback: () => Promise<boolean>;
   connect: (previousMessages?: PreviousMessage[]) => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
@@ -211,6 +230,8 @@ export function useRealtimeVoice({
   const captureContextRef = useRef<AudioContext | null>(null);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const swapMicrophoneStreamRef = useRef<((deviceId: string) => Promise<boolean>) | null>(null);
   const rawMicStreamRef = useRef<MediaStream | null>(null);
   const isRecordingRef = useRef<boolean>(false);
   const isInterruptedRef = useRef<boolean>(false);
@@ -292,6 +313,17 @@ export function useRealtimeVoice({
     stopAmplitudeAnalysis,
     analyserNodeRef,
     gainNodeRef,
+    outputDevices,
+    selectedOutputDeviceId,
+    outputStatus,
+    outputMessage,
+    outputNeedsPermission,
+    outputListUnavailable,
+    selectOutputDevice,
+    refreshOutputDevices,
+    requestOutputDevicePermission,
+    initializePlaybackContext,
+    resumePlayback,
   } = useAudioPlayback(isInterruptedRef, agcConfig);
 
   const {
@@ -302,6 +334,25 @@ export function useRealtimeVoice({
     setupVAD,
     updateThresholds,
   } = useVoiceActivityDetection();
+
+  const {
+    inputDevices,
+    selectedInputDeviceId,
+    selectedInputDeviceIdRef,
+    inputStatus,
+    inputMessage,
+    inputNeedsPermission,
+    persistInputSelection,
+    reportInputError,
+    refreshInputDevices,
+    requestInputDevicePermission,
+  } = useAudioInputDevices({
+    onSelectedDeviceLost: () => {
+      // The saved mic disappeared (e.g. Bluetooth turned off). If we're live,
+      // re-acquire the default mic so recording doesn't sit on a dead track.
+      if (isRecordingRef.current) swapMicrophoneStreamRef.current?.('');
+    },
+  });
 
   const recalibrationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecalibrationRef = useRef<number>(0);
@@ -433,13 +484,15 @@ export function useRealtimeVoice({
 
     try {
       if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
-        playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        await initializePlaybackContext();
         console.log('🔊 Pre-created playback AudioContext for first greeting');
       }
 
-      if (playbackContextRef.current.state === 'suspended') {
+      if (playbackContextRef.current?.state === 'suspended') {
         try {
-          await playbackContextRef.current.resume();
+          if (!await resumePlayback()) {
+            throw new Error('AudioContext resume failed');
+          }
           console.log('🔊 AudioContext resumed for first greeting playback');
         } catch (err) {
           console.warn('⚠️ Failed to resume AudioContext:', err);
@@ -579,7 +632,7 @@ export function useRealtimeVoice({
                 }
                 setIsAISpeaking(true);
                 isAISpeakingRef.current = true;
-                playAudioDelta(data.delta);
+                playAudioDelta(data.delta).catch(() => {});
               }
               break;
 
@@ -640,7 +693,7 @@ export function useRealtimeVoice({
                 expectedTurnSeqRef.current = data.turnSeq;
               }
               if (playbackContextRef.current?.state === 'suspended') {
-                playbackContextRef.current.resume().catch(() => {});
+                resumePlayback();
               }
               break;
 
@@ -833,7 +886,7 @@ export function useRealtimeVoice({
       setGreetingFailed(false);
       if (onErrorRef.current) onErrorRef.current(err instanceof Error ? err.message : 'Connection failed');
     }
-  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef]);
+  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef, initializePlaybackContext, resumePlayback]);
 
   useEffect(() => {
     connectRef.current = connect;
@@ -863,8 +916,9 @@ export function useRealtimeVoice({
       if (document.visibilityState !== 'visible') return;
 
       if (playbackContextRef.current?.state === 'suspended' && !isInterruptedRef.current) {
-        playbackContextRef.current.resume().catch(() => {});
+        resumePlayback();
       }
+      refreshOutputDevices();
 
       const wsState = wsRef.current?.readyState;
       const isClosed = wsState === WebSocket.CLOSED || wsState === WebSocket.CLOSING || wsRef.current === null;
@@ -899,7 +953,7 @@ export function useRealtimeVoice({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshOutputDevices, resumePlayback]);
 
   const setVadSensitivity = useCallback((level: number) => {
     const clamped = Math.max(1, Math.min(5, level));
@@ -961,14 +1015,22 @@ export function useRealtimeVoice({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
-        }
-      });
+      let stream: MediaStream;
+      const preferredMicId = selectedInputDeviceIdRef.current;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: buildMicrophoneConstraints(preferredMicId),
+        });
+      } catch (err) {
+        if (!preferredMicId) throw err;
+        // The saved mic is gone or busy — fall back to the default microphone
+        // explicitly and tell the user instead of failing the whole recording.
+        console.warn('🎙️ Saved microphone unavailable, falling back to default:', err);
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: buildMicrophoneConstraints(''),
+        });
+        persistInputSelection('', '선택한 마이크를 사용할 수 없어 기본 마이크로 전환했습니다.');
+      }
 
       micStreamRef.current = stream;
       console.log('🎙️ Created single mic stream for Gemini + VAD');
@@ -996,6 +1058,7 @@ export function useRealtimeVoice({
 
       const audioContext = captureContextRef.current;
       const source = audioContext.createMediaStreamSource(stream);
+      micSourceRef.current = source;
 
       setupVAD({
         audioContext,
@@ -1091,13 +1154,17 @@ export function useRealtimeVoice({
     bargeInTriggeredRef.current = false;
 
     if (playbackContextRef.current && playbackContextRef.current.state === 'suspended') {
-      playbackContextRef.current.resume().catch(() => {});
+      resumePlayback();
     }
 
     setIsRecording(false);
     isRecordingRef.current = false;
 
     setTimeout(() => {
+      if (micSourceRef.current) {
+        try { micSourceRef.current.disconnect(); } catch {}
+        micSourceRef.current = null;
+      }
       if (audioProcessorRef.current) {
         audioProcessorRef.current.disconnect();
         audioProcessorRef.current = null;
@@ -1119,7 +1186,73 @@ export function useRealtimeVoice({
         wsRef.current.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
       }
     }, 100);
-  }, [playbackContextRef, voiceActivityStartRef, bargeInTriggeredRef, vadProcessorRef]);
+  }, [playbackContextRef, voiceActivityStartRef, bargeInTriggeredRef, vadProcessorRef, resumePlayback]);
+
+  // Swap the live microphone stream without tearing down the audio graph: the
+  // ScriptProcessors (Gemini feed + VAD) stay wired, only the MediaStream source
+  // node in front of them is replaced. Used when the user picks another mic
+  // mid-conversation or the selected Bluetooth mic disappears.
+  const swapMicrophoneStream = useCallback(async (deviceId: string): Promise<boolean> => {
+    const audioContext = captureContextRef.current;
+    if (!audioContext || !isRecordingRef.current) return false;
+
+    let newStream: MediaStream;
+    try {
+      newStream = await navigator.mediaDevices.getUserMedia({
+        audio: buildMicrophoneConstraints(deviceId),
+      });
+    } catch (err) {
+      console.warn('🎙️ Microphone swap failed:', err);
+      reportInputError('선택한 마이크로 전환하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도하세요.');
+      return false;
+    }
+
+    const oldStream = micStreamRef.current;
+    const oldSource = micSourceRef.current;
+
+    try {
+      const newSource = audioContext.createMediaStreamSource(newStream);
+      if (oldSource) {
+        try { oldSource.disconnect(); } catch {}
+      }
+      if (audioProcessorRef.current) newSource.connect(audioProcessorRef.current);
+      if (vadProcessorRef.current) newSource.connect(vadProcessorRef.current);
+      micSourceRef.current = newSource;
+      micStreamRef.current = newStream;
+      if (oldStream && oldStream !== newStream) {
+        oldStream.getTracks().forEach(track => track.stop());
+      }
+      // Ambient noise differs per microphone — force a re-measure on next cycle.
+      noiseFloorRef.current = null;
+      recalibrateNoiseFloor();
+      console.log(`🎙️ Microphone swapped live (deviceId=${deviceId || 'default'})`);
+      return true;
+    } catch (err) {
+      console.warn('🎙️ Microphone swap wiring failed:', err);
+      newStream.getTracks().forEach(track => track.stop());
+      reportInputError('마이크 전환 중 오류가 발생했습니다. 다시 시도하세요.');
+      return false;
+    }
+  }, [vadProcessorRef, reportInputError, recalibrateNoiseFloor]);
+
+  useEffect(() => {
+    swapMicrophoneStreamRef.current = swapMicrophoneStream;
+  }, [swapMicrophoneStream]);
+
+  const selectInputDevice = useCallback(async (deviceId: string): Promise<boolean> => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      reportInputError('이 브라우저에서는 마이크를 선택할 수 없습니다.');
+      return false;
+    }
+    if (isRecordingRef.current && captureContextRef.current) {
+      const swapped = await swapMicrophoneStream(deviceId);
+      if (!swapped) return false;
+      persistInputSelection(deviceId, deviceId ? '선택한 마이크로 녹음합니다.' : '기본 마이크로 녹음합니다.');
+      return true;
+    }
+    persistInputSelection(deviceId, deviceId ? '다음 녹음부터 선택한 마이크를 사용합니다.' : '기본 마이크를 사용합니다.');
+    return true;
+  }, [swapMicrophoneStream, persistInputSelection, reportInputError]);
 
   // Internal utility — kept for potential future use (e.g. injecting context into a
   // live voice turn without switching modes). NOT used for user-typed messages: the
@@ -1172,7 +1305,25 @@ export function useRealtimeVoice({
     userAudioAmplitude,
     vadSensitivity,
     isBargeInActive,
+    outputDevices,
+    selectedOutputDeviceId,
+    outputStatus,
+    outputMessage,
+    outputNeedsPermission,
+    outputListUnavailable,
+    inputDevices,
+    selectedInputDeviceId,
+    inputStatus,
+    inputMessage,
+    inputNeedsPermission,
     setVadSensitivity,
+    selectOutputDevice,
+    refreshOutputDevices,
+    requestOutputDevicePermission,
+    selectInputDevice,
+    refreshInputDevices,
+    requestInputDevicePermission,
+    retryAudioPlayback: resumePlayback,
     connect,
     disconnect,
     startRecording,

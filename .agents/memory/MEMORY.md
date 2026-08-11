@@ -5,3 +5,4 @@
 - [Veo clip container & letterbox](veo-clip-container-and-letterbox.md) — Veo는 항상 MP4/H.264 반환 + 종종 검은 여백을 프레임에 구움; 저장 전 ffprobe/cropdetect로 정규화, `.webm`로 위장하면 Chrome이 재생 거부
 - [Veo 오디오 안전 필터](veo-audio-safety.md) — 오디오 지시 없는 프롬프트는 랜덤 오디오→필터 차단→영상 자체가 안 나옴; SDK가 generateAudio를 막으므로 프롬프트 텍스트가 유일한 제어 수단
 - [Veo image-to-video constraints](veo-image-to-video.md) — referenceImages/personGeneration 둘 다 Gemini API 미지원; 사람 얼굴 이미지는 RAI 필터에 자주 차단; silent fallback 금지
+- [Android Chrome 출력 열거 미지원](android-chrome-audio-output.md) — setSinkId는 지원해도 audiooutput 열거는 미제공; 빈 출력 목록 ≠ 권한 미허용, 다른 기기 라벨 존재 여부로 판별

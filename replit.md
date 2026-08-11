@@ -33,7 +33,7 @@ Preferred communication style: Simple, everyday language.
 - **Payments**: Stripe client (`server/stripeClient.ts`) and webhook handlers (`server/webhookHandlers.ts`) for subscription lifecycle events.
 - **Cloud Run Health Checks**: `/_ah/health` (liveness, always 200), `/_ah/ready` (readiness, 503 until app is fully initialized), `/_ah/debug` (diagnostic info, enabled when `DEBUG_ENDPOINT_ENABLED=true` env var is set). Server binds to `0.0.0.0` and registers health endpoints before all route initialization.
 - **Application Health API**: `/api/health` returns memory usage, uptime, and realtime voice session counts.
-- **Voice Audio Settings**: `/api/settings/voice-audio` exposes configurable AGC parameters (target RMS, min/max gain, attack/release coefficients), seeded from `system_settings` on first access.
+- **Voice Audio Settings**: `/api/settings/voice-audio` exposes configurable AGC parameters (target RMS, min/max gain, attack/release coefficients), seeded from `system_settings` on first access. Real-time voice also offers browser-supported output-device selection with persisted preference, safe default fallback, and clear mobile OS-routing guidance when the browser cannot force a route. Microphone (input-device) selection is also available: persisted choice applied via `deviceId: { exact }` (no silent wrong-mic fallback), live mid-conversation swap that keeps the audio graph wired, and automatic default-mic fallback with a user-visible message when the chosen device disappears.
 
 ## Data Storage
 - **ORM**: Drizzle ORM (PostgreSQL dialect). Schema is split into domain modules under `shared/schema/`.
@@ -195,7 +195,7 @@ The real-time voice system supports both Gemini Live API (default) and OpenAI Re
 - `realtimeVoiceService.ts` — Slim orchestrator wiring all voice sub-modules; selects Gemini Live or OpenAI Realtime based on `model_realtime` system setting
 
 ### Client-side (`client/src/hooks/`)
-- `useAudioPlayback.ts` — AudioContext management, PCM16 decoding, scheduling, analyser, amplitude tracking, AGC (Auto Gain Control) processing, stopPlayback, playAudioDelta
+- `useAudioPlayback.ts` — AudioContext management, PCM16 decoding, scheduling, analyser, amplitude tracking, stable AGC (Auto Gain Control), browser-supported output-device enumeration (speaker vs Bluetooth), permission-gated device loading, selection/fallback, stopPlayback, playAudioDelta
 - `useVoiceActivityDetection.ts` — VAD ScriptProcessor setup, RMS-based barge-in detection, userAudioAmplitude state
 - `useRealtimeVoice.ts` — Slim orchestrator using both sub-hooks for WebSocket state, reconnection, and recording
 

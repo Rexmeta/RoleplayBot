@@ -41,6 +41,24 @@ interface ChatInputBarProps {
     targetTurns?: number;
     vadSensitivity?: number;
     onVadSensitivityChange?: (level: number) => void;
+    outputDevices?: { deviceId: string; label: string; kind?: 'default' | 'speaker' | 'bluetooth' | 'wired' | 'other' }[];
+    selectedOutputDeviceId?: string;
+    outputStatus?: 'supported' | 'unsupported' | 'selecting' | 'error';
+    outputMessage?: string | null;
+    outputNeedsPermission?: boolean;
+    outputListUnavailable?: boolean;
+    onOutputDeviceChange?: (deviceId: string) => Promise<boolean>;
+    onRefreshOutputDevices?: () => Promise<void>;
+    onRequestOutputPermission?: () => Promise<boolean>;
+    onRetryAudioPlayback?: () => Promise<boolean>;
+    inputDevices?: { deviceId: string; label: string; kind?: 'default' | 'bluetooth' | 'wired' | 'builtin' | 'other' }[];
+    selectedInputDeviceId?: string;
+    inputStatus?: 'supported' | 'unsupported' | 'error';
+    inputMessage?: string | null;
+    inputNeedsPermission?: boolean;
+    onInputDeviceChange?: (deviceId: string) => Promise<boolean>;
+    onRefreshInputDevices?: () => Promise<void>;
+    onRequestInputPermission?: () => Promise<boolean>;
     isSwitchingMode?: boolean;
   };
   historyCount?: number;
@@ -328,6 +346,167 @@ export function ChatInputBar({
                 </Popover>
               );
             })()}
+
+            {rv.onInputDeviceChange && (
+              <Popover onOpenChange={(open) => { if (open) rv.onRefreshInputDevices?.(); }}>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex items-center gap-1 h-8 px-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors shrink-0 text-[11px] font-medium"
+                    data-testid="button-audio-input-settings"
+                    aria-label="마이크 기기 설정"
+                  >
+                    <i className="fas fa-microphone text-[10px]" />
+                    <span className="hidden sm:inline">마이크</span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="top" align="end" className="w-72 p-3">
+                  <p className="text-xs font-semibold text-slate-700">마이크</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5" data-testid="text-input-popover-hint">
+                    내 목소리를 녹음할 기기를 선택합니다
+                  </p>
+                  {rv.inputStatus === 'unsupported' ? (
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                      이 브라우저에서는 앱이 마이크를 직접 선택할 수 없습니다.
+                      휴대폰 블루투스 메뉴에서 연결을 변경한 뒤 다시 시도하세요.
+                    </p>
+                  ) : (
+                    <div className="mt-2 flex flex-col gap-1">
+                      {(rv.inputDevices?.length ? rv.inputDevices : [{ deviceId: '', label: '기본 마이크', kind: 'default' as const }]).map(device => {
+                        const isSelected = rv.selectedInputDeviceId === device.deviceId;
+                        const deviceIcon = device.kind === 'bluetooth'
+                          ? 'fa-bluetooth-b'
+                          : device.kind === 'wired'
+                            ? 'fa-headphones'
+                            : device.kind === 'builtin'
+                              ? 'fa-mobile-alt'
+                              : 'fa-microphone';
+                        return (
+                          <button
+                            key={device.deviceId || 'default'}
+                            onClick={() => rv.onInputDeviceChange!(device.deviceId)}
+                            data-testid={`button-input-device-${device.deviceId || 'default'}`}
+                            className={`w-full rounded-lg border px-2.5 py-2 text-left text-xs transition-colors ${
+                              isSelected
+                                ? 'border-purple-200 bg-purple-50 text-purple-800'
+                                : 'border-transparent text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <i className={`${device.kind === 'bluetooth' ? 'fab' : 'fas'} ${deviceIcon} ${isSelected ? 'text-purple-500' : 'text-slate-400'} mr-2 w-3.5`} />
+                            {device.label}
+                            {isSelected && <i className="fas fa-check text-purple-500 text-[10px] ml-1.5" />}
+                          </button>
+                        );
+                      })}
+                      {rv.inputNeedsPermission && rv.onRequestInputPermission && (
+                        <button
+                          onClick={() => rv.onRequestInputPermission!()}
+                          className="mt-1 w-full rounded-lg border border-dashed border-purple-200 px-2.5 py-2 text-left text-[11px] font-medium text-purple-700 hover:bg-purple-50"
+                          data-testid="button-load-input-devices"
+                        >
+                          <i className="fas fa-sync-alt mr-2" />
+                          연결된 기기 목록 불러오기
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {rv.inputMessage && (
+                    <p className={`mt-2 text-[11px] leading-relaxed ${rv.inputStatus === 'error' ? 'text-amber-700' : 'text-slate-500'}`}>
+                      {rv.inputMessage}
+                    </p>
+                  )}
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {rv.onOutputDeviceChange && (
+              <Popover onOpenChange={(open) => { if (open) rv.onRefreshOutputDevices?.(); }}>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex items-center gap-1 h-8 px-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors shrink-0 text-[11px] font-medium"
+                    data-testid="button-audio-output-settings"
+                    aria-label="음성 출력 기기 설정"
+                  >
+                    <i className="fas fa-volume-up text-[10px]" />
+                    <span className="hidden sm:inline">출력</span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="top" align="end" className="w-72 p-3">
+                  <p className="text-xs font-semibold text-slate-700">음성 출력</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5" data-testid="text-output-popover-hint">
+                    상대 음성이 재생될 기기를 선택합니다
+                  </p>
+                  {rv.outputStatus === 'unsupported' ? (
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                      이 브라우저에서는 앱이 스피커·수화음·블루투스 기기를 직접 선택할 수 없습니다.
+                      휴대폰 제어 센터 또는 블루투스 메뉴에서 출력 기기를 바꾼 뒤 재생을 다시 시도하세요.
+                    </p>
+                  ) : rv.outputListUnavailable ? (
+                    <p
+                      className="mt-1.5 text-[11px] leading-relaxed text-slate-500"
+                      data-testid="text-output-list-unavailable"
+                    >
+                      이 브라우저는 출력 기기 목록을 앱에 제공하지 않아 여기서 직접 선택할 수 없습니다.
+                      블루투스 이어폰을 연결하면 휴대폰이 자동으로 전환하며,
+                      Android는 알림창의 미디어 출력 버튼, iPhone은 제어 센터에서 출력 기기를 바꿀 수 있습니다.
+                    </p>
+                  ) : (
+                    <div className="mt-2 flex flex-col gap-1">
+                      {(rv.outputDevices?.length ? rv.outputDevices : [{ deviceId: '', label: '기본 출력 기기', kind: 'default' as const }]).map(device => {
+                        const isSelected = rv.selectedOutputDeviceId === device.deviceId;
+                        const deviceIcon = device.kind === 'bluetooth'
+                          ? 'fa-bluetooth-b'
+                          : device.kind === 'wired'
+                            ? 'fa-headphones'
+                            : device.kind === 'speaker'
+                              ? 'fa-volume-up'
+                              : 'fa-mobile-alt';
+                        return (
+                          <button
+                            key={device.deviceId || 'default'}
+                            onClick={() => rv.onOutputDeviceChange!(device.deviceId)}
+                            disabled={rv.outputStatus === 'selecting'}
+                            data-testid={`button-output-device-${device.deviceId || 'default'}`}
+                            className={`w-full rounded-lg border px-2.5 py-2 text-left text-xs transition-colors ${
+                              isSelected
+                                ? 'border-purple-200 bg-purple-50 text-purple-800'
+                                : 'border-transparent text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <i className={`${device.kind === 'bluetooth' ? 'fab' : 'fas'} ${deviceIcon} ${isSelected ? 'text-purple-500' : 'text-slate-400'} mr-2 w-3.5`} />
+                            {device.label}
+                            {isSelected && <i className="fas fa-check text-purple-500 text-[10px] ml-1.5" />}
+                          </button>
+                        );
+                      })}
+                      {rv.outputNeedsPermission && rv.onRequestOutputPermission && (
+                        <button
+                          onClick={() => rv.onRequestOutputPermission!()}
+                          className="mt-1 w-full rounded-lg border border-dashed border-purple-200 px-2.5 py-2 text-left text-[11px] font-medium text-purple-700 hover:bg-purple-50"
+                          data-testid="button-load-output-devices"
+                        >
+                          <i className="fas fa-sync-alt mr-2" />
+                          연결된 기기 목록 불러오기
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {rv.outputMessage && !rv.outputListUnavailable && (
+                    <p className={`mt-2 text-[11px] leading-relaxed ${rv.outputStatus === 'error' ? 'text-amber-700' : 'text-slate-500'}`}>
+                      {rv.outputMessage}
+                    </p>
+                  )}
+                  {(rv.outputStatus === 'error' || rv.outputStatus === 'unsupported') && rv.onRetryAudioPlayback && (
+                    <button
+                      onClick={() => rv.onRetryAudioPlayback!()}
+                      className="mt-2 text-[11px] font-medium text-purple-700 hover:text-purple-800"
+                      data-testid="button-retry-audio-playback"
+                    >
+                      <i className="fas fa-redo mr-1" />재생 다시 시도
+                    </button>
+                  )}
+                </PopoverContent>
+              </Popover>
+            )}
 
             {/* Right-side inline hints + history */}
             <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
