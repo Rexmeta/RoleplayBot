@@ -231,6 +231,57 @@ describe('useAudioInputDevices', () => {
       expect(result.current.inputAutoSelected).toBe(true);
     });
 
+    it('clears inputAutoSelected and localStorage keys when the auto-selected mic disconnects', async () => {
+      // Pre-condition: a Bluetooth mic was auto-selected in a previous session.
+      localStorage.setItem(INPUT_DEVICE_KEY, 'bt-mic');
+      localStorage.setItem(INPUT_AUTO_SELECTED_KEY, '1');
+      // The device is gone from the current enumeration.
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices());
+      await act(async () => {});
+
+      expect(result.current.selectedInputDeviceId).toBe('');
+      expect(result.current.inputAutoSelected).toBe(false);
+      expect(localStorage.getItem(INPUT_DEVICE_KEY)).toBeNull();
+      expect(localStorage.getItem(INPUT_AUTO_SELECTED_KEY)).toBeNull();
+      expect(result.current.inputMessage).toContain('기본 마이크로 전환');
+    });
+
+    it('re-auto-selects after fallback when the Bluetooth mic reconnects (round-trip)', async () => {
+      let deviceChangeHandler: (() => void) | null = null;
+      (navigator.mediaDevices.addEventListener as any).mockImplementation((event: string, handler: () => void) => {
+        if (event === 'devicechange') deviceChangeHandler = handler;
+      });
+
+      // Start: auto-selected bt-mic is the only thing persisted, now gone.
+      localStorage.setItem(INPUT_DEVICE_KEY, 'bt-mic');
+      localStorage.setItem(INPUT_AUTO_SELECTED_KEY, '1');
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices());
+      await act(async () => {});
+
+      // After disconnect: fallen back to default, flags cleared.
+      expect(result.current.selectedInputDeviceId).toBe('');
+      expect(result.current.inputAutoSelected).toBe(false);
+      expect(localStorage.getItem(INPUT_AUTO_SELECTED_KEY)).toBeNull();
+
+      // Reconnect: bt-mic appears again via devicechange.
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'AirPods Pro Microphone' },
+      ]);
+      await act(async () => { deviceChangeHandler?.(); });
+
+      expect(result.current.selectedInputDeviceId).toBe('bt-mic');
+      expect(result.current.inputAutoSelected).toBe(true);
+      expect(localStorage.getItem(INPUT_DEVICE_KEY)).toBe('bt-mic');
+      expect(localStorage.getItem(INPUT_AUTO_SELECTED_KEY)).toBe('1');
+    });
+
     it('persistInputSelectionByUser marks the choice explicit so auto-selection stays off', async () => {
       (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
         { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },

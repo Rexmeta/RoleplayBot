@@ -437,6 +437,58 @@ describe('useAudioPlayback', () => {
         expect(['old-bt', 'new-bt']).toContain(result.current.selectedOutputDeviceId);
       });
 
+      it('clears outputAutoSelected and localStorage keys when the auto-selected output disconnects', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        // Pre-condition: a Bluetooth output was auto-selected in a previous session.
+        localStorage.setItem(OUTPUT_DEVICE_KEY, 'bt-1');
+        localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1');
+        // The device is gone from the current enumeration.
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('');
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY)).toBeNull();
+        expect(result.current.outputMessage).toContain('연결 해제');
+        // setSinkId must have been called with '' to route audio to the default device.
+        expect(mockContext.setSinkId).toHaveBeenCalledWith('');
+      });
+
+      it('re-auto-selects after fallback when the Bluetooth output reconnects (round-trip)', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        // Start: auto-selected bt-1 is persisted but now gone.
+        localStorage.setItem(OUTPUT_DEVICE_KEY, 'bt-1');
+        localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1');
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        // After disconnect: fallen back to default, flags cleared.
+        expect(result.current.selectedOutputDeviceId).toBe('');
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY)).toBeNull();
+
+        // Reconnect: bt-1 appears again.
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'bt-1', label: 'AirPods Pro' },
+        ]);
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('bt-1');
+        expect(result.current.outputAutoSelected).toBe(true);
+        expect(localStorage.getItem(OUTPUT_DEVICE_KEY)).toBe('bt-1');
+        expect(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY)).toBe('1');
+        expect(mockContext.setSinkId).toHaveBeenCalledWith('bt-1');
+      });
+
       it('selectOutputDeviceByUser marks the choice explicit so auto-selection stays off', async () => {
         mockContext.setSinkId = vi.fn(async () => {});
         (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
