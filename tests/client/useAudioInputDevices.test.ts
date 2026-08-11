@@ -282,6 +282,58 @@ describe('useAudioInputDevices', () => {
       expect(localStorage.getItem(INPUT_AUTO_SELECTED_KEY)).toBe('1');
     });
 
+    it('calls onBluetoothAutoSelected when a Bluetooth mic is auto-selected', async () => {
+      const onBluetoothAutoSelected = vi.fn();
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'AirPods Pro Microphone' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices({ onBluetoothAutoSelected }));
+      await act(async () => {});
+      expect(result.current.selectedInputDeviceId).toBe('bt-mic');
+      expect(onBluetoothAutoSelected).toHaveBeenCalledTimes(1);
+      expect(onBluetoothAutoSelected).toHaveBeenCalledWith('bt-mic');
+    });
+
+    it('does not call onBluetoothAutoSelected when the user explicitly chose a device', async () => {
+      localStorage.setItem(INPUT_DEVICE_KEY, 'wired-mic');
+      localStorage.setItem(INPUT_USER_CHOSE_KEY, '1');
+      const onBluetoothAutoSelected = vi.fn();
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'wired-mic', label: 'USB Microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'AirPods Pro Microphone' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices({ onBluetoothAutoSelected }));
+      await act(async () => {});
+      expect(result.current.selectedInputDeviceId).toBe('wired-mic');
+      expect(onBluetoothAutoSelected).not.toHaveBeenCalled();
+    });
+
+    it('calls onBluetoothAutoSelected when a Bluetooth mic connects mid-session via devicechange', async () => {
+      let deviceChangeHandler: (() => void) | null = null;
+      (navigator.mediaDevices.addEventListener as any).mockImplementation((event: string, handler: () => void) => {
+        if (event === 'devicechange') deviceChangeHandler = handler;
+      });
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+      ]);
+      const onBluetoothAutoSelected = vi.fn();
+      const { result } = renderHook(() => useAudioInputDevices({ onBluetoothAutoSelected }));
+      await act(async () => {});
+      expect(onBluetoothAutoSelected).not.toHaveBeenCalled();
+
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'Galaxy Buds3 Headset' },
+      ]);
+      await act(async () => { deviceChangeHandler?.(); });
+      expect(result.current.selectedInputDeviceId).toBe('bt-mic');
+      expect(onBluetoothAutoSelected).toHaveBeenCalledTimes(1);
+      expect(onBluetoothAutoSelected).toHaveBeenCalledWith('bt-mic');
+    });
+
+
     it('persistInputSelectionByUser marks the choice explicit so auto-selection stays off', async () => {
       (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
         { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },

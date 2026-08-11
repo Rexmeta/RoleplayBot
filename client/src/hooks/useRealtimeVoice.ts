@@ -362,6 +362,12 @@ export function useRealtimeVoice({
       // re-acquire the default mic so recording doesn't sit on a dead track.
       if (isRecordingRef.current) swapMicrophoneStreamRef.current?.('');
     },
+    onBluetoothAutoSelected: (deviceId: string) => {
+      // A Bluetooth mic was connected mid-session and auto-selected. If we're
+      // live, swap to it immediately so the user hears themselves in the new mic.
+      // swapMicrophoneStream reports the error and keeps the old mic on failure.
+      if (isRecordingRef.current) swapMicrophoneStreamRef.current?.(deviceId);
+    },
   });
 
   const recalibrationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);

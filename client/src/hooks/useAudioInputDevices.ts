@@ -71,6 +71,10 @@ interface UseAudioInputDevicesOptions {
   // Bluetooth headset was turned off) so a live recording can re-acquire the
   // default microphone instead of staying on a dead track.
   onSelectedDeviceLost?: () => void;
+  // Fired when a Bluetooth device is automatically selected (e.g. connected
+  // mid-session via devicechange) so a live recording can swap to it immediately.
+  // Only fires for auto-selection events; explicit user choices go via selectInputDevice.
+  onBluetoothAutoSelected?: (deviceId: string) => void;
 }
 
 export interface UseAudioInputDevicesReturn {
@@ -106,7 +110,11 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
   // newer Bluetooth device may still replace it.
   const inputAutoSelectedRef = useRef(false);
   const onSelectedDeviceLostRef = useRef(options?.onSelectedDeviceLost);
-  useEffect(() => { onSelectedDeviceLostRef.current = options?.onSelectedDeviceLost; });
+  const onBluetoothAutoSelectedRef = useRef(options?.onBluetoothAutoSelected);
+  useEffect(() => {
+    onSelectedDeviceLostRef.current = options?.onSelectedDeviceLost;
+    onBluetoothAutoSelectedRef.current = options?.onBluetoothAutoSelected;
+  });
 
   const reportInputError = useCallback((message: string) => {
     setInputStatus('error');
@@ -183,6 +191,8 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
           setInputStatus('supported');
           setInputMessage(`블루투스 기기(${btDevice.label})가 감지되어 자동으로 선택되었습니다.`);
           console.log(`🎙️ Auto-selected Bluetooth input: ${btDevice.label}`);
+          // Notify the parent so a live recording can swap its mic stream immediately.
+          onBluetoothAutoSelectedRef.current?.(btDevice.deviceId);
           return;
         }
       }
