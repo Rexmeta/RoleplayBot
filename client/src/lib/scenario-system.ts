@@ -46,7 +46,22 @@ export interface ScenarioPersona {
   voice?: {
     tone: string;
     pace: string;
-    emotion: string;
+    /** @deprecated flat emotion string replaced by NpcAffectiveState at session start */
+    emotion?: string;
+  };
+  /** Video avatar configuration (from MBTI persona, optional) */
+  videos?: {
+    enabled?: boolean;
+    avatarId?: string;
+    /**
+     * Clip URLs — either the new gender-separated shape
+     *   `{ male?: { idle: url, ... }, female?: { idle: url, ... } }`
+     * or the legacy flat shape `{ idle: url, ... }`.
+     */
+    clips?: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    } | Partial<Record<string, string>>;
   };
   // Multi-persona switching fields
   isPrimary?: boolean;
@@ -102,6 +117,8 @@ export interface ComplexScenario {
   minValidTurns?: number;
   flowGraph?: any;
   personaSwitchRules?: any;
+  /** Whether this scenario uses a video avatar instead of a static image */
+  useVideoAvatar?: boolean;
 }
 
 // 사용자 제작 페르소나 자유 대화용 ComplexScenario 확장 타입

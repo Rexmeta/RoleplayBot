@@ -25,6 +25,7 @@ import { PlayerConstraintsBuilder } from './PlayerConstraintsBuilder';
 import { NpcBehaviorHarnessBuilder } from './NpcBehaviorHarnessBuilder';
 import { DifficultyProfileBuilder } from './DifficultyProfileBuilder';
 import { toMediaUrl } from '@/lib/mediaUrl';
+import { useAuth } from '@/hooks/useAuth';
 import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
 import { validateScenario } from '@shared/scenarioValidator';
 import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder, EvaluationHarnessBuilder } from './StateMachineBuilders';
@@ -67,6 +68,8 @@ interface ScenarioFormData {
   imagePrompt?: string; // 이미지 생성 프롬프트 필드 추가
   introVideoUrl?: string; // 인트로 비디오 URL 필드 추가
   introVideoMode?: 'none' | 'default' | 'custom'; // 인트로 비디오 모드
+  introVideoModel?: string; // 생성에 사용된 비디오 모델
+  modelVideoOverride?: string; // 비디오 모델 오버라이드 (전역 설정 우선순위 최상위)
   videoPrompt?: string; // 비디오 생성 프롬프트 필드 추가
   objectiveType?: string; // 목표 유형 추가
   targetDurationMinutes?: number; // 시나리오별 목표 대화 시간(분)
@@ -74,11 +77,12 @@ interface ScenarioFormData {
   minValidTurns?: number; // 최소 유효 턴 수
   isDemo?: boolean; // 게스트 데모용 시나리오 여부
   isPublic?: boolean; // 공개 여부
+  useVideoAvatar?: boolean; // 비디오 아바타 사용 여부
   autoTranslate?: boolean; // AI 자동 번역 여부
   storeListed?: boolean;
   storePriceUsd?: number | null;
   storePackId?: string | null;
-  personaSwitchMode?: 'replace' | 'join'; // 다중 페르소나 전환 방식
+  personaSwitchMode?: 'replace' | 'join' | 'none'; // 다중 페르소나 전환 방식
   context: {
     situation: string;
     timeline: string;
@@ -107,6 +111,12 @@ interface ScenarioFormData {
 interface ScenarioManagerProps {
   onGoToPersonas?: () => void;
 }
+
+const VIDEO_MODELS = [
+  { value: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (720p)' },
+  { value: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (720p)' },
+  { value: 'veo-3.1-generate-preview', label: 'Veo 3.1 (1080p · 오디오 포함)', recommended: true },
+] as const;
 
 const HARNESS_ALL_INCIDENT_TYPES = [
   'executive_join', 'customer_escalation', 'deadline_pressure',
@@ -286,6 +296,7 @@ function ScenarioQualityPanel({
 export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const currentLang = i18n.language;
   const defaultSourceLocale = useDefaultSourceLocale();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -307,7 +318,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [analyticsBenchmarkGroup, setAnalyticsBenchmarkGroup] = useState('');
   // Structured simulation harness state
   const [harnessEnabled, setHarnessEnabled] = useState(false);
-  const [harnessEmotionModel, setHarnessEmotionModel] = useState('anger,trust,confusion,interest');
+  const [harnessAffectiveAxes, setHarnessAffectiveAxes] = useState('affective.intensity,relational.trust,cognitive.confusion,motivational.interest');
   const [harnessMaxCallsPerTurn, setHarnessMaxCallsPerTurn] = useState('2');
   const [harnessMaxDeltaPerCall, setHarnessMaxDeltaPerCall] = useState('30');
   const [harnessAllowedTypes, setHarnessAllowedTypes] = useState<string[]>([...HARNESS_ALL_INCIDENT_TYPES]);
@@ -322,11 +333,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const harnessEffective = useMemo(() => {
     if (!harnessEnabled) return null;
-    const DEF_EMOTIONS = ['anger', 'trust', 'confusion', 'interest'];
+    const DEF_AXES = ['affective.intensity', 'relational.trust', 'cognitive.confusion', 'motivational.interest'];
     const DEF_TYPES = [...HARNESS_ALL_INCIDENT_TYPES] as string[];
     if (harnessShowRaw) {
       if (!harnessRawJson.trim()) {
-        return { valid: true, usingDefaults: true, emotionModel: DEF_EMOTIONS, maxCallsPerTurn: 2, maxDeltaPerCall: 30, allowedTypes: DEF_TYPES, globalCooldownSec: 60, perTypeCooldownSec: 120, stateUpdatesEnabled: true, preferredSignals: {} as Record<string, string>, fieldErrors: {} as Record<string, string> };
+        return { valid: true, usingDefaults: true, affectiveAxes: DEF_AXES, maxCallsPerTurn: 2, maxDeltaPerCall: 30, allowedTypes: DEF_TYPES, globalCooldownSec: 60, perTypeCooldownSec: 120, stateUpdatesEnabled: true, preferredSignals: {} as Record<string, string>, fieldErrors: {} as Record<string, string> };
       }
       let raw: unknown;
       try { raw = JSON.parse(harnessRawJson); } catch { return { valid: false, parseError: 'JSON 구문 오류', fieldErrors: {} as Record<string, string> }; }
@@ -339,9 +350,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       const h = result.data;
       return {
         valid: true, usingDefaults: false,
-        emotionModel: h.emotionModel ?? DEF_EMOTIONS,
-        maxCallsPerTurn: h.toolPolicy?.updateNpcEmotion?.maxCallsPerTurn ?? 2,
-        maxDeltaPerCall: h.toolPolicy?.updateNpcEmotion?.maxDeltaPerCall ?? 30,
+        affectiveAxes: h.affectiveAxes ?? DEF_AXES,
+        maxCallsPerTurn: h.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn ?? 2,
+        maxDeltaPerCall: h.toolPolicy?.npcAffectiveStateDelta?.maxDeltaPerCall ?? 30,
         allowedTypes: h.toolPolicy?.triggerIncident?.allowedTypes ?? DEF_TYPES,
         globalCooldownSec: h.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? 60,
         perTypeCooldownSec: h.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? 120,
@@ -350,12 +361,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         fieldErrors: {} as Record<string, string>,
       };
     } else {
-      const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+      const affectiveAxes = harnessAffectiveAxes.split(',').map(s => s.trim()).filter(Boolean);
       const preferredSignals: Record<string, string> = {};
       harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
       return {
         valid: true, usingDefaults: false,
-        emotionModel: emotionModel.length > 0 ? emotionModel : DEF_EMOTIONS,
+        affectiveAxes: affectiveAxes.length > 0 ? affectiveAxes : DEF_AXES,
         maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2,
         maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30,
         allowedTypes: harnessAllowedTypes,
@@ -366,7 +377,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         fieldErrors: {} as Record<string, string>,
       };
     }
-  }, [harnessEnabled, harnessShowRaw, harnessRawJson, harnessEmotionModel, harnessMaxCallsPerTurn, harnessMaxDeltaPerCall, harnessAllowedTypes, harnessGlobalCooldownSec, harnessPerTypeCooldownSec, harnessStateUpdatesEnabled, harnessPreferredSignals]);
+  }, [harnessEnabled, harnessShowRaw, harnessRawJson, harnessAffectiveAxes, harnessMaxCallsPerTurn, harnessMaxDeltaPerCall, harnessAllowedTypes, harnessGlobalCooldownSec, harnessPerTypeCooldownSec, harnessStateUpdatesEnabled, harnessPreferredSignals]);
 
   const harnessWarnings = useMemo(() => {
     if (!harnessEffective?.valid) return [];
@@ -375,7 +386,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       warnings.push('허용 이벤트 유형이 없습니다 — 인시던트가 전혀 발생하지 않습니다.');
     }
     if (harnessEffective.maxCallsPerTurn === 0) {
-      warnings.push('턴당 최대 감정 호출이 0입니다 — NPC 감정이 업데이트되지 않습니다.');
+      warnings.push('턴당 최대 어펙티브 상태 업데이트 횟수가 0입니다 — NPC 상태가 업데이트되지 않습니다.');
     }
     if (harnessEffective.globalCooldownSec === 0) {
       warnings.push('전역 쿨다운이 0초입니다 — 인시던트가 매 턴 반복될 수 있습니다.');
@@ -399,6 +410,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     Object.values(isGeneratingNpcBehaviorHarness).some(Boolean);
   const [isUploadingDefaultVideo, setIsUploadingDefaultVideo] = useState(false);
   const defaultVideoInputRef = useRef<HTMLInputElement>(null);
+  const videoJobPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -429,6 +441,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     imagePrompt: '', // 이미지 프롬프트 초기값 추가
     introVideoUrl: '', // 인트로 비디오 URL 초기값 추가
     introVideoMode: 'none', // 인트로 비디오 모드 초기값
+    modelVideoOverride: '',
     videoPrompt: '', // 비디오 프롬프트 초기값 추가
     objectiveType: '', // 목표 유형 초기값 추가
     targetDurationMinutes: 7,
@@ -436,6 +449,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     minValidTurns: 4,
     isDemo: false,
     isPublic: false,
+    useVideoAvatar: false,
     autoTranslate: true,
     storeListed: false,
     storePriceUsd: null,
@@ -480,6 +494,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return response.json();
     },
   });
+
+  const { data: videoAvatarAccess } = useQuery<{ operatorEnabled: boolean }>({
+    queryKey: ['/api/settings/video-avatar-access'],
+    staleTime: 1000 * 60,
+  });
+  const canManageVideoAvatar = user?.role === 'admin' || videoAvatarAccess?.operatorEnabled === true;
   
   // 편집용 원본 데이터 조회 (번역 적용 안됨)
   const { data: originalScenarios } = useQuery<ComplexScenario[]>({
@@ -680,10 +700,13 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       imagePrompt: scenario.imagePrompt || '',
       introVideoUrl: scenario.introVideoUrl || '',
       introVideoMode: (scenario as any).introVideoMode || (scenario.introVideoUrl ? 'custom' : 'none'),
+      introVideoModel: (scenario as any).introVideoModel || '',
+      modelVideoOverride: (scenario as any).modelVideoOverride || '',
       videoPrompt: scenario.videoPrompt || '',
       objectiveType: scenario.objectiveType || '',
       isDemo: scenario.isDemo || false,
       isPublic: scenario.isPublic || false,
+      useVideoAvatar: (scenario as any).useVideoAvatar || false,
       storeListed: (scenario as any).storeListed || false,
       storePriceUsd: (scenario as any).storePriceUsd ?? null,
       storePackId: (scenario as any).storePackId ?? null,
@@ -883,12 +906,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       imagePrompt: '', // 이미지 프롬프트 초기화 추가
       introVideoUrl: '', // 인트로 비디오 URL 초기화 추가
       introVideoMode: 'none', // 인트로 비디오 모드 초기화
+      modelVideoOverride: '',
       videoPrompt: '', // 비디오 프롬프트 초기화 추가
       objectiveType: '', // 목표 유형 초기화
       targetDurationMinutes: 7,
       targetTurns: 10,
       minValidTurns: 4,
       isPublic: false,
+      useVideoAvatar: false,
       autoTranslate: true,
       storeListed: false,
       storePriceUsd: null,
@@ -924,7 +949,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     setBuilderKey(k => k + 1);
     setEvaluationHarnessValue(null);
     setHarnessEnabled(false);
-    setHarnessEmotionModel('anger,trust,confusion,interest');
+    setHarnessAffectiveAxes('affective.intensity,relational.trust,cognitive.confusion,motivational.interest');
     setHarnessMaxCallsPerTurn('2');
     setHarnessMaxDeltaPerCall('30');
     setHarnessAllowedTypes([...HARNESS_ALL_INCIDENT_TYPES]);
@@ -963,6 +988,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       imagePrompt: (originalScenario as any).imagePrompt || '', // 기존 시나리오의 이미지 프롬프트 로드
       introVideoUrl: (originalScenario as any).introVideoUrl || '', // 기존 시나리오의 인트로 비디오 URL 로드
       introVideoMode: (originalScenario as any).introVideoMode || ((originalScenario as any).introVideoUrl ? 'custom' : 'none'),
+      introVideoModel: (originalScenario as any).introVideoModel || '',
+      modelVideoOverride: (originalScenario as any).modelVideoOverride || '',
       videoPrompt: (originalScenario as any).videoPrompt || '', // 기존 시나리오의 비디오 프롬프트 로드
       objectiveType: (originalScenario as any).objectiveType || '', // 기존 시나리오의 목표 유형 로드
       targetDurationMinutes: (originalScenario as any).targetDurationMinutes ?? 7,
@@ -970,6 +997,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       minValidTurns: (originalScenario as any).minValidTurns ?? 4,
       isDemo: (originalScenario as any).isDemo || false,
       isPublic: (originalScenario as any).isPublic || false,
+      useVideoAvatar: (originalScenario as any).useVideoAvatar || false,
       storeListed: (originalScenario as any).storeListed || false,
       storePriceUsd: (originalScenario as any).storePriceUsd ?? null,
       storePackId: (originalScenario as any).storePackId ?? null,
@@ -1016,9 +1044,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     const existingHarness = (originalScenario as any).simulationHarness;
     if (existingHarness) {
       setHarnessEnabled(true);
-      setHarnessEmotionModel((existingHarness.emotionModel ?? ['anger','trust','confusion','interest']).join(','));
-      setHarnessMaxCallsPerTurn(String(existingHarness.toolPolicy?.updateNpcEmotion?.maxCallsPerTurn ?? 2));
-      setHarnessMaxDeltaPerCall(String(existingHarness.toolPolicy?.updateNpcEmotion?.maxDeltaPerCall ?? 30));
+      setHarnessAffectiveAxes((existingHarness.affectiveAxes ?? ['affective.intensity','relational.trust','cognitive.confusion','motivational.interest']).join(','));
+      setHarnessMaxCallsPerTurn(String(existingHarness.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn ?? 2));
+      setHarnessMaxDeltaPerCall(String(existingHarness.toolPolicy?.npcAffectiveStateDelta?.maxDeltaPerCall ?? 30));
       setHarnessAllowedTypes(existingHarness.toolPolicy?.triggerIncident?.allowedTypes ?? [...HARNESS_ALL_INCIDENT_TYPES]);
       setHarnessGlobalCooldownSec(String(existingHarness.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? 60));
       setHarnessPerTypeCooldownSec(String(existingHarness.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? 120));
@@ -1027,7 +1055,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       setHarnessPreferredSignals(Object.entries(sigs).map(([key, value]) => ({ key, value: String(value) })));
     } else {
       setHarnessEnabled(false);
-      setHarnessEmotionModel('anger,trust,confusion,interest');
+      setHarnessAffectiveAxes('affective.intensity,relational.trust,cognitive.confusion,motivational.interest');
       setHarnessMaxCallsPerTurn('2');
       setHarnessMaxDeltaPerCall('30');
       setHarnessAllowedTypes([...HARNESS_ALL_INCIDENT_TYPES]);
@@ -1151,11 +1179,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           setHarnessRawJsonError('');
         }
       } else {
-        const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+        const affectiveAxes = harnessAffectiveAxes.split(',').map(s => s.trim()).filter(Boolean);
         const preferredSignals: Record<string, string> = {};
         harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
-        const built: any = { emotionModel, toolPolicy: {
-          updateNpcEmotion: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
+        const built: any = { affectiveAxes, toolPolicy: {
+          npcAffectiveStateDelta: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
           triggerIncident: { allowedTypes: harnessAllowedTypes, cooldownOverride: { globalCooldownSec: parseInt(harnessGlobalCooldownSec) || 60, perTypeCooldownSec: parseInt(harnessPerTypeCooldownSec) || 120 } },
           updateScenarioState: { enabled: harnessStateUpdatesEnabled },
         }};
@@ -1383,6 +1411,78 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     closeAiPreviewDialog();
   };
 
+  const pollIntroVideoJob = (scenarioId: string, jobId: string, deadline: number) => {
+    const POLL_INTERVAL_MS = 5_000;
+
+    const poll = async (): Promise<void> => {
+      if (Date.now() > deadline) {
+        setIsGeneratingVideo(false);
+        toast({
+          title: t('admin.scenarioManager.toast.videoGenerateFailed', '비디오 생성 시간 초과'),
+          description: '비디오 생성 시간이 초과되었습니다. 다시 시도해주세요.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      try {
+        const statusRes = await apiRequest('GET', `/api/admin/scenarios/${scenarioId}/generate-intro-video/status?jobId=${encodeURIComponent(jobId)}`);
+
+        if (statusRes.status === 404) {
+          setIsGeneratingVideo(false);
+          toast({
+            title: '서버 재시작',
+            description: '서버가 재시작되어 작업 정보를 찾을 수 없습니다. 다시 시도해주세요.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        const data = await statusRes.json();
+
+        if (data.status === 'done' && data.result?.videoUrl) {
+          setIsGeneratingVideo(false);
+          setFormData(prev => ({
+            ...prev,
+            introVideoUrl: data.result.videoUrl,
+            introVideoMode: 'custom',
+            introVideoModel: data.result.model || prev.introVideoModel || '',
+          }));
+          toast({
+            title: t('admin.scenarioManager.toast.videoGenerated', '비디오 생성 완료'),
+            description: t('admin.scenarioManager.toast.videoGeneratedDesc', '인트로 비디오가 생성되었습니다.'),
+          });
+          queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
+        } else if (data.status === 'error') {
+          setIsGeneratingVideo(false);
+          toast({
+            title: t('admin.scenarioManager.toast.videoGenerateFailed', '비디오 생성 실패'),
+            description: data.error || '비디오 생성 중 오류가 발생했습니다.',
+            variant: 'destructive',
+          });
+        } else {
+          // pending or running — keep polling
+          videoJobPollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      } catch (pollErr: any) {
+        const msg = pollErr?.message ?? '';
+        if (msg.includes('404') || msg.includes('Job not found')) {
+          setIsGeneratingVideo(false);
+          toast({
+            title: '서버 재시작',
+            description: '서버가 재시작되어 작업 정보를 찾을 수 없습니다. 다시 시도해주세요.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        // Network glitch — keep polling
+        videoJobPollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+      }
+    };
+
+    videoJobPollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
+  };
+
   const handleGenerateVideo = async () => {
     if (!editingScenario?.id) {
       toast({
@@ -1402,34 +1502,40 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return;
     }
 
+    // Cancel any existing poll
+    if (videoJobPollRef.current) {
+      clearTimeout(videoJobPollRef.current);
+      videoJobPollRef.current = null;
+    }
+
     setIsGeneratingVideo(true);
     setVideoLoadFailed(false);
     try {
       const response = await apiRequest('POST', `/api/admin/scenarios/${editingScenario.id}/generate-intro-video`, {
         customPrompt: formData.videoPrompt || undefined,
       });
-      
+
       const data = await response.json();
-      
-      if (data.success && data.videoUrl) {
-        setFormData(prev => ({ ...prev, introVideoUrl: data.videoUrl, introVideoMode: 'custom' }));
-        toast({
-          title: t('admin.scenarioManager.toast.videoGenerated', 'Video Generated'),
-          description: t('admin.scenarioManager.toast.videoGeneratedDesc', 'Intro video generated successfully.'),
-        });
-        queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
-      } else {
-        throw new Error(data.error || t('admin.scenarioManager.toast.videoGenerateFailed', 'Video generation failed'));
+
+      if (!data.jobId) {
+        throw new Error(data.error || '작업 ID를 받지 못했습니다.');
       }
+
+      toast({
+        title: '비디오 생성 시작',
+        description: '인트로 비디오 생성 중… 완료되면 자동으로 반영됩니다. (최대 5분)',
+      });
+
+      const TIMEOUT_MS = 10 * 60_000; // 10 minutes
+      pollIntroVideoJob(editingScenario.id, data.jobId, Date.now() + TIMEOUT_MS);
     } catch (error: any) {
       console.error('Video generation error:', error);
+      setIsGeneratingVideo(false);
       toast({
         title: t('admin.scenarioManager.toast.videoGenerateFailed', 'Video Generation Failed'),
         description: error.message || t('admin.scenarioManager.toast.videoGenerateFailed', 'An error occurred during video generation.'),
         variant: "destructive",
       });
-    } finally {
-      setIsGeneratingVideo(false);
     }
   };
 
@@ -1587,7 +1693,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       const data = await response.json();
       
       if (data.success) {
-        setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoMode: 'none' }));
+        setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoMode: 'none', introVideoModel: '' }));
         toast({
           title: t('admin.scenarioManager.toast.videoDeleted', 'Video Deleted'),
           description: t('admin.scenarioManager.toast.videoDeletedDesc', 'Intro video has been deleted.'),
@@ -1732,8 +1838,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return;
     }
     const exportData = scenarios.map(s => {
-      const { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, videoPrompt, objectiveType, isDemo, isPublic } = s as any;
-      return { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, videoPrompt, objectiveType, isDemo, isPublic, categoryId: (s as any).categoryId, evaluationCriteriaSetId: (s as any).evaluationCriteriaSetId };
+      const { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, modelVideoOverride, videoPrompt, objectiveType, isDemo, isPublic } = s as any;
+      return { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, modelVideoOverride, videoPrompt, objectiveType, isDemo, isPublic, categoryId: (s as any).categoryId, evaluationCriteriaSetId: (s as any).evaluationCriteriaSetId };
     });
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2071,6 +2177,28 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     </button>
                   </div>
 
+                  {/* 비디오 모델 오버라이드 */}
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-medium text-slate-600">비디오 모델 오버라이드</Label>
+                    <Select
+                      value={formData.modelVideoOverride || '__global__'}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, modelVideoOverride: v === '__global__' ? '' : v }))}
+                    >
+                      <SelectTrigger className="w-full sm:w-72 text-sm border-slate-300">
+                        <SelectValue placeholder="전역 기본값 사용" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__global__">전역 기본값 사용</SelectItem>
+                        {VIDEO_MODELS.map(m => (
+                          <SelectItem key={m.value} value={m.value}>
+                            {m.label}{(m as any).recommended ? ' ★' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-400">설정 시 시스템 전역 비디오 모델보다 우선 적용됩니다.</p>
+                  </div>
+
                   {/* 기본 비디오 미리보기 + 교체 UI */}
                   {formData.introVideoMode === 'default' && (
                     <div className="mt-2 space-y-3">
@@ -2168,7 +2296,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         id="introVideoUrl"
                         value={formData.introVideoUrl || ''}
                         onChange={(e) => {
-                          setFormData(prev => ({ ...prev, introVideoUrl: e.target.value }));
+                          setFormData(prev => ({ ...prev, introVideoUrl: e.target.value, introVideoModel: '' }));
                           if (e.target.value) setVideoLoadFailed(false);
                         }}
                         placeholder="비디오 URL을 입력하세요 (예: /scenarios/videos/intro.webm)"
@@ -2256,7 +2384,18 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       )}
                       {!isGeneratingVideo && !videoLoadFailed && formData.introVideoUrl && (
                         <div className="mt-3">
-                          <p className="text-sm text-slate-600 mb-2">비디오 미리보기 (클릭하면 전체보기):</p>
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="text-sm text-slate-600">비디오 미리보기 (클릭하면 전체보기):</p>
+                            {formData.introVideoModel && (() => {
+                              const m = formData.introVideoModel;
+                              const label = m.includes('lite') ? 'Lite' : m.includes('fast') ? 'Fast' : 'Full';
+                              return (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-violet-300 text-violet-700 bg-violet-50 font-mono">
+                                  {label}
+                                </Badge>
+                              );
+                            })()}
+                          </div>
                           <div
                             className="relative w-full bg-slate-900 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
                             onClick={() => setVideoPreviewUrl(toMediaUrl(formData.introVideoUrl) || null)}
@@ -2270,7 +2409,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               preload="metadata"
                               onError={() => {
                                 setVideoLoadFailed(true);
-                                setFormData(prev => ({ ...prev, introVideoUrl: '' }));
+                                setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoModel: '' }));
                               }}
                               data-testid="scenario-video-preview"
                             />
@@ -2502,6 +2641,20 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     );
                   })()}
                   
+                  {canManageVideoAvatar && <div className="flex items-center gap-3">
+                    <Switch
+                      id="useVideoAvatar"
+                      checked={formData.useVideoAvatar || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, useVideoAvatar: checked }))}
+                    />
+                    <Label htmlFor="useVideoAvatar" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      🎬 비디오 아바타 사용
+                    </Label>
+                    <span className="text-xs text-slate-500">
+                      {formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
+                    </span>
+                  </div>}
+
                   <div className="flex items-center gap-3">
                     <Switch
                       id="isDemo"
@@ -2972,7 +3125,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       </Label>
                       <Select
                         value={formData.personaSwitchMode ?? 'replace'}
-                        onValueChange={(value: 'replace' | 'join') =>
+                        onValueChange={(value: 'replace' | 'join' | 'none') =>
                           setFormData(prev => ({ ...prev, personaSwitchMode: value }))
                         }
                       >
@@ -2990,6 +3143,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             <div>
                               <div className="font-medium">Join (합류)</div>
                               <div className="text-xs text-slate-500">다음 페르소나가 기존 페르소나와 함께 참여합니다</div>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="none">
+                            <div>
+                              <div className="font-medium">없음 (전환 안 함)</div>
+                              <div className="text-xs text-slate-500">페르소나 전환 없음 — 첫 번째 페르소나만 유지됩니다</div>
                             </div>
                           </SelectItem>
                         </SelectContent>
@@ -3350,16 +3509,16 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
                 {harnessEnabled && (
                   <div className="space-y-4">
-                    {/* Emotion Model */}
+                    {/* Affective Axes */}
                     <div>
-                      <Label className="text-xs font-semibold text-slate-700 mb-1 block">감정 모델 (쉼표로 구분)</Label>
+                      <Label className="text-xs font-semibold text-slate-700 mb-1 block">어펙티브 레이어 축 (쉼표로 구분)</Label>
                       <Input
-                        value={harnessEmotionModel}
-                        onChange={e => setHarnessEmotionModel(e.target.value)}
-                        placeholder="anger,trust,confusion,interest"
+                        value={harnessAffectiveAxes}
+                        onChange={e => setHarnessAffectiveAxes(e.target.value)}
+                        placeholder="affective.intensity,relational.trust,cognitive.confusion,motivational.interest"
                         className="text-xs h-8"
                       />
-                      <p className="text-xs text-slate-400 mt-0.5">AI가 조절할 감정 축 목록 (기본: anger, trust, confusion, interest)</p>
+                      <p className="text-xs text-slate-400 mt-0.5">AI가 조절할 어펙티브 레이어 축 목록 (기본: affective.intensity, relational.trust, cognitive.confusion, motivational.interest)</p>
                     </div>
 
                     {/* Emotion Tool Limits */}
@@ -3476,18 +3635,18 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         <p className="text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">적용될 실제 값 미리보기 <span className="normal-case font-normal text-blue-500">(직접 편집 가능)</span></p>
                         <div className="bg-slate-50 rounded-md p-3 text-xs space-y-2.5 text-slate-700">
 
-                          {/* Emotion Model — removable chips + add input */}
+                          {/* Affective Axes — removable chips + add input */}
                           <div>
-                            <span className="font-medium text-slate-500 block mb-1">감정 축:</span>
+                            <span className="font-medium text-slate-500 block mb-1">어펙티브 레이어 축:</span>
                             <div className="flex gap-1 flex-wrap items-center">
-                              {harnessEffective.emotionModel!.map(e => (
+                              {harnessEffective.affectiveAxes!.map(e => (
                                 <span key={e} className="inline-flex items-center gap-0.5 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
                                   {e}
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const updated = harnessEffective.emotionModel!.filter(x => x !== e);
-                                      setHarnessEmotionModel(updated.join(','));
+                                      const updated = harnessEffective.affectiveAxes!.filter(x => x !== e);
+                                      setHarnessAffectiveAxes(updated.join(','));
                                     }}
                                     className="ml-0.5 text-blue-400 hover:text-red-500 leading-none"
                                     title="제거"
@@ -3502,8 +3661,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                   if ((e.key === 'Enter' || e.key === ',') && previewEmotionInput.trim()) {
                                     e.preventDefault();
                                     const name = previewEmotionInput.trim().replace(/,/g, '');
-                                    if (name && !harnessEffective.emotionModel!.includes(name)) {
-                                      setHarnessEmotionModel([...harnessEffective.emotionModel!, name].join(','));
+                                    if (name && !harnessEffective.affectiveAxes!.includes(name)) {
+                                      setHarnessAffectiveAxes([...harnessEffective.affectiveAxes!, name].join(','));
                                     }
                                     setPreviewEmotionInput('');
                                   }
@@ -3633,11 +3792,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         type="button"
                         onClick={() => {
                           if (!harnessShowRaw) {
-                            const emotionModel = harnessEmotionModel.split(',').map(s => s.trim()).filter(Boolean);
+                            const affectiveAxes = harnessAffectiveAxes.split(',').map(s => s.trim()).filter(Boolean);
                             const preferredSignals: Record<string, string> = {};
                             harnessPreferredSignals.forEach(({ key, value }) => { if (key.trim()) preferredSignals[key.trim()] = value; });
-                            const built: any = { emotionModel, toolPolicy: {
-                              updateNpcEmotion: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
+                            const built: any = { affectiveAxes, toolPolicy: {
+                              npcAffectiveStateDelta: { maxCallsPerTurn: parseInt(harnessMaxCallsPerTurn) || 2, maxDeltaPerCall: parseInt(harnessMaxDeltaPerCall) || 30 },
                               triggerIncident: { allowedTypes: harnessAllowedTypes, cooldownOverride: { globalCooldownSec: parseInt(harnessGlobalCooldownSec) || 60, perTypeCooldownSec: parseInt(harnessPerTypeCooldownSec) || 120 } },
                               updateScenarioState: { enabled: harnessStateUpdatesEnabled },
                             }};
@@ -3693,9 +3852,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                   </div>
                                 )}
                                 <div>
-                                  <p className="text-slate-400 text-[10px] mb-0.5">감정 축</p>
+                                  <p className="text-slate-400 text-[10px] mb-0.5">어펙티브 레이어 축</p>
                                   <div className="flex flex-wrap gap-0.5">
-                                    {harnessEffective.emotionModel!.map(e => (
+                                    {harnessEffective.affectiveAxes!.map(e => (
                                       <span key={e} className="bg-blue-100 text-blue-700 px-1 py-0.5 rounded text-[10px]">{e}</span>
                                     ))}
                                   </div>

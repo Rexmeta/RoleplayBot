@@ -1,6 +1,17 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
+import { VALID_REALTIME_MODEL_VALUES } from "../shared/realtimeModels";
+
+/**
+ * The migration allowlist is derived directly from the shared VALID_REALTIME_MODEL_VALUES
+ * constant so it stays in sync automatically when models are added or removed in
+ * shared/realtimeModels.ts — no manual update of this file is needed.
+ * Any value NOT in this set will be rewritten to 'gemini-3.1-flash-live-preview'.
+ * Consumed by both the migration SQL below and the regression tests in
+ * tests/server/realtimeModelValidation.test.ts.
+ */
+export const REALTIME_MODEL_MIGRATION_ALLOWLIST: ReadonlySet<string> = VALID_REALTIME_MODEL_VALUES;
 
 const migrationSQL = `
 -- 1. Users 테이블
@@ -1041,13 +1052,15 @@ export async function runMigrations(): Promise<void> {
 
         { table: 'mbti_personas', column: 'free_chat_available', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mbti_personas' AND column_name='free_chat_available') THEN ALTER TABLE "mbti_personas" ADD COLUMN "free_chat_available" boolean NOT NULL DEFAULT false; END IF; END $$;` },
         { table: 'mbti_personas', column: 'free_chat_description', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mbti_personas' AND column_name='free_chat_description') THEN ALTER TABLE "mbti_personas" ADD COLUMN "free_chat_description" text; END IF; END $$;` },
+        { table: 'mbti_personas', column: 'videos', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mbti_personas' AND column_name='videos') THEN ALTER TABLE "mbti_personas" ADD COLUMN "videos" jsonb; END IF; END $$;` },
         { table: 'scenarios', column: 'is_public', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='is_public') THEN ALTER TABLE "scenarios" ADD COLUMN "is_public" boolean NOT NULL DEFAULT false; END IF; END $$;` },
         { table: 'evaluation_criteria_sets', column: 'owner_operator_id', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_criteria_sets' AND column_name='owner_operator_id') THEN ALTER TABLE "evaluation_criteria_sets" ADD COLUMN "owner_operator_id" varchar; END IF; END $$;` },
         { table: 'evaluation_dimensions', column: 'evaluation_prompt', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='evaluation_dimensions' AND column_name='evaluation_prompt') THEN ALTER TABLE "evaluation_dimensions" ADD COLUMN "evaluation_prompt" text; END IF; END $$;` },
         { table: 'feedbacks', column: 'score_adjustments', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedbacks' AND column_name='score_adjustments') THEN ALTER TABLE "feedbacks" ADD COLUMN "score_adjustments" jsonb; END IF; END $$;` },
         { table: 'persona_runs', column: 'termination_reason', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='termination_reason') THEN ALTER TABLE "persona_runs" ADD COLUMN "termination_reason" text; END IF; END $$;` },
         { table: 'persona_runs', column: 'feedback_status', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_status') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_status" varchar; END IF; END $$;` },
-        { table: 'persona_runs', column: 'feedback_job_started_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_started_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_started_at" timestamp; END IF; END $$;` }
+        { table: 'persona_runs', column: 'feedback_job_started_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_started_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_started_at" timestamp; END IF; END $$;` },
+        { table: 'scenarios', column: 'use_video_avatar', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='use_video_avatar') THEN ALTER TABLE "scenarios" ADD COLUMN "use_video_avatar" boolean NOT NULL DEFAULT false; END IF; END $$;` }
       );
 
       for (const patch of criticalColumnPatches) {
@@ -1347,17 +1360,17 @@ export async function runMigrations(): Promise<void> {
       // Migrate all deprecated/invalid realtime model names to gemini-3.1-flash-live-preview.
       // Per Google official docs: gemini-3.1-flash-live-preview uses v1beta bidiGenerateContent.
       // All previous names (gemini-live-2.5-flash-preview, gemini-live-2.5-flash-native-audio, etc.) are invalid.
+      // The allowlist is REALTIME_MODEL_MIGRATION_ALLOWLIST (exported above) so tests can verify it.
       try {
+        const allowedLiteral = Array.from(REALTIME_MODEL_MIGRATION_ALLOWLIST)
+          .map(v => `'${v}'`)
+          .join(', ');
         await client.query(`
           UPDATE system_settings
           SET value = 'gemini-3.1-flash-live-preview', updated_at = now()
           WHERE category = 'ai'
             AND key = 'model_realtime'
-            AND value NOT IN (
-              'gemini-3.1-flash-live-preview',
-              'gpt-4o-realtime-preview',
-              'gpt-4o-mini-realtime-preview'
-            )
+            AND value NOT IN (${allowedLiteral})
         `);
         console.log('✅ Realtime model setting migrated (all deprecated models → gemini-3.1-flash-live-preview)');
       } catch (err) {
@@ -2108,6 +2121,54 @@ export async function runMigrations(): Promise<void> {
         console.log('✅ store_entitlement_audit_log table created/verified');
       } catch (err) {
         console.warn('⚠️ Failed to create store_entitlement_audit_log table:', err);
+      }
+
+      // video_generation_jobs – persists background Veo clip generation jobs across server restarts
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "video_generation_jobs" (
+            "job_id" varchar PRIMARY KEY NOT NULL,
+            "persona_id" varchar NOT NULL,
+            "clip_state" varchar NOT NULL,
+            "gender" varchar NOT NULL DEFAULT 'male',
+            "status" varchar NOT NULL DEFAULT 'pending',
+            "result_data" jsonb,
+            "error_message" text,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS "idx_video_generation_jobs_persona"
+            ON "video_generation_jobs"("persona_id");
+          CREATE INDEX IF NOT EXISTS "idx_video_generation_jobs_status"
+            ON "video_generation_jobs"("status");
+          CREATE INDEX IF NOT EXISTS "idx_video_generation_jobs_updated"
+            ON "video_generation_jobs"("updated_at");
+        `);
+        console.log('✅ video_generation_jobs table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create video_generation_jobs table:', err);
+      }
+
+      // model_video_override column on scenarios
+      try {
+        await client.query(`
+          ALTER TABLE "scenarios"
+            ADD COLUMN IF NOT EXISTS "model_video_override" varchar;
+        `);
+        console.log('✅ scenarios model_video_override column ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to add scenarios model_video_override column:', err);
+      }
+
+      // model_video_override column on mbti_personas (drop — no longer used)
+      try {
+        await client.query(`
+          ALTER TABLE "mbti_personas"
+            DROP COLUMN IF EXISTS "model_video_override";
+        `);
+        console.log('✅ mbti_personas model_video_override column dropped');
+      } catch (err) {
+        console.warn('⚠️ Failed to drop mbti_personas model_video_override column:', err);
       }
 
       console.log('✅ Database migrations completed successfully');

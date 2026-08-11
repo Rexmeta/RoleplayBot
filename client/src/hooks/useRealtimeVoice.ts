@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useToast } from './use-toast';
 import { useAudioPlayback, type AgcConfig } from './useAudioPlayback';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
+import { useAudioInputDevices, buildMicrophoneConstraints, type AudioInputDeviceOption, type AudioInputStatus } from './useAudioInputDevices';
 
 const NOISE_FLOOR_DURATION_MS = 1500;
 const VAD_ENTRY_MULTIPLIER = 3.0;
@@ -11,15 +13,18 @@ const RECALIBRATION_SILENCE_INTERVAL_MS = 30_000;
 const RECALIBRATION_COOLDOWN_MS = 10_000;
 
 const VAD_SENSITIVITY_KEY = 'vad_sensitivity';
-const VAD_SENSITIVITY_DEFAULT = 3;
+// 0 = auto (noise-floor only), 1-5 = manual levels; default is now auto.
+const VAD_SENSITIVITY_DEFAULT = 0;
 
 function getSensitivityMultiplier(level: number): number {
-  const multipliers: Record<number, number> = { 1: 3.0, 2: 2.0, 3: 1.0, 4: 0.65, 5: 0.4 };
+  // level 0 (auto) uses the noise-floor measurement directly with multiplier 1.0
+  const multipliers: Record<number, number> = { 0: 1.0, 1: 3.0, 2: 2.0, 3: 1.0, 4: 0.65, 5: 0.4 };
   return multipliers[level] ?? 1.0;
 }
 
 function computeVADThresholds(noiseFloor: number, sensitivityLevel: number): { entry: number; exit: number } {
-  const mult = getSensitivityMultiplier(sensitivityLevel);
+  // In auto mode (0) rely purely on the measured noise floor without additional scaling.
+  const mult = sensitivityLevel === 0 ? 1.0 : getSensitivityMultiplier(sensitivityLevel);
   const baseEntry = Math.max(VAD_ENTRY_MIN, noiseFloor * VAD_ENTRY_MULTIPLIER);
   const entry = Math.min(0.30, baseEntry * mult);
   const exit = entry * VAD_EXIT_RATIO;
@@ -100,7 +105,7 @@ interface UseRealtimeVoiceProps {
   enabled: boolean;
   delayGreeting?: boolean;
   onMessage?: (message: string) => void;
-  onMessageComplete?: (message: string, emotion?: string, emotionReason?: string, userAffect?: Record<string, unknown>) => void;
+  onMessageComplete?: (message: string, emotion?: string, emotionReason?: string, userAffect?: Record<string, unknown>, interrupted?: boolean) => void;
   onReconnectGreetingComplete?: () => void;
   onUserTranscription?: (transcript: string) => void;
   onUserTranscriptionDelta?: (delta: string, accumulated: string) => void;
@@ -127,7 +132,27 @@ interface UseRealtimeVoiceReturn {
   userAudioAmplitude: number;
   vadSensitivity: number;
   isBargeInActive: boolean;
+  outputDevices: { deviceId: string; label: string }[];
+  selectedOutputDeviceId: string;
+  outputAutoSelected: boolean;
+  outputStatus: 'supported' | 'unsupported' | 'selecting' | 'error';
+  outputMessage: string | null;
+  outputNeedsPermission: boolean;
+  outputListUnavailable: boolean;
+  inputDevices: AudioInputDeviceOption[];
+  selectedInputDeviceId: string;
+  inputAutoSelected: boolean;
+  inputStatus: AudioInputStatus;
+  inputMessage: string | null;
+  inputNeedsPermission: boolean;
   setVadSensitivity: (level: number) => void;
+  selectOutputDevice: (deviceId: string) => Promise<boolean>;
+  refreshOutputDevices: () => Promise<void>;
+  requestOutputDevicePermission: () => Promise<boolean>;
+  selectInputDevice: (deviceId: string) => Promise<boolean>;
+  refreshInputDevices: () => Promise<void>;
+  requestInputDevicePermission: () => Promise<boolean>;
+  retryAudioPlayback: () => Promise<boolean>;
   connect: (previousMessages?: PreviousMessage[]) => Promise<void>;
   disconnect: () => void;
   startRecording: () => void;
@@ -157,6 +182,8 @@ export function useRealtimeVoice({
   onPersonaSwitchAnnounced,
   onPersonaSwitchPendingCleared,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
+  const { toast } = useToast();
+
   const [status, setStatus] = useState<RealtimeVoiceStatus>('disconnected');
   const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('idle');
   const [isRecording, setIsRecording] = useState(false);
@@ -173,7 +200,8 @@ export function useRealtimeVoice({
       const saved = localStorage.getItem(VAD_SENSITIVITY_KEY);
       if (saved) {
         const parsed = parseInt(saved, 10);
-        if (parsed >= 1 && parsed <= 5) return parsed;
+        // Valid range: 0 (auto) through 5
+        if (parsed >= 0 && parsed <= 5) return parsed;
       }
     } catch {}
     return VAD_SENSITIVITY_DEFAULT;
@@ -211,6 +239,8 @@ export function useRealtimeVoice({
   const captureContextRef = useRef<AudioContext | null>(null);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const swapMicrophoneStreamRef = useRef<((deviceId: string) => Promise<boolean>) | null>(null);
   const rawMicStreamRef = useRef<MediaStream | null>(null);
   const isRecordingRef = useRef<boolean>(false);
   const isInterruptedRef = useRef<boolean>(false);
@@ -292,6 +322,19 @@ export function useRealtimeVoice({
     stopAmplitudeAnalysis,
     analyserNodeRef,
     gainNodeRef,
+    outputDevices,
+    selectedOutputDeviceId,
+    outputAutoSelected,
+    outputStatus,
+    outputMessage,
+    outputNeedsPermission,
+    outputListUnavailable,
+    selectOutputDevice,
+    selectOutputDeviceByUser,
+    refreshOutputDevices,
+    requestOutputDevicePermission,
+    initializePlaybackContext,
+    resumePlayback,
   } = useAudioPlayback(isInterruptedRef, agcConfig);
 
   const {
@@ -302,6 +345,53 @@ export function useRealtimeVoice({
     setupVAD,
     updateThresholds,
   } = useVoiceActivityDetection();
+
+  // Ref to hold the current inputDevices list so the onBluetoothAutoSelected
+  // handler can look up the device label without capturing a stale closure.
+  const inputDevicesRef = useRef<AudioInputDeviceOption[]>([]);
+
+  const {
+    inputDevices,
+    selectedInputDeviceId,
+    selectedInputDeviceIdRef,
+    inputStatus,
+    inputMessage,
+    inputNeedsPermission,
+    inputAutoSelected,
+    persistInputSelection,
+    persistInputSelectionByUser,
+    reportInputError,
+    refreshInputDevices,
+    requestInputDevicePermission,
+  } = useAudioInputDevices({
+    onSelectedDeviceLost: () => {
+      // The saved mic disappeared (e.g. Bluetooth turned off). If we're live,
+      // re-acquire the default mic so recording doesn't sit on a dead track.
+      if (isRecordingRef.current) swapMicrophoneStreamRef.current?.('');
+    },
+    onBluetoothAutoSelected: async (deviceId: string, previousDeviceId: string) => {
+      // A Bluetooth mic was connected mid-session and auto-selected. If we're
+      // live, swap to it immediately so the user hears themselves in the new mic.
+      // On success a toast confirms the switch; on failure the persisted selection
+      // is reverted to the previously active device so the next recording attempt
+      // targets the mic that is actually open.
+      if (!isRecordingRef.current) return;
+      const swapped = await swapMicrophoneStreamRef.current?.(deviceId);
+      if (swapped) {
+        const device = inputDevicesRef.current.find(d => d.deviceId === deviceId);
+        const label = device?.label ?? '블루투스 마이크';
+        toast({ title: `${label}로 전환되었습니다`, duration: 3000 });
+      } else if (swapped === false) {
+        // swapMicrophoneStream failed — the audio pipeline kept the old stream.
+        // Roll back the persisted selection so it matches what is actually in use.
+        persistInputSelection(previousDeviceId, null);
+      }
+    },
+  });
+
+  // Keep inputDevicesRef in sync so the onBluetoothAutoSelected handler always
+  // has access to the latest device list when looking up labels.
+  useEffect(() => { inputDevicesRef.current = inputDevices; }, [inputDevices]);
 
   const recalibrationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecalibrationRef = useRef<number>(0);
@@ -433,13 +523,15 @@ export function useRealtimeVoice({
 
     try {
       if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
-        playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        await initializePlaybackContext();
         console.log('🔊 Pre-created playback AudioContext for first greeting');
       }
 
-      if (playbackContextRef.current.state === 'suspended') {
+      if (playbackContextRef.current?.state === 'suspended') {
         try {
-          await playbackContextRef.current.resume();
+          if (!await resumePlayback()) {
+            throw new Error('AudioContext resume failed');
+          }
           console.log('🔊 AudioContext resumed for first greeting playback');
         } catch (err) {
           console.warn('⚠️ Failed to resume AudioContext:', err);
@@ -579,7 +671,7 @@ export function useRealtimeVoice({
                 }
                 setIsAISpeaking(true);
                 isAISpeakingRef.current = true;
-                playAudioDelta(data.delta);
+                playAudioDelta(data.delta).catch(() => {});
               }
               break;
 
@@ -605,7 +697,7 @@ export function useRealtimeVoice({
                 console.log('🔄 Skipping reconnect greeting to keep turn counter accurate');
                 if (onReconnectGreetingCompleteRef.current) onReconnectGreetingCompleteRef.current();
               } else if (data.text && onMessageCompleteRef.current) {
-                onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason, data.userAffect);
+                onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason, data.userAffect, data.interrupted ?? false);
               }
               if (data.text) {
                 accumulatedMessagesRef.current.push({ role: 'ai', content: data.text });
@@ -640,7 +732,7 @@ export function useRealtimeVoice({
                 expectedTurnSeqRef.current = data.turnSeq;
               }
               if (playbackContextRef.current?.state === 'suspended') {
-                playbackContextRef.current.resume().catch(() => {});
+                resumePlayback();
               }
               break;
 
@@ -833,7 +925,7 @@ export function useRealtimeVoice({
       setGreetingFailed(false);
       if (onErrorRef.current) onErrorRef.current(err instanceof Error ? err.message : 'Connection failed');
     }
-  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef]);
+  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef, initializePlaybackContext, resumePlayback]);
 
   useEffect(() => {
     connectRef.current = connect;
@@ -863,8 +955,9 @@ export function useRealtimeVoice({
       if (document.visibilityState !== 'visible') return;
 
       if (playbackContextRef.current?.state === 'suspended' && !isInterruptedRef.current) {
-        playbackContextRef.current.resume().catch(() => {});
+        resumePlayback();
       }
+      refreshOutputDevices();
 
       const wsState = wsRef.current?.readyState;
       const isClosed = wsState === WebSocket.CLOSED || wsState === WebSocket.CLOSING || wsRef.current === null;
@@ -899,16 +992,17 @@ export function useRealtimeVoice({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshOutputDevices, resumePlayback]);
 
   const setVadSensitivity = useCallback((level: number) => {
-    const clamped = Math.max(1, Math.min(5, level));
+    // 0 = auto (noise-floor driven); 1-5 = manual levels.
+    const clamped = Math.max(0, Math.min(5, level));
     setVadSensitivityState(clamped);
     vadSensitivityRef.current = clamped;
     try { localStorage.setItem(VAD_SENSITIVITY_KEY, String(clamped)); } catch {}
     const noiseFloor = noiseFloorRef.current ?? 0;
     const { entry, exit } = computeVADThresholds(noiseFloor, clamped);
-    console.log(`🎙️ VAD sensitivity changed to level ${clamped} — entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
+    console.log(`🎙️ VAD sensitivity changed to level ${clamped}${clamped === 0 ? ' (auto)' : ''} — entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
     updateThresholds(entry, exit);
   }, [updateThresholds]);
 
@@ -961,14 +1055,22 @@ export function useRealtimeVoice({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
-        }
-      });
+      let stream: MediaStream;
+      const preferredMicId = selectedInputDeviceIdRef.current;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: buildMicrophoneConstraints(preferredMicId),
+        });
+      } catch (err) {
+        if (!preferredMicId) throw err;
+        // The saved mic is gone or busy — fall back to the default microphone
+        // explicitly and tell the user instead of failing the whole recording.
+        console.warn('🎙️ Saved microphone unavailable, falling back to default:', err);
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: buildMicrophoneConstraints(''),
+        });
+        persistInputSelection('', '선택한 마이크를 사용할 수 없어 기본 마이크로 전환했습니다.');
+      }
 
       micStreamRef.current = stream;
       console.log('🎙️ Created single mic stream for Gemini + VAD');
@@ -996,6 +1098,7 @@ export function useRealtimeVoice({
 
       const audioContext = captureContextRef.current;
       const source = audioContext.createMediaStreamSource(stream);
+      micSourceRef.current = source;
 
       setupVAD({
         audioContext,
@@ -1091,13 +1194,17 @@ export function useRealtimeVoice({
     bargeInTriggeredRef.current = false;
 
     if (playbackContextRef.current && playbackContextRef.current.state === 'suspended') {
-      playbackContextRef.current.resume().catch(() => {});
+      resumePlayback();
     }
 
     setIsRecording(false);
     isRecordingRef.current = false;
 
     setTimeout(() => {
+      if (micSourceRef.current) {
+        try { micSourceRef.current.disconnect(); } catch {}
+        micSourceRef.current = null;
+      }
       if (audioProcessorRef.current) {
         audioProcessorRef.current.disconnect();
         audioProcessorRef.current = null;
@@ -1119,7 +1226,75 @@ export function useRealtimeVoice({
         wsRef.current.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
       }
     }, 100);
-  }, [playbackContextRef, voiceActivityStartRef, bargeInTriggeredRef, vadProcessorRef]);
+  }, [playbackContextRef, voiceActivityStartRef, bargeInTriggeredRef, vadProcessorRef, resumePlayback]);
+
+  // Swap the live microphone stream without tearing down the audio graph: the
+  // ScriptProcessors (Gemini feed + VAD) stay wired, only the MediaStream source
+  // node in front of them is replaced. Used when the user picks another mic
+  // mid-conversation or the selected Bluetooth mic disappears.
+  const swapMicrophoneStream = useCallback(async (deviceId: string): Promise<boolean> => {
+    const audioContext = captureContextRef.current;
+    if (!audioContext || !isRecordingRef.current) return false;
+
+    let newStream: MediaStream;
+    try {
+      newStream = await navigator.mediaDevices.getUserMedia({
+        audio: buildMicrophoneConstraints(deviceId),
+      });
+    } catch (err) {
+      console.warn('🎙️ Microphone swap failed:', err);
+      reportInputError('선택한 마이크로 전환하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도하세요.');
+      return false;
+    }
+
+    const oldStream = micStreamRef.current;
+    const oldSource = micSourceRef.current;
+
+    try {
+      const newSource = audioContext.createMediaStreamSource(newStream);
+      if (oldSource) {
+        try { oldSource.disconnect(); } catch {}
+      }
+      if (audioProcessorRef.current) newSource.connect(audioProcessorRef.current);
+      if (vadProcessorRef.current) newSource.connect(vadProcessorRef.current);
+      micSourceRef.current = newSource;
+      micStreamRef.current = newStream;
+      if (oldStream && oldStream !== newStream) {
+        oldStream.getTracks().forEach(track => track.stop());
+      }
+      // Ambient noise differs per microphone — force a re-measure on next cycle.
+      noiseFloorRef.current = null;
+      recalibrateNoiseFloor();
+      console.log(`🎙️ Microphone swapped live (deviceId=${deviceId || 'default'})`);
+      return true;
+    } catch (err) {
+      console.warn('🎙️ Microphone swap wiring failed:', err);
+      newStream.getTracks().forEach(track => track.stop());
+      reportInputError('마이크 전환 중 오류가 발생했습니다. 다시 시도하세요.');
+      return false;
+    }
+  }, [vadProcessorRef, reportInputError, recalibrateNoiseFloor]);
+
+  useEffect(() => {
+    swapMicrophoneStreamRef.current = swapMicrophoneStream;
+  }, [swapMicrophoneStream]);
+
+  // User-explicit selection from the settings panel: marks the choice so
+  // auto-Bluetooth selection never overrides it on future devicechange events.
+  const selectInputDevice = useCallback(async (deviceId: string): Promise<boolean> => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      reportInputError('이 브라우저에서는 마이크를 선택할 수 없습니다.');
+      return false;
+    }
+    if (isRecordingRef.current && captureContextRef.current) {
+      const swapped = await swapMicrophoneStream(deviceId);
+      if (!swapped) return false;
+      persistInputSelectionByUser(deviceId, deviceId ? '선택한 마이크로 녹음합니다.' : '기본 마이크로 녹음합니다.');
+      return true;
+    }
+    persistInputSelectionByUser(deviceId, deviceId ? '다음 녹음부터 선택한 마이크를 사용합니다.' : '기본 마이크를 사용합니다.');
+    return true;
+  }, [swapMicrophoneStream, persistInputSelectionByUser, reportInputError]);
 
   // Internal utility — kept for potential future use (e.g. injecting context into a
   // live voice turn without switching modes). NOT used for user-typed messages: the
@@ -1172,7 +1347,29 @@ export function useRealtimeVoice({
     userAudioAmplitude,
     vadSensitivity,
     isBargeInActive,
+    outputDevices,
+    selectedOutputDeviceId,
+    outputAutoSelected,
+    outputStatus,
+    outputMessage,
+    outputNeedsPermission,
+    outputListUnavailable,
+    inputDevices,
+    selectedInputDeviceId,
+    inputAutoSelected,
+    inputStatus,
+    inputMessage,
+    inputNeedsPermission,
     setVadSensitivity,
+    // The UI selection path is user-explicit: it must never be overridden by
+    // auto-Bluetooth selection afterwards.
+    selectOutputDevice: selectOutputDeviceByUser,
+    refreshOutputDevices,
+    requestOutputDevicePermission,
+    selectInputDevice,
+    refreshInputDevices,
+    requestInputDevicePermission,
+    retryAudioPlayback: resumePlayback,
     connect,
     disconnect,
     startRecording,

@@ -422,7 +422,11 @@ export default function Home() {
       
       const conversation = await response.json();
       
-      setSelectedPersona(persona);
+      // Use the full persona object from the scenario (includes image, videos, expressions,
+      // and all other fields) rather than the display-only mapped object passed by
+      // SimplePersonaSelector (which strips fields like videos and overrides image).
+      const fullPersona = selectedScenario.personas.find((p: any) => p.id === persona.id) ?? persona;
+      setSelectedPersona(fullPersona);
       setConversationId(conversation.id);
       setScenarioRunId(conversation.scenarioRunId); // scenarioRunId 저장
       
@@ -782,7 +786,8 @@ export default function Home() {
                 stance: translated.stance,
                 goal: translated.goal,
                 tradeoff: translated.tradeoff,
-                mbti: p.mbti || p.id?.toUpperCase()
+                mbti: p.mbti || p.id?.toUpperCase(),
+                videos: p.videos,
               };
             })}
             completedPersonaIds={completedPersonaIds}

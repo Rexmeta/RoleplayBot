@@ -13,6 +13,7 @@ interface SimulationPanelProps {
   evaluationSkipped?: boolean;
   hasActiveIncident?: boolean;
   isVisible?: boolean;
+  isCompact?: boolean;
   className?: string;
 }
 
@@ -40,9 +41,9 @@ export const EMOTION_COLORS: Record<string, string> = {
 
 function EmotionBar({ label, value, icon, colorClass }: { label: string; value: number; icon: React.ReactNode; colorClass: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-muted-foreground w-4">{icon}</span>
-      <span className="text-muted-foreground w-12 shrink-0">{label}</span>
+    <div className="flex min-w-0 items-center gap-1.5 text-xs">
+      <span className="text-muted-foreground w-3 shrink-0">{icon}</span>
+      <span className="text-muted-foreground w-[4.25rem] shrink-0 truncate">{label}</span>
       <div className="flex-1 relative">
         <Progress value={value} className="h-1.5" />
         <div
@@ -170,14 +171,14 @@ function ScoreCard({ score, showHeader = true }: { score: TurnScore; showHeader?
       <div className="grid grid-cols-5 gap-1">
         {dims.map(d => (
           <div key={d.key} className="flex flex-col items-center">
-            <div className="relative h-8 w-full bg-muted rounded-sm overflow-hidden">
+            <div className="relative h-6 w-full bg-muted rounded-sm overflow-hidden">
               <div
                 className="absolute bottom-0 left-0 right-0 bg-primary/70 transition-all duration-700"
                 style={{ height: `${d.value}%` }}
               />
               <span className="absolute inset-x-0 top-0.5 text-center text-[10px] font-semibold text-foreground leading-none z-10">{d.value}</span>
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5">{t(`simulation.score.dimensions.${d.key}`)}</span>
+            <span className="text-[9px] text-muted-foreground mt-0.5 truncate max-w-full">{t(`simulation.score.dimensions.${d.key}`)}</span>
           </div>
         ))}
       </div>
@@ -221,6 +222,7 @@ function Sparkline({ scores }: { scores: number[] }) {
 
 function ScoreHistory({ scores }: { scores: TurnScore[] }) {
   const { t } = useTranslation();
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const [expandedTurnId, setExpandedTurnId] = useState<string | null>(null);
 
   if (scores.length === 0) return null;
@@ -230,14 +232,23 @@ function ScoreHistory({ scores }: { scores: TurnScore[] }) {
 
   return (
     <div className="space-y-1.5 border-t border-border/40 pt-2">
-      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-        <span className="font-medium">{t('simulation.history.title')}</span>
+      <button
+        type="button"
+        className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+        onClick={() => setHistoryExpanded(value => !value)}
+        aria-expanded={historyExpanded}
+      >
+        <span className="flex items-center gap-1.5 font-medium">
+          <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${historyExpanded ? 'rotate-180' : ''}`} />
+          {t('simulation.history.title')}
+        </span>
         <span>{t('simulation.history.turnCount', { count: scores.length })}</span>
-      </div>
+      </button>
 
-      <Sparkline scores={totals} />
-
-      <div className="space-y-0.5 mt-1">
+      {historyExpanded && (
+        <>
+          <Sparkline scores={totals} />
+          <div className="space-y-0.5 mt-1">
         {reversed.map((score, revIdx) => {
           const origIdx = scores.length - 1 - revIdx;
           const prev = origIdx > 0 ? scores[origIdx - 1] : null;
@@ -278,7 +289,9 @@ function ScoreHistory({ scores }: { scores: TurnScore[] }) {
             </div>
           );
         })}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -346,89 +359,87 @@ function SimulationTimer({ timer }: { timer: SimulationState['timer'] }) {
  */
 export function AffectiveStatePanel({
   affectiveState,
+  isCompact = false,
 }: {
   affectiveState: NpcAffectiveState;
+  isCompact?: boolean;
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const summaryMetrics = [
+    {
+      label: t('simulation.affectiveState.intensity', { defaultValue: 'Intensity' }),
+      value: affectiveState.affective.intensity,
+      icon: <Zap className="h-3 w-3 text-red-400" />,
+      colorClass: EMOTION_COLORS.intensity,
+    },
+    {
+      label: t('simulation.affectiveState.trust', { defaultValue: 'Trust' }),
+      value: affectiveState.relational.trust,
+      icon: <Heart className="h-3 w-3 text-blue-400" />,
+      colorClass: EMOTION_COLORS.trust,
+    },
+    {
+      label: t('simulation.affectiveState.interest', { defaultValue: 'Interest' }),
+      value: affectiveState.motivational.interest,
+      icon: <Eye className="h-3 w-3 text-green-400" />,
+      colorClass: EMOTION_COLORS.interest,
+    },
+    {
+      label: t('simulation.affectiveState.cooperativeness', { defaultValue: 'Cooperativeness' }),
+      value: affectiveState.motivational.cooperativeness,
+      icon: <Eye className="h-3 w-3 text-teal-400" />,
+      colorClass: EMOTION_COLORS.cooperativeness,
+    },
+  ];
+  const detailMetrics = [
+    {
+      label: t('simulation.affectiveState.confusion', { defaultValue: 'Confusion' }),
+      value: affectiveState.cognitive.confusion,
+      icon: <Brain className="h-3 w-3 text-yellow-400" />,
+      colorClass: EMOTION_COLORS.confusion,
+    },
+    {
+      label: t('simulation.affectiveState.load', { defaultValue: 'Load' }),
+      value: affectiveState.cognitive.load,
+      icon: <Brain className="h-3 w-3 text-amber-400" />,
+      colorClass: EMOTION_COLORS.load,
+    },
+    {
+      label: t('simulation.affectiveState.rapport', { defaultValue: 'Rapport' }),
+      value: affectiveState.relational.rapport,
+      icon: <Heart className="h-3 w-3 text-indigo-400" />,
+      colorClass: EMOTION_COLORS.rapport,
+    },
+    {
+      label: t('simulation.affectiveState.valence', { defaultValue: 'Valence' }),
+      value: affectiveState.affective.valence,
+      icon: <Heart className="h-3 w-3 text-pink-400" />,
+      colorClass: EMOTION_COLORS.valence,
+    },
+  ];
 
   return (
-    <div className="border-t border-border/40 pt-2">
+    <div className={`${isCompact ? 'border-t-0 pt-0' : 'border-t border-border/40 pt-1.5'}`}>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+        {summaryMetrics.map(metric => (
+          <EmotionBar key={metric.label} {...metric} />
+        ))}
+      </div>
       <button
-        className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+        type="button"
+        className="flex items-center justify-between w-full mt-2 pt-1.5 border-t border-border/30 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
         onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
       >
-        <span className="font-medium">{t('simulation.affectiveState.title', { defaultValue: 'Affective Layers' })}</span>
+        <span className="font-medium">{t('simulation.affectiveState.details', { defaultValue: '자세히 보기' })}</span>
         <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
       </button>
       {expanded && (
-        <div className="mt-2 space-y-2 text-xs">
-          {/* Affective layer */}
-          <div>
-            <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.affective', { defaultValue: 'Affective' })}</p>
-            <div className="space-y-1">
-              <EmotionBar
-                label={t('simulation.affectiveState.intensity', { defaultValue: 'Intensity' })}
-                value={affectiveState.affective.intensity}
-                icon={<Zap className="h-3 w-3 text-red-400" />}
-                colorClass="bg-red-400"
-              />
-            </div>
-          </div>
-          {/* Cognitive layer */}
-          <div>
-            <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.cognitive', { defaultValue: 'Cognitive' })}</p>
-            <div className="space-y-1">
-              <EmotionBar
-                label={t('simulation.affectiveState.confusion', { defaultValue: 'Confusion' })}
-                value={affectiveState.cognitive.confusion}
-                icon={<Brain className="h-3 w-3 text-yellow-400" />}
-                colorClass="bg-yellow-400"
-              />
-              <EmotionBar
-                label={t('simulation.affectiveState.load', { defaultValue: 'Load' })}
-                value={affectiveState.cognitive.load}
-                icon={<Brain className="h-3 w-3 text-amber-400" />}
-                colorClass="bg-amber-400"
-              />
-            </div>
-          </div>
-          {/* Relational layer */}
-          <div>
-            <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.relational', { defaultValue: 'Relational' })}</p>
-            <div className="space-y-1">
-              <EmotionBar
-                label={t('simulation.affectiveState.trust', { defaultValue: 'Trust' })}
-                value={affectiveState.relational.trust}
-                icon={<Heart className="h-3 w-3 text-blue-400" />}
-                colorClass="bg-blue-400"
-              />
-              <EmotionBar
-                label={t('simulation.affectiveState.rapport', { defaultValue: 'Rapport' })}
-                value={affectiveState.relational.rapport}
-                icon={<Heart className="h-3 w-3 text-indigo-400" />}
-                colorClass="bg-indigo-400"
-              />
-            </div>
-          </div>
-          {/* Motivational layer */}
-          <div>
-            <p className="text-muted-foreground font-medium mb-1">{t('simulation.affectiveState.motivational', { defaultValue: 'Motivational' })}</p>
-            <div className="space-y-1">
-              <EmotionBar
-                label={t('simulation.affectiveState.interest', { defaultValue: 'Interest' })}
-                value={affectiveState.motivational.interest}
-                icon={<Eye className="h-3 w-3 text-green-400" />}
-                colorClass="bg-green-400"
-              />
-              <EmotionBar
-                label={t('simulation.affectiveState.cooperativeness', { defaultValue: 'Coop.' })}
-                value={affectiveState.motivational.cooperativeness}
-                icon={<Eye className="h-3 w-3 text-teal-400" />}
-                colorClass="bg-teal-400"
-              />
-            </div>
-          </div>
+        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+          {detailMetrics.map(metric => (
+            <EmotionBar key={metric.label} {...metric} />
+          ))}
         </div>
       )}
     </div>
@@ -442,6 +453,7 @@ const SimulationPanel = memo(function SimulationPanel({
   evaluationSkipped = false,
   hasActiveIncident = false,
   isVisible = true,
+  isCompact = false,
   className = '',
 }: SimulationPanelProps) {
   const { t } = useTranslation();
@@ -460,7 +472,7 @@ const SimulationPanel = memo(function SimulationPanel({
   return (
     <Card className={`w-full border border-border/50 bg-card/60 backdrop-blur-sm flex flex-col overflow-hidden ${className}`}>
       {/* Sticky header — always visible even when content below is scrolled */}
-      <div className="sticky top-0 z-10 bg-card/90 backdrop-blur-sm px-3 pt-3 pb-2 border-b border-border/30 shrink-0">
+      <div className={`sticky top-0 z-10 bg-card/90 backdrop-blur-sm px-2 ${isCompact ? 'pt-1.5 pb-1.5' : 'pt-2 pb-1.5'} border-b border-border/30 shrink-0`}>
         {terminationReason && <TerminationBanner reason={terminationReason} />}
         {!terminationReason && newIncident && <IncidentBanner incident={newIncident} />}
 
@@ -475,7 +487,7 @@ const SimulationPanel = memo(function SimulationPanel({
         </div>
 
         {timer.enabled && (
-          <div className="mt-1.5">
+          <div className="mt-1">
             <SimulationTimer timer={timer} />
           </div>
         )}
@@ -483,11 +495,11 @@ const SimulationPanel = memo(function SimulationPanel({
 
       {/* Scrollable body */}
       <div ref={scrollBodyRef} className="overflow-y-auto flex-1">
-        <CardContent className="p-3 space-y-3">
+        <CardContent className={`${isCompact ? 'p-2 space-y-2' : 'p-2.5 space-y-2'}`}>
           {/* Affective Layers panel — primary NPC state display.
               Guard against legacy sessions loaded before npcAffectiveState was introduced. */}
           {state.npcAffectiveState && (
-            <AffectiveStatePanel affectiveState={state.npcAffectiveState} />
+            <AffectiveStatePanel affectiveState={state.npcAffectiveState} isCompact={isCompact} />
           )}
 
           <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">

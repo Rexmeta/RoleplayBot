@@ -33,7 +33,7 @@ Preferred communication style: Simple, everyday language.
 - **Payments**: Stripe client (`server/stripeClient.ts`) and webhook handlers (`server/webhookHandlers.ts`) for subscription lifecycle events.
 - **Cloud Run Health Checks**: `/_ah/health` (liveness, always 200), `/_ah/ready` (readiness, 503 until app is fully initialized), `/_ah/debug` (diagnostic info, enabled when `DEBUG_ENDPOINT_ENABLED=true` env var is set). Server binds to `0.0.0.0` and registers health endpoints before all route initialization.
 - **Application Health API**: `/api/health` returns memory usage, uptime, and realtime voice session counts.
-- **Voice Audio Settings**: `/api/settings/voice-audio` exposes configurable AGC parameters (target RMS, min/max gain, attack/release coefficients), seeded from `system_settings` on first access.
+- **Voice Audio Settings**: `/api/settings/voice-audio` exposes configurable AGC parameters (target RMS, min/max gain, attack/release coefficients), seeded from `system_settings` on first access. Real-time voice also offers browser-supported output-device selection with persisted preference, safe default fallback, and clear mobile OS-routing guidance when the browser cannot force a route. Microphone (input-device) selection is also available: persisted choice applied via `deviceId: { exact }` (no silent wrong-mic fallback), live mid-conversation swap that keeps the audio graph wired, and automatic default-mic fallback with a user-visible message when the chosen device disappears.
 
 ## Data Storage
 - **ORM**: Drizzle ORM (PostgreSQL dialect). Schema is split into domain modules under `shared/schema/`.
@@ -96,21 +96,45 @@ Preferred communication style: Simple, everyday language.
 - **Validation**: Zod.
 - **API Docs**: swagger-ui-express, OpenAPI 3.x spec.
 - **Development Tools**: Vite, TypeScript, Tailwind CSS.
-- **Testing**: Vitest (`npx vitest run`) with happy-dom for client hook tests. 1342 tests across 52 test files.
+- **Testing**: Vitest with happy-dom for client hook tests. ~1,727 tests across 73 test files.
 
 ## Testing
 
-Run tests with: `npx vitest run`
+### Test execution commands
 
-Test files are organized under `tests/server/`, `tests/client/`, and `tests/` (root-level server tests):
+| Command | What it runs | When to use |
+|---|---|---|
+| `npm test` | Full deterministic suite (73 files, ~1,727 tests) | Default — everyday development and CI |
+| `npm run test:server` | Server tests only (`tests/server/`) | After backend-only changes |
+| `npm run test:client` | Client tests only (`tests/client/`) | After frontend-only changes |
+| `npm run check` | TypeScript type-check only (no tests) | Before merge when types changed |
+| `npm run validate:scenarios` | JSON scenario validation | After editing scenario data files |
+| `npm run test:smoke` | External API smoke tests (`*.smoke.test.ts`) | Release / manual verification only — requires live API keys |
+
+Full regression and smoke tests are intentionally kept separate from the default run. Smoke tests hit the real Veo / Gemini APIs and are skipped automatically when `GEMINI_API_KEY` is absent.
+
+### Test ownership boundaries
+
+Each area owns its details; cross-area tests confirm the wiring only:
+
+- **`simulationEngine.test.ts`** — owns delta application, clamping, accumulation, stage rules, score carry-forward
+- **`simulationToolHandler.test.ts`** — owns tool arg validation, per-call clamping, per-turn cap, stage/incident rules
+- **`voice/voiceNpcAffectiveState.test.ts`** — confirms voice↔engine integration boundary (patch format, cross-source accumulation, analyzer no-side-effects)
+- **`agentApiKeyMiddleware.test.ts`** — owns full auth failure matrix (HMAC, revoked, expired, IP allowlist, scope)
+- **`agentApi.test.ts`** — confirms middleware is wired; owns route logic (scenarios, sessions, messages, idempotency)
+- **`agentApiStreaming.test.ts`** — owns SSE event contract (delta/done/error, chat persistence, usage accumulation)
+
+### Test file inventory
+
+Test files are organized under `tests/server/`, `tests/client/`, and `tests/` (root-level):
 
 **Server tests (`tests/server/`):**
 - `geminiMessageHandler.test.ts` — goAway handling, sessionResumption, audio routing, barge-in suppression, inputTranscription accumulation, turnComplete lifecycle, modelTurn thinking-text detection, outputTranscription filtering
 - `geminiReconnector.test.ts` — normal close cleanup, unexpected close reconnection, exponential backoff, session context restoration, max-attempts failure, client-disconnect cancellation
-- `agentApi.test.ts` — Agent API endpoint coverage
+- `agentApi.test.ts` — Agent API route integration (auth wiring, scenarios, sessions, messages, idempotency)
 - `agentApiKey.test.ts` — API key creation, hashing, validation
-- `agentApiKeyMiddleware.test.ts` — Bearer auth middleware
-- `agentApiStreaming.test.ts` — Streaming response handling
+- `agentApiKeyMiddleware.test.ts` — Bearer auth middleware (full failure matrix, HMAC, revoked/expired/IP/scope)
+- `agentApiStreaming.test.ts` — SSE streaming contract (delta/done/error events, chat persistence, usage accumulation)
 - `agentApiUsage.test.ts` — Usage tracking and daily aggregation
 - `clientMessageHandler.test.ts` — Client WebSocket message handling
 - `evaluateUserResponse.test.ts` — Simulation evaluation harness
@@ -129,12 +153,13 @@ Test files are organized under `tests/server/`, `tests/client/`, and `tests/` (r
 - `optimizedGeminiProvider.test.ts` — Gemini AI provider optimizations
 - `realtimeVoiceService.test.ts` — Realtime voice service session lifecycle
 - `scenarioValidator.test.ts` — Scenario data validation
-- `simulationEngine.test.ts` — Core simulation engine logic
+- `simulationEngine.test.ts` — Core simulation engine (delta, clamping, accumulation, stage rules, scoring)
 - `simulationRules.test.ts` — Simulation rule evaluation
-- `simulationToolHandler.test.ts` — Simulation Gemini tool handler
+- `simulationToolHandler.test.ts` — Simulation Gemini tool handler (arg validation, per-call cap, boundary clamping)
 - `textFilter.test.ts` — Thinking-tag text filter
 - `benchmarkGroups.test.ts` — HR benchmark group logic
-- `setFewShotExampleFlow.test.ts` — Set-level few-shot example CRUD, from-feedback import (dimension key mapping + transcript serialization), infer-dimension-criteria AI mock parsing, apply-inferred-criteria dimension updates
+- `setFewShotExampleFlow.test.ts` — Set-level few-shot example CRUD, from-feedback import, infer-dimension-criteria parsing
+- `simulation/voiceNpcAffectiveState.test.ts` — Voice↔engine integration boundary (patch format, cross-source accumulation, analyzer isolation)
 
 **Client tests (`tests/client/`):**
 - `useAudioPlayback.test.ts` — Initial state, stopPlayback barge-in, playAudioDelta gating, PCM16 decoding math, AnalyserNode/GainNode lifecycle
@@ -145,7 +170,7 @@ Test files are organized under `tests/server/`, `tests/client/`, and `tests/` (r
 - `personaSwitchAvatar.test.ts` — Persona avatar switching logic
 - `videoIntroSources.test.ts` — Intro video source resolution
 
-Client test files use `// @vitest-environment happy-dom` per-file annotation; server tests run in Node environment. Setup file at `tests/setup.ts`.
+Client test files run under `happy-dom`; server tests run in Node. Setup file: `tests/setup.ts`.
 
 ## Real-time Voice Module Architecture
 
@@ -170,7 +195,7 @@ The real-time voice system supports both Gemini Live API (default) and OpenAI Re
 - `realtimeVoiceService.ts` — Slim orchestrator wiring all voice sub-modules; selects Gemini Live or OpenAI Realtime based on `model_realtime` system setting
 
 ### Client-side (`client/src/hooks/`)
-- `useAudioPlayback.ts` — AudioContext management, PCM16 decoding, scheduling, analyser, amplitude tracking, AGC (Auto Gain Control) processing, stopPlayback, playAudioDelta
+- `useAudioPlayback.ts` — AudioContext management, PCM16 decoding, scheduling, analyser, amplitude tracking, stable AGC (Auto Gain Control), browser-supported output-device enumeration (speaker vs Bluetooth), permission-gated device loading, selection/fallback, stopPlayback, playAudioDelta
 - `useVoiceActivityDetection.ts` — VAD ScriptProcessor setup, RMS-based barge-in detection, userAudioAmplitude state
 - `useRealtimeVoice.ts` — Slim orchestrator using both sub-hooks for WebSocket state, reconnection, and recording
 

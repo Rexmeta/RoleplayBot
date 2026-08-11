@@ -11,22 +11,73 @@
 
 ---
 
-## 2. 기능별 DB 설정 키 매핑
+## 2. AIFeature 타입
 
-`system_settings` 테이블 (`ai` 카테고리)에서 기능별 모델을 조회한다.
-
-| Feature | DB 설정 키 |
-|---------|-----------|
-| `conversation` | `model_conversation` |
-| `feedback` | `model_feedback` |
-| `strategy` | `model_strategy` |
-| `scenario` | `model_scenario` |
-
-DB에 값이 없으면 기본값 `'gemini-2.5-flash'`를 사용한다.
+```typescript
+export type AIFeature =
+  | 'conversation'   // 롤플레이 대화
+  | 'feedback'       // 대화 피드백 생성
+  | 'strategy'       // 전략 회고 평가
+  | 'scenario'       // 시나리오 생성
+  | 'translation'    // 다국어 번역
+  | 'emotion'        // 실시간 감정 분석
+  | 'image'          // 이미지 생성
+  | 'video'          // 영상 생성
+  | 'avatar_video'   // 아바타 클립 생성
+  | 'evaluation'     // 음성 세션 중 턴별 평가
+  | 'summarization'; // 긴 음성 세션 메시지 요약
+```
 
 ---
 
-## 3. 프로바이더 선택 로직
+## 3. 모델 결정 우선순위
+
+`getModelForFeature(feature)` 함수는 다음 순서로 모델을 결정한다:
+
+```
+1. 기능별 환경변수 (예: AI_MODEL_CONVERSATION)
+      ↓ 없으면
+2. 전역 환경변수 (AI_MODEL)
+      ↓ 없으면
+3. DB system_settings 테이블 (ai 카테고리)
+      ↓ 없으면
+4. 기능별 기본값 (FEATURE_DEFAULTS) 또는 공통 기본값 'gemini-2.5-flash'
+```
+
+---
+
+## 4. 기능별 설정 키 & 환경변수 매핑
+
+| Feature | DB 설정 키 (`ai` 카테고리) | 환경변수 키 |
+|---------|--------------------------|-------------|
+| `conversation` | `model_conversation` | `AI_MODEL_CONVERSATION` |
+| `feedback` | `model_feedback` | `AI_MODEL_FEEDBACK` |
+| `strategy` | `model_strategy` | `AI_MODEL_STRATEGY` |
+| `scenario` | `model_scenario` | `AI_MODEL_SCENARIO` |
+| `translation` | `model_translation` | `AI_MODEL_TRANSLATION` |
+| `emotion` | `model_emotion` | `AI_MODEL_EMOTION` |
+| `image` | `model_image` | `AI_MODEL_IMAGE` |
+| `video` | `model_video` | `AI_MODEL_VIDEO` |
+| `avatar_video` | `model_avatar_video` | `AI_MODEL_AVATAR_VIDEO` |
+| `evaluation` | `model_evaluation` | `AI_MODEL_EVALUATION` |
+| `summarization` | `model_summarization` | `AI_MODEL_SUMMARIZATION` |
+
+---
+
+## 5. 기능별 기본값 (FEATURE_DEFAULTS)
+
+설정이 없을 때 공통 기본값(`gemini-2.5-flash`)이 아닌 기능 전용 모델을 사용하는 기능:
+
+| Feature | 기본값 |
+|---------|--------|
+| `image` | `gemini-2.5-flash-image` |
+| `video` | `veo-3.1-generate-preview` |
+| `avatar_video` | `veo-3.1-lite-generate-preview` |
+| 나머지 | `gemini-2.5-flash` |
+
+---
+
+## 6. 프로바이더 선택 로직
 
 모델명 prefix로 프로바이더를 결정한다:
 
@@ -38,40 +89,20 @@ DB에 값이 없으면 기본값 `'gemini-2.5-flash'`를 사용한다.
 
 ---
 
-## 4. Fallback 순서 및 환경변수 조합
+## 7. Fallback 순서 및 환경변수 조합
 
-### 환경변수별 활성 프로바이더
-
-| 요청 모델 | `OPENAI_API_KEY` | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | 실제 사용 프로바이더 |
-|----------|-----------------|--------------------------------------|---------------------|
-| `gpt-*` | 설정됨 | 무관 | OpenAI (`OpenAIProvider`) |
+| 요청 모델 | `OPENAI_API_KEY` | Gemini 키 | 실제 사용 프로바이더 |
+|----------|-----------------|-----------|---------------------|
+| `gpt-*` | 설정됨 | 무관 | OpenAI |
 | `gpt-*` | **없음** | 설정됨 | Gemini fallback (`gemini-2.5-flash`) |
-| `gpt-*` | **없음** | **없음** | Gemini fallback 시도 (빈 키로 초기화 → API 호출 시 실패) |
+| `gpt-*` | **없음** | **없음** | 빈 키로 Gemini 초기화 — 첫 API 호출 시 실패 |
 | `claude-*` | 무관 | 설정됨 | Gemini fallback (`gemini-2.5-flash`) |
 | `gemini-*` | 무관 | 설정됨 | Gemini |
-| `gemini-*` | 무관 | **없음** | 즉시 에러: `GEMINI_API_KEY or GOOGLE_API_KEY is required` |
-
-> **참고**: `gpt-*` 모델에서 `OPENAI_API_KEY`가 없으면 팩토리는 Gemini로 fallback한다. Gemini 키가 있는 경우 정상 동작한다. Gemini 키도 없는 경우, `createServiceWithModel()`은 빈 키(`''`)로 `OptimizedGeminiProvider`를 생성하고 즉시 에러를 throw하지 않는다 — 실제 실패는 첫 번째 API 호출 시점에 지연 발생한다.
-
-### Fallback 우선순위 다이어그램
-
-```
-요청된 모델명
-      │
-      ├─ gpt-* ──────→ OPENAI_API_KEY 있음? ─Yes→ OpenAI
-      │                        │No
-      │                        └─→ Gemini fallback (gemini-2.5-flash)
-      │
-      ├─ claude-* ──→ Claude 미구현 → Gemini fallback (gemini-2.5-flash)
-      │
-      └─ 그 외 ──────→ GEMINI_API_KEY 있음? ─Yes→ Gemini
-                               │No
-                               └─→ 에러 (필수 키 없음)
-```
+| `gemini-*` | 무관 | **없음** | 즉시 에러 |
 
 ---
 
-## 5. 주요 공개 API
+## 8. 주요 공개 API
 
 ### `getAIServiceForFeature(feature)` ← **권장 진입점**
 
@@ -83,22 +114,17 @@ const service = await getAIServiceForFeature('conversation');
 2. 모델명으로 프로바이더 결정
 3. 새 서비스 인스턴스 반환
 
+### `getModelForFeature(feature)`
+
+모델명만 반환 (인스턴스 생성 없음). 로깅·디버깅에 활용.
+
 ### `AIServiceFactory.createServiceWithModel(model)`
 
 특정 모델을 직접 지정해 인스턴스 생성. 단위 테스트나 특수 케이스에 사용.
 
-### 폐기(Deprecated) 함수
-
-| 함수 | 대체 |
-|------|------|
-| `AIServiceFactory.getInstance()` | `getAIServiceForFeature()` |
-| `getAIService()` | `getAIServiceForFeature()` |
-| `syncModelForFeature()` | `getAIServiceForFeature()` |
-| `syncModelFromSettings()` | `getAIServiceForFeature()` |
-
 ---
 
-## 6. 필수 환경변수
+## 9. 필수 환경변수
 
 | 변수 | 필수 여부 | 설명 |
 |------|---------|------|
@@ -107,7 +133,7 @@ const service = await getAIServiceForFeature('conversation');
 
 ---
 
-## 7. 관련 파일
+## 10. 관련 파일
 
 - `server/services/aiService.ts` — `AIServiceInterface`, `AIServiceConfig` 타입 정의
 - `server/services/providers/optimizedGeminiProvider.ts` — Gemini 구현체

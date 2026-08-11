@@ -9,7 +9,11 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "validate:scenarios": "tsx scripts/validateScenarios.ts"
+    "validate:scenarios": "tsx scripts/validateScenarios.ts",
+    "test": "npx vitest run",
+    "test:server": "npx vitest run tests/server",
+    "test:client": "npx vitest run tests/client",
+    "test:smoke": "npx vitest run --config vitest.smoke.config.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.18.0",

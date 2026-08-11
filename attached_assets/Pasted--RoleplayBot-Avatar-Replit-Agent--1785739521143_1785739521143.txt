@@ -1,0 +1,621 @@
+아래 프롬프트는 **RoleplayBot 프로젝트를 분석한 후, 기존 구조를 최대한 유지하면서 Avatar 시스템을 단계적으로 고도화**하도록 Replit Agent에게 작업을 지시하는 문서입니다.
+
+---
+
+# RoleplayBot Avatar Rendering System V2 설계 및 구현
+
+## 작업 목적
+
+RoleplayBot의 현재 Avatar 시스템은 이미지(Sprite) 기반으로 구현되어 있다.
+
+현재 구조를 유지하면서 확장 가능한 Avatar Rendering Architecture로 리팩토링하고, 향후 Commercial Edition에서는 Video Avatar를 사용할 수 있도록 구조를 변경한다.
+
+이번 작업에서는 기존 기능을 깨뜨리지 않는 것이 최우선 목표이다.
+
+---
+
+# 반드시 먼저 수행할 작업
+
+프로젝트 전체를 먼저 분석한다.
+
+다음 내용을 우선 조사한다.
+
+* 현재 Avatar 관련 Component
+* Emotion 처리 방식
+* State 변경 방식
+* Voice/TTS 이벤트
+* LLM 응답 이벤트
+* Conversation Flow
+* Avatar Image Asset 구조
+* Emotion Detection 구조
+* 기존 Renderer 구조
+
+분석 결과를 기반으로 기존 코드를 최대한 유지하면서 개선한다.
+
+기존 API 및 UI를 깨뜨려서는 안 된다.
+
+---
+
+# 목표 Architecture
+
+Avatar 시스템을 아래 구조로 변경한다.
+
+```text
+Conversation Engine
+        │
+        ▼
+Avatar State Machine
+        │
+        ├───────────────┐
+        ▼               ▼
+Emotion Engine     Event Dispatcher
+        │               │
+        └──────┬────────┘
+               ▼
+       Avatar Renderer Interface
+               │
+     ┌─────────┴──────────┐
+     │                    │
+Image Renderer      Video Renderer
+(Community)         (Commercial)
+```
+
+Renderer만 교체하면 동일한 State Machine을 사용할 수 있도록 구현한다.
+
+---
+
+# Avatar State 정의
+
+Avatar는 다음 State를 가진다.
+
+```text
+idle
+
+listening
+
+listening_nod
+
+thinking
+
+speaking
+
+speaking_pause
+```
+
+State는 Renderer와 독립적으로 관리한다.
+
+---
+
+# Emotion 정의
+
+Emotion은 State와 분리한다.
+
+예시
+
+```text
+neutral
+
+happy
+
+sad
+
+angry
+
+concerned
+
+excited
+```
+
+최종 표현은
+
+```text
+Speaking + Happy
+
+Listening + Concerned
+
+Thinking + Neutral
+```
+
+처럼 조합된다.
+
+Emotion은 Renderer에 전달만 한다.
+
+---
+
+# Renderer 구조
+
+새로운 Interface를 만든다.
+
+예시
+
+```typescript
+interface AvatarRenderer {
+
+initialize()
+
+destroy()
+
+playState()
+
+setEmotion()
+
+preloadAssets()
+
+pause()
+
+resume()
+
+}
+```
+
+---
+
+## Community Edition
+
+기존 Image 기반 Renderer를 유지한다.
+
+이름
+
+```text
+ImageAvatarRenderer
+```
+
+기존 기능이 모두 정상 동작해야 한다.
+
+---
+
+## Commercial Edition
+
+새로운
+
+```text
+VideoAvatarRenderer
+```
+
+를 추가한다.
+
+Video Renderer는
+
+```text
+idle.mp4
+
+listening.mp4
+
+listening_nod.mp4
+
+thinking.mp4
+
+speaking.mp4
+
+speaking_pause.mp4
+```
+
+를 사용한다.
+
+---
+
+# Renderer 선택 방식
+
+Renderer는 설정값으로 선택한다.
+
+예시
+
+```env
+AVATAR_RENDERER=image
+```
+
+또는
+
+```env
+AVATAR_RENDERER=video
+```
+
+코드 전체에
+
+```text
+if (premium)
+```
+
+같은 분기가 퍼져서는 안 된다.
+
+Factory Pattern으로 생성한다.
+
+예시
+
+```text
+AvatarRendererFactory
+
+↓
+
+ImageAvatarRenderer
+
+VideoAvatarRenderer
+```
+
+---
+
+# Avatar State Machine
+
+State Machine을 별도 모듈로 만든다.
+
+예시
+
+```text
+Idle
+
+↓
+
+Listening
+
+↓
+
+Thinking
+
+↓
+
+Speaking
+
+↓
+
+Speaking Pause
+
+↓
+
+Idle
+```
+
+Transition은 Event 기반으로 수행한다.
+
+---
+
+# Event Dispatcher
+
+Avatar는 다음 이벤트만 수신한다.
+
+```text
+UserSpeechStart
+
+UserSpeechEnd
+
+LLMThinkingStart
+
+LLMResponseStart
+
+TTSStart
+
+TTSPause
+
+TTSResume
+
+TTSEnd
+
+ConversationEnd
+```
+
+Renderer는 이벤트를 직접 처리하지 않는다.
+
+State Machine을 통해서만 변경된다.
+
+---
+
+# Video Renderer 요구사항
+
+Commercial Version에서만 사용한다.
+
+Video는
+
+```text
+2~4초
+```
+
+Loop Video를 사용한다.
+
+권장 길이
+
+```text
+Idle             3초
+
+Listening        2초
+
+Listening Nod    2초
+
+Thinking         3초
+
+Speaking         4초
+
+Speaking Pause   2초
+```
+
+---
+
+# Lip Sync
+
+이번 버전에서는 구현하지 않는다.
+
+Speaking 상태에서는
+
+입이 자연스럽게 움직이는 Loop Video를 재생한다.
+
+정확한 음성 싱크보다
+
+사용자가
+
+"상대방이 말하고 있다."
+
+라고 느끼는 것이 목표이다.
+
+---
+
+# Speaking Pause
+
+TTS 재생 중
+
+약
+
+```text
+0.3~1초
+```
+
+이상 무음이면
+
+Speaking Pause
+
+상태로 변경한다.
+
+다시 음성이 시작되면 Speaking으로 복귀한다.
+
+---
+
+# Thinking
+
+사용자 입력 종료 후
+
+LLM 응답 생성 중에는
+
+Thinking Video를 재생한다.
+
+첫 번째 TTS Audio Chunk가 생성되는 즉시
+
+Speaking으로 전환한다.
+
+TTS 전체 생성 완료를 기다리지 않는다.
+
+---
+
+# Video Asset 관리
+
+Video는 다음 구조를 권장한다.
+
+```text
+avatars/
+
+    female01/
+
+        neutral/
+
+            idle.mp4
+
+            speaking.mp4
+
+        happy/
+
+            idle.mp4
+
+            speaking.mp4
+
+    male01/
+```
+
+Asset Naming Rule을 문서화한다.
+
+---
+
+# Preload 정책
+
+Video Renderer는
+
+현재 Avatar의 Video만 preload한다.
+
+모든 Avatar를 preload하지 않는다.
+
+Video 변경은
+
+파일 다운로드가 아니라
+
+이미 preload된 Asset을 즉시 재생해야 한다.
+
+목표
+
+```text
+State Change
+
+50ms 이하
+```
+
+---
+
+# Performance 요구사항
+
+목표
+
+* 60fps 유지
+* GPU Video Decode 사용
+* State 변경 시 Frame Drop 최소화
+* Video Cross Fade 지원
+* Black Frame 발생 방지
+
+---
+
+# Community / Commercial 기능 분리
+
+Community
+
+* Image Renderer
+* 기존 Emotion 기능
+* 기존 Avatar Asset 사용
+
+Commercial
+
+* Video Renderer
+* Video State Machine
+* Video Asset
+* 향후 Emotion Video 지원
+
+Renderer만 다르고
+
+Conversation Engine
+
+Emotion Engine
+
+State Machine
+
+Prompt
+
+평가 시스템
+
+LLM
+
+TTS
+
+Voice
+
+등은 모두 동일한 코드를 사용한다.
+
+---
+
+# 반드시 고려해야 하는 문제점
+
+구현 시 아래 문제를 반드시 검토하고 해결 방안을 포함한다.
+
+## 1. Asset 증가
+
+State × Emotion × Avatar 증가에 따른 Asset 관리 구조 설계
+
+---
+
+## 2. Video 용량 증가
+
+압축 방식
+
+Lazy Loading
+
+Caching
+
+CDN 활용 검토
+
+---
+
+## 3. Memory 사용량
+
+현재 Avatar만 preload
+
+불필요한 Video는 메모리에서 해제
+
+---
+
+## 4. Browser 호환성
+
+Chrome
+
+Edge
+
+Firefox
+
+Safari
+
+지원 Codec 검토
+
+MP4(H264)
+
+WebM(VP9)
+
+지원 여부 확인
+
+---
+
+## 5. State 전환 품질
+
+Video 교체 시
+
+검은 화면
+
+깜빡임
+
+Frame Drop
+
+발생 여부 검토
+
+Cross Fade 방식 적용
+
+---
+
+## 6. Speaking 반복
+
+같은 Speaking Video 반복 시 부자연스러움
+
+향후
+
+Speaking_A
+
+Speaking_B
+
+Speaking_C
+
+등 랜덤 재생 가능한 구조 설계
+
+---
+
+## 7. Emotion 확장성
+
+Emotion Video가 없는 경우
+
+Neutral Video를 사용하는 Fallback 구조 설계
+
+---
+
+## 8. Mobile 최적화
+
+720P
+
+24fps
+
+저사양 모드 지원
+
+---
+
+## 9. Renderer 확장성
+
+향후
+
+* Live2D
+* VRM
+* NVIDIA Audio2Face
+* Talking Head
+* HeyGen 스타일 Avatar
+
+를 추가할 수 있도록 Renderer Interface를 일반화한다.
+
+---
+
+## 최종 목표
+
+이번 작업의 목표는 **Video Avatar를 구현하는 것 자체가 아니라, RoleplayBot의 Avatar 시스템을 장기적으로 확장 가능한 플랫폼 구조로 재설계하는 것**이다.
+
+최종적으로는 다음과 같은 구조를 갖는 것을 목표로 한다.
+
+```text
+Avatar Engine
+
+├── State Machine
+├── Emotion Engine
+├── Event Dispatcher
+├── Renderer Interface
+│
+├── Image Renderer (Community)
+├── Video Renderer (Commercial)
+├── Live2D Renderer (Future)
+├── VRM Renderer (Future)
+└── Talking Head Renderer (Future)
+```
+
+기존 기능과 호환성을 유지하면서, Community와 Commercial Edition이 동일한 코드베이스를 공유하도록 구현한다.

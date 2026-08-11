@@ -75,13 +75,62 @@ export function inferEmotionPatchFromEvaluation(
  * Applies NpcBehaviorHarness negotiation bounds as additional emotion delta modifiers.
  * Called after the baseline emotion delta is computed to layer harness-specific adjustments.
  */
+/**
+ * Normalizes a raw persisted NpcBehaviorHarness object, migrating legacy field names
+ * produced before the affective-layer rename:
+ *   negotiationBounds.minTrustToYield        → minRelationalTrustToYield
+ *   negotiationBounds.maxAngerBeforeWalkout  → maxAffectiveIntensityBeforeWalkout
+ *   trigger.trustDelta                       → relationalTrustDelta
+ *   trigger.angerDelta                       → affectiveIntensityDelta
+ *
+ * Safe to call on already-migrated objects (no-op if new keys are present).
+ */
+export function normalizeNpcBehaviorHarness(raw: any): NpcBehaviorHarness {
+  if (!raw || typeof raw !== 'object') return raw;
+  const out: any = { ...raw };
+
+  if (out.negotiationBounds && typeof out.negotiationBounds === 'object') {
+    const b: any = { ...out.negotiationBounds };
+    if ('minTrustToYield' in b && !('minRelationalTrustToYield' in b)) {
+      b.minRelationalTrustToYield = b.minTrustToYield;
+      delete b.minTrustToYield;
+    }
+    if ('maxAngerBeforeWalkout' in b && !('maxAffectiveIntensityBeforeWalkout' in b)) {
+      b.maxAffectiveIntensityBeforeWalkout = b.maxAngerBeforeWalkout;
+      delete b.maxAngerBeforeWalkout;
+    }
+    out.negotiationBounds = b;
+  }
+
+  const normalizeTriggers = (triggers: any[]): any[] =>
+    (triggers ?? []).map((t: any) => {
+      const nt = { ...t };
+      if ('trustDelta' in nt && !('relationalTrustDelta' in nt)) {
+        nt.relationalTrustDelta = nt.trustDelta;
+        delete nt.trustDelta;
+      }
+      if ('angerDelta' in nt && !('affectiveIntensityDelta' in nt)) {
+        nt.affectiveIntensityDelta = nt.angerDelta;
+        delete nt.angerDelta;
+      }
+      return nt;
+    });
+
+  if (Array.isArray(out.trustTriggers)) out.trustTriggers = normalizeTriggers(out.trustTriggers);
+  if (Array.isArray(out.escalationTriggers)) out.escalationTriggers = normalizeTriggers(out.escalationTriggers);
+
+  return out as NpcBehaviorHarness;
+}
+
 export function applyNpcBehaviorHarnessModifiers(
   baseDelta: DeepPartial<NpcAffectiveState>,
   harness: NpcBehaviorHarness | undefined | null,
   currentState: SimulationState
 ): DeepPartial<NpcAffectiveState> {
-  if (!harness?.negotiationBounds) return baseDelta;
-  const bounds = harness.negotiationBounds;
+  if (!harness) return baseDelta;
+  const normalized = normalizeNpcBehaviorHarness(harness);
+  if (!normalized?.negotiationBounds) return baseDelta;
+  const bounds = normalized.negotiationBounds;
   const intensity = currentState.npcAffectiveState.affective.intensity;
   const trust = currentState.npcAffectiveState.relational.trust;
 
@@ -107,11 +156,11 @@ export function applyNpcBehaviorHarnessModifiers(
 
   let result = baseDelta;
 
-  if (bounds.minTrustToYield !== undefined && trust < bounds.minTrustToYield) {
+  if (bounds.minRelationalTrustToYield !== undefined && trust < bounds.minRelationalTrustToYield) {
     result = merge(result, { affective: { intensity: 3 }, relational: { trust: -2 } });
   }
 
-  if (bounds.maxAngerBeforeWalkout !== undefined && intensity >= bounds.maxAngerBeforeWalkout) {
+  if (bounds.maxAffectiveIntensityBeforeWalkout !== undefined && intensity >= bounds.maxAffectiveIntensityBeforeWalkout) {
     result = merge(result, { affective: { intensity: 5 }, relational: { trust: -5 } });
   }
 

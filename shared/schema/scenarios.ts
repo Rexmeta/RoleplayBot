@@ -6,9 +6,9 @@ import { categories, users, organizations } from "./users";
 import type { PersonaSelection, StrategyChoice, SequenceAnalysis } from "./types";
 
 export const simulationHarnessSchema = z.object({
-  emotionModel: z.array(z.string()).optional(),
+  affectiveAxes: z.array(z.string()).optional(),
   toolPolicy: z.object({
-    updateNpcEmotion: z.object({
+    npcAffectiveStateDelta: z.object({
       maxCallsPerTurn: z.number().int().min(1).max(10).optional(),
       maxDeltaPerCall: z.number().min(1).max(100).optional(),
     }).optional(),
@@ -56,15 +56,19 @@ export const playerConstraintsSchema: z.ZodType<PlayerConstraints> = z.object({
 
 export interface NpcBehaviorHarnessTrigger {
   keyword: string;
-  trustDelta?: number;
-  angerDelta?: number;
+  /** relational.trust delta — positive builds trust, negative damages it */
+  relationalTrustDelta?: number;
+  /** affective.intensity delta — positive raises intensity/anger, negative calms */
+  affectiveIntensityDelta?: number;
   description?: string;
 }
 
 export interface NpcBehaviorHarness {
   negotiationBounds?: {
-    minTrustToYield?: number;
-    maxAngerBeforeWalkout?: number;
+    /** Minimum relational.trust score for NPC to yield/concede (0–100) */
+    minRelationalTrustToYield?: number;
+    /** Maximum affective.intensity before NPC walks out (0–100) */
+    maxAffectiveIntensityBeforeWalkout?: number;
     maxPatienceTurns?: number;
   };
   trustTriggers?: NpcBehaviorHarnessTrigger[];
@@ -73,15 +77,15 @@ export interface NpcBehaviorHarness {
 
 const npcBehaviorHarnessTriggerSchema = z.object({
   keyword: z.string().min(1),
-  trustDelta: z.number().optional(),
-  angerDelta: z.number().optional(),
+  relationalTrustDelta: z.number().optional(),
+  affectiveIntensityDelta: z.number().optional(),
   description: z.string().optional(),
 });
 
 export const npcBehaviorHarnessSchema: z.ZodType<NpcBehaviorHarness> = z.object({
   negotiationBounds: z.object({
-    minTrustToYield: z.number().min(0).max(100).optional(),
-    maxAngerBeforeWalkout: z.number().min(0).max(100).optional(),
+    minRelationalTrustToYield: z.number().min(0).max(100).optional(),
+    maxAffectiveIntensityBeforeWalkout: z.number().min(0).max(100).optional(),
     maxPatienceTurns: z.number().int().positive().optional(),
   }).optional(),
   trustTriggers: z.array(npcBehaviorHarnessTriggerSchema).optional(),
@@ -305,6 +309,7 @@ export const scenarios = pgTable("scenarios", {
   imagePrompt: text("image_prompt"),
   introVideoUrl: text("intro_video_url"),
   introVideoMode: text("intro_video_mode").$type<'none' | 'default' | 'custom'>().default('none'),
+  modelVideoOverride: varchar("model_video_override"),
   videoPrompt: text("video_prompt"),
   objectiveType: text("objective_type"),
   context: jsonb("context").$type<{
@@ -354,7 +359,7 @@ export const scenarios = pgTable("scenarios", {
   terminationRules: jsonb("termination_rules").$type<TerminationRules>(),
   playerConstraints: jsonb("player_constraints").$type<PlayerConstraints>(),
   difficultyProfile: jsonb("difficulty_profile").$type<DifficultyProfile>(),
-  personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join'>(),
+  personaSwitchMode: varchar("persona_switch_mode", { length: 20 }).$type<'replace' | 'join' | 'none'>(),
   simulationHarness: jsonb("simulation_harness").$type<SimulationHarness>(),
   analyticsSpec: jsonb("analytics_spec").$type<AnalyticsSpec>(),
   storeListed: boolean("store_listed").notNull().default(false),
@@ -362,6 +367,7 @@ export const scenarios = pgTable("scenarios", {
   storePackId: varchar("store_pack_id"),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublic: boolean("is_public").notNull().default(false),
+  useVideoAvatar: boolean("use_video_avatar").notNull().default(false),
   isDeleted: boolean("is_deleted").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -437,6 +443,12 @@ export type ScenarioRun = typeof scenarioRuns.$inferSelect;
 
 // ─── AnalyticsSpec ────────────────────────────────────────────────────────────
 
+/**
+ * Analytics tracked-metric keys.
+ * NOTE: 'angerMax', 'trustMin', 'trustMax', 'trustAverage', 'angerAverage' are
+ * derived aliases from the affective layer (affective.intensity and relational.trust)
+ * and are computed at report generation time — they do not exist as separate state fields.
+ */
 export const TRACKED_METRICS = [
   'angerMax', 'trustMin', 'trustMax', 'trustAverage', 'angerAverage',
   'empathyAverage', 'escalationCount', 'interruptionCount',

@@ -304,11 +304,28 @@ export default function PersonalDevelopmentReport({
   });
 
   const conversationMessages: ConversationMessage[] = Array.isArray(fullConversation?.messages)
-    ? [...fullConversation.messages].sort((a, b) => {
-        const ti = (a.turnIndex ?? 0) - (b.turnIndex ?? 0);
-        if (ti !== 0) return ti;
-        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-      })
+    ? (() => {
+        const sorted = [...fullConversation.messages].sort((a, b) => {
+          const ti = (a.turnIndex ?? 0) - (b.turnIndex ?? 0);
+          if (ti !== 0) return ti;
+          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        });
+        // Safety dedup: when the same (turnIndex, sender) appears more than once
+        // (e.g. from an orphaned closeSession write landing on a slot already
+        // occupied by a flush), keep only the latest row (last after sort by
+        // timestamp). Rows with distinct senders at the same turnIndex are kept
+        // as-is — that is the normal user+ai pair case.
+        const seen = new Map<string, ConversationMessage>();
+        for (const msg of sorted) {
+          const key = `${msg.turnIndex ?? '?'}:${msg.sender}`;
+          seen.set(key, msg); // later (newer) entry wins
+        }
+        return Array.from(seen.values()).sort((a, b) => {
+          const ti = (a.turnIndex ?? 0) - (b.turnIndex ?? 0);
+          if (ti !== 0) return ti;
+          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        });
+      })()
     : [];
   const switchLog: { turn: number; fromPersonaIndex: number; toPersonaIndex: number; reason: string; transitionLine: string; timestamp: string }[] =
     Array.isArray(fullConversation?.personaSwitchLog) ? fullConversation.personaSwitchLog : [];

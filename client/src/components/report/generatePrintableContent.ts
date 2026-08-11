@@ -26,11 +26,15 @@ export function renderHeader(opts: {
   const { feedback, scenario, persona, userName } = opts;
   const overallGrade = getOverallGrade(feedback.overallScore || 0);
   const personaInfo = getPersonaFullInfo(persona);
+  const switchModeNoneNote = (scenario as any).personaSwitchMode === 'none'
+    ? `<p class="report-header-meta" style="color:#6b7280;font-size:0.8em;">페르소나 전환 비활성화됨</p>`
+    : '';
   return `
       <div class="report-header">
         <h1 class="report-title">${escapeHtml(userName)}님 맞춤 보고서</h1>
         <p class="report-header-subtitle">시나리오 : ${escapeHtml(scenario.title)}</p>
         <p class="report-header-meta">대화 상대 : ${escapeHtml(personaInfo)}</p>
+        ${switchModeNoneNote}
         <div class="flex-end">
           <div class="report-score-box">
             <div class="report-grade">${escapeHtml(overallGrade.grade)}</div>

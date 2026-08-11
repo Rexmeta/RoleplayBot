@@ -22,6 +22,7 @@
         │                            (prepareConversationHistory)
         │                            - 전체 대화 히스토리 사용 (제한 없음)
         │                            - 완료 마커(✓) 삽입
+        │                            - join 모드: parseJoinModeSpeakerSegments로 화자 레이블링
         ├──────────────────────────────────┘
         ▼
 buildCompactPrompt() 호출
@@ -52,13 +53,13 @@ JSON 응답 파싱 { content, emotion, emotionReason }
 
 | 역할 | 파일 | 함수/상수 |
 |------|------|-----------|
-| 공유 상수·순수 함수 | `server/services/conversationContextBuilder.ts` | `prepareConversationHistory`, `detectRoleHierarchy`, `buildHierarchySpeechGuide`, `buildDifficultyGuidelines`, `buildMBTIContextGuides` |
+| 공유 상수·순수 함수 | `server/services/conversationContextBuilder.ts` | `prepareConversationHistory`, `detectRoleHierarchy`, `buildHierarchySpeechGuide`, `buildDifficultyGuidelines`, `buildMBTIContextGuides`, `parseJoinModeSpeakerSegments`, `SpeakerSegment` |
 | Gemini 프로바이더 | `server/services/providers/optimizedGeminiProvider.ts` | `OptimizedGeminiProvider` |
 | OpenAI 프로바이더 | `server/services/providers/openaiProvider.ts` | `OpenAIProvider` |
 | 난이도 정책 | `server/services/conversationDifficultyPolicy.ts` | `getTextModeGuidelines`, `validateDifficultyLevel`, `getDifficultyGuidelines` |
 | MBTI 데이터 로더 | `server/utils/mbtiLoader.ts` | `loadMBTIPersona`, `enrichPersonaWithMBTI` |
 | MBTI 글로벌 캐시 | `server/utils/globalMBTICache.ts` | `GlobalMBTICache.getInstance()` |
-| 평가 엔진 (별도) | `server/services/evaluationEngine.ts` | _(평가 시스템은 이 파일 참조)_ |
+| 평가 엔진 (별도) | `server/services/evaluationEngine.ts` | _(평가 시스템은 `docs/evaluation-system.md` 참조)_ |
 | AI 서비스 진입점 | `server/services/aiService.ts` | `AIServiceInterface`, `RoleplayScenario`, `ScenarioPersona` |
 
 ---
@@ -70,7 +71,7 @@ JSON 응답 파싱 { content, emotion, emotionReason }
 전체 대화 히스토리를 그대로 사용한다. 턴 수 제한 없음.
 
 **완료 마커 규칙**:  
-직전 메시지가 AI 발언인 상태에서 사용자 메시지가 오면 해당 메시지 앞에 `【사용자 답변 ✓】`를 붙이고, `← 위 질문은 이미 답변받은 사안` 주석을 추가한다. Gemini/OpenAI 프롬프트에 이 표시가 포함되면 AI가 동일 질문을 반복하지 않도록 유도한다.
+직전 메시지가 AI 발언인 상태에서 사용자 메시지가 오면 해당 메시지 앞에 `【사용자 답변 ✓】`를 붙이고, `← 위 질문은 이미 답변받은 사안` 주석을 추가한다.
 
 ```
 출력 형식 예시:
@@ -79,12 +80,41 @@ JSON 응답 파싱 { content, emotion, emotionReason }
 【김팀장 - 당신의 발언】 알겠습니다. 그러면 예산은 어떻게 생각하세요?
 ```
 
+**멀티 페르소나 레이블링** (`personaSwitchLog` + `allPersonas` 제공 시):
+
+- **replace 모드**: 현재 페르소나 = "당신의 발언", 이전 페르소나 = "이전 담당자 발언"
+- **join 모드**: `parseJoinModeSpeakerSegments(msg.message)`로 `[Name]: text` 블록을 파싱해 각 화자를 정확히 레이블링
+
 **호출 위치**:
 - `OptimizedGeminiProvider.generateResponse()` → `prepareConversationHistory(messages, persona.name, playerPosition)`
 
 ---
 
-## 4. 계층 감지 (detectRoleHierarchy)
+## 4. Join 모드 화자 파싱 (parseJoinModeSpeakerSegments)
+
+**위치**: `server/services/conversationContextBuilder.ts`
+
+```typescript
+export interface SpeakerSegment {
+  personaName: string;
+  text: string;
+}
+
+export function parseJoinModeSpeakerSegments(content: string): SpeakerSegment[] | null
+```
+
+join 모드에서 AI 응답에 포함된 `[Name]: text` 블록을 파싱해 화자별 발언 배열을 반환한다.
+
+```
+입력: "[Alice]: 안녕하세요.\n[Bob]: 저도 말씀드리겠습니다."
+출력: [{ personaName: "Alice", text: "안녕하세요." }, { personaName: "Bob", text: "저도 말씀드리겠습니다." }]
+```
+
+`[Name]:` 블록이 없으면 `null` 반환 → 대화 히스토리는 전체 AI 발화를 단일 화자로 레이블링.
+
+---
+
+## 5. 계층 감지 (detectRoleHierarchy)
 
 **위치**: `server/services/conversationContextBuilder.ts`
 
@@ -115,11 +145,9 @@ JSON 응답 파싱 { content, emotion, emotionReason }
 
 ---
 
-## 5. 말투 위계 지시 (buildHierarchySpeechGuide)
+## 6. 말투 위계 지시 (buildHierarchySpeechGuide)
 
 **위치**: `server/services/conversationContextBuilder.ts`
-
-`detectRoleHierarchy`의 결과를 받아 프롬프트에 삽입할 말투 지시 문자열을 생성한다.
 
 | hierarchy | 지시 내용 |
 |-----------|-----------|
@@ -131,26 +159,18 @@ JSON 응답 파싱 { content, emotion, emotionReason }
 
 ---
 
-## 6. 난이도 4단계 지침 (buildDifficultyGuidelines)
+## 7. 난이도 4단계 지침 (buildDifficultyGuidelines)
 
 **위치**: `server/services/conversationContextBuilder.ts`  
 **실제 지침 데이터**: `server/services/conversationDifficultyPolicy.ts`
 
 `buildDifficultyGuidelines(level)` → `validateDifficultyLevel(level)` → `getTextModeGuidelines(level)` 순서로 호출.
 
-| Level | 이름 | 특징 |
-|-------|------|------|
-| 1 | 입문 | 매우 친절, 거의 갈등 없음, 모범 답안 직접 제시 |
-| 2 | 기본 (기본값) | 친절하나 현실적, 가벼운 압박 존재 |
-| 3 | 도전 | 명확한 갈등·압박, 논리적 근거 요구 |
-| 4 | 극한 | 최고 압박, 화난 고객/상사, 계약 해지/해고 언급 |
-
-각 레벨은 `responseLength`, `tone`, `pressure`, `feedback`, `constraints` 5가지 필드로 구성.  
-DB에서 오버라이드 가능 (`system_settings` 테이블, `conversation` 카테고리).
+자세한 레벨 정의 및 코드 경로는 `docs/difficulty-system.md` 참조.
 
 ---
 
-## 7. MBTI 컨텍스트 조립 (buildMBTIContextGuides)
+## 8. MBTI 컨텍스트 조립 (buildMBTIContextGuides)
 
 **위치**: `server/services/conversationContextBuilder.ts`
 
@@ -158,17 +178,10 @@ DB에서 오버라이드 가능 (`system_settings` 테이블, `conversation` 카
 
 **조립 순서**:
 
-1. **psychologicalGuide** (motivation + fears)  
-   "당신이 원하는 것"과 "당신이 두려워하는 것"을 명시. 두려움 관련 상황에서 방어적/회피적 반응, 동기와 충돌하는 제안에는 저항 반응 유도.
-
-2. **communicationBehaviorGuide** (communication_style)  
-   스타일 텍스트를 행동 지침으로 변환. 명령조/직설적/두괄식/침묵 압박 등 스타일 키워드별 구체적 표현 예시 포함.
-
-3. **speechStyleGuide** (speech_style)  
-   formality, sentence_endings, filler_words, characteristic_expressions 4개 필드 사용.
-
-4. **reactionGuide** (reaction_phrases)  
-   agreement, disagreement, surprise, thinking 4가지 상황별 리액션 표현 (각 최대 2개).
+1. **psychologicalGuide** (motivation + fears)
+2. **communicationBehaviorGuide** (communication_style)
+3. **speechStyleGuide** (speech_style: formality, sentence_endings, filler_words, characteristic_expressions)
+4. **reactionGuide** (reaction_phrases: agreement, disagreement, surprise, thinking)
 
 **MBTI 데이터 로드 경로**:
 ```
@@ -178,25 +191,26 @@ GlobalMBTICache (서버 시작 시 프리로드) → getMBTIPersona(personaRef)
 
 ---
 
-## 8. 두 프로바이더의 공유 규칙
+## 9. 두 프로바이더의 공유 규칙
 
 `conversationContextBuilder.ts`의 함수들은 두 프로바이더가 동일하게 import하여 사용한다.
 
 | 함수 | Gemini 사용 방식 | OpenAI 사용 방식 |
 |------|----------------|----------------|
 | `prepareConversationHistory` | 단일 문자열로 시스템 프롬프트에 삽입 | _(미사용: OpenAI는 messages 배열 형식 사용)_ |
-| `detectRoleHierarchy` | buildCompactPrompt 내부에서 호출 | generateResponse 내부에서 호출 |
-| `buildHierarchySpeechGuide` | buildCompactPrompt 내부에서 호출 | system message에 포함 |
-| `buildDifficultyGuidelines` | buildCompactPrompt 내부에서 호출 | system message에 포함 |
-| `buildMBTIContextGuides` | buildCompactPrompt 내부에서 호출 | _(MBTI 데이터 없으므로 미사용)_ |
+| `parseJoinModeSpeakerSegments` | `prepareConversationHistory` 내부에서 join 모드 처리 시 호출 | _(미사용)_ |
+| `detectRoleHierarchy` | `buildCompactPrompt` 내부에서 호출 | `generateResponse` 내부에서 호출 |
+| `buildHierarchySpeechGuide` | `buildCompactPrompt` 내부에서 호출 | system message에 포함 |
+| `buildDifficultyGuidelines` | `buildCompactPrompt` 내부에서 호출 | system message에 포함 |
+| `buildMBTIContextGuides` | `buildCompactPrompt` 내부에서 호출 | _(MBTI 데이터 없으므로 미사용)_ |
 
 ---
 
-## 9. 프로바이더별 구현 특이사항
+## 10. 프로바이더별 구현 특이사항
 
 ### OptimizedGeminiProvider (주 사용 프로바이더)
 
-- **모델**: 기본 `gemini-2.5-flash`, 시스템 설정에서 동적 변경 가능 (`setModel`)
+- **모델**: 기본 `gemini-2.5-flash`, 시스템 설정에서 동적 변경 가능
 - **응답 형식**: JSON Schema 강제 (`responseMimeType: "application/json"`)
 - **캐시 계층**:
   - `GlobalMBTICache` - 서버 시작 시 프리로드, 싱글턴
@@ -211,31 +225,32 @@ GlobalMBTICache (서버 시작 시 프리로드) → getMBTIPersona(personaRef)
 - **모델**: 기본 `gpt-4`
 - **응답 형식**: 텍스트 (감정 분석은 별도 JSON 요청)
 - **히스토리 형식**: OpenAI messages 배열 (`{role, content}`)
-- **계층 감지/난이도**: 공유 함수 사용 (v64 추가)
+- **계층 감지/난이도**: 공유 함수 사용
+- **MBTI 컨텍스트**: 미사용 (`buildMBTIContextGuides` import 없음)
 - **최대 출력 토큰**: 대화 200
 
 ---
 
-## 10. 설계 결정 근거
+## 11. 설계 결정 근거
 
 | 결정 | 근거 |
 |------|------|
 | 전체 히스토리 사용 (제한 없음) | 대화 맥락을 끊김 없이 유지. 토큰 한도는 모델 수준에서 관리 |
 | 완료 마커(✓) | LLM이 이미 답변받은 질문을 재질문하는 현상을 프롬프트 수준에서 억제 |
+| join 모드 `[Name]: text` 파싱 | 멀티 페르소나 동시 발화를 대화 히스토리에서 화자별로 정확히 식별하기 위함 |
 | 위계 감지를 키워드 기반으로 | 역할(role) 텍스트만으로 위계를 판별해야 하는 제약. 정규 LLM 호출 없이 즉시 처리 가능 |
 | `peer` 안전 기본값 | 위계가 불명확할 때 상위자 어체를 쓰면 사용자가 불쾌감을 느낄 수 있으므로 중립으로 처리 |
 | MBTI JSON 파일 → GlobalMBTICache 프리로드 | 매 대화마다 파일 I/O 없이 메모리에서 즉시 조회 |
-| conversationContextBuilder.ts 중앙화 | evaluationEngine.ts와 동일한 패턴. 프로바이더 추가 시 동일 규칙을 자동 상속 |
+| `conversationContextBuilder.ts` 중앙화 | `evaluationEngine.ts`와 동일한 패턴. 프로바이더 추가 시 동일 규칙을 자동 상속 |
 
 ---
 
-## 11. 수정 가이드
+## 12. 수정 가이드
 
 ### 계층 감지 키워드 추가
 ```typescript
 // server/services/conversationContextBuilder.ts
 export const SUPERIOR_KEYWORDS = [
-  // 여기에 추가
   '팀장', '부장', ... , '새_키워드'
 ];
 ```

@@ -4,6 +4,37 @@ import { renderHook, act } from '@testing-library/react';
 import { useRef } from 'react';
 import { useAudioPlayback } from '../../client/src/hooks/useAudioPlayback';
 
+// Provide a minimal react-i18next mock that resolves real Korean translations
+// so message assertions remain meaningful across i18n refactors.
+// The factory must be async and self-contained because vitest hoists vi.mock calls
+// before module-scope code runs, so top-level imports cannot be referenced here.
+vi.mock('react-i18next', () => {
+  // require() is synchronous — safe inside a vi.mock factory (no dynamic import hang).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ko = require('../../client/src/locales/ko.json') as Record<string, unknown>;
+
+  function resolveDotKey(obj: Record<string, unknown>, key: string): string {
+    const parts = key.split('.');
+    let val: unknown = obj;
+    for (const p of parts) {
+      if (val && typeof val === 'object') val = (val as Record<string, unknown>)[p];
+      else return key;
+    }
+    return typeof val === 'string' ? val : key;
+  }
+
+  // t must be a stable reference so useCallback([..., t]) deps don't change
+  // every render and cause an infinite re-render loop.
+  const t = (key: string, opts?: Record<string, unknown>) => {
+    const raw = resolveDotKey(ko, key);
+    return raw.replace(/\{\{(\w+)\}\}/g, (_: string, k: string) => String((opts ?? {})[k] ?? `{{${k}}}`));
+  };
+
+  return {
+    useTranslation: () => ({ t }),
+  };
+});
+
 function buildMockAudioNode() {
   return {
     connect: vi.fn(),
@@ -83,6 +114,7 @@ function buildMockAudioContext(state: AudioContextState = 'running') {
     }),
     resume: vi.fn(async () => { _state = 'running'; }),
     suspend: vi.fn(async () => { _state = 'suspended'; }),
+    setSinkId: undefined as undefined | ((deviceId: string) => Promise<void>),
     _analyser: analyser,
     _gainNode: gainNode,
     _compressorNode: compressorNode,
@@ -94,9 +126,10 @@ function buildMockAudioContext(state: AudioContextState = 'running') {
 let mockContext: ReturnType<typeof buildMockAudioContext>;
 
 beforeEach(() => {
+  localStorage.clear();
   mockContext = buildMockAudioContext();
-  (globalThis as any).AudioContext = vi.fn(() => mockContext);
-  (globalThis as any).webkitAudioContext = vi.fn(() => mockContext);
+  (globalThis as any).AudioContext = vi.fn(function () { return mockContext; });
+  (globalThis as any).webkitAudioContext = vi.fn(function () { return mockContext; });
 
   (globalThis as any).atob = (b64: string) =>
     Buffer.from(b64, 'base64').toString('binary');
@@ -105,6 +138,11 @@ beforeEach(() => {
     return 1;
   });
   (globalThis as any).cancelAnimationFrame = vi.fn();
+  (navigator as any).mediaDevices = {
+    enumerateDevices: vi.fn(async () => []),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  };
 });
 
 afterEach(() => {
@@ -122,6 +160,402 @@ function renderAudioPlayback() {
 }
 
 describe('useAudioPlayback', () => {
+  describe('audio output device management', () => {
+    it('reports unsupported status without the browser output-selection API', async () => {
+      const { result } = renderAudioPlayback();
+      await act(async () => { await result.current.refreshOutputDevices(); });
+      expect(result.current.outputStatus).toBe('unsupported');
+      await act(async () => {
+        await expect(result.current.selectOutputDevice('bluetooth-1')).resolves.toBe(false);
+      });
+      expect(result.current.outputMessage).toContain('직접 선택할 수 없습니다');
+    });
+
+    it('lists output devices and persists a supported selected device', async () => {
+      mockContext.setSinkId = vi.fn(async () => {});
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: 'default', label: 'Phone speaker' },
+        { kind: 'audiooutput', deviceId: 'bluetooth-1', label: 'My earbuds' },
+      ]);
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => {
+        await result.current.refreshOutputDevices();
+        await result.current.selectOutputDevice('bluetooth-1');
+      });
+      expect(result.current.outputDevices).toHaveLength(2);
+      expect(mockContext.setSinkId).toHaveBeenCalledWith('bluetooth-1');
+      expect(localStorage.getItem('realtime_voice_output_device_id')).toBe('bluetooth-1');
+    });
+
+    it('keeps a saved device while the device list is still permission-gated', async () => {
+      mockContext.setSinkId = vi.fn(async () => {});
+      localStorage.setItem('realtime_voice_output_device_id', 'bluetooth-1');
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: '', label: '' },
+      ]);
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => { await result.current.refreshOutputDevices(); });
+      expect(result.current.selectedOutputDeviceId).toBe('bluetooth-1');
+      expect(localStorage.getItem('realtime_voice_output_device_id')).toBe('bluetooth-1');
+    });
+
+    it('falls back to default when the saved output disappears after devicechange', async () => {
+      mockContext.setSinkId = vi.fn(async () => {});
+      localStorage.setItem('realtime_voice_output_device_id', 'bluetooth-1');
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: 'default', label: 'Phone speaker' },
+      ]);
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => { await result.current.refreshOutputDevices(); });
+      expect(mockContext.setSinkId).toHaveBeenCalledWith('');
+      expect(result.current.selectedOutputDeviceId).toBe('');
+      expect(result.current.outputMessage).toContain('연결 해제');
+    });
+
+    it('surfaces an AudioContext resume failure for retry', async () => {
+      Object.defineProperty(mockContext, 'state', { get: () => 'suspended', configurable: true });
+      mockContext.resume = vi.fn(async () => { throw new Error('blocked'); });
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => {
+        await expect(result.current.resumePlayback()).resolves.toBe(false);
+      });
+      expect(result.current.outputStatus).toBe('error');
+      expect(result.current.outputMessage).toContain('다시 시작하지 못했습니다');
+    });
+
+    it('lists phone speaker and Bluetooth outputs as separate labelled choices', async () => {
+      mockContext.setSinkId = vi.fn(async () => {});
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speakerphone' },
+        { kind: 'audiooutput', deviceId: 'speaker-1', label: 'Speaker' },
+        { kind: 'audiooutput', deviceId: 'bt-1', label: 'Galaxy Buds Pro (Bluetooth)' },
+      ]);
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => { await result.current.refreshOutputDevices(); });
+
+      expect(result.current.outputNeedsPermission).toBe(false);
+      expect(result.current.outputDevices.map((d: any) => d.kind)).toEqual(['default', 'speaker', 'bluetooth']);
+      expect(result.current.outputDevices[2].label).toContain('블루투스');
+
+      await act(async () => { await result.current.selectOutputDevice('bt-1'); });
+      expect(mockContext.setSinkId).toHaveBeenCalledWith('bt-1');
+      expect(result.current.selectedOutputDeviceId).toBe('bt-1');
+    });
+
+    it('reports outputs unavailable when permission is granted but the browser exposes no outputs', async () => {
+      // Android Chrome: mic label visible (permission granted) but no audiooutput entries.
+      mockContext.setSinkId = vi.fn(async () => {});
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'mic-1', label: 'Phone microphone' },
+      ]);
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => { await result.current.refreshOutputDevices(); });
+
+      expect(result.current.outputNeedsPermission).toBe(false);
+      expect(result.current.outputListUnavailable).toBe(true);
+      expect(result.current.outputStatus).toBe('supported');
+      expect(result.current.outputMessage).toContain('제공하지 않아');
+    });
+
+    it('keeps asking for permission only while no device label at all is visible', async () => {
+      mockContext.setSinkId = vi.fn(async () => {});
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: '', label: '' },
+        { kind: 'audiooutput', deviceId: '', label: '' },
+      ]);
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => { await result.current.refreshOutputDevices(); });
+
+      expect(result.current.outputNeedsPermission).toBe(true);
+      expect(result.current.outputListUnavailable).toBe(false);
+    });
+
+    it('flags missing permission and loads real devices once permission is granted', async () => {
+      mockContext.setSinkId = vi.fn(async () => {});
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: '', label: '' },
+      ]);
+      const stopTrack = vi.fn();
+      (navigator.mediaDevices as any).getUserMedia = vi.fn(async () => ({
+        getTracks: () => [{ stop: stopTrack }],
+      }));
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => { await result.current.refreshOutputDevices(); });
+
+      expect(result.current.outputNeedsPermission).toBe(true);
+      expect(result.current.outputDevices).toHaveLength(1);
+      expect(result.current.outputMessage).toContain('마이크 권한');
+      // A permission-gated list must not be treated as proof the saved device vanished.
+      expect(mockContext.setSinkId).not.toHaveBeenCalledWith('');
+
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+        { kind: 'audiooutput', deviceId: 'bt-1', label: 'AirPods Pro' },
+      ]);
+      await act(async () => {
+        await expect(result.current.requestOutputDevicePermission()).resolves.toBe(true);
+      });
+
+      expect(stopTrack).toHaveBeenCalled();
+      expect(result.current.outputNeedsPermission).toBe(false);
+      expect(result.current.outputDevices.map((d: any) => d.deviceId)).toEqual(['default', 'bt-1']);
+    });
+
+    it('surfaces a retryable message when device permission is denied', async () => {
+      mockContext.setSinkId = vi.fn(async () => {});
+      (navigator.mediaDevices as any).getUserMedia = vi.fn(async () => { throw new Error('denied'); });
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => {
+        await expect(result.current.requestOutputDevicePermission()).resolves.toBe(false);
+      });
+      expect(result.current.outputStatus).toBe('error');
+      expect(result.current.outputMessage).toContain('권한');
+    });
+
+    it('picks up a Bluetooth headset connected mid-session on devicechange', async () => {
+      mockContext.setSinkId = vi.fn(async () => {});
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+      ]);
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => { await result.current.refreshOutputDevices(); });
+      expect(result.current.outputDevices).toHaveLength(1);
+
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+        { kind: 'audiooutput', deviceId: 'bt-1', label: 'WF-1000XM5 Bluetooth' },
+      ]);
+      await act(async () => { await result.current.refreshOutputDevices(); });
+
+      expect(result.current.outputDevices.map((d: any) => d.deviceId)).toEqual(['default', 'bt-1']);
+      expect(result.current.outputDevices[1].kind).toBe('bluetooth');
+    });
+
+    it('keeps simultaneous initial chunks in arrival order while applying a saved output', async () => {
+      localStorage.setItem('realtime_voice_output_device_id', 'bluetooth-1');
+      let resolveSinkChange: (() => void) | undefined;
+      mockContext.setSinkId = vi.fn(() => new Promise<void>(resolve => { resolveSinkChange = resolve; }));
+      const createdSources: ReturnType<typeof buildMockSource>[] = [];
+      mockContext.createBufferSource = vi.fn(() => {
+        const source = buildMockSource();
+        createdSources.push(source);
+        return source;
+      });
+      const { result } = renderAudioPlayback();
+      const first = Buffer.from(new Int16Array([1000]).buffer).toString('base64');
+      const second = Buffer.from(new Int16Array([2000, 2000]).buffer).toString('base64');
+
+      let firstPromise!: Promise<void>;
+      let secondPromise!: Promise<void>;
+      await act(async () => {
+        firstPromise = result.current.playAudioDelta(first);
+        secondPromise = result.current.playAudioDelta(second);
+        await Promise.resolve();
+      });
+      expect(mockContext.setSinkId).toHaveBeenCalledWith('bluetooth-1');
+      expect(mockContext.createBufferSource).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveSinkChange?.();
+        await Promise.all([firstPromise, secondPromise]);
+      });
+      expect(createdSources).toHaveLength(2);
+      expect((createdSources[0].buffer as any).getChannelData(0).length).toBe(1);
+      expect((createdSources[1].buffer as any).getChannelData(0).length).toBe(2);
+      expect(createdSources[0].start.mock.invocationCallOrder[0])
+        .toBeLessThan(createdSources[1].start.mock.invocationCallOrder[0]);
+    });
+
+    it('does not schedule a chunk cancelled while its saved output is being applied', async () => {
+      localStorage.setItem('realtime_voice_output_device_id', 'bluetooth-1');
+      let resolveSinkChange: (() => void) | undefined;
+      mockContext.setSinkId = vi.fn(() => new Promise<void>(resolve => { resolveSinkChange = resolve; }));
+      const { result, isInterruptedRef } = renderAudioPlayback();
+      const chunk = Buffer.from(new Int16Array([1000]).buffer).toString('base64');
+
+      const playback = result.current.playAudioDelta(chunk);
+      await act(async () => { await Promise.resolve(); });
+      isInterruptedRef.current = true;
+      await act(async () => {
+        resolveSinkChange?.();
+        await playback;
+      });
+      expect(mockContext.createBufferSource).not.toHaveBeenCalled();
+    });
+
+    describe('Bluetooth auto-selection', () => {
+      const OUTPUT_DEVICE_KEY = 'realtime_voice_output_device_id';
+      const OUTPUT_USER_CHOSE_KEY = 'realtime_voice_output_user_chose';
+      const OUTPUT_AUTO_SELECTED_KEY = 'realtime_voice_output_auto_selected';
+
+      it('auto-selects a Bluetooth output when there is no saved choice', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'bt-1', label: 'AirPods Pro' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('bt-1');
+        expect(result.current.outputAutoSelected).toBe(true);
+        expect(mockContext.setSinkId).toHaveBeenCalledWith('bt-1');
+        expect(localStorage.getItem(OUTPUT_DEVICE_KEY)).toBe('bt-1');
+        expect(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY)).toBe('1');
+        expect(result.current.outputMessage).toContain('자동으로 선택');
+      });
+
+      it('keeps the OS/browser default when no Bluetooth output exists', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'speaker-1', label: 'Speaker' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('');
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(localStorage.getItem(OUTPUT_DEVICE_KEY)).toBeNull();
+      });
+
+      it('does not override an output the user explicitly chose', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        localStorage.setItem(OUTPUT_DEVICE_KEY, 'speaker-1');
+        localStorage.setItem(OUTPUT_USER_CHOSE_KEY, '1');
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'speaker-1', label: 'Speaker' },
+          { kind: 'audiooutput', deviceId: 'bt-1', label: 'Galaxy Buds Pro (Bluetooth)' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('speaker-1');
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(mockContext.setSinkId).not.toHaveBeenCalledWith('bt-1');
+      });
+
+      it('replaces a previously auto-selected output with a newly connected Bluetooth device', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        localStorage.setItem(OUTPUT_DEVICE_KEY, 'old-bt');
+        localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1');
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'old-bt', label: 'Old Buds (Bluetooth)' },
+          { kind: 'audiooutput', deviceId: 'new-bt', label: 'AirPods Pro' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        // First matching Bluetooth device in list order wins; the point is the
+        // auto-selected slot stays auto and is re-evaluated on devicechange.
+        expect(result.current.outputAutoSelected).toBe(true);
+        expect(['old-bt', 'new-bt']).toContain(result.current.selectedOutputDeviceId);
+      });
+
+      it('clears outputAutoSelected and localStorage keys when the auto-selected output disconnects', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        // Pre-condition: a Bluetooth output was auto-selected in a previous session.
+        localStorage.setItem(OUTPUT_DEVICE_KEY, 'bt-1');
+        localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1');
+        // The device is gone from the current enumeration.
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('');
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY)).toBeNull();
+        expect(result.current.outputMessage).toContain('연결 해제');
+        // setSinkId must have been called with '' to route audio to the default device.
+        expect(mockContext.setSinkId).toHaveBeenCalledWith('');
+      });
+
+      it('re-auto-selects after fallback when the Bluetooth output reconnects (round-trip)', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        // Start: auto-selected bt-1 is persisted but now gone.
+        localStorage.setItem(OUTPUT_DEVICE_KEY, 'bt-1');
+        localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1');
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        // After disconnect: fallen back to default, flags cleared.
+        expect(result.current.selectedOutputDeviceId).toBe('');
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY)).toBeNull();
+
+        // Reconnect: bt-1 appears again.
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'bt-1', label: 'AirPods Pro' },
+        ]);
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('bt-1');
+        expect(result.current.outputAutoSelected).toBe(true);
+        expect(localStorage.getItem(OUTPUT_DEVICE_KEY)).toBe('bt-1');
+        expect(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY)).toBe('1');
+        expect(mockContext.setSinkId).toHaveBeenCalledWith('bt-1');
+      });
+
+      it('selectOutputDeviceByUser marks the choice explicit so auto-selection stays off', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'bt-1', label: 'AirPods Pro' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+        expect(result.current.outputAutoSelected).toBe(true);
+
+        await act(async () => { await result.current.selectOutputDeviceByUser(''); });
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(localStorage.getItem(OUTPUT_USER_CHOSE_KEY)).toBe('1');
+
+        // A later refresh must not re-grab the Bluetooth output.
+        await act(async () => { await result.current.refreshOutputDevices(); });
+        expect(result.current.selectedOutputDeviceId).toBe('');
+        expect(result.current.outputAutoSelected).toBe(false);
+      });
+    });
+
+    it('keeps the output error when fallback to the default device fails', async () => {
+      mockContext.setSinkId = vi.fn(async () => { throw new Error('default unavailable'); });
+      localStorage.setItem('realtime_voice_output_device_id', 'bluetooth-1');
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audiooutput', deviceId: 'default', label: 'Phone speaker' },
+      ]);
+      const { result } = renderAudioPlayback();
+      result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+      await act(async () => { await result.current.refreshOutputDevices(); });
+      expect(result.current.outputStatus).toBe('error');
+      expect(result.current.outputMessage).toContain('변경하지 못했습니다');
+    });
+  });
+
   describe('initial state', () => {
     it('starts with isAISpeaking = false', () => {
       const { result } = renderAudioPlayback();

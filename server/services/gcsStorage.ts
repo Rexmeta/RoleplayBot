@@ -335,7 +335,7 @@ export async function checkGCSConnection(): Promise<boolean> {
  * @param headOnly - If true, only set headers (for HEAD requests)
  * @returns Promise<boolean> - true if file was streamed, false if not found
  */
-export async function streamFromGCS(urlPath: string, res: import("express").Response, headOnly: boolean = false): Promise<boolean> {
+export async function streamFromGCS(urlPath: string, res: import("express").Response, headOnly: boolean = false, rangeHeader?: string): Promise<boolean> {
   if (!GCS_BUCKET_NAME) {
     console.error('[GCS Stream] GCS_BUCKET_NAME not configured');
     res.status(500).json({ error: "GCS_BUCKET_NAME not configured" });
@@ -385,22 +385,51 @@ export async function streamFromGCS(urlPath: string, res: import("express").Resp
     const [metadata] = await file.getMetadata();
     
     // Set appropriate headers
-    res.setHeader("Content-Type", metadata.contentType || "application/octet-stream");
-    if (metadata.size) {
-      res.setHeader("Content-Length", String(metadata.size));
-    }
-    // Cache for 1 hour
-    res.setHeader("Cache-Control", "public, max-age=3600");
-    // Add ETag for caching
+    const contentType = metadata.contentType || "application/octet-stream";
+    const fileSize = metadata.size ? Number(metadata.size) : 0;
+    res.setHeader("Content-Type", contentType);
+    // Advertise range support so browsers can play video/audio
+    res.setHeader("Accept-Ranges", "bytes");
     if (metadata.etag) {
       res.setHeader("ETag", metadata.etag);
     }
+    // Cache for 1 hour
+    res.setHeader("Cache-Control", "public, max-age=3600");
 
     // For HEAD requests, only return headers without body
     if (headOnly) {
+      if (fileSize) res.setHeader("Content-Length", String(fileSize));
       res.status(200).end();
       return true;
     }
+
+    // Handle Range requests (RFC 7233) — required for browser video playback
+    if (rangeHeader && fileSize) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+      if (match) {
+        const start = match[1] ? parseInt(match[1], 10) : 0;
+        const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
+        if (start <= end && start < fileSize) {
+          const chunkSize = end - start + 1;
+          res.setHeader("Content-Range", `bytes ${start}-${end}/${fileSize}`);
+          res.setHeader("Content-Length", String(chunkSize));
+          res.status(206);
+          return new Promise<boolean>((resolve) => {
+            file.createReadStream({ start, end })
+              .on("error", (err) => {
+                console.error(`[GCS Stream] Range stream error for ${objectPath}:`, err);
+                if (!res.headersSent) res.status(500).json({ error: "Failed to stream file" });
+                resolve(false);
+              })
+              .on("end", () => resolve(true))
+              .pipe(res);
+          });
+        }
+      }
+    }
+
+    // Full-file response
+    if (fileSize) res.setHeader("Content-Length", String(fileSize));
 
     // Stream the file to response (GET requests)
     return new Promise<boolean>((resolve) => {
@@ -549,7 +578,7 @@ export async function transformToSignedUrl(path: string | null | undefined): Pro
  * Safely transform a single path to signed URL
  * Returns original path on failure instead of throwing
  */
-async function safeTransformToSignedUrl(path: string): Promise<string> {
+export async function safeTransformToSignedUrl(path: string): Promise<string> {
   if (!path) return path;
   try {
     const signedUrl = await transformToSignedUrl(path);
@@ -654,17 +683,41 @@ export async function transformPersonaImages(images: any): Promise<any> {
 }
 
 /**
- * Transform a persona object's image fields to signed URLs
+ * Transform a persona object's image fields (and video clips) to signed URLs
  */
 export async function transformPersonaMedia(persona: any): Promise<any> {
   if (!persona) return persona;
   
   try {
     const transformedImages = await transformPersonaImages(persona.images);
+
+    // Transform videos.clips paths to accessible URLs.
+    // Shape: { male: { listening_neutral: url, ... }, female: { ... } }.
+    let transformedVideos = persona.videos;
+    if (persona.videos?.clips && typeof persona.videos.clips === 'object') {
+      const rawClips = persona.videos.clips as Record<string, any>;
+
+      const transformedClips: Record<string, any> = {};
+      for (const [genderKey, genderMap] of Object.entries(rawClips)) {
+        if (genderMap && typeof genderMap === 'object') {
+          const transformedGenderMap: Record<string, string> = {};
+          for (const [slot, path] of Object.entries(genderMap as Record<string, any>)) {
+            transformedGenderMap[slot] = typeof path === 'string' && path
+              ? await safeTransformToSignedUrl(path)
+              : path as string;
+          }
+          transformedClips[genderKey] = transformedGenderMap;
+        } else {
+          transformedClips[genderKey] = genderMap;
+        }
+      }
+      transformedVideos = { ...persona.videos, clips: transformedClips };
+    }
     
     return {
       ...persona,
-      images: transformedImages
+      images: transformedImages,
+      videos: transformedVideos,
     };
   } catch (error) {
     console.error(`[GCS] Failed to transform persona media for ${persona?.id || 'unknown'}:`, error);

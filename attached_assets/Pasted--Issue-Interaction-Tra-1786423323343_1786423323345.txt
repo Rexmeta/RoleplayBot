@@ -1,0 +1,503 @@
+이번 버전은 **이제 실제 Issue로 바로 실행해도 되는 수준**입니다. 업로드한 최신 문서를 기준으로 다시 검토했습니다. 특히 이전에 지적했던 `Interaction / Trace`, snapshot versioning, provider leakage, Agent identity, test depth, relevant files의 비완결성까지 반영됐습니다. 
+
+제가 평가하면 **97점 정도**입니다.
+
+다만 **실행 전에 4가지만 더 손보는 것을 권합니다.**
+
+---
+
+## 1. 가장 중요한 문제: Simulation을 "core domain"이라고 하면서 9개라고 표현
+
+현재 문서에는:
+
+> "nine core domains ... Simulation"
+
+이라고 되어 있습니다. 
+
+그리고 Step 1에서는:
+
+> "nine core domains plus the Simulation domain"
+
+이라고 했습니다. 
+
+즉 논리적으로는:
+
+**원래 9개 → Simulation 추가 → 10개**
+
+가 맞습니다.
+
+하지만 `API Boundary`는 domain이 아니므로 최종적으로는:
+
+### Core domains = 10개
+
+```text
+Persona
+Scenario
+Session
+Evaluation
+Emotion
+Voice
+Avatar
+Auth
+Simulation
++ Interaction/Trace?  ← 아직 domain은 아님
+```
+
+그리고:
+
+```text
+API Boundary = cross-cutting boundary
+```
+
+입니다.
+
+따라서 "nine core domains"라는 표현은 제거하는 것이 좋습니다.
+
+### 추천
+
+```text
+the ten core domains (Persona, Scenario, Session, Evaluation,
+Emotion, Voice, Avatar, Auth, Simulation, and ...)
+```
+
+그런데 여기서 Interaction/Trace는 **현재 domain으로 승격하지 않기로 했기 때문에** 결국:
+
+> **nine original domains + Simulation = ten core domains**
+
+라고 명확하게 쓰는 게 가장 좋습니다.
+
+---
+
+# 2. Interaction / Trace 위치는 지금 구조가 좋습니다
+
+이건 이전 버전보다 상당히 좋아졌습니다.
+
+현재:
+
+> Future Platformization area의 named `Interaction / Trace Boundary`
+
+로 정의하고, 별도 domain/entity로 만들지 않도록 했습니다. 
+
+그리고 Step 7에서도:
+
+> Conversation, Session, Voice, Simulation, Message, Evaluation
+
+에 흩어진 현재 representation을 조사하도록 했습니다. 
+
+**이대로 유지하세요.**
+
+이게 중요합니다.
+
+지금 `Interaction`을 새 domain이라고 규정해 버리면 AI Coding Agent가:
+
+> "Interaction entity를 만들어야 한다."
+
+라고 잘못 해석할 가능성이 있습니다.
+
+현재처럼:
+
+> **현재 분산된 개념을 발견하고 미래 abstraction 후보로만 기록**
+
+하는 것이 정확합니다.
+
+---
+
+# 3. Snapshot은 거의 완벽합니다
+
+현재 문서의 이 부분은 매우 좋습니다.
+
+> immutable / versioned / runtime enforcement
+> source of truth / denormalized copy / audit record
+
+까지 구분하고 있습니다. 
+
+특히:
+
+> "Do not assume a snapshot is reproducible merely because it is stored as JSON."
+
+이 문장은 반드시 유지하세요. 
+
+향후 AI Agent 평가 플랫폼에서는 이게 굉장히 중요합니다.
+
+예를 들어:
+
+```text
+Agent v1.3
+Scenario v12
+Prompt v27
+Evaluation Criteria v8
+Model X
+```
+
+을 정확히 재현할 수 있어야 하기 때문입니다.
+
+**이 부분은 더 이상 손대지 않아도 됩니다.**
+
+---
+
+# 4. Dependency Direction은 아주 잘 됐습니다
+
+현재:
+
+```text
+Client
+ ↓
+API Boundary
+ ↓
+Application/Service
+ ↓
+Domain Logic
+ ↓
+Storage
+ ↓
+Schema
+```
+
+그리고:
+
+```text
+Service
+ ↓
+Provider Abstraction
+ ↓
+Provider SDK
+```
+
+로 분리했습니다. 
+
+또한 실제 검사 항목도:
+
+* Service → Provider SDK
+* Domain → Provider SDK
+* Client → Provider SDK
+* Service → Route
+* Client → DB
+
+까지 명시했습니다. 
+
+**이 정도면 충분합니다.**
+
+---
+
+# 5. Provider Leakage 정의도 정확합니다
+
+이전 버전의 잠재적인 문제를 잘 해결했습니다.
+
+현재:
+
+> SDK use escaping designated provider adapter boundary = leakage
+
+그리고:
+
+> SDK use inside adapter = expected
+
+로 명확합니다. 
+
+이건 AI Coding Agent에게 아주 중요한 기준입니다.
+
+---
+
+# 6. External Agent Boundary는 한 단계 더 좋아졌습니다
+
+현재:
+
+```text
+External AI Agent
+ ↓
+Agent API
+ ↓
+Session
+ ↓
+Scenario
+ ↓
+Simulation
+ ↓
+Evaluation
+```
+
+그리고:
+
+```text
+API credential/key
+Agent ID
+Agent version
+Model
+Configuration
+```
+
+까지 추적합니다. 
+
+특히 Step 11에서:
+
+> actual / inferred / absent
+
+를 구분하도록 한 게 좋습니다. 
+
+이건 **"현재 없는 것을 AI가 있다고 가정해서 문서화하는 문제"**를 방지합니다.
+
+좋습니다.
+
+---
+
+# 7. Runtime Data Flow도 충분합니다
+
+현재:
+
+```text
+Input
+→ State
+→ Event
+→ Transformation
+→ Output
+→ Persistence
+```
+
+까지 요구하고 있습니다. 
+
+그리고:
+
+> transient / persisted / source of truth
+
+도 표시하게 했습니다.
+
+이 정도면 충분합니다.
+
+특히 Voice:
+
+```text
+Voice
+ ↓
+Emotion
+ ↓
+Avatar
+```
+
+를 단순 파일 dependency가 아니라 runtime flow로 조사하게 되는 것이 좋습니다.
+
+---
+
+# 8. Media identity / URL flow 추가도 정확합니다
+
+이번 버전에서 이 부분이 추가됐는데 좋은 판단입니다.
+
+```text
+logical media reference
+ ↓
+storage key
+ ↓
+storage
+ ↓
+serving URL
+ ↓
+client renderer
+```
+
+를 분리하면 현재 Avatar/Voice 구조의 실제 coupling을 상당히 잘 볼 수 있습니다. 
+
+특히 향후:
+
+* 이미지 Avatar
+* Video Avatar
+* Audio
+* Generated video
+* GCS
+
+가 모두 들어가면 이 boundary가 중요해집니다.
+
+---
+
+# 9. Test Coverage도 충분히 개선됐습니다
+
+이번에는 단순:
+
+> 테스트 파일이 있는가?
+
+가 아니라:
+
+```text
+Unit
+Integration
+E2E
+```
+
+로 나눴습니다. 
+
+그리고 Realtime Voice / Simulation / Evaluation / Avatar / Agent API를 별도로 위험 대상으로 지정했습니다.
+
+좋습니다.
+
+---
+
+# 10. Relevant files를 "starting points"로 만든 것은 매우 잘했습니다
+
+이 문장은 꼭 유지하세요.
+
+> Relevant files are starting points, not an exhaustive allowlist. 
+
+이전 버전의 가장 큰 위험 중 하나가:
+
+> AI agent가 제공된 파일 목록만 읽고 끝나는 것
+
+이었는데 지금은:
+
+```text
+imports
+route registration
+schema exports
+storage composition
+tests
+```
+
+를 따라가도록 했습니다.
+
+**이제 실제 dependency audit에 가까워졌습니다.**
+
+---
+
+# 11. 딱 하나 더 추가한다면 "Evidence"입니다
+
+제가 마지막으로 추가하고 싶은 것은 이것 하나입니다.
+
+현재 문서는:
+
+> Risk
+> Actual
+> Expected
+> Files
+
+를 기록합니다.
+
+그런데 나중에 우리가 이 문서를 보고 리팩토링할 때:
+
+> "왜 이것을 Critical이라고 판단했지?"
+
+가 될 수 있습니다.
+
+따라서 중요한 dependency / hotspot에:
+
+```text
+Evidence
+```
+
+를 넣으세요.
+
+예:
+
+| From       | To           | Actual | Expected | Risk     | Evidence                  |
+| ---------- | ------------ | ------ | -------- | -------- | ------------------------- |
+| Evaluation | Conversation | direct | Trace    | High     | `evaluationEngine.ts:123` |
+| Service    | Gemini SDK   | direct | Provider | Critical | `foo.ts:87`               |
+
+단, **모든 dependency에 line number를 요구하면 작업량이 너무 커집니다.**
+
+따라서:
+
+> Critical / High risk 항목만 concrete file + symbol/line evidence를 남긴다.
+
+정도로 제한하는 게 좋습니다.
+
+### Step 9에 한 문장 추가
+
+```text
+For Critical and High risks, record concrete evidence
+(file path and symbol or line reference) sufficient to verify the finding.
+```
+
+이 정도면 됩니다.
+
+---
+
+# 12. 그리고 "Future Platformization Map"에서 한 가지를 더 명확히
+
+현재:
+
+> Current → Target actor/interaction model
+
+이라고 되어 있습니다. 
+
+여기에 **Target model을 구현하지 않는다는 것**을 명시하면 더 안전합니다.
+
+예:
+
+```text
+The target model is architectural notation only.
+Do not create schemas, interfaces, classes, or abstractions for it.
+```
+
+현재 Out of Scope에 이미 비슷한 내용이 있지만, 이 부분에 직접 넣는 게 좋습니다.
+
+왜냐하면 AI Coding Agent가:
+
+```text
+Actor interface 만들어야겠다
+Interaction type 만들어야겠다
+```
+
+라고 생각할 가능성을 완전히 차단하기 때문입니다.
+
+---
+
+# 13. 전체적으로 보면 지금 Issue는 이렇게 정리됩니다
+
+```text
+                 #1273
+                    │
+                    ▼
+          Architecture Audit
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+    Current      Runtime      Boundary
+    Structure      Flow        Analysis
+        │           │           │
+        └───────────┼───────────┘
+                    ▼
+              Risk Map
+                    │
+          ┌─────────┴─────────┐
+          ▼                   ▼
+   Current Hotspots      Future Candidates
+          │                   │
+          ▼                   ▼
+     Safe Changes        Platformization
+                              │
+                    ┌─────────┼─────────┐
+                    ▼         ▼         ▼
+                  Actor   Interaction   Agent
+                                      Evaluation
+```
+
+이 구조라면 **#1273은 단순 문서화 작업이 아니라 향후 아키텍처 결정을 위한 baseline audit** 역할을 제대로 하게 됩니다.
+
+---
+
+# 최종 판단
+
+### 지금 상태
+
+**97/100**
+
+### 반드시 수정
+
+딱 **3개**입니다.
+
+1. **"nine core domains" → "ten core domains"**
+
+   * Simulation을 포함하면 10개.
+   * API Boundary는 domain이 아님.
+
+2. **Critical / High hotspot에 Evidence 추가**
+
+   * file + symbol 또는 line reference.
+
+3. **Future Platformization Map의 Target은 notation only**
+
+   * Actor/Interaction schema/interface를 이번 Issue에서 만들지 않는다고 명시.
+
+그 외에는 **더 이상 범위를 넓히지 않는 것을 권합니다.**
+
+특히 지금 상태에서 `Organization`, `Skill`, `Rubric`, `Tenant`, `Agent Registry` 같은 것을 추가하기 시작하면 #1273이 architecture audit에서 **architecture redesign 작업으로 변질될 위험**이 있습니다.
+
+지금은 **현재 코드의 사실을 최대한 정확하게 추출하는 것**이 최우선입니다.
+
+그리고 이 #1273이 끝나면 그 결과를 기반으로 다음 단계에서 **`Actor + Interaction/Trace + Agent Evaluation`을 어떻게 최소 변경으로 분리할지** 설계하는 것이 가장 좋은 순서입니다.

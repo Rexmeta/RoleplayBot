@@ -1,0 +1,36 @@
+프롬프트: A professional person (한국인 상반신 의자에 앉아서 손이 보이게 무표정), standing or sitting calmly, neutral expression, slight breathing movement, loopable. Cinematic, photorealistic, soft lighting, no text, no background distractions. 6 seconds.
+⚠️ neutralImageUrl 신뢰할 수 없는 출처 (SSRF 방지): personas/ac/male/neutral.webp — 텍스트 프롬프트만 사용
+10:20:37 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 200 in 4ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (1/60)
+10:20:42 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (2/60)
+10:20:48 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 3ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (3/60)
+10:20:53 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 3ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (4/60)
+10:20:58 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 3ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (5/60)
+10:21:03 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 4ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (6/60)
+10:21:09 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (7/60)
+10:21:14 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 3ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (8/60)
+10:21:19 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 2ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (9/60)
+10:21:24 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 304 in 3ms :: {"status":"running","result":null,"error":null}
+⏳ 아바타 클립 생성 중... (10/60)
+10:21:30 PM [express] GET /api/admin/personas/ac/video/generate-clip/status 200 in 15ms :: {"status":"error","result":null,"error":"생성된 비디오가 …
+[agentApi] Expired sessions cleanup done.
+[agentApi] Expired sessions cleanup done.
+10:27:22 PM [express] GET /api/auth/user 304 in 72ms :: {"id":"30272b01-51b9-4cd2-a7ac-0a65191b13d4","email":"gasvy.ryu@samsung.com","name":"…
+10:28:11 PM [express] GET /api/bookmarks 304 in 17ms :: {"0":{"id":"b673adda-f1a1-4f4e-a647-93c90f04b9da","userId":"30272b01-51b9-4cd2-a7ac-0…
+10:28:11 PM [express] GET /api/scenarios/stats 304 in 26ms :: {"0":{"scenarioId":"신입사원의-crisis-대응-2026-01-23T08-53-58","completionCount":17,"…
+10:28:11 PM [express] GET /api/categories 304 in 41ms :: {"0":{"id":"15cb8753-5541-46e2-b2e5-8c2f151a922d","organizationId":"48d8854d-e249-48…
+[Scenarios API] Returning 16 scenarios (language: ko)
+10:28:11 PM [express] GET /api/scenarios 304 in 112ms :: {"0":{"id":"스마트폰-생산법인장-핵심-2026-03-27T14-21-50","title":"스마트폰 생산법인장, 핵심 부품 공급 차질로 인한 …
+10:28:11 PM [express] GET /api/dashboard/summary 304 in 113ms :: {"resumeScenario":{"scenarioRunId":"a14f2c4a-69cb-4500-a2ed-8fea23a181fd","s…
+10:28:15 PM [express] GET /api/languages 304 in 4ms :: {"0":{"code":"ko","name":"한국어","nativeName":"한국어","isActive":true,"isDefault":true,"di…
+[Categories API] User: gasvy.ryu@samsung.com, role: admin, assignedCompanyId: null, assignedOrgId: null, assignedCatId: null
+10:28:15 PM [express] GET /api/admin/default-intro-video 304 in 16ms :: {"hasCustomVideo":false,"url":"/videos/intro_default.webm"}
+10:28:15 PM [express] GET /api/evaluation-criteria 304 in 15ms :: {"0":{"id":"cee36e5d-445d-4c55-851e-13b01527dd01","name":"갈등관리형 

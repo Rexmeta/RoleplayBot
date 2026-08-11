@@ -299,7 +299,7 @@ export class MediaStorageService {
     scenarioTitle: string
   ): Promise<string> {
     const safeTitle = scenarioTitle
-      .replace(/[^a-zA-Z0-9가-힣\s]/g, '')
+      .replace(/[^a-zA-Z0-9가-힣\s\-]/g, '')
       .replace(/\s+/g, '-')
       .substring(0, 50);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -356,27 +356,39 @@ export class MediaStorageService {
   async readImageBuffer(objectKey: string): Promise<Buffer | null> {
     const storageType = getStorageType();
 
+    // Strip the HTTP serving prefix "/objects/" or "objects/" — it is a route prefix,
+    // not part of the actual storage key.  Consistent with gcsStorage.ts streamGCSObject().
+    let key = objectKey;
+    if (key.startsWith('/objects/')) {
+      key = key.substring(9);
+    } else if (key.startsWith('objects/')) {
+      key = key.substring(8);
+    }
+    if (key.startsWith('/')) {
+      key = key.substring(1);
+    }
+
     try {
       if (storageType === 'dual' || storageType === 'replit') {
         const storage = await initReplitObjectStorage();
         if (storage) {
-          const file = await storage.searchPublicObject(objectKey);
+          const file = await storage.searchPublicObject(key);
           if (file) {
             const [buffer] = await file.download();
             return buffer;
           }
         }
         if (storageType === 'dual') {
-          return await downloadBufferFromGCS(objectKey);
+          return await downloadBufferFromGCS(key);
         }
         return null;
       }
 
       if (storageType === 'gcs') {
-        return await downloadBufferFromGCS(objectKey);
+        return await downloadBufferFromGCS(key);
       }
     } catch (error) {
-      console.error(`[MediaStorage] Failed to read image buffer: ${objectKey}`, error);
+      console.error(`[MediaStorage] Failed to read image buffer: ${key} (original: ${objectKey})`, error);
     }
 
     return null;

@@ -196,6 +196,12 @@ afterEach(() => {
 });
 
 // ─── Auth-layer checks (middleware integration) ───────────────────────────────
+// Ownership: agentApiKeyMiddleware.test.ts owns the full matrix of key-format
+// failures, HMAC mismatches, inactive/revoked/expired states, IP allowlists,
+// and requireScope edge cases.
+// Here we confirm only that the middleware is wired into the router and that
+// the three observable entry points (missing header, malformed token, unknown
+// prefix) reach the caller as 401 responses with the correct error shape.
 describe('Authentication via agent route', () => {
   it('returns 401 when Authorization header is missing', async () => {
     const res = await request(buildApp()).get('/api/v1/agent/scenarios');
@@ -219,26 +225,6 @@ describe('Authentication via agent route', () => {
       .set('Authorization', `Bearer ${fullKey}`);
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe('invalid_api_key');
-  });
-
-  it('returns 401 for a revoked key (revokedAt set)', async () => {
-    const { fullKey, record } = makeAgentKeyRecord({ revokedAt: new Date(Date.now() - 1000) });
-    dbQueue.push([record]);
-    const res = await request(buildApp())
-      .get('/api/v1/agent/scenarios')
-      .set('Authorization', `Bearer ${fullKey}`);
-    expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('revoked_api_key');
-  });
-
-  it('returns 401 for an expired key', async () => {
-    const { fullKey, record } = makeAgentKeyRecord({ expiresAt: new Date(Date.now() - 1000) });
-    dbQueue.push([record]);
-    const res = await request(buildApp())
-      .get('/api/v1/agent/scenarios')
-      .set('Authorization', `Bearer ${fullKey}`);
-    expect(res.status).toBe(401);
-    expect(res.body.error.code).toBe('expired_api_key');
   });
 });
 

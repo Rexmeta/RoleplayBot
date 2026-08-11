@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "c-sonjZfKhxAi5Y6vqDc1"
@@ -120,3 +119,10 @@ id = "_Iwg-xRlVoEGdqtes41BD"
 uri = "file://client/public/scenes/career-counseling.png"
 type = "image"
 title = "HR manager career counseling office"
+
+[[outputs]]
+id = "Pm28pWsntVBWQFClK5uXt"
+uri = "file://neutral_converted.jpg"
+type = "image"
+title = "neutral_converted.jpg"
+description = "personas/cp/male/neutral.webp → JPEG quality 92 변환 결과 (101,954 bytes)"

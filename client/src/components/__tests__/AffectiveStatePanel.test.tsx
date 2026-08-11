@@ -2,11 +2,13 @@
 /**
  * AffectiveStatePanel — regression tests
  *
- * All values are now read directly from npcAffectiveState.
- * The legacy npcEmotions prop has been removed.
+ * New compact layout (task 1267):
+ *   - Summary metrics (Intensity, Trust, Interest, Cooperativeness) are always visible.
+ *   - Detail metrics (Confusion, Load, Rapport, Valence) are hidden behind a toggle button.
+ *   - Full label "Cooperativeness" is used (not the old abbreviation "Coop.").
  */
 
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 
@@ -87,13 +89,6 @@ const layeredAffective: NpcAffectiveState = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function renderAndExpand() {
-  render(<AffectiveStatePanel affectiveState={layeredAffective} />);
-  // Panel is collapsed by default — click to expand
-  const toggle = screen.getByRole('button');
-  fireEvent.click(toggle);
-}
-
 /**
  * Find the numeric readout for a given label in an EmotionBar row.
  */
@@ -111,45 +106,65 @@ function getValueForLabel(label: string): number {
 // ---------------------------------------------------------------------------
 
 describe('AffectiveStatePanel', () => {
-  it('renders a collapsed toggle button by default', () => {
+  it('renders a "자세히 보기" toggle button', () => {
     render(<AffectiveStatePanel affectiveState={layeredAffective} />);
+    // The detail toggle button must always be present
     expect(screen.getByRole('button')).toBeTruthy();
-    // Affective layers content should not be visible yet
-    expect(screen.queryByText('Confusion')).toBeNull();
   });
 
-  it('shows affective layer labels after expanding', () => {
-    renderAndExpand();
+  it('summary metrics are visible without expanding', () => {
+    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
+    // These four are always shown in the summary grid
     expect(screen.getByText('Intensity')).toBeTruthy();
-    expect(screen.getByText('Confusion')).toBeTruthy();
     expect(screen.getByText('Trust')).toBeTruthy();
     expect(screen.getByText('Interest')).toBeTruthy();
+    expect(screen.getByText('Cooperativeness')).toBeTruthy();
+  });
+
+  it('detail metrics are hidden until toggle is clicked', () => {
+    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
+    // Detail metrics must NOT be visible before expanding
+    expect(screen.queryByText('Confusion')).toBeNull();
+    expect(screen.queryByText('Load')).toBeNull();
+    expect(screen.queryByText('Rapport')).toBeNull();
+    expect(screen.queryByText('Valence')).toBeNull();
+  });
+
+  it('shows detail metrics after clicking the toggle', () => {
+    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('Confusion')).toBeTruthy();
+    expect(screen.getByText('Load')).toBeTruthy();
+    expect(screen.getByText('Rapport')).toBeTruthy();
+    expect(screen.getByText('Valence')).toBeTruthy();
   });
 
   it('intensity bar reads from affective.intensity', () => {
-    renderAndExpand();
+    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
     expect(getValueForLabel('Intensity')).toBe(layeredAffective.affective.intensity);
   });
 
-  it('confusion bar reads from cognitive.confusion', () => {
-    renderAndExpand();
-    expect(getValueForLabel('Confusion')).toBe(layeredAffective.cognitive.confusion);
-  });
-
   it('trust bar reads from relational.trust', () => {
-    renderAndExpand();
+    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
     expect(getValueForLabel('Trust')).toBe(layeredAffective.relational.trust);
   });
 
   it('interest bar reads from motivational.interest', () => {
-    renderAndExpand();
+    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
     expect(getValueForLabel('Interest')).toBe(layeredAffective.motivational.interest);
   });
 
-  it('affective-only fields (load, rapport, cooperativeness) read from layered state', () => {
-    renderAndExpand();
+  it('cooperativeness bar reads from motivational.cooperativeness (full label)', () => {
+    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
+    expect(getValueForLabel('Cooperativeness')).toBe(layeredAffective.motivational.cooperativeness);
+  });
+
+  it('detail fields (confusion, load, rapport, valence) read from layered state after expand', () => {
+    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(getValueForLabel('Confusion')).toBe(layeredAffective.cognitive.confusion);
     expect(getValueForLabel('Load')).toBe(layeredAffective.cognitive.load);
     expect(getValueForLabel('Rapport')).toBe(layeredAffective.relational.rapport);
-    expect(getValueForLabel('Coop.')).toBe(layeredAffective.motivational.cooperativeness);
+    expect(getValueForLabel('Valence')).toBe(layeredAffective.affective.valence);
   });
 });

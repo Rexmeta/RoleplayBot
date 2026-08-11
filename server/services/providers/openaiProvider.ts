@@ -56,7 +56,7 @@ export class OpenAIProvider implements AIServiceInterface {
       const userNameSection = normalizedUserName ? `
 상대방 실명 호칭:
 - 대화 상대방의 실제 이름은 [${normalizedUserName}]입니다
-- 대화 중 자연스럽게 "${normalizedUserName} 씨" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요
+- 대화 중 자연스럽게 "${normalizedUserName}님" 또는 "${normalizedUserName}" 등으로 상대방을 호칭하세요
 - 역할 직책과 함께 또는 이름만으로 자연스럽게 부르세요` : '';
 
       // 직위 위계 말투 지시 (conversationContextBuilder 공유 로직)

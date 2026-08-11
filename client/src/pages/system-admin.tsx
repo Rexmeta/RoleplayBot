@@ -219,7 +219,9 @@ const IMAGE_MODELS: ModelInfo[] = [
 ];
 
 const VIDEO_MODELS: ModelInfo[] = [
-  { value: "veo-3.1-generate-preview", modelKey: "geminiVeo31", provider: "Google", recommended: true },
+  { value: "veo-3.1-lite-generate-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: false, description: "720p · 비용 최소화" },
+  { value: "veo-3.1-fast-generate-preview", modelKey: "geminiVeo31Fast", provider: "Google", recommended: false, description: "720p · 빠른 생성" },
+  { value: "veo-3.1-generate-preview", modelKey: "geminiVeo31", provider: "Google", recommended: true, description: "1080p · 오디오 포함" },
 ];
 
 const GEMINI_LIVE_MODELS: ModelInfo[] = [
@@ -228,10 +230,17 @@ const GEMINI_LIVE_MODELS: ModelInfo[] = [
   { value: "gpt-4o-mini-realtime-preview", modelKey: "gptMiniRealtimePreview", provider: "OpenAI Realtime", recommended: false },
 ];
 
+const AVATAR_VIDEO_MODELS: ModelInfo[] = [
+  { value: "veo-3.1-lite-generate-preview", modelKey: "geminiVeo31Lite", provider: "Google", recommended: true, description: "720p · 오디오 포함 (비용 최소화)" },
+  { value: "veo-3.1-fast-generate-preview", modelKey: "geminiVeo31Fast", provider: "Google", recommended: false, description: "720p · 오디오 포함 (빠른 생성)" },
+  { value: "veo-3.1-generate-preview", modelKey: "geminiVeo31", provider: "Google", recommended: false, description: "1080p · 오디오 포함" },
+];
+
 function getStaticModelsForFeature(featureId: string, supportedProviders: string[]): ModelInfo[] {
   if (featureId === "realtime") return GEMINI_LIVE_MODELS;
   if (featureId === "image") return IMAGE_MODELS;
   if (featureId === "video") return VIDEO_MODELS;
+  if (featureId === "avatar_video") return AVATAR_VIDEO_MODELS;
   if (supportedProviders.length === 0) return AI_MODELS;
   return AI_MODELS.filter(m => supportedProviders.includes(m.provider));
 }
@@ -297,6 +306,13 @@ const FEATURE_MODEL_INFO = [
     id: "video",
     settingKey: "model_video",
     defaultModel: "veo-3.1-generate-preview",
+    configurable: true,
+    supportedProviders: ["Google"]
+  },
+  {
+    id: "avatar_video",
+    settingKey: "model_avatar_video",
+    defaultModel: "veo-3.1-lite-generate-preview",
     configurable: true,
     supportedProviders: ["Google"]
   },
@@ -781,8 +797,10 @@ export default function SystemAdminPage() {
     model_translation: "gemini-2.5-flash",
     model_image: "gemini-2.5-flash-image",
     model_video: "veo-3.1-generate-preview",
+    model_avatar_video: "veo-3.1-lite-generate-preview",
   });
   const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
+  const [operatorVideoAvatarEnabled, setOperatorVideoAvatarEnabled] = useState(false);
 
   const VOICE_AUDIO_DEFAULTS = {
     agc_target_rms: 0.15,
@@ -1069,6 +1087,33 @@ export default function SystemAdminPage() {
     saveSettingsMutation.mutate(settings);
   };
 
+  const saveVideoAvatarAccessMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const response = await apiRequest("PUT", "/api/system-admin/settings", {
+        category: "features",
+        key: "operator_video_avatar_enabled",
+        value: enabled,
+        description: "Allow operators to manage video avatar clips and scenario video-avatar settings",
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/video-avatar-access"] });
+      toast({
+        title: t('systemAdmin.settings.videoAvatarAccess.savedTitle', 'Video avatar access updated'),
+        description: t('systemAdmin.settings.videoAvatarAccess.savedDescription', 'The operator access policy has been saved.'),
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: t('systemAdmin.settings.saveFailed'),
+        description: error.message || t('systemAdmin.settings.saveFailedDesc'),
+        variant: "destructive",
+      });
+    },
+  });
+
   // Initialize models from saved settings
   useEffect(() => {
     const newFeatureModels: Record<string, string> = { ...featureModels };
@@ -1103,6 +1148,10 @@ export default function SystemAdminPage() {
     if (voiceChanged) {
       setVoiceAudioSettings(newVoiceAudio);
     }
+    const videoAvatarSetting = systemSettings.find(
+      s => s.category === "features" && s.key === "operator_video_avatar_enabled",
+    );
+    setOperatorVideoAvatarEnabled(videoAvatarSetting?.value === "true");
     setHasVoiceAudioChanges(false);
   }, [systemSettings]);
 
@@ -1641,160 +1690,106 @@ export default function SystemAdminPage() {
                   {t('systemAdmin.settings.aiModelStatusDesc')}
                 </p>
               </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('systemAdmin.settings.table.feature')}</TableHead>
-                        <TableHead>{t('systemAdmin.settings.table.description')}</TableHead>
-                        <TableHead>{t('systemAdmin.settings.table.model')}</TableHead>
-                        <TableHead className="text-center">{t('systemAdmin.settings.table.configurable')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {FEATURE_MODEL_INFO.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{t(`systemAdmin.features.${item.id}.name`)}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{t(`systemAdmin.features.${item.id}.description`)}</TableCell>
-                          <TableCell>
-                            {item.configurable && 'settingKey' in item ? (
-                              <Badge variant="outline" className="text-blue-600 border-blue-200">
-                                {(() => {
-                                  const allModels = [...AI_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS, ...GEMINI_LIVE_MODELS];
-                                  const selectedModel = allModels.find(m => m.value === featureModels[item.settingKey!]);
-                                  return selectedModel ? t(`systemAdmin.models.${selectedModel.modelKey}.label`) : (item as any).defaultModel;
-                                })()}
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-gray-600">{t(`systemAdmin.models.${(item as any).fixedModelKey}.label`)}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {item.configurable ? (
-                              <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-gray-400 mx-auto" />
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <CardTitle>{t('systemAdmin.settings.aiModelConfig')}</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {t('systemAdmin.settings.aiModelConfigDesc')}
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {settingsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {FEATURE_MODEL_INFO.filter(f => f.configurable && 'settingKey' in f).map((feature) => {
-                      const supportedProviders: string[] = 'supportedProviders' in feature && feature.supportedProviders ? feature.supportedProviders : [];
-                      const modelsToShow = getStaticModelsForFeature(feature.id, supportedProviders);
-                      const currentModelValue = featureModels[feature.settingKey!];
-
-                      return (
-                      <div key={feature.id} className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-base">{t(`systemAdmin.features.${feature.id}.name`)}</h4>
-                          <Badge variant="secondary" className="text-xs">{t(`systemAdmin.features.${feature.id}.description`)}</Badge>
-                          {supportedProviders.length === 1 && (
-                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
-                              {t('systemAdmin.settings.onlySupported', { provider: supportedProviders[0] })}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4">
-                          {modelsToShow.map((model) => {
-                            const isProviderSupported = supportedProviders.length === 0 || supportedProviders.includes(model.provider);
-                            const isDisabled = Boolean(model.disabled) || !isProviderSupported;
-                            const isSelected = currentModelValue === model.value;
-
-                            return (
-                              <div
-                                key={model.value}
-                                className={`p-3 border rounded-lg transition-colors ${
-                                  isDisabled
-                                    ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60 pointer-events-none"
-                                    : isSelected
-                                      ? "border-blue-500 bg-blue-50 cursor-pointer"
-                                      : "border-gray-200 hover:border-gray-300 cursor-pointer"
-                                }`}
-                                onClick={() => !isDisabled && handleFeatureModelChange(feature.settingKey!, model.value)}
-                                data-testid={`model-option-${feature.id}-${model.value}`}
-                                aria-disabled={isDisabled ? true : undefined}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <div className={`w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                                    isDisabled
-                                      ? "border-gray-300"
-                                      : isSelected
-                                        ? "border-blue-500"
-                                        : "border-gray-300"
-                                  }`}>
-                                    {isSelected && !isDisabled && (
-                                      <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      <span className="font-medium text-sm truncate max-w-[120px]">{t(`systemAdmin.models.${model.modelKey}.label`)}</span>
-                                      {model.recommended && (
-                                        <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
-                                      )}
-                                      {Boolean(model.disabled) && (
-                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">{t('systemAdmin.settings.preparing')}</Badge>
-                                      )}
-                                      {!isProviderSupported && !model.disabled && (
-                                        <Badge variant="outline" className="text-[10px] px-1 py-0 text-gray-500">{t('systemAdmin.settings.unsupported')}</Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{t(`systemAdmin.models.${model.modelKey}.description`)}</p>
-                                    <p className="text-[10px] text-blue-600 font-mono mt-1 truncate">{t(`systemAdmin.models.${model.modelKey}.pricing`)}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            );
+                  <>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t('systemAdmin.settings.table.feature')}</TableHead>
+                            <TableHead>{t('systemAdmin.settings.table.description')}</TableHead>
+                            <TableHead>{t('systemAdmin.settings.table.model')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {FEATURE_MODEL_INFO.map((item) => {
+                            const allModels = [...AI_MODELS, ...IMAGE_MODELS, ...VIDEO_MODELS, ...AVATAR_VIDEO_MODELS, ...GEMINI_LIVE_MODELS];
+                            if (item.configurable && 'settingKey' in item) {
+                              const supportedProviders: string[] = 'supportedProviders' in item && item.supportedProviders ? item.supportedProviders : [];
+                              const modelsToShow = getStaticModelsForFeature(item.id, supportedProviders);
+                              const currentValue = featureModels[item.settingKey!];
+                              return (
+                                <TableRow key={item.id}>
+                                  <TableCell className="font-medium whitespace-nowrap">{t(`systemAdmin.features.${item.id}.name`)}</TableCell>
+                                  <TableCell className="text-muted-foreground text-sm">{t(`systemAdmin.features.${item.id}.description`)}</TableCell>
+                                  <TableCell>
+                                    <Select
+                                      value={currentValue}
+                                      onValueChange={(val) => handleFeatureModelChange(item.settingKey!, val)}
+                                    >
+                                      <SelectTrigger className="w-full min-w-[220px]" data-testid={`model-select-${item.id}`}>
+                                        <SelectValue>
+                                          {(() => {
+                                            const m = allModels.find(m => m.value === currentValue);
+                                            return m ? (
+                                              <span className="flex items-center gap-1.5">
+                                                {t(`systemAdmin.models.${m.modelKey}.label`)}
+                                                {m.recommended && (
+                                                  <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
+                                                )}
+                                              </span>
+                                            ) : currentValue;
+                                          })()}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {modelsToShow.map((model) => {
+                                          const isProviderSupported = supportedProviders.length === 0 || supportedProviders.includes(model.provider);
+                                          const isDisabled = Boolean(model.disabled) || !isProviderSupported;
+                                          return (
+                                            <SelectItem
+                                              key={model.value}
+                                              value={model.value}
+                                              disabled={isDisabled}
+                                              data-testid={`model-option-${item.id}-${model.value}`}
+                                            >
+                                              <div className="flex flex-col gap-0.5 py-0.5">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="font-medium">{t(`systemAdmin.models.${model.modelKey}.label`)}</span>
+                                                  {model.recommended && (
+                                                    <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
+                                                  )}
+                                                  {Boolean(model.disabled) && (
+                                                    <Badge variant="secondary" className="text-[10px] px-1 py-0">{t('systemAdmin.settings.preparing')}</Badge>
+                                                  )}
+                                                  {!isProviderSupported && !model.disabled && (
+                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 text-gray-500">{t('systemAdmin.settings.unsupported')}</Badge>
+                                                  )}
+                                                </div>
+                                                <span className="text-xs text-muted-foreground">{t(`systemAdmin.models.${model.modelKey}.description`)}</span>
+                                                <span className="text-[10px] text-blue-600 font-mono">{t(`systemAdmin.models.${model.modelKey}.pricing`)}</span>
+                                              </div>
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            } else {
+                              const fixedModelKey = (item as any).fixedModelKey;
+                              return (
+                                <TableRow key={item.id}>
+                                  <TableCell className="font-medium whitespace-nowrap">{t(`systemAdmin.features.${item.id}.name`)}</TableCell>
+                                  <TableCell className="text-muted-foreground text-sm">{t(`systemAdmin.features.${item.id}.description`)}</TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-gray-500">{t(`systemAdmin.models.${fixedModelKey}.label`)}</span>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            }
                           })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                    
-                    {FEATURE_MODEL_INFO.filter(f => !f.configurable).length > 0 && (
-                      <div className="pt-4 border-t">
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2">{t('systemAdmin.settings.fixedModels')}</h4>
-                        <div className="grid gap-2 md:grid-cols-2">
-                          {FEATURE_MODEL_INFO.filter(f => !f.configurable).map((feature) => (
-                            <div key={feature.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                              <div>
-                                <p className="font-medium text-sm">{t(`systemAdmin.features.${feature.id}.name`)}</p>
-                                <p className="text-xs text-muted-foreground">{t(`systemAdmin.features.${feature.id}.description`)}</p>
-                              </div>
-                              <Badge variant="outline" className="text-gray-600">{t(`systemAdmin.models.${(feature as any).fixedModelKey}.label`)}</Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center gap-4 pt-4 border-t">
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-2">
                       <Button
                         onClick={handleSaveSettings}
                         disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
@@ -1816,8 +1811,44 @@ export default function SystemAdminPage() {
                         <span className="text-sm text-amber-600">{t('systemAdmin.settings.hasChanges')}</span>
                       )}
                     </div>
-                  </div>
+                  </>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('systemAdmin.settings.videoAvatarAccess.title', 'Video avatar access')}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    'systemAdmin.settings.videoAvatarAccess.description',
+                    'When enabled, operators can manage persona video clips and enable video avatars in scenarios within their existing access scope. System admins always retain access.',
+                  )}
+                </p>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium">
+                    {operatorVideoAvatarEnabled
+                      ? t('systemAdmin.settings.videoAvatarAccess.enabled', 'Enabled for operators')
+                      : t('systemAdmin.settings.videoAvatarAccess.disabled', 'Disabled for operators')}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t(
+                      'systemAdmin.settings.videoAvatarAccess.hint',
+                      'Turning this off hides the controls for operators and blocks direct video-avatar API requests. Existing clips and scenario settings are preserved.',
+                    )}
+                  </p>
+                </div>
+                <Switch
+                  checked={operatorVideoAvatarEnabled}
+                  disabled={saveVideoAvatarAccessMutation.isPending}
+                  onCheckedChange={(enabled) => {
+                    setOperatorVideoAvatarEnabled(enabled);
+                    saveVideoAvatarAccessMutation.mutate(enabled);
+                  }}
+                  data-testid="switch-operator-video-avatar-access"
+                />
               </CardContent>
             </Card>
 

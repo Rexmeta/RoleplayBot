@@ -149,8 +149,8 @@ export default function PersonaSceneDetailPage() {
   return (
     <>
       <PersonaLayout>
-        {/* ── 전체화면 히어로 이미지 ─────────────────── */}
-        <div className="relative w-full h-[62svh] min-h-[380px] overflow-hidden">
+        {/* ── 히어로 이미지 ─────────────────────────── */}
+        <div className="relative w-full h-[30svh] min-h-[200px] overflow-hidden">
           <img
             src={sceneImage}
             alt={scene.title}
@@ -160,8 +160,8 @@ export default function PersonaSceneDetailPage() {
               if (fallback) (e.target as HTMLImageElement).src = fallback;
             }}
           />
-          {/* 상단 어둠 + 하단 slate-950으로 자연스럽게 연결 */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/10 to-slate-950" />
+          {/* 자연스러운 그라디언트 */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-slate-950" />
 
           {/* 플로팅 네비게이션 */}
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-5 z-10">
@@ -187,72 +187,78 @@ export default function PersonaSceneDetailPage() {
               </div>
             )}
           </div>
-
-          {/* 이미지 하단 제목 오버레이 */}
-          <div className="absolute bottom-0 left-0 right-0 px-5 pb-7">
-            <div className="flex items-center gap-2.5 mb-3">
-              <Badge className="bg-emerald-500/90 text-white text-xs font-semibold backdrop-blur-sm px-2.5 py-1">
-                {scene.genre}
-              </Badge>
-              {scene.isPublic
-                ? <span className="flex items-center gap-1 text-xs text-white/55"><Globe className="w-3 h-3" />공개</span>
-                : <span className="flex items-center gap-1 text-xs text-white/55"><Lock className="w-3 h-3" />비공개</span>
-              }
-              <span className="flex items-center gap-1 text-xs text-white/40 ml-auto">
-                <MessageSquare className="w-3 h-3" />{scene.useCount}회 사용
-              </span>
-            </div>
-            <h1 className="text-[28px] font-bold text-white leading-tight tracking-tight drop-shadow-lg">
-              {scene.title}
-            </h1>
-            {scene.description && (
-              <p className="text-white/65 text-sm mt-2 leading-relaxed line-clamp-2">{scene.description}</p>
-            )}
-          </div>
         </div>
 
         {/* ── 다크 컨텐츠 영역 ──────────────────────── */}
-        <div className="bg-slate-950 px-5 pt-7 pb-36 space-y-8">
+        <div className="bg-slate-950 px-5 pb-32">
 
-          {/* 분위기 */}
+          {/* 제목 블록 — 히어로 아래 별도 영역 */}
+          <div className="py-5">
+            <div className="flex items-center gap-2 mb-2.5">
+              <Badge className="bg-emerald-500/90 text-white text-xs font-semibold px-2.5 py-1">
+                {scene.genre}
+              </Badge>
+              {scene.isPublic
+                ? <span className="flex items-center gap-1 text-xs text-white/50"><Globe className="w-3 h-3" />공개</span>
+                : <span className="flex items-center gap-1 text-xs text-white/50"><Lock className="w-3 h-3" />비공개</span>
+              }
+              <span className="flex items-center gap-1 text-xs text-white/35 ml-auto">
+                <MessageSquare className="w-3 h-3" />{scene.useCount}회 사용
+              </span>
+            </div>
+            <h1 className="text-xl font-bold text-white leading-tight tracking-tight">
+              {scene.title}
+            </h1>
+            {scene.description && (
+              <p className="text-slate-400 text-sm mt-1.5 leading-relaxed">{scene.description}</p>
+            )}
+          </div>
+
+          {/* 분위기 — 인라인 pill */}
           {scene.mood && (
-            <div className="flex items-center gap-2.5">
-              <Wind className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span className="text-emerald-400 text-sm font-medium">{scene.mood}</span>
-            </div>
-          )}
-
-          {/* 배경 상황 */}
-          {scene.setting && (
-            <div>
-              <h3 className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.15em] mb-3 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5" />배경 상황
-              </h3>
-              <p className="text-slate-300 text-sm leading-[1.8] font-light">{scene.setting}</p>
-            </div>
-          )}
-
-          {/* 첫 대사 - 시네마틱 인용구 */}
-          {scene.openingLine && (
-            <div className="relative pl-5 border-l-2 border-emerald-500/50 py-1">
-              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-[0.15em] mb-2.5">첫 대사</p>
-              <p className="text-white/85 text-[15px] italic leading-[1.85] font-light">
-                "{scene.openingLine}"
+            <div className="border-t border-white/[0.06] py-5">
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <Wind className="w-3 h-3" />분위기
               </p>
+              <span className="inline-flex items-center bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full text-sm">
+                {scene.mood}
+              </span>
             </div>
           )}
 
-          {/* 태그 */}
+          {/* 배경 상황 — 인용문 스타일 */}
+          {scene.setting && (
+            <div className="border-t border-white/[0.06] py-5">
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <MapPin className="w-3 h-3" />배경 상황
+              </p>
+              <div className="border-l-2 border-emerald-500/40 pl-4">
+                <p className="text-slate-300 text-sm leading-relaxed">{scene.setting}</p>
+              </div>
+            </div>
+          )}
+
+          {/* 첫 대사 — 풀쿼트 스타일 */}
+          {scene.openingLine && (
+            <div className="border-t border-white/[0.06] py-5 bg-gradient-to-br from-emerald-950/30 to-transparent">
+              <span className="block text-5xl text-emerald-500/30 leading-[0.65] font-serif mb-3">"</span>
+              <p className="text-white/90 text-base italic leading-relaxed">{scene.openingLine}</p>
+            </div>
+          )}
+
+          {/* 태그 — 카드 밖 인라인 배치 */}
           {scene.tags && scene.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {scene.tags.map(tag => (
-                <span
-                  key={tag}
-                  className="text-xs bg-white/[0.07] text-slate-400 px-3 py-1.5 rounded-full border border-white/[0.08]"
-                >
-                  #{tag}
-                </span>
-              ))}
+            <div className="border-t border-white/[0.06] py-5">
+              <div className="flex flex-wrap gap-1.5">
+                {scene.tags.map(tag => (
+                  <span
+                    key={tag}
+                    className="text-xs text-slate-500 bg-white/[0.05] border border-white/[0.08] px-2.5 py-1 rounded-full"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>

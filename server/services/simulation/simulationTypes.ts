@@ -131,6 +131,11 @@ export interface SimulationStatePatchRequest {
   patch: SimulationStatePatch;
 }
 
+/**
+ * @deprecated Use UpdateNpcAffectiveStateArgs (npcAffectiveStateDelta patch) instead.
+ * Flat emotion args are no longer used by any tool handler; retained only for
+ * backward-compatibility with any external callers that have not yet migrated.
+ */
 export interface UpdateNpcEmotionArgs {
   angerDelta?: number;
   trustDelta?: number;

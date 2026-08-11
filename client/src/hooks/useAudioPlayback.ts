@@ -1,6 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const DEFAULT_GAIN = 1.0;
+const OUTPUT_DEVICE_KEY = 'realtime_voice_output_device_id';
+// Tracks whether the user explicitly picked an output device so auto-selection
+// on devicechange does not overwrite a deliberate choice.
+const OUTPUT_USER_CHOSE_KEY = 'realtime_voice_output_user_chose';
+// Tracks that the persisted selection was made automatically (Bluetooth
+// auto-pick), so a newly connected Bluetooth device may still replace it.
+const OUTPUT_AUTO_SELECTED_KEY = 'realtime_voice_output_auto_selected';
 
 const AGC_TARGET_RMS = 0.15;
 const AGC_SILENCE_THRESHOLD = 0.01;
@@ -15,6 +23,57 @@ export interface AgcConfig {
   maxGain: number;
   attackCoeff: number;
   releaseCoeff: number;
+}
+
+export type AudioOutputKind = 'default' | 'speaker' | 'bluetooth' | 'wired' | 'other';
+
+export interface AudioOutputDevice {
+  deviceId: string;
+  label: string;
+  kind: AudioOutputKind;
+}
+
+export type AudioOutputStatus = 'supported' | 'unsupported' | 'selecting' | 'error';
+
+const BLUETOOTH_LABEL_HINTS = ['bluetooth', 'airpods', 'buds', 'headset', 'headphone', 'wireless', '블루투스', '헤드셋', '이어폰', '무선'];
+const SPEAKER_LABEL_HINTS = ['speaker', 'speakerphone', 'receiver', 'earpiece', '스피커', '수화'];
+const WIRED_LABEL_HINTS = ['wired', 'headphones (', '3.5', 'usb', '유선'];
+
+function classifyOutputLabel(label: string): AudioOutputKind {
+  const lower = label.toLowerCase();
+  if (BLUETOOTH_LABEL_HINTS.some(hint => lower.includes(hint))) return 'bluetooth';
+  if (WIRED_LABEL_HINTS.some(hint => lower.includes(hint))) return 'wired';
+  if (SPEAKER_LABEL_HINTS.some(hint => lower.includes(hint))) return 'speaker';
+  return 'other';
+}
+
+// Browsers only expose real device labels after audio capture permission is granted.
+// Until then enumerateDevices() returns a single unlabeled entry, which is why the
+// picker can look "stuck" on the default device even with earbuds connected.
+function describeOutputDevice(
+  device: MediaDeviceInfo,
+  index: number,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): AudioOutputDevice {
+  const rawLabel = (device.label || '').trim();
+  if (device.deviceId === 'default' || device.deviceId === '') {
+    return {
+      deviceId: device.deviceId,
+      label: rawLabel
+        ? t('audioOutput.defaultDeviceWithLabel', { label: rawLabel.replace(/^default\s*-\s*/i, '') })
+        : t('audioOutput.defaultDevice'),
+      kind: 'default',
+    };
+  }
+  if (!rawLabel) {
+    return { deviceId: device.deviceId, label: t('audioOutput.deviceN', { n: index + 1 }), kind: 'other' };
+  }
+  const kind = classifyOutputLabel(rawLabel);
+  const prefix =
+    kind === 'bluetooth' ? t('audioOutput.prefixBluetooth') :
+    kind === 'speaker'   ? t('audioOutput.prefixSpeaker') :
+    kind === 'wired'     ? t('audioOutput.prefixWired') : '';
+  return { deviceId: device.deviceId, label: `${prefix}${rawLabel}`, kind };
 }
 
 const DEFAULT_AGC_CONFIG: AgcConfig = {
@@ -35,19 +94,44 @@ interface UseAudioPlaybackReturn {
   isAISpeakingRef: React.MutableRefObject<boolean>;
   isActuallyPlayingRef: React.MutableRefObject<boolean>;
   audioAmplitude: number;
+  outputDevices: AudioOutputDevice[];
+  selectedOutputDeviceId: string;
+  /** Whether current selection was auto-chosen (not explicitly by the user). */
+  outputAutoSelected: boolean;
+  outputStatus: AudioOutputStatus;
+  outputMessage: string | null;
+  outputNeedsPermission: boolean;
+  outputListUnavailable: boolean;
+  requestOutputDevicePermission: () => Promise<boolean>;
   setIsAISpeaking: React.Dispatch<React.SetStateAction<boolean>>;
   stopPlayback: () => void;
   playAudioDelta: (base64: string) => Promise<void>;
   startAmplitudeAnalysis: () => void;
   stopAmplitudeAnalysis: () => void;
+  selectOutputDevice: (deviceId: string) => Promise<boolean>;
+  /** Like selectOutputDevice but marks the choice as user-explicit,
+   *  preventing future auto-overrides on devicechange. */
+  selectOutputDeviceByUser: (deviceId: string) => Promise<boolean>;
+  refreshOutputDevices: () => Promise<void>;
+  initializePlaybackContext: () => Promise<AudioContext | null>;
+  resumePlayback: () => Promise<boolean>;
 }
 
 export function useAudioPlayback(
   isInterruptedRef: React.MutableRefObject<boolean>,
   agcConfig?: Partial<AgcConfig>
 ): UseAudioPlaybackReturn {
+  const { t } = useTranslation();
+
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [audioAmplitude, setAudioAmplitude] = useState(0);
+  const [outputDevices, setOutputDevices] = useState<AudioOutputDevice[]>([]);
+  const [selectedOutputDeviceId, setSelectedOutputDeviceId] = useState('');
+  const [outputAutoSelected, setOutputAutoSelected] = useState(false);
+  const [outputStatus, setOutputStatus] = useState<AudioOutputStatus>('unsupported');
+  const [outputMessage, setOutputMessage] = useState<string | null>(null);
+  const [outputNeedsPermission, setOutputNeedsPermission] = useState(false);
+  const [outputListUnavailable, setOutputListUnavailable] = useState(false);
 
   const playbackContextRef = useRef<AudioContext | null>(null);
   const scheduledSourcesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -61,6 +145,203 @@ export function useAudioPlayback(
   const agcRmsRef = useRef<number>(AGC_TARGET_RMS);
 
   const agcConfigRef = useRef<AgcConfig>({ ...DEFAULT_AGC_CONFIG, ...agcConfig });
+  const selectedOutputDeviceIdRef = useRef('');
+  // True once the user explicitly picked an output device; suppresses auto-bluetooth selection.
+  const userChoseOutputRef = useRef(false);
+  // True while the current persisted selection came from auto-selection, so a
+  // newer Bluetooth device may still replace it.
+  const outputAutoSelectedRef = useRef(false);
+  const playbackQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const reportOutputError = useCallback((message: string) => {
+    setOutputStatus('error');
+    setOutputMessage(message);
+    console.warn(`🔊 ${message}`);
+  }, []);
+
+  const supportsOutputSelection = useCallback(() => {
+    const context = playbackContextRef.current as any;
+    const AudioContextConstructor = typeof window !== 'undefined'
+      ? ((window as any).AudioContext || (window as any).webkitAudioContext)
+      : undefined;
+    return typeof context?.setSinkId === 'function'
+      || typeof AudioContextConstructor?.prototype?.setSinkId === 'function';
+  }, []);
+
+  const resumePlayback = useCallback(async () => {
+    const context = playbackContextRef.current;
+    if (!context || context.state === 'running') return true;
+    try {
+      await context.resume();
+      if ((context as AudioContext).state !== 'running') throw new Error('AudioContext did not resume');
+      return true;
+    } catch {
+      reportOutputError(t('audioOutput.resumeError'));
+      return false;
+    }
+  }, [reportOutputError, t]);
+
+  const selectOutputDevice = useCallback(async (deviceId: string) => {
+    if (!supportsOutputSelection()) {
+      setOutputStatus('unsupported');
+      setOutputMessage(t('audioOutput.unsupportedError'));
+      return false;
+    }
+    const context = playbackContextRef.current as any;
+    if (!context) {
+      selectedOutputDeviceIdRef.current = deviceId;
+      setSelectedOutputDeviceId(deviceId);
+      outputAutoSelectedRef.current = false;
+      setOutputAutoSelected(false);
+      try {
+        localStorage.setItem(OUTPUT_DEVICE_KEY, deviceId);
+        localStorage.removeItem(OUTPUT_AUTO_SELECTED_KEY);
+      } catch {}
+      setOutputStatus('supported');
+      setOutputMessage(deviceId ? t('audioOutput.pendingApply') : t('audioOutput.usingDefault'));
+      return true;
+    }
+    setOutputStatus('selecting');
+    try {
+      await context.setSinkId(deviceId);
+      selectedOutputDeviceIdRef.current = deviceId;
+      setSelectedOutputDeviceId(deviceId);
+      outputAutoSelectedRef.current = false;
+      setOutputAutoSelected(false);
+      try {
+        localStorage.setItem(OUTPUT_DEVICE_KEY, deviceId);
+        localStorage.removeItem(OUTPUT_AUTO_SELECTED_KEY);
+      } catch {}
+      setOutputStatus('supported');
+      setOutputMessage(deviceId ? t('audioOutput.playingSelected') : t('audioOutput.playingDefault'));
+      return true;
+    } catch {
+      reportOutputError(t('audioOutput.changeError'));
+      return false;
+    }
+  }, [reportOutputError, supportsOutputSelection, t]);
+
+  // User-explicit selection: marks userChoseOutput so auto-BT logic won't override.
+  const selectOutputDeviceByUser = useCallback(async (deviceId: string) => {
+    userChoseOutputRef.current = true;
+    setOutputAutoSelected(false);
+    try { localStorage.setItem(OUTPUT_USER_CHOSE_KEY, '1'); } catch {}
+    return selectOutputDevice(deviceId);
+  }, [selectOutputDevice]);
+
+  const refreshOutputDevices = useCallback(async () => {
+    if (!supportsOutputSelection() || !navigator.mediaDevices?.enumerateDevices) {
+      setOutputStatus('unsupported');
+      setOutputDevices([]);
+      setOutputNeedsPermission(false);
+      setOutputListUnavailable(false);
+      return;
+    }
+    try {
+      const allDevices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = allDevices.filter(device => device.kind === 'audiooutput');
+      const described = outputs.map((device, index) => describeOutputDevice(device, index, t));
+      const normalized = described.some(device => device.deviceId === 'default' || device.deviceId === '')
+        ? described
+        : [{ deviceId: '', label: t('audioOutput.defaultDevice'), kind: 'default' as const }, ...described];
+      setOutputDevices(normalized);
+
+      // Browsers hide labels and extra outputs until audio capture permission is
+      // granted, so a connected Bluetooth headset never appears as its own choice.
+      const outputsHidden = outputs.length === 0 || outputs.every(device => !device.label);
+      // If ANY device (e.g. the microphone) already exposes a label, capture
+      // permission has been granted. An output list that is still empty at that
+      // point is not permission-gated — the browser or embedding context simply
+      // does not expose audio outputs (Android Chrome, restrictive iframes).
+      const permissionGranted = allDevices.some(device => !!(device.label || '').trim());
+
+      if (outputsHidden && !permissionGranted) {
+        setOutputNeedsPermission(true);
+        setOutputListUnavailable(false);
+        // The list is permission-gated, not authoritative: a saved device is not
+        // proven gone here, so keep the preference instead of dropping it.
+        setOutputStatus('supported');
+        setOutputMessage(t('audioOutput.permissionNeeded'));
+      } else if (outputsHidden) {
+        setOutputNeedsPermission(false);
+        setOutputListUnavailable(true);
+        setOutputStatus('supported');
+        setOutputMessage(t('audioOutput.listUnavailable'));
+      } else if (selectedOutputDeviceIdRef.current && !normalized.some(device => device.deviceId === selectedOutputDeviceIdRef.current)) {
+        setOutputNeedsPermission(false);
+        setOutputListUnavailable(false);
+        const fellBack = await selectOutputDevice('');
+        if (fellBack) {
+          setOutputAutoSelected(false);
+          setOutputMessage(t('audioOutput.deviceLost'));
+        }
+      } else {
+        setOutputNeedsPermission(false);
+        setOutputListUnavailable(false);
+
+        // Auto-select Bluetooth when the user never explicitly chose a device and
+        // either (a) nothing is selected yet, or (b) the current selection was
+        // itself auto-picked — so a newly connected Bluetooth device can take over.
+        const hasPersistedChoice = !!(selectedOutputDeviceIdRef.current);
+        if (!userChoseOutputRef.current && (!hasPersistedChoice || outputAutoSelectedRef.current)) {
+          const btDevice = normalized.find(d => d.kind === 'bluetooth');
+          if (btDevice && btDevice.deviceId !== selectedOutputDeviceIdRef.current) {
+            const selected = await selectOutputDevice(btDevice.deviceId);
+            if (selected) {
+              outputAutoSelectedRef.current = true;
+              setOutputAutoSelected(true);
+              try { localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1'); } catch {}
+              setOutputMessage(t('audioOutput.bluetoothAutoSelected', { label: btDevice.label }));
+              console.log(`🔊 Auto-selected Bluetooth output: ${btDevice.label}`);
+              return;
+            }
+          }
+        }
+
+        setOutputStatus('supported');
+      }
+    } catch {
+      reportOutputError(t('audioOutput.enumError'));
+    }
+  }, [reportOutputError, selectOutputDevice, supportsOutputSelection, t]);
+
+  const requestOutputDevicePermission = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      reportOutputError(t('audioOutput.listUnsupported'));
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+    } catch {
+      reportOutputError(t('audioOutput.permissionDenied'));
+      return false;
+    }
+    await refreshOutputDevices();
+    return true;
+  }, [refreshOutputDevices, reportOutputError, t]);
+
+  const ensureOutputDevice = useCallback(async (context: AudioContext) => {
+    if (!selectedOutputDeviceIdRef.current || typeof (context as any).setSinkId !== 'function') return;
+    try {
+      await (context as any).setSinkId(selectedOutputDeviceIdRef.current);
+    } catch {
+      selectedOutputDeviceIdRef.current = '';
+      setSelectedOutputDeviceId('');
+      try { localStorage.removeItem(OUTPUT_DEVICE_KEY); } catch {}
+      reportOutputError(t('audioOutput.savedDeviceFailed'));
+    }
+  }, [reportOutputError, t]);
+
+  const initializePlaybackContext = useCallback(async () => {
+    if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
+      playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      await ensureOutputDevice(playbackContextRef.current);
+      nextPlayTimeRef.current = 0;
+      console.log('🔊 Created new playback AudioContext');
+    }
+    return playbackContextRef.current;
+  }, [ensureOutputDevice]);
 
   useEffect(() => {
     agcConfigRef.current = { ...DEFAULT_AGC_CONFIG, ...agcConfig };
@@ -72,6 +353,31 @@ export function useAudioPlayback(
     agcConfig?.attackCoeff,
     agcConfig?.releaseCoeff,
   ]);
+
+  useEffect(() => {
+    try {
+      selectedOutputDeviceIdRef.current = localStorage.getItem(OUTPUT_DEVICE_KEY) || '';
+      setSelectedOutputDeviceId(selectedOutputDeviceIdRef.current);
+      userChoseOutputRef.current = !!(localStorage.getItem(OUTPUT_USER_CHOSE_KEY));
+      const savedAuto = !!selectedOutputDeviceIdRef.current && !userChoseOutputRef.current && !!(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY));
+      outputAutoSelectedRef.current = savedAuto;
+      setOutputAutoSelected(savedAuto);
+    } catch {}
+    refreshOutputDevices();
+    const onDeviceChange = () => { refreshOutputDevices(); };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshOutputDevices();
+        resumePlayback();
+      }
+    };
+    navigator.mediaDevices?.addEventListener?.('devicechange', onDeviceChange);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      navigator.mediaDevices?.removeEventListener?.('devicechange', onDeviceChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [refreshOutputDevices, resumePlayback]);
 
   const startAmplitudeAnalysis = useCallback(() => {
     if (amplitudeAnimationRef.current) return;
@@ -154,24 +460,20 @@ export function useAudioPlayback(
     isAISpeakingRef.current = false;
   }, [isInterruptedRef]);
 
-  const playAudioDelta = useCallback(async (base64Audio: string) => {
+  const scheduleAudioDelta = useCallback(async (base64Audio: string) => {
     if (isInterruptedRef.current) {
       console.log('🔇 Ignoring audio chunk (barge-in active)');
       return;
     }
 
     try {
-      if (!playbackContextRef.current) {
-        playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        nextPlayTimeRef.current = 0;
-        console.log('🔊 Created new playback AudioContext');
-      }
-
-      const audioContext = playbackContextRef.current;
+      const audioContext = await initializePlaybackContext();
+      if (!audioContext || isInterruptedRef.current) return;
 
       if (audioContext.state === 'suspended') {
         console.log('🔊 Resuming suspended AudioContext for playback');
-        await audioContext.resume();
+        if (!await resumePlayback()) return;
+        if (isInterruptedRef.current) return;
       }
 
       if (!isActuallyPlayingRef.current) {
@@ -271,7 +573,14 @@ export function useAudioPlayback(
     } catch (err) {
       console.error('Error playing audio delta:', err);
     }
-  }, [isInterruptedRef, startAmplitudeAnalysis]);
+  }, [initializePlaybackContext, isInterruptedRef, resumePlayback, startAmplitudeAnalysis]);
+
+  const playAudioDelta = useCallback((base64Audio: string) => {
+    const scheduled = playbackQueueRef.current.then(() => scheduleAudioDelta(base64Audio));
+    // Keep the queue usable after one malformed chunk or a recoverable browser failure.
+    playbackQueueRef.current = scheduled.catch(() => {});
+    return scheduled;
+  }, [scheduleAudioDelta]);
 
   return {
     playbackContextRef,
@@ -283,10 +592,23 @@ export function useAudioPlayback(
     isAISpeakingRef,
     isActuallyPlayingRef,
     audioAmplitude,
+    outputDevices,
+    selectedOutputDeviceId,
+    outputAutoSelected,
+    outputStatus,
+    outputMessage,
+    outputNeedsPermission,
+    outputListUnavailable,
+    requestOutputDevicePermission,
     setIsAISpeaking,
     stopPlayback,
     playAudioDelta,
     startAmplitudeAnalysis,
     stopAmplitudeAnalysis,
+    selectOutputDevice,
+    selectOutputDeviceByUser,
+    refreshOutputDevices,
+    initializePlaybackContext,
+    resumePlayback,
   };
 }

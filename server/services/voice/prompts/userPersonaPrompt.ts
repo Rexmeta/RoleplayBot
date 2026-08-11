@@ -27,7 +27,7 @@ export function buildUserPersonaInstructions(
     ``,
     `위 캐릭터로서 자연스럽게 대화하세요. 캐릭터의 성격, 말투, 배경을 일관되게 유지하세요.`,
     hasRealName
-      ? `대화 상대방의 이름은 "${userName}"입니다. 대화 중 상대방을 자연스럽게 이름으로 불러주세요 (예: "${userName}님", "${userName}씨").`
+      ? `대화 상대방의 이름은 "${userName}"입니다. 대화 중 상대방을 자연스럽게 이름으로 불러주세요 (예: "${userName}님").`
       : `대화 상대방과 자연스럽게 대화하세요.`,
     hasRealName
       ? `⚠️ 상대방을 부를 때 반드시 "${userName}"님으로 호칭하세요. "사용자"라는 표현은 절대 사용하지 마세요.`

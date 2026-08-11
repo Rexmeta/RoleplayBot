@@ -323,6 +323,47 @@ describe('OptimizedGeminiProvider — barge-in count recalculation', () => {
     expect(feedback.bargeInAnalysis).toBeUndefined();
   });
 
+  it('does not double-count a barge-in when the same interrupted turn appears in both messages and events', async () => {
+    // Scenario: a single interrupted AI turn triggers one barge-in event.
+    // Even if the AI inflates the count, the post-process must produce count === events.length.
+    const aiPayload = {
+      ...BASE_FEEDBACK_JSON,
+      bargeInAnalysis: {
+        count: 5,           // inflated
+        positiveCount: 0,
+        negativeCount: 5,
+        neutralCount: 0,
+        rate: 0.5,
+        events: [
+          {
+            turnIndex: 1,
+            aiMessage: '네, 현재 일정은 다음과 같습니다.',
+            userMessage: '아니요, 그건 이미 완료되었습니다.',
+            assessment: 'negative',
+            severity: 3,
+          },
+        ],
+        summary: '말 끊기가 감지되었습니다.',
+      },
+    };
+    geminiMock.generateContent.mockResolvedValue(makeGeminiResponse(aiPayload));
+
+    const feedback = await provider.generateFeedback(
+      makeScenario(),
+      makeMessagesWithInterruption(),
+      makePersona(),
+      undefined,
+      undefined,
+      'ko'
+    );
+
+    // Only 1 event → count must be 1, not the AI-provided 5
+    expect(feedback.bargeInAnalysis).toBeDefined();
+    expect(feedback.bargeInAnalysis!.count).toBe(1);
+    expect(feedback.bargeInAnalysis!.negativeCount).toBe(1);
+    expect(feedback.bargeInAnalysis!.positiveCount).toBe(0);
+  });
+
   it('count/positiveCount/negativeCount/neutralCount are consistent with events regardless of AI values', async () => {
     const aiPayload = {
       ...BASE_FEEDBACK_JSON,

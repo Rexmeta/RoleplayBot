@@ -1,5 +1,5 @@
 import { Storage, File } from "@google-cloud/storage";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { randomUUID } from "crypto";
 import {
   ObjectAclPolicy,
@@ -217,7 +217,7 @@ export class ObjectStorageService {
     }, `searchPublicObject(${filePath})`);
   }
 
-  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600, req?: Request) {
     try {
       const [metadata] = await withRetry(
         () => file.getMetadata(),
@@ -225,12 +225,43 @@ export class ObjectStorageService {
       );
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
+      const contentType = metadata.contentType || "application/octet-stream";
+      const fileSize = Number(metadata.size || 0);
+      const cacheControl = `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`;
+
+      // Always advertise range support — required for browsers to play video/audio.
+      res.setHeader("Accept-Ranges", "bytes");
+
+      const rangeHeader = req?.headers?.range;
+      if (rangeHeader && fileSize) {
+        // Parse "bytes=start-end" (RFC 7233 §2.1, single-range only)
+        const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+        if (match) {
+          const start = match[1] ? parseInt(match[1], 10) : 0;
+          const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
+          if (start <= end && start < fileSize) {
+            const chunkSize = end - start + 1;
+            res.status(206).set({
+              "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+              "Content-Length": String(chunkSize),
+              "Content-Type": contentType,
+              "Cache-Control": cacheControl,
+            });
+            const stream = file.createReadStream({ start, end });
+            stream.on("error", (err) => {
+              console.error("[ObjectStorage] Range stream error:", err);
+              if (!res.headersSent) res.status(500).json({ error: "Error streaming file" });
+            });
+            stream.pipe(res);
+            return;
+          }
+        }
+      }
+
       res.set({
-        "Content-Type": metadata.contentType || "application/octet-stream",
-        "Content-Length": metadata.size,
-        "Cache-Control": `${
-          isPublic ? "public" : "private"
-        }, max-age=${cacheTtlSec}`,
+        "Content-Type": contentType,
+        "Content-Length": String(fileSize),
+        "Cache-Control": cacheControl,
       });
 
       const stream = file.createReadStream();

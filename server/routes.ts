@@ -10,6 +10,7 @@ import userPersonaImageRoutes from "./routes/userPersonaImage.js";
 import mediaRoutes from "./routes/media.js";
 import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "./services/videoAvatarAccess";
 
 import createUserRouter from "./routes/user";
 import createFreeChatRouter from "./routes/freeChat";
@@ -64,6 +65,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     { key: 'model_emotion', value: 'gemini-2.5-flash', description: 'AI model used for real-time emotion analysis' },
     { key: 'model_image', value: 'gemini-2.5-flash-image', description: 'AI model used for image generation (personas, scenarios)' },
     { key: 'model_video', value: 'veo-3.1-generate-preview', description: 'AI model used for intro video generation' },
+    { key: 'model_avatar_video', value: 'veo-3.1-lite-generate-preview', description: 'AI model used for persona avatar clip generation' },
     { key: 'model_realtime', value: 'gemini-3.1-flash-live-preview', description: 'AI model used for real-time voice conversations' },
     { key: 'model_evaluation', value: 'gemini-2.5-flash', description: 'AI model used for per-turn LLM evaluation during voice conversations' },
     { key: 'model_summarization', value: 'gemini-2.5-flash', description: 'AI model used to summarize older messages in long voice sessions' },
@@ -77,6 +79,22 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     } catch (err) {
       console.error(`[seed] Failed to seed ${seed.key} setting:`, err);
     }
+  }
+
+  // Operators are intentionally opted out of video-avatar management by default.
+  try {
+    const existing = await storage.getSystemSetting(
+      VIDEO_AVATAR_ACCESS_SETTING.category,
+      VIDEO_AVATAR_ACCESS_SETTING.key,
+    );
+    if (!existing) {
+      await storage.upsertSystemSetting({
+        ...VIDEO_AVATAR_ACCESS_SETTING,
+        value: "false",
+      });
+    }
+  } catch (err) {
+    console.error("[seed] Failed to seed operator video-avatar access setting:", err);
   }
 
   // Seed privacy/data_retention_days setting if not present
@@ -148,6 +166,16 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       console.error('[voice-audio settings]', err);
       res.status(500).json({ error: 'Failed to fetch voice audio settings' });
     }
+  });
+
+  // This is intentionally limited to authenticated content managers; it only
+  // exposes the UI capability flag and never the broader system settings.
+  app.get('/api/settings/video-avatar-access', isAuthenticated, async (_req, res) => {
+    const setting = await storage.getSystemSetting(
+      VIDEO_AVATAR_ACCESS_SETTING.category,
+      VIDEO_AVATAR_ACCESS_SETTING.key,
+    );
+    res.json({ operatorEnabled: parseBooleanSetting(setting?.value) });
   });
 
   // Health check

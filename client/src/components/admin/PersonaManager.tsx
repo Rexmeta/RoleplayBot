@@ -14,10 +14,107 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { MoreVertical, RefreshCw, Languages } from 'lucide-react';
+import { MoreVertical, RefreshCw, Languages, Download, Upload } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 import { toMediaUrl } from '@/lib/mediaUrl';
+import { useAuth } from '@/hooks/useAuth';
+
+/**
+ * Video avatar clip library: behaviour (decided by the audio stream) × emotion
+ * (decided by the LLM). Six slots per gender cover every combination.
+ */
+const VIDEO_CLIP_BEHAVIORS = ['listening', 'speaking'] as const;
+const VIDEO_CLIP_EMOTIONS = ['positive', 'neutral', 'negative'] as const;
+type VideoClipBehavior = typeof VIDEO_CLIP_BEHAVIORS[number];
+type VideoClipEmotion = typeof VIDEO_CLIP_EMOTIONS[number];
+
+const VIDEO_CLIP_SLOTS: ReadonlyArray<{
+  behavior: VideoClipBehavior;
+  emotion: VideoClipEmotion;
+  slot: string;
+}> = VIDEO_CLIP_BEHAVIORS.flatMap(behavior =>
+  VIDEO_CLIP_EMOTIONS.map(emotion => ({ behavior, emotion, slot: `${behavior}_${emotion}` })),
+);
+
+const VIDEO_CLIP_SLOT_KEYS: readonly string[] = VIDEO_CLIP_SLOTS.map(s => s.slot);
+
+const BEHAVIOR_LABELS: Record<VideoClipBehavior, string> = {
+  listening: '듣는 중',
+  speaking: '말하는 중',
+};
+const EMOTION_LABELS: Record<VideoClipEmotion, string> = {
+  positive: '긍정',
+  neutral: '중립',
+  negative: '부정',
+};
+
+/** Keep only the six known slots, dropping anything left over from older records. */
+function pickClipSlots(value: unknown): Partial<Record<string, string>> {
+  if (!value || typeof value !== 'object') return {};
+  const source = value as Record<string, unknown>;
+  const result: Partial<Record<string, string>> = {};
+  for (const slot of VIDEO_CLIP_SLOT_KEYS) {
+    const url = source[slot];
+    if (typeof url === 'string' && url) result[slot] = url;
+  }
+  return result;
+}
+
+/**
+ * Returns a user-friendly error description for avatar clip generation failures.
+ * Content-policy blocks get a distinct, actionable message; other errors pass through as-is.
+ */
+function getAvatarClipErrorMessage(raw: string | undefined): string {
+  if (!raw) return '클립 생성 실패';
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes('콘텐츠 정책') ||
+    lower.includes('content polic') ||
+    lower.includes('content filter') ||
+    lower.includes('필터링되었을 수 있습니다')
+  ) {
+    return '비디오 프롬프트가 콘텐츠 정책에 의해 차단되었습니다 — 페르소나 설명을 조정한 후 다시 시도해 주세요.';
+  }
+  return raw;
+}
+
+/**
+ * Derives a video model badge label (Lite/Fast/Full) from a persona's stored
+ * clipModels or modelVideoOverride. Returns null when no model data is present.
+ */
+function getVideoModelBadge(persona: any): { label: string; colorClass: string } | null {
+  // Check explicit per-persona override first
+  const override: string | undefined = persona.modelVideoOverride;
+  if (override) {
+    if (override.includes('lite')) return { label: 'Lite', colorClass: 'bg-violet-100 text-violet-800' };
+    if (override.includes('fast')) return { label: 'Fast', colorClass: 'bg-sky-100 text-sky-800' };
+    return { label: 'Full', colorClass: 'bg-emerald-100 text-emerald-800' };
+  }
+
+  // Collect all clip model strings from clipModels
+  const clipModels = persona.videos?.clipModels;
+  if (!clipModels) return null;
+
+  const allModels: string[] = [
+    ...Object.values(clipModels.male ?? {}).filter(Boolean),
+    ...Object.values(clipModels.female ?? {}).filter(Boolean),
+  ] as string[];
+
+  if (allModels.length === 0) return null;
+
+  const liteCount = allModels.filter(m => m.includes('lite')).length;
+  const fastCount = allModels.filter(m => m.includes('fast')).length;
+  const fullCount = allModels.length - liteCount - fastCount;
+
+  if (liteCount >= fastCount && liteCount >= fullCount) {
+    return { label: 'Lite', colorClass: 'bg-violet-100 text-violet-800' };
+  }
+  if (fastCount >= fullCount) {
+    return { label: 'Fast', colorClass: 'bg-sky-100 text-sky-800' };
+  }
+  return { label: 'Full', colorClass: 'bg-emerald-100 text-emerald-800' };
+}
 
 // 한글 감정명을 번역 키로 매핑
 const emotionKeyMap: Record<string, string> = {
@@ -37,6 +134,8 @@ const emotionKeyMap: Record<string, string> = {
 interface MBTIPersona {
   id: string;
   mbti: string;
+  /** Display name; optional because older persona records were stored without one. */
+  name?: string;
   gender: 'male' | 'female'; // 성별 필드 추가
   personality_traits: string[];
   communication_style: string;
@@ -59,7 +158,6 @@ interface MBTIPersona {
   voice: {
     tone: string;
     pace: string;
-    emotion: string;
   };
   images: {
     base: string;  // 기본 프로필 이미지
@@ -105,6 +203,19 @@ interface MBTIPersona {
       당혹: string;
     };
   };
+  /**
+   * Avatar video clips, keyed gender → `${behavior}_${emotion}` slot
+   * (e.g. `clips.male.listening_neutral`).
+   */
+  videos?: {
+    enabled?: boolean;
+    avatarId?: string;
+    model?: string;
+    clips?: {
+      male?: Record<string, string>;
+      female?: Record<string, string>;
+    };
+  };
 }
 
 // 시나리오별 페르소나 정보
@@ -145,7 +256,6 @@ interface MBTIPersonaFormData {
   voice: {
     tone: string;
     pace: string;
-    emotion: string;
   };
   images: {
     base: string;  // 기본 프로필 이미지
@@ -196,6 +306,18 @@ interface MBTIPersonaFormData {
   storeListed?: boolean;
   storePriceUsd?: number | null;
   storePackId?: string | null;
+  videos?: {
+    enabled: boolean;
+    avatarId: string;
+    clips: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    };
+    clipModels?: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    };
+  };
 }
 
 interface PersonaManagerProps {
@@ -205,6 +327,7 @@ interface PersonaManagerProps {
 export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = {}) {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const prevTriggerRef = useRef(0);
 
@@ -233,6 +356,17 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   
   // 개별 표정 이미지 생성 상태
   const [generatingSingleEmotion, setGeneratingSingleEmotion] = useState<string | null>(null);
+  
+  // 비디오 아바타 생성 상태 (여러 클립을 동시에 추적)
+  const [generatingVideoClip, setGeneratingVideoClip] = useState<Set<string>>(new Set());
+  const [uploadingVideoClip, setUploadingVideoClip] = useState<Set<string>>(new Set());
+  // Extra prompt text per clip slot, keyed "gender:state"
+  const [clipExtraPrompts, setClipExtraPrompts] = useState<Record<string, string>>({});
+  // Seed image toggle per clip slot — default true (use seed image when available)
+  const [clipUseSeedImage, setClipUseSeedImage] = useState<Record<string, boolean>>({});
+  
+  // 비디오 섹션 성별 탭
+  const [videoGender, setVideoGender] = useState<'male' | 'female'>('male');
   
   // 이미지 로드 실패 상태 추적
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
@@ -273,7 +407,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     voice: {
       tone: '',
       pace: '',
-      emotion: ''
     },
     freeChatAvailable: false,
     freeChatDescription: '',
@@ -303,6 +436,12 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     queryKey: ['/api/admin/personas'],
     queryFn: () => fetch('/api/admin/personas').then(res => res.json())
   });
+
+  const { data: videoAvatarAccess } = useQuery<{ operatorEnabled: boolean }>({
+    queryKey: ['/api/settings/video-avatar-access'],
+    staleTime: 1000 * 60,
+  });
+  const canManageVideoAvatar = user?.role === 'admin' || videoAvatarAccess?.operatorEnabled === true;
 
   // 활성 언어 목록 조회 (번역 상태 뱃지용)
   const { data: activeLanguages = [] } = useQuery<{ code: string; name: string; nativeName: string; isDefault: boolean }[]>({
@@ -660,6 +799,217 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     }
   };
 
+  // localStorage 키 헬퍼 (gender + 슬롯 포함)
+  const videoJobKey = (personaId: string, gender: string, slot: string) => `videoJob:${personaId}:${gender}:${slot}`;
+
+  // 비디오 클립 폴링 (재개 가능)
+  const pollVideoJob = (personaId: string, gender: string, slot: string, jobId: string, deadline: number) => {
+    const POLL_INTERVAL_MS = 5_000;
+
+    const poll = async (): Promise<void> => {
+      if (Date.now() > deadline) {
+        localStorage.removeItem(videoJobKey(personaId, gender, slot));
+        setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${slot}`); return s; });
+        toast({ title: '시간 초과', description: '클립 생성 시간이 초과되었습니다. 나중에 다시 시도해주세요.', variant: 'destructive' });
+        return;
+      }
+
+      try {
+        const statusRes = await apiRequest('GET', `/api/admin/personas/${personaId}/video/generate-clip/status?jobId=${encodeURIComponent(jobId)}`);
+        const data = await statusRes.json();
+
+        if (data.status === 'done' && data.result?.videoUrl) {
+          localStorage.removeItem(videoJobKey(personaId, gender, slot));
+          const doneGender: 'male' | 'female' = data.result.gender === 'female' ? 'female' : 'male';
+          const doneSlot: string = data.result.slot || slot;
+          // Persist the stable storage key (not the expiring signed URL) so saved clips don't break
+          const persistUrl: string = data.result.storageKey || data.result.videoUrl;
+          const doneModel: string | undefined = data.result.model;
+          setFormData(prev => {
+            const prevClips = prev.videos?.clips ?? {};
+            const genderClips = prevClips[doneGender] ?? {};
+            const prevClipModels = prev.videos?.clipModels ?? {};
+            const genderModels = prevClipModels[doneGender] ?? {};
+            return {
+              ...prev,
+              videos: {
+                // Always enable video when a clip is confirmed saved (server also sets enabled:true).
+                enabled: true,
+                avatarId: prev.videos?.avatarId ?? prev.id,
+                clips: {
+                  ...prevClips,
+                  [doneGender]: { ...genderClips, [doneSlot]: persistUrl },
+                },
+                clipModels: {
+                  ...prevClipModels,
+                  [doneGender]: doneModel
+                    ? { ...genderModels, [doneSlot]: doneModel }
+                    : genderModels,
+                },
+              },
+            };
+          });
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${slot}`); return s; });
+          toast({ title: '클립 생성 완료', description: `${doneGender} / ${doneSlot} 클립이 자동으로 저장됐습니다.` });
+        } else if (data.status === 'error') {
+          localStorage.removeItem(videoJobKey(personaId, gender, slot));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${slot}`); return s; });
+          toast({ title: '생성 오류', description: getAvatarClipErrorMessage(data.error), variant: 'destructive' });
+        } else if (data.status === undefined && !data.jobId) {
+          // Job expired from server store (> 30 min) — clear gracefully
+          localStorage.removeItem(videoJobKey(personaId, gender, slot));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${slot}`); return s; });
+        } else {
+          // pending or running — keep polling
+          setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      } catch (pollErr: any) {
+        // 404 means server restarted and the in-flight job is gone.
+        // The status endpoint now falls back to DB, so 404 only happens if
+        // the job truly expired. Treat as a terminal error rather than retrying.
+        const is404 = (pollErr as any)?.status === 404
+          || String((pollErr as any)?.message ?? '').includes('404')
+          || String((pollErr as any)?.message ?? '').includes('not found');
+        if (is404) {
+          localStorage.removeItem(videoJobKey(personaId, gender, slot));
+          setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(`${gender}:${slot}`); return s; });
+          toast({ title: '작업 만료', description: '생성 작업 기록을 찾을 수 없습니다. 다시 시도해주세요.', variant: 'destructive' });
+          return;
+        }
+        // Network glitch — keep polling unless we've timed out
+        setTimeout(poll, POLL_INTERVAL_MS);
+      }
+    };
+
+    setTimeout(poll, POLL_INTERVAL_MS);
+  };
+
+  // 비디오 클립 개별 생성 핸들러 (백그라운드 폴링 방식)
+  const handleGenerateVideoClip = async (
+    behavior: VideoClipBehavior,
+    emotion: VideoClipEmotion,
+    gender: 'male' | 'female',
+    extraPrompt?: string,
+    useSeedImage?: boolean,
+  ) => {
+    if (!formData.id || !editingPersona) {
+      toast({ title: '오류', description: '페르소나를 먼저 저장해주세요.', variant: 'destructive' });
+      return;
+    }
+    const personaId = formData.id;
+    const slot = `${behavior}_${emotion}`;
+    const clipKey = `${gender}:${slot}`;
+    setGeneratingVideoClip(prev => new Set(Array.from(prev).concat(clipKey)));
+
+    // 해당 성별의 중립 표정 이미지 URL 가져오기 (토글이 꺼져 있으면 전달하지 않음)
+    const neutralImageUrl = (useSeedImage !== false)
+      ? (gender === 'male'
+          ? formData.images?.male?.expressions?.['중립'] || ''
+          : formData.images?.female?.expressions?.['중립'] || '')
+      : '';
+
+    try {
+      // Step 1: kick off background job, get jobId immediately
+      const startResponse = await apiRequest('POST', `/api/admin/personas/${personaId}/video/generate-clip`, {
+        behavior,
+        emotion,
+        styleHint: formData.images?.style || undefined,
+        gender,
+        neutralImageUrl: neutralImageUrl || undefined,
+        extraPrompt: extraPrompt?.trim() || undefined,
+      });
+      const { jobId } = await startResponse.json();
+      if (!jobId) throw new Error('서버에서 작업 ID를 받지 못했습니다.');
+
+      // Step 2: persist job reference so it survives page navigations
+      const POLL_TIMEOUT_MS = 6 * 60 * 1_000;
+      const deadline = Date.now() + POLL_TIMEOUT_MS;
+      localStorage.setItem(videoJobKey(personaId, gender, slot), JSON.stringify({ jobId, deadline }));
+
+      toast({ title: '생성 시작', description: `${gender} / ${slot} 클립 생성 중… 완료되면 자동으로 반영됩니다.` });
+
+      // Step 3: start polling
+      pollVideoJob(personaId, gender, slot, jobId, deadline);
+    } catch (error: any) {
+      localStorage.removeItem(videoJobKey(personaId, gender, slot));
+      setGeneratingVideoClip(prev => { const s = new Set(prev); s.delete(clipKey); return s; });
+      toast({ title: '생성 오류', description: getAvatarClipErrorMessage(error.message), variant: 'destructive' });
+    }
+  };
+
+  // 비디오 클립 다운로드 핸들러
+  const handleDownloadVideoClip = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('다운로드 실패');
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast({ title: '다운로드 오류', description: '파일을 다운로드할 수 없습니다.', variant: 'destructive' });
+    }
+  };
+
+  // 비디오 클립 업로드 핸들러
+  const handleUploadVideoClip = async (
+    behavior: VideoClipBehavior,
+    emotion: VideoClipEmotion,
+    gender: 'male' | 'female',
+    file: File,
+  ) => {
+    if (!formData.id || !editingPersona) {
+      toast({ title: '오류', description: '페르소나를 먼저 저장해주세요.', variant: 'destructive' });
+      return;
+    }
+    const personaId = formData.id;
+    const slot = `${behavior}_${emotion}`;
+    const clipKey = `${gender}:${slot}`;
+    setUploadingVideoClip(prev => new Set(Array.from(prev).concat(clipKey)));
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('behavior', behavior);
+      fd.append('emotion', emotion);
+      fd.append('gender', gender);
+      const response = await fetch(`/api/admin/personas/${personaId}/video/upload-clip`, {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error((err as any).message || '업로드 실패');
+      }
+      const { storageKey } = await response.json();
+      // Update form state with the new storage key (stable path, not signed URL)
+      setFormData(prev => {
+        const prevClips = prev.videos?.clips ?? { male: {}, female: {} };
+        const genderClips = prevClips[gender] ?? {};
+        return {
+          ...prev,
+          videos: {
+            // Always enable video avatar when a clip is uploaded (server also sets enabled:true).
+            enabled: true,
+            avatarId: prev.videos?.avatarId ?? prev.id,
+            clips: { ...prevClips, [gender]: { ...genderClips, [slot]: storageKey } },
+            clipModels: prev.videos?.clipModels,
+          },
+        };
+      });
+      toast({ title: '업로드 완료', description: `${gender} / ${slot} 클립이 업로드되었습니다.` });
+    } catch (error: any) {
+      toast({ title: '업로드 오류', description: error.message || '알 수 없는 오류', variant: 'destructive' });
+    } finally {
+      setUploadingVideoClip(prev => { const s = new Set(prev); s.delete(clipKey); return s; });
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       id: '',
@@ -686,7 +1036,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       voice: {
         tone: '',
         pace: '',
-        emotion: ''
       },
       freeChatAvailable: false,
       freeChatDescription: '',
@@ -698,7 +1047,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         style: '',
         male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } },
         female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } }
-      }
+      },
+      videos: { enabled: false, avatarId: '', clips: { male: {}, female: {} } },
     });
     setRawInputs({
       personality_traits: '',
@@ -738,7 +1088,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       voice: {
         tone: persona.voice?.tone || '',
         pace: persona.voice?.pace || '',
-        emotion: persona.voice?.emotion || ''
       },
       images: {
         base: persona.gender === 'male'
@@ -779,6 +1128,18 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       storeListed: (persona as any).storeListed ?? false,
       storePriceUsd: (persona as any).storePriceUsd ?? null,
       storePackId: (persona as any).storePackId ?? null,
+      videos: (() => {
+        const pv = (persona as any).videos;
+        if (!pv) return { enabled: false, avatarId: persona.id, clips: { male: {}, female: {} }, clipModels: { male: {}, female: {} } };
+        const rawClips = pv.clips ?? {};
+        const rawClipModels = pv.clipModels ?? {};
+        return {
+          enabled: pv.enabled ?? false,
+          avatarId: pv.avatarId ?? persona.id,
+          clips: { male: pickClipSlots(rawClips.male), female: pickClipSlots(rawClips.female) },
+          clipModels: { male: rawClipModels.male ?? {}, female: rawClipModels.female ?? {} },
+        };
+      })(),
     });
     // rawInputs도 설정 (쉼표로 구분된 필드들)
     setRawInputs({
@@ -790,6 +1151,32 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       win_conditions: (persona.communication_patterns?.win_conditions || []).join(', ')
     });
     setEditingPersona(persona);
+    setVideoGender(persona.gender === 'female' ? 'female' : 'male');
+
+    // 페이지 이동 후 다시 열었을 때 진행 중인 비디오 클립 작업 복구
+    const GENDERS: Array<'male' | 'female'> = ['male', 'female'];
+    const resumingKeys: string[] = [];
+    GENDERS.forEach(g => {
+      VIDEO_CLIP_SLOT_KEYS.forEach(slot => {
+        const stored = localStorage.getItem(`videoJob:${persona.id}:${g}:${slot}`);
+        if (!stored) return;
+        try {
+          const { jobId, deadline } = JSON.parse(stored);
+          if (Date.now() > deadline) {
+            localStorage.removeItem(`videoJob:${persona.id}:${g}:${slot}`);
+            return;
+          }
+          resumingKeys.push(`${g}:${slot}`);
+          pollVideoJob(persona.id, g, slot, jobId, deadline);
+        } catch {
+          localStorage.removeItem(`videoJob:${persona.id}:${g}:${slot}`);
+        }
+      });
+    });
+    if (resumingKeys.length > 0) {
+      setGeneratingVideoClip(prev => new Set(Array.from(prev).concat(resumingKeys)));
+      toast({ title: '생성 재개', description: `진행 중인 클립 작업을 재개합니다: ${resumingKeys.join(', ')}` });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1147,20 +1534,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       />
                     </div>
 
-                    <div>
-                      <Label htmlFor="voice_emotion" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.voiceEmotion')}</Label>
-                      <Input
-                        id="voice_emotion"
-                        value={formData.voice?.emotion || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          voice: { ...prev.voice, emotion: e.target.value }
-                        }))}
-                        placeholder={t('admin.personaManager.form.voiceEmotionPlaceholder')}
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
-                        data-testid="input-voice-emotion"
-                      />
-                    </div>
                   </div>
 
                   <div>
@@ -1353,6 +1726,256 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 </div>
               </div>
 
+              {/* Video management is deliberately absent for operators when disabled. */}
+              {canManageVideoAvatar && <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i className="fas fa-video text-violet-600"></i>
+                    비디오 아바타
+                  </h3>
+                </div>
+
+                {/* 활성화 스위치 + Avatar ID */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="videoEnabled"
+                      checked={formData.videos?.enabled ?? false}
+                      onCheckedChange={(checked) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          videos: { enabled: checked, avatarId: prev.videos?.avatarId ?? prev.id, clips: prev.videos?.clips ?? { male: {}, female: {} }, clipModels: prev.videos?.clipModels },
+                        }))
+                      }
+                    />
+                    <Label htmlFor="videoEnabled" className="text-sm font-semibold text-slate-700">
+                      비디오 아바타 활성화
+                    </Label>
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="videoAvatarId" className="text-sm font-semibold text-slate-700 mb-1 block">
+                      Avatar ID
+                    </Label>
+                    <Input
+                      id="videoAvatarId"
+                      value={formData.videos?.avatarId ?? formData.id}
+                      onChange={(e) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          videos: { enabled: prev.videos?.enabled ?? false, avatarId: e.target.value, clips: prev.videos?.clips ?? { male: {}, female: {} }, clipModels: prev.videos?.clipModels },
+                        }))
+                      }
+                      placeholder="아바타 ID (기본: 페르소나 ID)"
+                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 성별 탭 토글 */}
+                <div className="flex gap-2 mb-4">
+                  {(['male', 'female'] as const).map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setVideoGender(g)}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                        videoGender === g
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white text-slate-600 border-slate-300 hover:border-violet-400'
+                      }`}
+                    >
+                      {g === 'male' ? '남성 (Male)' : '여성 (Female)'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 시드 이미지 안내 */}
+                {(() => {
+                  const neutralUrl = videoGender === 'male'
+                    ? formData.images?.male?.expressions?.['중립']
+                    : formData.images?.female?.expressions?.['중립'];
+                  if (neutralUrl) {
+                    return (
+                      <div className="flex items-center gap-3 mb-4 p-2 bg-violet-50 border border-violet-200 rounded-lg">
+                        <img
+                          src={toMediaUrl(neutralUrl)}
+                          alt="시드 이미지"
+                          className="w-12 h-12 rounded object-cover border border-violet-300"
+                        />
+                        <p className="text-xs text-violet-700">
+                          <span className="font-semibold">시드 이미지 사용 중</span> — Veo 생성 시 이 {videoGender === 'male' ? '남성' : '여성'} 중립 이미지를 레퍼런스로 전달합니다.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                      {videoGender === 'male' ? '남성' : '여성'} 중립 표정 이미지를 먼저 생성하면 해당 인물 모습으로 영상이 만들어집니다.
+                    </p>
+                  );
+                })()}
+
+                {/* 6개 클립 슬롯: 행동(음성 스트림) × 감정(LLM) */}
+                <p className="text-xs text-slate-500 mb-2">
+                  행동은 음성 스트림이, 감정은 LLM이 결정합니다. 두 축의 조합으로 재생할 클립이 선택됩니다.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {VIDEO_CLIP_SLOTS.map(({ behavior, emotion, slot }) => {
+                    const clipUrl = formData.videos?.clips?.[videoGender]?.[slot] ?? '';
+                    const clipKey = `${videoGender}:${slot}`;
+                    const isGenerating = generatingVideoClip.has(clipKey);
+                    const clipModel = formData.videos?.clipModels?.[videoGender]?.[slot];
+                    const modelLabel = clipModel
+                      ? clipModel.includes('lite') ? 'Lite'
+                        : clipModel.includes('fast') ? 'Fast'
+                        : 'Full'
+                      : null;
+                    return (
+                      <div key={slot} className="border border-slate-200 rounded-lg p-3 bg-slate-50 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-slate-700">
+                              {BEHAVIOR_LABELS[behavior]} · {EMOTION_LABELS[emotion]}
+                            </span>
+                            {modelLabel && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-violet-300 text-violet-700 bg-violet-50 font-mono">
+                                {modelLabel}
+                              </Badge>
+                            )}
+                          </div>
+                          {clipUrl && (
+                            <a href={toMediaUrl(clipUrl)} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[80px]">보기</a>
+                          )}
+                        </div>
+                        {clipUrl && (
+                          <video
+                            key={clipUrl}
+                            src={toMediaUrl(clipUrl)}
+                            controls
+                            loop
+                            muted
+                            className="w-full rounded border border-slate-200 bg-black"
+                            style={{ maxHeight: 120 }}
+                          />
+                        )}
+                        {/* 다운로드 / 업로드 버튼 */}
+                        <div className="flex gap-1">
+                          {clipUrl && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDownloadVideoClip(
+                                toMediaUrl(clipUrl),
+                                `${editingPersona?.name ?? 'clip'}-${videoGender}-${slot}.mp4`
+                              )}
+                              className="h-7 text-xs flex-1 border-slate-300"
+                              title="이 클립을 로컬에 저장합니다"
+                            >
+                              <Download className="w-3 h-3 mr-1" />다운로드
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={uploadingVideoClip.has(clipKey) || !editingPersona}
+                            onClick={() => document.getElementById(`upload-clip-${clipKey}`)?.click()}
+                            className="h-7 text-xs flex-1 border-slate-300"
+                            title="로컬 영상 파일을 이 슬롯에 업로드합니다"
+                          >
+                            {uploadingVideoClip.has(clipKey) ? (
+                              <><RefreshCw className="w-3 h-3 mr-1 animate-spin" />업로드 중…</>
+                            ) : (
+                              <><Upload className="w-3 h-3 mr-1" />업로드</>
+                            )}
+                          </Button>
+                          <input
+                            id={`upload-clip-${clipKey}`}
+                            type="file"
+                            accept="video/mp4,video/webm,video/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadVideoClip(behavior, emotion, videoGender, file);
+                              e.target.value = '';
+                            }}
+                          />
+                        </div>
+                        <Input
+                          value={clipUrl}
+                          onChange={(e) =>
+                            setFormData(prev => {
+                              const prevClips = prev.videos?.clips ?? { male: {}, female: {} };
+                              const genderClips = prevClips[videoGender] ?? {};
+                              return {
+                                ...prev,
+                                videos: {
+                                  enabled: prev.videos?.enabled ?? false,
+                                  avatarId: prev.videos?.avatarId ?? prev.id,
+                                  clips: { ...prevClips, [videoGender]: { ...genderClips, [slot]: e.target.value } },
+                                  clipModels: prev.videos?.clipModels,
+                                },
+                              };
+                            })
+                          }
+                          placeholder="URL 직접 입력"
+                          className="text-xs border-slate-300 bg-white h-7"
+                        />
+                        <textarea
+                          value={clipExtraPrompts[clipKey] ?? ''}
+                          onChange={(e) => setClipExtraPrompts(prev => ({ ...prev, [clipKey]: e.target.value }))}
+                          placeholder="추가 프롬프트 (선택)"
+                          rows={2}
+                          className="w-full text-xs rounded-md border border-slate-300 bg-white px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-slate-400 placeholder:text-slate-400"
+                        />
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={clipUseSeedImage[clipKey] !== false}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setClipUseSeedImage(prev => ({ ...prev, [clipKey]: checked }));
+                              // 시드 이미지를 해제하면 이미지 생성에 사용된 스타일 프롬프트를
+                              // 추가 프롬프트 란에 자동으로 불러온다 (비어 있을 때만).
+                              if (!checked) {
+                                const styleHint = formData.images?.style?.trim();
+                                if (styleHint) {
+                                  setClipExtraPrompts(prev => ({
+                                    ...prev,
+                                    [clipKey]: prev[clipKey]?.trim() ? prev[clipKey] : styleHint,
+                                  }));
+                                }
+                              }
+                            }}
+                            className="rounded border-slate-300 text-violet-600 focus:ring-violet-400"
+                          />
+                          <span className="text-xs text-slate-600">시드 이미지 사용</span>
+                        </label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGenerateVideoClip(behavior, emotion, videoGender, clipExtraPrompts[clipKey], clipUseSeedImage[clipKey] !== false)}
+                          disabled={isGenerating || !editingPersona}
+                          className="h-7 text-xs"
+                        >
+                          {isGenerating ? (
+                            <><RefreshCw className="w-3 h-3 mr-1 animate-spin" />생성 중…</>
+                          ) : (
+                            <><i className="fas fa-magic mr-1"></i>Veo 생성</>
+                          )}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {!editingPersona && (
+                  <p className="text-sm text-slate-500 mt-3">페르소나를 먼저 저장한 후 클립을 생성할 수 있습니다.</p>
+                )}
+              </div>}
+
               {/* 자유 대화 설정 섹션 */}
               <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
@@ -1528,6 +2151,31 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       <Badge variant="outline" className="bg-green-100 text-green-800">
                         {t('admin.personaManager.usedInScenarios', { count: scenarioUsage.length })}
                       </Badge>
+                      {(() => {
+                        const videoBadge = getVideoModelBadge(persona);
+                        if (!videoBadge) return null;
+                        return (
+                          <Badge variant="outline" className={videoBadge.colorClass}>
+                            🎬 {videoBadge.label}
+                          </Badge>
+                        );
+                      })()}
+                      {(() => {
+                        const male = persona.videos?.clips?.male ?? {};
+                        const female = persona.videos?.clips?.female ?? {};
+                        const count = VIDEO_CLIP_SLOT_KEYS.filter(s => (male as any)[s]).length
+                          + VIDEO_CLIP_SLOT_KEYS.filter(s => (female as any)[s]).length;
+                        const total = VIDEO_CLIP_SLOT_KEYS.length * 2; // 12
+                        if (count === 0) return null;
+                        const colorClass = count === total
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border-amber-300';
+                        return (
+                          <Badge variant="outline" className={colorClass}>
+                            🎞 {count}/{total} 클립
+                          </Badge>
+                        );
+                      })()}
                     </div>
                     {/* 번역 상태 뱃지 */}
                     {(() => {
@@ -1758,12 +2406,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                           <div>
                             <p className="text-xs text-slate-500">{t('admin.personaManager.card.pace')}:</p>
                             <p className="text-xs text-slate-600">{persona.voice.pace}</p>
-                          </div>
-                        )}
-                        {persona.voice.emotion && (
-                          <div>
-                            <p className="text-xs text-slate-500">{t('admin.personaManager.card.emotion')}:</p>
-                            <p className="text-xs text-slate-600">{persona.voice.emotion}</p>
                           </div>
                         )}
                       </div>

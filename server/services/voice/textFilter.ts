@@ -84,6 +84,31 @@ const META_NARRATIVE_OPENERS: RegExp[] = [
   /^(Okay|Alright|Right|Sure|Well),?\s+(I\s+(will|need|am|should)|let\s+me)/i,
 ];
 
+/**
+ * Korean simulation authors sometimes append a third-person direction after an
+ * otherwise valid dialogue line (for example: "…라고 말함", "상황의 심각성을
+ * 강조하며 상세 보고를 요구").  It is not spoken dialogue and Gemini can
+ * otherwise treat it as text to read aloud.  These patterns intentionally
+ * target instruction-like endings, not ordinary Korean conversational grammar.
+ */
+const KOREAN_STAGE_DIRECTION_RE =
+  /(?:상황을\s*(?:모면|설명|정리|강조)|(?:원래\s*)?(?:하려던|하던)\s*(?:보고|말)|(?:상황의\s*)?심각성을\s*강조|(?:상대방|사용자)의?\s*(?:침묵|반응)|(?:상세\s*)?보고(?:를|을)?\s*(?:재촉|요구)|(?:대화를|상황을)\s*(?:주도|이어감)|(?:감정|의도|상황)\s*(?:을|를)?\s*(?:강조|표현|설명)|(?:하며|하면서|하고)\s*(?:.*)?(?:말함|요구(?:함)?|재촉(?:함)?|강조(?:함)?|표현(?:함)?|설명(?:함)?|이어감))\s*[.!]?$/;
+
+export function isStageDirectionText(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  if (/^\s*[\(\[].*[\)\]]\s*$/.test(trimmed) || /^\s*\*.*\*\s*$/.test(trimmed)) {
+    return true;
+  }
+
+  if (KOREAN_RE.test(trimmed) && KOREAN_STAGE_DIRECTION_RE.test(trimmed)) {
+    return true;
+  }
+
+  return isAINarrativeLine(trimmed) || computeReasoningScore(trimmed) >= REASONING_SCORE_THRESHOLD;
+}
+
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 
 /**
@@ -276,6 +301,8 @@ export function filterThinkingText(
       const englishOnly = trimmed.replace(new RegExp(targetPattern.source, 'g'), '').trim();
       if (englishOnly && computeReasoningScore(englishOnly) >= REASONING_SCORE_THRESHOLD) return false;
     }
+
+    if (isStageDirectionText(trimmed)) return false;
 
     return true;
   });

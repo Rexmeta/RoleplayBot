@@ -8,6 +8,18 @@ interface VideoIntroProps {
   preloadImageUrl?: string;
 }
 
+export function getVideoIntroSources(videoSrc: string): {
+  webmSrc: string;
+  hasSeparateMp4: boolean;
+} {
+  const isWebmSource = /\.webm$/i.test(videoSrc);
+  const webmSrc = isWebmSource ? videoSrc : videoSrc.replace(/\.mp4$/i, ".webm");
+  return {
+    webmSrc,
+    hasSeparateMp4: !isWebmSource && webmSrc !== videoSrc,
+  };
+}
+
 export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: VideoIntroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const didSkipRef = useRef(false);
@@ -117,9 +129,7 @@ export function VideoIntro({ videoSrc, onComplete, onSkip, preloadImageUrl }: Vi
     }, 500);
   };
 
-  const isWebmSource = /\.webm$/i.test(videoSrc);
-  const webmSrc = isWebmSource ? videoSrc : videoSrc.replace(/\.mp4$/i, ".webm");
-  const hasSeparateMp4 = !isWebmSource && webmSrc !== videoSrc;
+  const { webmSrc, hasSeparateMp4 } = getVideoIntroSources(videoSrc);
 
   return (
     <div 

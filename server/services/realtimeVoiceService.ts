@@ -37,7 +37,7 @@ import { createDefaultSimulationState } from './simulation/simulationTypes';
 const DEFAULT_REALTIME_MODEL = 'gemini-3.1-flash-live-preview';
 
 // All Gemini Live models use v1beta. v1alpha is never used.
-const VALID_GEMINI_REALTIME_MODELS = [
+export const VALID_GEMINI_REALTIME_MODELS = [
   'gemini-3.1-flash-live-preview', // v1beta — Google AI official docs confirmed
 ];
 const VALID_OPENAI_REALTIME_MODELS = ['gpt-4o-realtime-preview', 'gpt-4o-mini-realtime-preview'];
@@ -340,9 +340,11 @@ export class RealtimeVoiceService {
     const initialFlowGraph = (resolvedScenarioObj as any).flowGraph ?? null;
     const initialStageGoal: string | undefined = initialFlowGraph?.stages?.find((s: any) => s.id === 'intro')?.goal;
     const scenarioPlayerConstraints = (resolvedScenarioObj as any).playerConstraints ?? null;
+    const voicePersonaSwitchMode: 'replace' | 'join' | 'none' =
+      ((resolvedScenarioObj as any).personaSwitchMode ?? 'replace') as 'replace' | 'join' | 'none';
     const systemInstructions = buildSystemInstructions(
       scenarioWithUserDifficulty, scenarioPersona, mbtiPersona, userRoleInfo, userLanguage,
-      true, allPersonas, initialPersonaIndex, resolvedScenarioObj.targetTurns, 'replace', initialStageGoal,
+      true, allPersonas, initialPersonaIndex, resolvedScenarioObj.targetTurns, voicePersonaSwitchMode, initialStageGoal,
       scenarioPlayerConstraints, activeScenarioOverride
     );
 
@@ -355,7 +357,7 @@ export class RealtimeVoiceService {
         const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
-          true, allPersonas, pIdx, resolvedScenarioObj.targetTurns, 'replace', initialStageGoal,
+          true, allPersonas, pIdx, resolvedScenarioObj.targetTurns, voicePersonaSwitchMode, initialStageGoal,
           scenarioPlayerConstraints, activeScenarioOverride
         ));
       }
@@ -430,6 +432,7 @@ export class RealtimeVoiceService {
       softCloseSent: false,
       personaSwitchPending: false,
       awaitingPersonaSwitch: false,
+      personaSwitchMode: voicePersonaSwitchMode,
       simulationHarness: (scenarioObj as any).simulationHarness ?? null,
     };
 
@@ -774,6 +777,17 @@ export class RealtimeVoiceService {
         currentSession.isInterrupted = false;
         currentSession.cancelledTurnSeq = -1;
         currentSession.currentTranscript = '';
+        // Flush any accumulated user transcript before resetting the buffer so
+        // the partial speech is not lost and will not re-accumulate after the new
+        // Gemini session replays pending audio — preventing a duplicate user turn.
+        const pendingUserSpeech = currentSession.userTranscriptBuffer.trim();
+        if (pendingUserSpeech) {
+          console.log(`🎤 [proactiveReconnect] Flushing pending user buffer before reset: "${pendingUserSpeech.substring(0, 60)}"`);
+          this.sendToClient(currentSession, { type: 'user.transcription', transcript: pendingUserSpeech });
+          currentSession.recentMessages.push({ role: 'user', text: pendingUserSpeech.slice(0, 300) });
+          if (currentSession.recentMessages.length > 30) currentSession.recentMessages.shift();
+        }
+        currentSession.userTranscriptBuffer = '';
         currentSession.usingReconnectInstructions = true;
         console.log(`✅ proactiveReconnect 성공: 새 Gemini 세션 활성화`);
         this.sendToClient(currentSession, { type: 'session.reconnected' });
@@ -861,7 +875,7 @@ export class RealtimeVoiceService {
               personaRunId: session.personaRunId,
               sender: 'user',
               message: pendingUserText,
-              turnIndex: Math.floor(existing.length / 2),
+              turnIndex: existing.length,
               emotion: null,
               emotionReason: null,
               createdAt: new Date(),

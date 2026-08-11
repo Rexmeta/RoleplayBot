@@ -1,5 +1,36 @@
 import { SimulationHarness } from '@shared/schema/scenarios';
 
+/**
+ * Normalizes a raw persisted SimulationHarness object, migrating legacy field names
+ * produced before the affective-layer rename:
+ *   emotionModel            → affectiveAxes
+ *   toolPolicy.updateNpcEmotion → toolPolicy.npcAffectiveStateDelta
+ *
+ * Safe to call on already-migrated objects (no-op if new keys are present).
+ */
+export function normalizeSimulationHarness(raw: any): SimulationHarness {
+  if (!raw || typeof raw !== 'object') return raw;
+  const out: any = { ...raw };
+
+  // emotionModel → affectiveAxes
+  if ('emotionModel' in out && !('affectiveAxes' in out)) {
+    out.affectiveAxes = out.emotionModel;
+    delete out.emotionModel;
+  }
+
+  // toolPolicy.updateNpcEmotion → toolPolicy.npcAffectiveStateDelta
+  if (out.toolPolicy && typeof out.toolPolicy === 'object') {
+    const tp: any = { ...out.toolPolicy };
+    if ('updateNpcEmotion' in tp && !('npcAffectiveStateDelta' in tp)) {
+      tp.npcAffectiveStateDelta = tp.updateNpcEmotion;
+      delete tp.updateNpcEmotion;
+    }
+    out.toolPolicy = tp;
+  }
+
+  return out as SimulationHarness;
+}
+
 export const ALL_INCIDENT_TYPES = [
   'executive_join', 'customer_escalation', 'deadline_pressure',
   'new_evidence', 'competitor_offer', 'policy_constraint',
@@ -7,9 +38,9 @@ export const ALL_INCIDENT_TYPES = [
 ] as const;
 
 export const DEFAULT_SIMULATION_HARNESS: Required<SimulationHarness> = {
-  emotionModel: ['anger', 'trust', 'confusion', 'interest'],
+  affectiveAxes: ['affective.intensity', 'relational.trust', 'cognitive.confusion', 'motivational.interest'],
   toolPolicy: {
-    updateNpcEmotion: {
+    npcAffectiveStateDelta: {
       maxCallsPerTurn: 2,
       maxDeltaPerCall: 30,
     },
@@ -29,15 +60,16 @@ export const DEFAULT_SIMULATION_HARNESS: Required<SimulationHarness> = {
 };
 
 export function resolveHarness(scenario: { simulationHarness?: SimulationHarness | null } | null | undefined): Required<SimulationHarness> {
-  const harness = scenario?.simulationHarness;
-  if (!harness) return DEFAULT_SIMULATION_HARNESS;
+  const rawHarness = scenario?.simulationHarness;
+  if (!rawHarness) return DEFAULT_SIMULATION_HARNESS;
+  const harness = normalizeSimulationHarness(rawHarness);
 
   return {
-    emotionModel: harness.emotionModel ?? DEFAULT_SIMULATION_HARNESS.emotionModel,
+    affectiveAxes: harness.affectiveAxes ?? DEFAULT_SIMULATION_HARNESS.affectiveAxes,
     toolPolicy: {
-      updateNpcEmotion: {
-        maxCallsPerTurn: harness.toolPolicy?.updateNpcEmotion?.maxCallsPerTurn ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.updateNpcEmotion.maxCallsPerTurn,
-        maxDeltaPerCall: harness.toolPolicy?.updateNpcEmotion?.maxDeltaPerCall ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.updateNpcEmotion.maxDeltaPerCall,
+      npcAffectiveStateDelta: {
+        maxCallsPerTurn: harness.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.npcAffectiveStateDelta.maxCallsPerTurn,
+        maxDeltaPerCall: harness.toolPolicy?.npcAffectiveStateDelta?.maxDeltaPerCall ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.npcAffectiveStateDelta.maxDeltaPerCall,
       },
       triggerIncident: {
         allowedTypes: harness.toolPolicy?.triggerIncident?.allowedTypes ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident.allowedTypes,

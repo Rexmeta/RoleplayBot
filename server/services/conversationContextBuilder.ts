@@ -91,7 +91,7 @@ export function prepareConversationHistory(
   userName?: string,
   personaSwitchLog?: PersonaSwitchLogEntry[],
   allPersonas?: Array<{ name: string; [key: string]: any }>,
-  personaSwitchMode?: 'replace' | 'join'
+  personaSwitchMode?: 'replace' | 'join' | 'none'
 ): string {
   const safeMessages = messages || [];
   const normalizedName = normalizeProfileName(userName) || '';
@@ -99,7 +99,8 @@ export function prepareConversationHistory(
     ? (playerPosition ? `${normalizedName}(${playerPosition})` : normalizedName)
     : (playerPosition ? playerPosition : '사용자');
 
-  const hasMultiPersona = Array.isArray(personaSwitchLog) && personaSwitchLog.length > 0
+  const hasMultiPersona = personaSwitchMode !== 'none'
+    && Array.isArray(personaSwitchLog) && personaSwitchLog.length > 0
     && Array.isArray(allPersonas) && allPersonas.length > 1;
 
   // Determine current active persona index (last entry in switch log)

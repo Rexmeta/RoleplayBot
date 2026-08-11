@@ -2121,4 +2121,64 @@ describe('handleGeminiMessage', () => {
       expect(session.suppressedTurnStarted).toBe(false);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // personaSwitchMode='none' — voice path must never execute a persona switch
+  // ---------------------------------------------------------------------------
+  describe("personaSwitchMode='none' — voice switch hard-block", () => {
+    const multiPersonaBase = () => ({
+      hasReceivedFirstAIResponse: true,
+      scenarioPersonas: [
+        { id: 'p0', name: 'PersonaA', gender: 'male' },
+        { id: 'p1', name: 'PersonaB', gender: 'female' },
+      ] as any,
+      activePersonaIndex: 0,
+      geminiSession: { sendToolResponse: vi.fn(), sendClientContent: vi.fn() } as any,
+    });
+
+    const switchToolMsg = () => ({
+      toolCall: {
+        functionCalls: [{
+          id: 'fc-none',
+          name: 'switch_persona',
+          args: { targetPersonaIndex: 1, reason: 'test', transitionLine: 'Hi from B' },
+        }],
+      },
+    });
+
+    it('blocks switch_persona regardless of personaSwitchPending when mode is none', async () => {
+      session = makeSession({
+        ...multiPersonaBase(),
+        personaSwitchMode: 'none',
+        personaSwitchPending: true,
+        awaitingPersonaSwitch: true,
+      });
+
+      handleGeminiMessage(session, switchToolMsg(), sendToClient, null, proactiveReconnect);
+      await vi.runAllTimersAsync();
+
+      // activePersonaIndex must remain 0 — no switch allowed
+      expect(session.activePersonaIndex).toBe(0);
+      // sendToolResponse should have been called with an error (not success)
+      expect(session.geminiSession.sendToolResponse).toHaveBeenCalled();
+      const callArg = (session.geminiSession.sendToolResponse as any).mock.calls[0][0];
+      expect(callArg.functionResponses[0].response.success).toBe(false);
+      expect(callArg.functionResponses[0].response.error).toBeDefined();
+    });
+
+    it('blocks switch_persona even when all normal-mode allow-conditions are met, if mode is none', async () => {
+      session = makeSession({
+        ...multiPersonaBase(),
+        personaSwitchMode: 'none',
+        personaSwitchPending: true,
+        awaitingPersonaSwitch: true,
+        currentTranscript: 'Let me transfer you to PersonaB.',
+      });
+
+      handleGeminiMessage(session, switchToolMsg(), sendToClient, null, proactiveReconnect);
+      await vi.runAllTimersAsync();
+
+      expect(session.activePersonaIndex).toBe(0);
+    });
+  });
 });

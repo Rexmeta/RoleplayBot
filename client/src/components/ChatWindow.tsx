@@ -23,7 +23,8 @@ import SimulationPanel from "@/components/SimulationPanel";
 
 import { useConversationTimer, formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
-import { useEmotionState, emotionEmojis } from "@/hooks/chat/useEmotionState";
+import { emotionEmojis } from "@/hooks/chat/useEmotionState";
+import { useAvatarRenderer } from "@/hooks/chat/useAvatarRenderer";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
 import { useChatSession } from "@/hooks/chat/useChatSession";
 import { MessageList } from "@/components/chat/MessageList";
@@ -33,11 +34,18 @@ import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
+import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
+import type { VideoAvatarRenderer } from "@/lib/avatar/VideoAvatarRenderer";
 import { ChatInputBar } from "@/components/chat/ChatInputBar";
+import { useAvatarStateMachine } from "@/hooks/useAvatarStateMachine";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 
 const MAX_TURNS = 999;
 const SOFT_CLOSE_THRESHOLD = 0.8;
+
+export function isLimitReason(reason: string): boolean {
+  return ['conversation_completed', 'target_turns_reached', 'time_limit_reached'].includes(reason);
+}
 
 type PreviousMessage = { role: 'user' | 'ai'; content: string };
 
@@ -61,6 +69,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLimitReached, setIsLimitReached] = useState(false);
   const [inputMode, setInputMode] = useState<'text' | 'realtime-voice'>(initialInputMode || 'realtime-voice');
   const [showInputMode, setShowInputMode] = useState(true);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
@@ -138,6 +147,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     mainChatScrollCleanupRef.current = () => node.removeEventListener('scroll', handleScroll);
   }, []);
   const handleSwitchToTextModeRef = useRef<(() => Promise<void>) | null>(null);
+  const handleGoToFeedbackRef = useRef<(() => Promise<void>) | null>(null);
+  const limitFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushRealtimeMessagesRef = useRef<((isFinal?: boolean) => Promise<void>) | null>(null);
   const pendingModeTransitionRef = useRef<'realtime-voice' | 'text' | undefined>(undefined);
 
@@ -223,12 +234,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     onPersonaSwitched: handlePersonaSwitched,
   });
 
-  const { currentEmotion, setCurrentEmotion, isEmotionTransitioning, setIsEmotionTransitioning,
-    loadedImageUrl, isInitialLoading, isOverlayFading, hasNoPersonaImages,
-    getCharacterImage, preloadImage } = useEmotionState({
-    persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions },
+  const {
+    displayImageUrl, overlayColor, isTransitioning, isInitialLoading, isOverlayFading,
+    hasNoPersonaImages, currentEmotion, getCharacterImage, setEmotion, playState, renderer,
+  } = useAvatarRenderer({
+    persona: { id: activePersona.id, mbti: activePersona.mbti, gender: activePersona.gender, name: activePersona.name, image: activePersona.image, expressions: activePersona.expressions, videos: activePersona.videos },
     conversationId, onReady,
+    scenarioUseVideoAvatar: scenario.useVideoAvatar,
   });
+
+  // ── Avatar State Machine ──────────────────────────────────────────────────
+  // Tracks the high-level avatar state (idle / listening / thinking / speaking …)
+  // driven by realtime-voice events.  The state machine is decoupled from the
+  // Renderer so it can be reused when the renderer changes.
+  const { avatarState, dispatchAvatarEvent } = useAvatarStateMachine();
+
+  // Forward state-machine changes to the renderer (VideoAvatarRenderer uses
+  // this to switch which clip is playing; ImageAvatarRenderer ignores state).
+  useEffect(() => {
+    playState(avatarState, currentEmotion || undefined);
+  }, [avatarState, playState]); // currentEmotion intentionally excluded — emotion changes go via setEmotion
 
   const realtimeVoice = useRealtimeVoice({
     conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false, delayGreeting,
@@ -240,15 +265,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
     },
-    onMessageComplete: (message, emotion, emotionReason, userAffect) => {
+    onMessageComplete: (message, emotion, emotionReason, userAffect, interrupted) => {
       setPendingAiMessage(false);
       isAISpeakingForBargeInRef.current = false;
       if (emotion) {
-        setIsEmotionTransitioning(true);
-        setCurrentEmotion(emotion);
-        setTimeout(() => setIsEmotionTransitioning(false), 150);
-        const newUrl = getCharacterImage(emotion);
-        if (newUrl) preloadImage(newUrl);
+        setEmotion(emotion);
       }
       // Mark pending before mutating local state so the sync effect (which
       // fires after the subsequent flushRealtimeMessages resolves) cannot
@@ -256,7 +277,27 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       // the user message that arrived just before this AI turn completed.
       hasPendingLocalRef.current = true;
       setLocalMessages(prev => {
-        if (prev.some(m => m.sender === 'ai' && m.message === message)) return prev;
+        // Narrow dedup: only suppress if the immediately preceding message is
+        // the same AI text (covers reconnect-greeting duplicates without blocking
+        // a stubborn persona that legitimately repeats the same line).
+        const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
+        if (lastMsg && lastMsg.sender === 'ai' && lastMsg.message === message && !(lastMsg as any).interrupted) {
+          console.log('⚠️ [consecutive-dedup] Suppressing consecutive identical AI message');
+          return prev;
+        }
+        // Barge-in replacement takes priority over every other dedup rule:
+        // if the immediately preceding message is an interrupted AI turn, swap it
+        // with the new resumed/completed turn rather than appending. This must run
+        // before phase-dedup so that a barge-in during the greeting (before any
+        // user turn) is also handled correctly. The interrupted flag is propagated
+        // from the server's ai.transcription.done event via useRealtimeVoice.
+        if (lastMsg && lastMsg.sender === 'ai' && (lastMsg as any).interrupted) {
+          console.log('⚠️ [barge-in-dedup] Replacing interrupted AI message with resumed turn');
+          return [
+            ...prev.slice(0, -1),
+            { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '', userAffect: userAffect ?? undefined, interrupted: interrupted ?? false },
+          ];
+        }
         // Phase-based dedup: if AI has spoken but user hasn't yet (greeting phase),
         // suppress any additional AI message — it's a duplicate from the retry race.
         const hasAiMessage = prev.some(m => m.sender === 'ai');
@@ -265,7 +306,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           console.log('⚠️ [phase-dedup] Suppressing duplicate AI message in greeting phase');
           return prev;
         }
-        return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '', userAffect: userAffect ?? undefined }];
+        return [...prev, { sender: 'ai', message, timestamp: new Date().toISOString(), emotion: emotion || '중립', emotionReason: emotionReason || '', userAffect: userAffect ?? undefined, interrupted: interrupted ?? false }];
       });
       if (!hasUserSpokenRef.current) setShowMicPrompt(true);
       // Incrementally persist after each AI turn so that if the session ends
@@ -274,12 +315,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
     onUserTranscription: (transcript) => {
       addRealtimeUserMessage(transcript);
+      // The final transcript is the only signal that the user's turn is over —
+      // `isRecording` stays true for the whole open-mic session, so without this
+      // the avatar would sit in `listening` until the AI starts speaking and
+      // `thinking` would never be reached in voice mode.
+      dispatchAvatarEvent({ type: 'UserSpeechEnd' });
     },
     onUserTranscriptionDelta: (_delta, accumulated) => { setPendingUserText(accumulated); },
-    onAiSpeakingStart: () => { setPendingAiMessage(true); isAISpeakingForBargeInRef.current = true; },
+    onAiSpeakingStart: () => {
+      setPendingAiMessage(true); isAISpeakingForBargeInRef.current = true;
+      dispatchAvatarEvent({ type: 'TTSStart' });
+    },
     onUserSpeakingStart: () => {
       setPendingUserMessage(true); setPendingUserText('');
       hasUserSpokenRef.current = true; setShowMicPrompt(false);
+      dispatchAvatarEvent({ type: 'UserSpeechStart' });
       if (isAISpeakingForBargeInRef.current) {
         setIsBargeInFlash(true); isAISpeakingForBargeInRef.current = false;
         setTimeout(() => setIsBargeInFlash(false), 400);
@@ -287,8 +337,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     },
     onError: (error) => toast({ title: t('voice.connectionError'), description: error, variant: "destructive" }),
     onSessionTerminated: (reason) => {
-      toast({ title: t('voice.sessionEnded'), description: reason });
+      const reachedLimit = isLimitReason(reason);
+      if (!reachedLimit) {
+        toast({ title: t('voice.sessionEnded'), description: reason });
+      }
       setPendingAiMessage(false); setPendingUserMessage(false); setPendingUserText('');
+      dispatchAvatarEvent({ type: 'ConversationEnd' });
+      if (reachedLimit) {
+        setIsLimitReached(true);
+        if (limitFeedbackTimerRef.current) {
+          clearTimeout(limitFeedbackTimerRef.current);
+        }
+        limitFeedbackTimerRef.current = setTimeout(() => {
+          limitFeedbackTimerRef.current = null;
+          handleGoToFeedbackRef.current?.().catch(console.error);
+        }, 2500);
+        return;
+       }
       pendingModeTransitionRef.current = 'realtime-voice';
       setInputMode('text');
       if (handleSwitchToTextModeRef.current) {
@@ -298,6 +363,54 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   });
 
   const pendingAiMessage = rawPendingAiMessage && !realtimeVoice.isReconnecting;
+
+  // ── Avatar State Machine event wiring (state-change–driven) ───────────────
+  // Dispatch TTSEnd when AI stops speaking (response.done / response.interrupted)
+  const prevIsAISpeakingRef = useRef(false);
+  useEffect(() => {
+    const wasAISpeaking = prevIsAISpeakingRef.current;
+    prevIsAISpeakingRef.current = realtimeVoice.isAISpeaking;
+    if (wasAISpeaking && !realtimeVoice.isAISpeaking) {
+      dispatchAvatarEvent({ type: 'TTSEnd' });
+    }
+  }, [realtimeVoice.isAISpeaking, dispatchAvatarEvent]);
+
+  // Dispatch UserSpeechEnd when user stops recording
+  const prevIsRecordingRef = useRef(false);
+  useEffect(() => {
+    const wasRecording = prevIsRecordingRef.current;
+    prevIsRecordingRef.current = realtimeVoice.isRecording;
+    if (wasRecording && !realtimeVoice.isRecording) {
+      dispatchAvatarEvent({ type: 'UserSpeechEnd' });
+    }
+  }, [realtimeVoice.isRecording, dispatchAvatarEvent]);
+
+  // ── Text-mode avatar state dispatch ──────────────────────────────────────────
+  // In text / SSE mode there are no voice events, so we synthesize avatar-state
+  // transitions from isLoading (user just sent → thinking) and pendingAiMessage
+  // (AI is streaming → speaking / done → idle).
+  const prevTextLoadingRef = useRef(false);
+  const prevTextPendingRef = useRef(false);
+  useEffect(() => {
+    if (inputMode === 'realtime-voice') return; // voice mode wires its own events above
+    const wasLoading = prevTextLoadingRef.current;
+    const wasPending = prevTextPendingRef.current;
+    prevTextLoadingRef.current = isLoading;
+    prevTextPendingRef.current = Boolean(pendingAiMessage);
+
+    if (!wasLoading && isLoading) {
+      // User just sent a message — AI is thinking
+      dispatchAvatarEvent({ type: 'LLMThinkingStart' });
+    }
+    if (!wasPending && pendingAiMessage) {
+      // AI started streaming a response — switch to speaking clip
+      dispatchAvatarEvent({ type: 'TTSStart' });
+    }
+    if (wasPending && !pendingAiMessage) {
+      // AI finished — return to idle
+      dispatchAvatarEvent({ type: 'TTSEnd' });
+    }
+  }, [isLoading, pendingAiMessage, inputMode, dispatchAvatarEvent]);
 
   // ① Start WebSocket connection early (during video intro) so Gemini is warm by the time video ends.
   // Status is intentionally omitted from deps — connect() has its own idempotency guard and will
@@ -371,6 +484,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   });
 
   flushRealtimeMessagesRef.current = flushRealtimeMessages;
+  handleGoToFeedbackRef.current = handleGoToFeedback;
+
+  useEffect(() => {
+    return () => {
+      if (limitFeedbackTimerRef.current) {
+        clearTimeout(limitFeedbackTimerRef.current);
+        limitFeedbackTimerRef.current = null;
+      }
+    };
+  }, []);
 
   handleSwitchToTextModeRef.current = async () => {
     if (isSwitchingMode) return;
@@ -548,7 +671,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     if (!vv) return;
     const update = () => {
       setViewportHeight(vv.height);
-      setViewportOffsetTop(vv.offsetTop);
+      // `position: fixed` is resolved against the layout viewport, so adding
+      // `visualViewport.offsetTop` on top of it double-counts the offset and
+      // pushes the whole character panel down — leaving a black band above the
+      // avatar and cropping the clip off the bottom of the screen.
+      // The offset is only needed while the on-screen keyboard (or a pinch
+      // zoom) has actually shrunk the visual viewport; otherwise anchor to 0.
+      const layoutHeight = window.innerHeight || vv.height;
+      const isViewportShrunk = layoutHeight - vv.height > 120;
+      setViewportOffsetTop(isViewportShrunk ? Math.max(0, vv.offsetTop) : 0);
     };
     update();
     vv.addEventListener('resize', update);
@@ -600,8 +731,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   useEffect(() => {
     const newEmotion = latestAiMessage?.emotion || '중립';
     if (newEmotion !== currentEmotion) {
-      setIsEmotionTransitioning(true); setCurrentEmotion(newEmotion);
-      const newUrl = getCharacterImage(newEmotion); if (newUrl) preloadImage(newUrl);
+      setEmotion(newEmotion);
     }
   }, [latestAiMessage?.message, latestAiMessage?.emotion, currentEmotion]);
 
@@ -689,6 +819,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       </div>
     </div>
   );
+  if (isLimitReached) return (
+    <div className="fixed inset-0 z-50 bg-white flex items-center justify-center" data-testid="voice-limit-reached-overlay">
+      <div className="px-6 text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-6"></div>
+        <p className="text-xl font-semibold text-slate-900">{t('voice.limitReachedFeedback')}</p>
+      </div>
+    </div>
+  );
 
   const previousMessages: PreviousMessage[] = localMessages.filter(m => m.sender === 'user' || m.sender === 'ai').map(m => ({ role: m.sender as 'user' | 'ai', content: m.message }));
 
@@ -707,6 +845,26 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     currentTurn, targetTurns,
     vadSensitivity: realtimeVoice.vadSensitivity,
     onVadSensitivityChange: realtimeVoice.setVadSensitivity,
+    outputDevices: realtimeVoice.outputDevices,
+    selectedOutputDeviceId: realtimeVoice.selectedOutputDeviceId,
+    outputAutoSelected: realtimeVoice.outputAutoSelected,
+    outputStatus: realtimeVoice.outputStatus,
+    outputMessage: realtimeVoice.outputMessage,
+    outputNeedsPermission: realtimeVoice.outputNeedsPermission,
+    outputListUnavailable: realtimeVoice.outputListUnavailable,
+    onOutputDeviceChange: realtimeVoice.selectOutputDevice,
+    onRefreshOutputDevices: realtimeVoice.refreshOutputDevices,
+    onRequestOutputPermission: realtimeVoice.requestOutputDevicePermission,
+    onRetryAudioPlayback: realtimeVoice.retryAudioPlayback,
+    inputDevices: realtimeVoice.inputDevices,
+    selectedInputDeviceId: realtimeVoice.selectedInputDeviceId,
+    inputAutoSelected: realtimeVoice.inputAutoSelected,
+    inputStatus: realtimeVoice.inputStatus,
+    inputMessage: realtimeVoice.inputMessage,
+    inputNeedsPermission: realtimeVoice.inputNeedsPermission,
+    onInputDeviceChange: realtimeVoice.selectInputDevice,
+    onRefreshInputDevices: realtimeVoice.refreshInputDevices,
+    onRequestInputPermission: realtimeVoice.requestInputDevicePermission,
     isSwitchingMode,
   };
 
@@ -721,9 +879,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          {/* Chat Header */}
-          <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
+        <div className={inputMode === 'realtime-voice' ? '' : 'bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden'}>
+          {inputMode !== 'realtime-voice' && (
+            /* Chat Header */
+            <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
                 <div className="flex-shrink-0" data-testid="chat-header-persona-image">
@@ -768,44 +927,43 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 </div>
               </div>
 
-              {inputMode !== 'realtime-voice' && (
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (progressInfo.stage === 'complete') {
-                            handleFeedbackRequest();
-                          } else {
-                            handleEndRealtimeConversation();
-                          }
-                        }}
-                        data-testid="button-end-conversation-header"
-                        className={`shrink-0 text-xs h-8 px-3 border transition-all duration-300 ${progressInfo.endButtonClass}${isButtonAnimating ? ' animate-btn-pop' : ''}`}
-                      >
-                        {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
-                        {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
-                        {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
-                        {progressInfo.showBadge && <span className="mr-1 bg-white/20 rounded px-1 text-xs font-mono">{currentTurn}/{targetTurns}</span>}
-                        {t(progressInfo.endButtonLabelKey)}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      {progressInfo.stage === 'early'
-                        ? t('chat.exitWarningTooltip', { count: turnsLeft })
-                        : progressInfo.stage === 'mid'
-                        ? t('chat.progressBadgeTooltip', { current: currentTurn, target: targetTurns })
-                        : progressInfo.stage === 'nearEnd'
-                        ? t('chat.almostDoneTitle')
-                        : t('chat.getFeedback')}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (progressInfo.stage === 'complete') {
+                          handleFeedbackRequest();
+                        } else {
+                          handleEndRealtimeConversation();
+                        }
+                      }}
+                      data-testid="button-end-conversation-header"
+                      className={`shrink-0 text-xs h-8 px-3 border transition-all duration-300 ${progressInfo.endButtonClass}${isButtonAnimating ? ' animate-btn-pop' : ''}`}
+                    >
+                      {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
+                      {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
+                      {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
+                      {progressInfo.showBadge && <span className="mr-1 bg-white/20 rounded px-1 text-xs font-mono">{currentTurn}/{targetTurns}</span>}
+                      {t(progressInfo.endButtonLabelKey)}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {progressInfo.stage === 'early'
+                      ? t('chat.exitWarningTooltip', { count: turnsLeft })
+                      : progressInfo.stage === 'mid'
+                      ? t('chat.progressBadgeTooltip', { current: currentTurn, target: targetTurns })
+                      : progressInfo.stage === 'nearEnd'
+                      ? t('chat.almostDoneTitle')
+                      : t('chat.getFeedback')}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-          </div>
+            </div>
+          )}
 
           {/* Main Content */}
           <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -832,7 +990,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       {/* Persona avatar thumbnail */}
                       <div className="relative shrink-0">
                         <img
-                          src={loadedImageUrl || toMediaUrl(activePersona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`}
+                          src={displayImageUrl || toMediaUrl(activePersona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`}
                           alt={activePersona.name}
                           className="w-8 h-8 rounded-full object-cover object-top border border-white/20"
                         />
@@ -911,9 +1069,21 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     </div>
                   </div>
 
-                  <CharacterPortrait loadedImageUrl={loadedImageUrl} personaName={activePersona.name} personaImage={activePersona.image}
-                    currentEmotion={currentEmotion} isEmotionTransitioning={isEmotionTransitioning} isSessionEnding={isSessionEnding}
-                    isTextMode={inputMode !== 'realtime-voice'} />
+                  {(renderer as VideoAvatarRenderer).containerEl ? (
+                    <VideoAvatarPortrait
+                      renderer={renderer as VideoAvatarRenderer}
+                      overlayColor={overlayColor}
+                      isTransitioning={isTransitioning}
+                      isSessionEnding={isSessionEnding}
+                      isTextMode={inputMode !== 'realtime-voice'}
+                      avatarState={avatarState}
+                      fallbackImageUrl={activePersona.image}
+                    />
+                  ) : (
+                    <CharacterPortrait displayImageUrl={displayImageUrl} overlayColor={overlayColor}
+                      isTransitioning={isTransitioning} isSessionEnding={isSessionEnding}
+                      isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
+                  )}
 
                   {latestPersonaSwitch && (
                     <div className="absolute top-16 left-0 right-0 z-[14] flex justify-center animate-in slide-in-from-top-2 duration-300 px-4">
@@ -1292,7 +1462,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           <>
             {isMobileSimOpen && (
               <div
-                className="lg:hidden fixed inset-0 z-[98] bg-black/40"
+                className="lg:hidden fixed inset-0 z-[98] bg-black/25"
                 onClick={() => setIsMobileSimOpen(false)}
               />
             )}
@@ -1314,7 +1484,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 setSimSheetDragY(0);
               }}
             >
-              <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-y-auto max-h-[65vh]">
+              <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-y-auto max-h-[38vh]">
                 {/* Drag handle — touch here to swipe down and dismiss */}
                 <div
                   className="flex justify-center pt-2 pb-1 touch-none"
@@ -1327,7 +1497,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
                 </div>
                 <div
-                  className="flex items-center justify-between px-4 pt-2 pb-2 border-b border-border/50 sticky top-0 bg-background z-10"
+                  className="flex items-center justify-between px-3 pt-1 pb-1.5 border-b border-border/50 sticky top-0 bg-background z-10"
                   onTouchStart={(e) => {
                     simSheetTouchStartY.current = e.touches[0].clientY;
                     simSheetDragActive.current = true;
@@ -1364,13 +1534,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="px-3 py-3">
+                <div className="px-2 py-2">
                   <SimulationPanel
                     state={simulationState}
                     newIncident={newIncident}
                     latestTurnScore={latestTurnScore}
                     evaluationSkipped={lastScoreSkipped}
                     hasActiveIncident={hasActiveIncident}
+                    isVisible={isMobileSimOpen}
+                    isCompact
                   />
                 </div>
               </div>

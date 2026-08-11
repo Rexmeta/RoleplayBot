@@ -1,0 +1,197 @@
+/**
+ * useAvatarRenderer
+ *
+ * React lifecycle wrapper around an AvatarRenderer instance.
+ * Creates the renderer via AvatarRendererFactory, initialises it when
+ * persona / conversationId changes, and re-renders React whenever the
+ * renderer emits a state-change notification.
+ *
+ * Returns:
+ *  - displayImageUrl / overlayColor / isTransitioning  → feed directly into CharacterPortrait
+ *  - isInitialLoading / isOverlayFading                → chat loading overlay
+ *  - currentEmotion / getCharacterImage                → MessageList, header thumbnail
+ *  - hasNoPersonaImages                                → "no images" notice
+ *  - setEmotion                                        → call from message handlers
+ *  - playState                                         → drive avatar state machine changes
+ *  - renderer                                          → raw instance (VideoAvatarPortrait needs it)
+ */
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createAvatarRenderer } from '@/lib/avatar/AvatarRendererFactory';
+import { ImageAvatarRenderer } from '@/lib/avatar/ImageAvatarRenderer';
+import type { AvatarRenderer } from '@/lib/avatar/AvatarRenderer';
+import type { AvatarState } from '@/lib/avatar/types';
+
+interface PersonaInfo {
+  id: string;
+  mbti?: string;
+  gender?: string;
+  name: string;
+  image?: string;
+  expressions?: Record<string, string>;
+  videos?: {
+    enabled?: boolean;
+    avatarId?: string;
+    clips?: {
+      male?: Partial<Record<string, string>>;
+      female?: Partial<Record<string, string>>;
+    } | Partial<Record<string, string>>;
+  };
+}
+
+interface UseAvatarRendererOptions {
+  persona: PersonaInfo;
+  conversationId: string;
+  onReady?: () => void;
+  /**
+   * When the scenario explicitly sets useVideoAvatar=false, force image mode
+   * regardless of the persona's videos.enabled flag.
+   * undefined/true = respect the persona's own setting.
+   */
+  scenarioUseVideoAvatar?: boolean;
+}
+
+export interface UseAvatarRendererResult {
+  /** Current image URL to display in the portrait */
+  displayImageUrl: string;
+  /** CSS rgba() overlay colour reflecting the current emotion */
+  overlayColor: string;
+  /** True while an emotion cross-fade is in progress */
+  isTransitioning: boolean;
+  /** True until the very first usable image has loaded */
+  isInitialLoading: boolean;
+  /** True during the fade-out of the loading overlay */
+  isOverlayFading: boolean;
+  /** Raw emotion string as received from the AI (Korean or English) */
+  currentEmotion: string;
+  /** True when the persona has no expression images at all */
+  hasNoPersonaImages: boolean;
+  /** Look up the best image URL for any emotion key */
+  getCharacterImage: (emotion: string) => string | null;
+  /** Drive an emotion change (handles preload & overlay colour) */
+  setEmotion: (emotion: string) => void;
+  /** Drive a combined state + optional emotion change */
+  playState: (state: AvatarState, emotion?: string) => void;
+  /** Raw renderer instance — needed by VideoAvatarPortrait to mount containerEl */
+  renderer: AvatarRenderer;
+}
+
+export function useAvatarRenderer({
+  persona,
+  conversationId,
+  onReady,
+  scenarioUseVideoAvatar,
+}: UseAvatarRendererOptions): UseAvatarRendererResult {
+  // `rendererInstance` is state so that a type swap (image → video) causes
+  // the persona effect to re-run and re-initialize the new renderer.
+  const [rendererInstance, setRendererInstance] = useState<AvatarRenderer>(
+    () => new ImageAvatarRenderer(),
+  );
+
+  // Ref mirrors state for stable access in effects without stale closures.
+  const rendererRef = useRef<AvatarRenderer>(rendererInstance);
+
+  const onReadyRef = useRef(onReady);
+  useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
+
+  // Force re-render when the renderer emits a change notification.
+  const [, forceUpdate] = useState(0);
+
+  // ── Step 1: Resolve the correct renderer type on mount and on persona change ─
+  // Persona-level videos.enabled flag is checked first; VITE_AVATAR_RENDERER
+  // env-var is the global fallback.  We track the persona ID so that switching
+  // to a video-enabled persona from an image-only one (or vice versa) triggers
+  // a renderer swap.
+  // scenarioUseVideoAvatar=false overrides the persona setting (operator-level off switch).
+  const videosEnabled = (scenarioUseVideoAvatar !== false) && (persona.videos?.enabled ?? false);
+  useEffect(() => {
+    let cancelled = false;
+
+    const hint = videosEnabled ? 'video' : undefined;
+    createAvatarRenderer(hint).then(resolved => {
+      if (cancelled) {
+        resolved.destroy();
+        return;
+      }
+      const current = rendererRef.current;
+      if (resolved.constructor !== current.constructor) {
+        // Different type — destroy placeholder, install the real renderer.
+        current.destroy();
+        rendererRef.current = resolved;
+        setRendererInstance(resolved); // triggers persona effect below
+      } else {
+        // Same type — keep the existing instance; discard the duplicate.
+        resolved.destroy();
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [persona.id, videosEnabled]); // re-run when persona or video mode changes
+
+  // ── Step 2: Initialize + subscribe on every relevant change ───────────────
+  // Depends on `rendererInstance` so it automatically re-runs after a swap.
+  useEffect(() => {
+    const renderer = rendererInstance;
+
+    // Subscribe BEFORE initialize() so that the emit() call inside initialize()
+    // (which sets displayImageUrl, overlayColor, etc.) is not lost.
+    // Without this ordering the first emit fires with no subscribers, React never
+    // re-renders, and the portrait stays blank until preloadAssets() finishes.
+    const unsubscribe = renderer.subscribe(() => forceUpdate(n => n + 1));
+
+    renderer.initialize(
+      {
+        id: persona.id,
+        mbti: persona.mbti,
+        gender: persona.gender,
+        name: persona.name,
+        image: persona.image,
+        expressions: persona.expressions,
+        videos: persona.videos,
+      },
+      conversationId,
+      () => onReadyRef.current?.(),
+    );
+
+    return unsubscribe; // React calls this on cleanup (dep change or unmount)
+  // NOTE: persona.videos intentionally included — when clips arrive or enabled
+  // flag changes after mount (e.g. from a scenario refresh), the renderer must
+  // reinitialize with the new video configuration.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rendererInstance, persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, persona.videos, conversationId]);
+
+  // ── Step 3: Destroy on unmount ─────────────────────────────────────────────
+  // Uses ref so it always reaches the most-recent renderer instance.
+  useEffect(() => {
+    return () => { rendererRef.current?.destroy(); };
+  }, []);
+
+  // ── Stable callbacks ───────────────────────────────────────────────────────
+
+  const setEmotion = useCallback((emotion: string) => {
+    rendererRef.current?.setEmotion(emotion);
+  }, []);
+
+  const playState = useCallback((state: AvatarState, emotion?: string) => {
+    rendererRef.current?.playState(state, emotion);
+  }, []);
+
+  const getCharacterImage = useCallback((emotion: string): string | null => {
+    const r = rendererRef.current as ImageAvatarRenderer | null;
+    return r?.getCharacterImage?.(emotion) ?? null;
+  }, []);
+
+  return {
+    displayImageUrl: rendererInstance.displayImageUrl,
+    overlayColor: rendererInstance.overlayColor,
+    isTransitioning: rendererInstance.isTransitioning,
+    isInitialLoading: rendererInstance.isInitialLoading,
+    isOverlayFading: rendererInstance.isOverlayFading,
+    currentEmotion: rendererInstance.currentEmotion,
+    hasNoPersonaImages: (rendererInstance as ImageAvatarRenderer).hasNoPersonaImages ?? false,
+    getCharacterImage,
+    setEmotion,
+    playState,
+    renderer: rendererInstance,
+  };
+}

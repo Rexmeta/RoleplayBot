@@ -852,16 +852,19 @@ interface SwitchRuleRow {
 }
 
 const SWITCH_METRICS = [
-  { value: 'npcEmotions.anger', label: 'NPC 분노' },
-  { value: 'npcEmotions.trust', label: 'NPC 신뢰' },
-  { value: 'npcEmotions.confusion', label: 'NPC 혼란' },
-  { value: 'npcEmotions.interest', label: 'NPC 흥미' },
+  { value: 'npcAffectiveState.affective.intensity', label: 'NPC 감정 강도' },
+  { value: 'npcAffectiveState.relational.trust', label: 'NPC 신뢰' },
+  { value: 'npcAffectiveState.relational.rapport', label: 'NPC 친밀도' },
+  { value: 'npcAffectiveState.cognitive.confusion', label: 'NPC 혼란' },
+  { value: 'npcAffectiveState.cognitive.load', label: 'NPC 인지부하' },
+  { value: 'npcAffectiveState.motivational.interest', label: 'NPC 흥미' },
+  { value: 'npcAffectiveState.motivational.cooperativeness', label: 'NPC 협력' },
   { value: 'currentScore', label: '현재 점수' },
   { value: 'totalTurns', label: '총 턴 수' },
 ];
 
 function newSwitchCondRow(): SwitchCondRow {
-  return { _id: uid(), metric: 'npcEmotions.anger', operator: 'gte', value: '70', consecutiveTurns: '' };
+  return { _id: uid(), metric: 'npcAffectiveState.affective.intensity', operator: 'gte', value: '70', consecutiveTurns: '' };
 }
 
 function newSwitchRuleRow(personaCount: number): SwitchRuleRow {

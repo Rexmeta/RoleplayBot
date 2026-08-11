@@ -9,7 +9,7 @@ import type { ScenarioPersona, SupportedLanguage } from "./aiService";
 export type { ScenarioPersona, SupportedLanguage, StrategyReflectionEvaluation, RoleplayScenario, EvaluationCriteriaWithDimensions };
 
 // 기능별 설정 키 매핑
-export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario' | 'translation' | 'emotion' | 'image' | 'video' | 'evaluation' | 'summarization';
+export type AIFeature = 'conversation' | 'feedback' | 'strategy' | 'scenario' | 'translation' | 'emotion' | 'image' | 'video' | 'avatar_video' | 'evaluation' | 'summarization';
 
 const FEATURE_SETTING_KEYS: Record<AIFeature, string> = {
   conversation: 'model_conversation',
@@ -20,6 +20,7 @@ const FEATURE_SETTING_KEYS: Record<AIFeature, string> = {
   emotion: 'model_emotion',
   image: 'model_image',
   video: 'model_video',
+  avatar_video: 'model_avatar_video',
   evaluation: 'model_evaluation',
   summarization: 'model_summarization',
 };
@@ -34,6 +35,7 @@ const FEATURE_ENV_KEYS: Record<AIFeature, string> = {
   emotion: 'AI_MODEL_EMOTION',
   image: 'AI_MODEL_IMAGE',
   video: 'AI_MODEL_VIDEO',
+  avatar_video: 'AI_MODEL_AVATAR_VIDEO',
   evaluation: 'AI_MODEL_EVALUATION',
   summarization: 'AI_MODEL_SUMMARIZATION',
 };
@@ -41,6 +43,7 @@ const FEATURE_ENV_KEYS: Record<AIFeature, string> = {
 const FEATURE_DEFAULTS: Partial<Record<AIFeature, string>> = {
   image: 'gemini-2.5-flash-image',
   video: 'veo-3.1-generate-preview',
+  avatar_video: 'veo-3.1-lite-generate-preview',
 };
 
 /**
