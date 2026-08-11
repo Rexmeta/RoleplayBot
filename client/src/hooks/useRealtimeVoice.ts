@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useToast } from './use-toast';
 import { useAudioPlayback, type AgcConfig } from './useAudioPlayback';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
 import { useAudioInputDevices, buildMicrophoneConstraints, type AudioInputDeviceOption, type AudioInputStatus } from './useAudioInputDevices';
@@ -181,6 +182,8 @@ export function useRealtimeVoice({
   onPersonaSwitchAnnounced,
   onPersonaSwitchPendingCleared,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
+  const { toast } = useToast();
+
   const [status, setStatus] = useState<RealtimeVoiceStatus>('disconnected');
   const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('idle');
   const [isRecording, setIsRecording] = useState(false);
@@ -343,6 +346,10 @@ export function useRealtimeVoice({
     updateThresholds,
   } = useVoiceActivityDetection();
 
+  // Ref to hold the current inputDevices list so the onBluetoothAutoSelected
+  // handler can look up the device label without capturing a stale closure.
+  const inputDevicesRef = useRef<AudioInputDeviceOption[]>([]);
+
   const {
     inputDevices,
     selectedInputDeviceId,
@@ -365,18 +372,26 @@ export function useRealtimeVoice({
     onBluetoothAutoSelected: async (deviceId: string, previousDeviceId: string) => {
       // A Bluetooth mic was connected mid-session and auto-selected. If we're
       // live, swap to it immediately so the user hears themselves in the new mic.
-      // On failure the persisted selection is reverted to the previously active
-      // device so the next recording attempt targets the mic that is actually open.
-      if (isRecordingRef.current) {
-        const ok = await swapMicrophoneStreamRef.current?.(deviceId);
-        if (ok === false) {
-          // swapMicrophoneStream failed — the audio pipeline kept the old stream.
-          // Roll back the persisted selection so it matches what is actually in use.
-          persistInputSelection(previousDeviceId, null);
-        }
+      // On success a toast confirms the switch; on failure the persisted selection
+      // is reverted to the previously active device so the next recording attempt
+      // targets the mic that is actually open.
+      if (!isRecordingRef.current) return;
+      const swapped = await swapMicrophoneStreamRef.current?.(deviceId);
+      if (swapped) {
+        const device = inputDevicesRef.current.find(d => d.deviceId === deviceId);
+        const label = device?.label ?? '블루투스 마이크';
+        toast({ title: `${label}로 전환되었습니다`, duration: 3000 });
+      } else if (swapped === false) {
+        // swapMicrophoneStream failed — the audio pipeline kept the old stream.
+        // Roll back the persisted selection so it matches what is actually in use.
+        persistInputSelection(previousDeviceId, null);
       }
     },
   });
+
+  // Keep inputDevicesRef in sync so the onBluetoothAutoSelected handler always
+  // has access to the latest device list when looking up labels.
+  useEffect(() => { inputDevicesRef.current = inputDevices; }, [inputDevices]);
 
   const recalibrationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecalibrationRef = useRef<number>(0);
