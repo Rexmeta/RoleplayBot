@@ -1442,7 +1442,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
           <>
             {isMobileSimOpen && (
               <div
-                className="lg:hidden fixed inset-0 z-[98] bg-black/40"
+                className="lg:hidden fixed inset-0 z-[98] bg-black/25"
                 onClick={() => setIsMobileSimOpen(false)}
               />
             )}
@@ -1464,7 +1464,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                 setSimSheetDragY(0);
               }}
             >
-              <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-y-auto max-h-[65vh]">
+              <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-y-auto max-h-[38vh]">
                 {/* Drag handle — touch here to swipe down and dismiss */}
                 <div
                   className="flex justify-center pt-2 pb-1 touch-none"
@@ -1477,7 +1477,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
                 </div>
                 <div
-                  className="flex items-center justify-between px-4 pt-2 pb-2 border-b border-border/50 sticky top-0 bg-background z-10"
+                  className="flex items-center justify-between px-3 pt-1 pb-1.5 border-b border-border/50 sticky top-0 bg-background z-10"
                   onTouchStart={(e) => {
                     simSheetTouchStartY.current = e.touches[0].clientY;
                     simSheetDragActive.current = true;
@@ -1514,13 +1514,15 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="px-3 py-3">
+                <div className="px-2 py-2">
                   <SimulationPanel
                     state={simulationState}
                     newIncident={newIncident}
                     latestTurnScore={latestTurnScore}
                     evaluationSkipped={lastScoreSkipped}
                     hasActiveIncident={hasActiveIncident}
+                    isVisible={isMobileSimOpen}
+                    isCompact
                   />
                 </div>
               </div>

@@ -205,7 +205,7 @@ export function GoalsSidebar({
               }}
               onTransitionEnd={() => { if (isNpcExpanded) setNpcBodyOverflow('auto'); }}
             >
-              <div ref={npcBodyRef} className="border-t border-slate-100 pb-2">
+              <div ref={npcBodyRef} className="border-t border-slate-100 pb-2 max-h-56 overflow-y-auto">
                 {simulationState ? (
                   <SimulationPanel
                     state={simulationState}
@@ -213,6 +213,7 @@ export function GoalsSidebar({
                     latestTurnScore={latestTurnScore}
                     evaluationSkipped={evaluationSkipped}
                     hasActiveIncident={hasActiveIncident}
+                    isVisible={isNpcExpanded}
                     className="border-0 rounded-none bg-transparent"
                   />
                 ) : (
