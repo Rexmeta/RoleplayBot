@@ -1,0 +1,501 @@
+이번 수정본을 기준으로 보면 **거의 최종본입니다.** 이전 리뷰에서 지적했던 사항들이 실제로 반영됐는지 하나씩 확인하면, 핵심 문제는 모두 해결됐습니다. 
+
+제 평가는 **98/100**입니다.
+
+다만 **실행 전에 3가지 정도만 수정**하면 됩니다. 그 이상 범위를 넓히면 오히려 #1273이 불필요하게 커집니다.
+
+---
+
+## 1. 가장 먼저 수정: "10 audited areas"와 실제 목록의 표현
+
+현재:
+
+> "ten audited areas (the nine originally requested areas plus Simulation)" 
+
+라고 했고, 바로 뒤에서:
+
+> API Boundary is explicitly not treated as a domain
+
+이라고 했습니다.
+
+그런데 원래 9개에 **API가 포함되어 있었고**, 지금은 API를 domain에서 제외했기 때문에 문장 자체가 약간 혼란스럽습니다.
+
+현재 실제 core domains는:
+
+1. Persona
+2. Scenario
+3. Session
+4. Evaluation
+5. Emotion
+6. Voice
+7. Avatar
+8. Auth
+9. Simulation
+
+즉 **9개 core domains**입니다.
+
+API Boundary는 별도 boundary layer입니다.
+
+따라서 다음처럼 바꾸는 것이 정확합니다.
+
+> **The document clearly separates the nine core domains from the cross-cutting API Boundary layer.**
+
+그리고:
+
+> `nine originally requested areas plus Simulation`
+
+도 수정해야 합니다.
+
+왜냐하면 원래 요청의 9개에는 API가 포함되어 있었기 때문입니다.
+
+### 추천 문구
+
+```text
+The document clearly separates the nine core domains
+(Persona, Scenario, Session, Evaluation, Emotion, Voice, Avatar,
+Auth, and Simulation) from the cross-cutting API Boundary layer.
+API Boundary is explicitly not treated as a domain.
+```
+
+그리고 Step 1도:
+
+```text
+Audit the nine core domains, while treating API as a cross-cutting
+boundary layer rather than a domain.
+```
+
+으로 바꾸는 게 정확합니다.
+
+**이건 숫자보다 개념적 정확성의 문제입니다.**
+
+---
+
+# 2. "15 numbered sections"은 이제 정확합니다
+
+이전 버전의 14/15 불일치는 해결됐습니다.
+
+현재:
+
+> follows the 15 numbered sections 
+
+그리고 실제로:
+
+```text
+1 Purpose
+2 Legend
+3 Context
+4 Domain Map
+5 Cross-Cutting
+6 Actor
+7 Runtime
+8 Matrix
+9 Direction
+10 Snapshot
+11 Hotspots
+12 Agent
+13 Platformization
+14 Test
+15 Questions
+```
+
+으로 정확히 맞습니다. 
+
+**이 부분은 완료입니다.**
+
+---
+
+# 3. 아주 좋은 수정: Interaction / Trace의 위치
+
+이번 버전에서 이 부분이 정확하게 정리됐습니다.
+
+현재:
+
+> dedicated Interaction / Trace Boundary subsection 
+
+그리고:
+
+> without creating a new domain or entity 
+
+이게 중요합니다.
+
+즉 이번 Issue에서:
+
+```text
+❌ Interaction Entity 생성
+❌ Trace Schema 생성
+❌ Actor Interface 생성
+```
+
+을 하지 않고,
+
+```text
+현재 어디에 Interaction/Trace가 흩어져 있는가?
+```
+
+만 찾습니다.
+
+**이건 그대로 두세요.**
+
+---
+
+# 4. Actor abstraction 조사도 충분히 구체적입니다
+
+현재 Step 6:
+
+> `userId`, `personaId`, user/persona response labels, user-only control flow
+
+를 직접 찾도록 되어 있습니다. 
+
+이건 상당히 좋습니다.
+
+왜냐하면 단순히:
+
+> "Actor가 필요한 곳을 찾아라."
+
+보다 훨씬 실행 가능하기 때문입니다.
+
+그리고:
+
+> Do not search for or invent a current Robot implementation.
+
+도 아주 적절합니다.
+
+AI Coding Agent가 존재하지 않는 Robot abstraction을 코드에서 억지로 찾는 것을 막아줍니다.
+
+---
+
+# 5. Snapshot 부분은 이제 완성됐습니다
+
+현재:
+
+```text
+immutable
+versioned
+runtime enforcement
+source of truth
+denormalized copy
+audit record
+```
+
+까지 모두 들어갔습니다. 
+
+그리고:
+
+> Do not assume a snapshot is reproducible merely because it is stored as JSON.
+
+까지 있습니다. 
+
+**이 부분은 더 이상 수정하지 마세요.**
+
+향후 AI Agent Evaluation을 위해 필요한 auditability 관점까지 확보됐습니다.
+
+---
+
+# 6. Provider Leakage도 정확합니다
+
+현재 정의:
+
+> SDK use escaping the designated provider adapter boundary
+
+그리고:
+
+> SDK use inside an adapter is expected
+
+가 명확합니다. 
+
+또 Step 9에서:
+
+```text
+Service → Provider SDK
+Domain → Provider SDK
+Client → Provider SDK
+```
+
+를 실제로 찾아내게 되어 있습니다. 
+
+이 정도면 충분합니다.
+
+---
+
+# 7. Evidence 추가는 아주 잘했습니다
+
+이번 수정에서 제가 가장 추천했던 것이 들어갔습니다.
+
+> Critical and High ... concrete Evidence: a file path plus symbol or line reference 
+
+그리고 Step 9에서도 동일하게 명시되어 있습니다. 
+
+이렇게 해야 나중에:
+
+> "왜 이것을 Critical이라고 했지?"
+
+를 다시 코드에서 검증할 수 있습니다.
+
+**좋습니다.**
+
+---
+
+# 8. External Agent Boundary도 충분합니다
+
+현재:
+
+```text
+External AI Agent
+→ Agent API
+→ Session
+→ Scenario
+→ Simulation
+→ Evaluation
+```
+
+그리고:
+
+```text
+API credential/key
+Agent ID
+Agent version
+Model
+Configuration
+```
+
+까지 추적합니다. 
+
+더 좋은 점은 Step 11에서:
+
+> actually exist / inferred / absent
+
+를 구분한다는 것입니다. 
+
+이 원칙은 그대로 유지하는 게 좋습니다.
+
+---
+
+# 9. Runtime Flow도 충분합니다
+
+현재:
+
+> Input → State → Event → Transformation → Output → Persistence
+
+그리고:
+
+> transient / persisted / source of truth
+
+를 기록합니다. 
+
+이제 단순한 static dependency map이 아니라 **실행 아키텍처를 보여주는 문서**가 됩니다.
+
+특히:
+
+```text
+Voice
+ ↓
+Emotion
+ ↓
+Avatar
+```
+
+를 실제 runtime flow로 조사할 수 있기 때문에 현재 RoleplayBot의 중요한 기술적 자산도 드러날 것입니다.
+
+---
+
+# 10. Media identity / URL flow도 적절합니다
+
+Step 10:
+
+> logical media references → storage keys → storage → serving URL → client renderer
+
+를 조사하게 되어 있습니다. 
+
+이것도 좋습니다.
+
+특히 향후 Avatar가:
+
+```text
+Image Avatar
+Video Avatar
+Generated Video
+Audio
+```
+
+등으로 확장될 때 storage abstraction과 renderer가 어디서 갈리는지 확인할 수 있습니다.
+
+---
+
+# 11. 테스트 범위도 지금 정도면 충분합니다
+
+현재 Unit / Integration / E2E를 구분하고:
+
+> Realtime Voice, Simulation, Evaluation, Avatar, Agent API
+
+를 중점적으로 보게 했습니다. 
+
+좋습니다.
+
+다만 **테스트 coverage percentage까지 요구하지 마세요.**
+
+이번 작업은 dependency audit이지 test engineering task가 아닙니다.
+
+현재 수준이 적절합니다.
+
+---
+
+# 12. `Relevant files are starting points`도 완벽합니다
+
+이 문장:
+
+> Relevant files are starting points, not an exhaustive allowlist. 
+
+그리고:
+
+> imports, route registration, schema exports, storage composition, tests
+
+를 따라가게 되어 있습니다.
+
+이것으로 충분합니다.
+
+---
+
+# 13. 한 가지 중요한 문제: Step 번호와 명령이 어긋납니다
+
+현재:
+
+```text
+13. Write docs
+14. Verify
+```
+
+라고 되어 있습니다. 
+
+그런데 `Done looks like`는 **15 numbered sections**를 말하는 것이므로 괜찮지만, **Steps는 14개**입니다.
+
+이것 자체는 문제가 아닙니다. 다만 AI Agent에게:
+
+> "15 numbered sections described in Steps"
+
+라고 쓰면,
+
+**Steps 1~14와 문서 sections 1~15를 혼동할 수 있습니다.**
+
+추천 문구:
+
+```text
+- `docs/dependency-map.md` exists and contains the 15 numbered
+  document sections specified in Step 13.
+```
+
+현재:
+
+> "15 numbered sections described in the Steps"
+
+보다 훨씬 명확합니다.
+
+---
+
+# 14. 또 하나: `Domain Map`에서 API Boundary의 위치
+
+현재:
+
+> one subsection per core domain ..., plus the API Boundary subsection 
+
+이건 맞습니다.
+
+다만 제목을:
+
+```text
+### API Boundary
+```
+
+로 하고,
+
+```text
+Classification:
+Cross-cutting boundary layer — not a domain
+```
+
+한 줄을 반드시 넣도록 하면 좋습니다.
+
+이렇게 하면 문서 내부에서도 개념 혼동이 없습니다.
+
+---
+
+# 15. 저는 여기서 더 이상 범위를 추가하지 않겠습니다
+
+이전 리뷰에서는:
+
+* Interaction / Trace
+* Snapshot versioning
+* Agent identity
+* Evidence
+* Test depth
+* Provider boundary
+* Baseline verification
+
+등을 추가하자고 했습니다.
+
+현재 문서를 보면 **전부 반영되어 있습니다.**
+
+따라서 이제:
+
+❌ Organization 추가
+❌ Tenant 추가
+❌ Skill domain 추가
+❌ Rubric domain 추가
+❌ Actor schema 설계
+❌ Interaction schema 설계
+❌ Agent Registry 설계
+
+같은 것을 #1273에 추가하면 안 됩니다.
+
+현재 Out of Scope에도 명확히:
+
+> Actor, Interaction, Trace, Simulation extraction, provider changes, versioning, new schema
+
+가 제외되어 있습니다. 
+
+**이게 정확한 범위입니다.**
+
+---
+
+# 최종 평가
+
+| 영역                |    평가 |
+| ----------------- | ----: |
+| Scope 정의          | 10/10 |
+| Dependency audit  | 10/10 |
+| Actor 확장성 분석      | 10/10 |
+| Interaction/Trace | 10/10 |
+| Snapshot          | 10/10 |
+| Provider boundary | 10/10 |
+| External Agent    | 10/10 |
+| Runtime flow      | 10/10 |
+| Evidence          | 10/10 |
+| Test audit        |  9/10 |
+| 실행 명확성            |  9/10 |
+
+### **총점: 98/100**
+
+## 실행 전 최종 수정은 딱 2개
+
+### ① 9개 core domains로 표현 통일
+
+현재 `ten audited areas` / `nine originally requested areas plus Simulation`을 수정해서:
+
+> **nine core domains + API Boundary**
+
+로 통일.
+
+### ② Step 13의 문구 수정
+
+현재:
+
+> "15 numbered sections described in the Steps"
+
+↓
+
+> **"15 numbered document sections specified in Step 13."**
+
+---
+
+그 두 개만 수정하면 **#1273은 더 이상 건드리지 않고 실행하는 게 좋습니다.**
+
+그리고 이번 #1273의 진짜 가치는 `dependency-map.md` 자체가 아니라, **실제 코드에서 `User / Persona / Session / Conversation / Simulation / Evaluation`이 어떻게 얽혀 있는지를 사실 기반으로 드러내는 것**입니다. 그 결과를 본 다음에야 우리가 **Human → AI Agent → Robot을 하나의 Interaction Platform으로 만드는 최소 변경 아키텍처**를 정확하게 결정할 수 있습니다.
