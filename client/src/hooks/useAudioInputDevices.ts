@@ -1,6 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 const INPUT_DEVICE_KEY = 'realtime_voice_input_device_id';
+// Tracks whether the user explicitly picked a device so that auto-selection on
+// devicechange does not overwrite a deliberate choice.
+const INPUT_USER_CHOSE_KEY = 'realtime_voice_input_user_chose';
+// Tracks that the persisted selection was made automatically (Bluetooth
+// auto-pick), so a newly connected Bluetooth device may still replace it.
+const INPUT_AUTO_SELECTED_KEY = 'realtime_voice_input_auto_selected';
 
 export type AudioInputKind = 'default' | 'bluetooth' | 'wired' | 'builtin' | 'other';
 
@@ -74,7 +80,12 @@ export interface UseAudioInputDevicesReturn {
   inputStatus: AudioInputStatus;
   inputMessage: string | null;
   inputNeedsPermission: boolean;
+  /** Whether current selection was auto-chosen (not explicitly by the user). */
+  inputAutoSelected: boolean;
   persistInputSelection: (deviceId: string, message?: string | null) => void;
+  /** Like persistInputSelection but marks the choice as user-explicit,
+   *  preventing future auto-overrides on devicechange. */
+  persistInputSelectionByUser: (deviceId: string, message?: string | null) => void;
   reportInputError: (message: string) => void;
   refreshInputDevices: () => Promise<void>;
   requestInputDevicePermission: () => Promise<boolean>;
@@ -86,8 +97,14 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
   const [inputStatus, setInputStatus] = useState<AudioInputStatus>('supported');
   const [inputMessage, setInputMessage] = useState<string | null>(null);
   const [inputNeedsPermission, setInputNeedsPermission] = useState(false);
+  const [inputAutoSelected, setInputAutoSelected] = useState(false);
 
   const selectedInputDeviceIdRef = useRef('');
+  // True once the user explicitly picked a device; suppresses auto-bluetooth selection.
+  const userChoseInputRef = useRef(false);
+  // True while the current persisted selection came from auto-selection, so a
+  // newer Bluetooth device may still replace it.
+  const inputAutoSelectedRef = useRef(false);
   const onSelectedDeviceLostRef = useRef(options?.onSelectedDeviceLost);
   useEffect(() => { onSelectedDeviceLostRef.current = options?.onSelectedDeviceLost; });
 
@@ -100,13 +117,25 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
   const persistInputSelection = useCallback((deviceId: string, message?: string | null) => {
     selectedInputDeviceIdRef.current = deviceId;
     setSelectedInputDeviceId(deviceId);
+    inputAutoSelectedRef.current = false;
+    setInputAutoSelected(false);
     try {
       if (deviceId) localStorage.setItem(INPUT_DEVICE_KEY, deviceId);
       else localStorage.removeItem(INPUT_DEVICE_KEY);
+      localStorage.removeItem(INPUT_AUTO_SELECTED_KEY);
     } catch {}
     setInputStatus('supported');
     if (message !== undefined) setInputMessage(message);
   }, []);
+
+  const persistInputSelectionByUser = useCallback((deviceId: string, message?: string | null) => {
+    userChoseInputRef.current = true;
+    setInputAutoSelected(false);
+    try {
+      localStorage.setItem(INPUT_USER_CHOSE_KEY, '1');
+    } catch {}
+    persistInputSelection(deviceId, message);
+  }, [persistInputSelection]);
 
   const refreshInputDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices || !navigator.mediaDevices?.getUserMedia) {
@@ -135,6 +164,29 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
       }
 
       setInputNeedsPermission(false);
+
+      // Auto-select Bluetooth when the user never explicitly chose a device and
+      // either (a) nothing is selected yet, or (b) the current selection was
+      // itself auto-picked — so a newly connected Bluetooth device can take over.
+      const hasPersistedChoice = !!(selectedInputDeviceIdRef.current);
+      if (!userChoseInputRef.current && (!hasPersistedChoice || inputAutoSelectedRef.current)) {
+        const btDevice = normalized.find(d => d.kind === 'bluetooth');
+        if (btDevice && btDevice.deviceId !== selectedInputDeviceIdRef.current) {
+          selectedInputDeviceIdRef.current = btDevice.deviceId;
+          setSelectedInputDeviceId(btDevice.deviceId);
+          inputAutoSelectedRef.current = true;
+          setInputAutoSelected(true);
+          try {
+            localStorage.setItem(INPUT_DEVICE_KEY, btDevice.deviceId);
+            localStorage.setItem(INPUT_AUTO_SELECTED_KEY, '1');
+          } catch {}
+          setInputStatus('supported');
+          setInputMessage(`블루투스 기기(${btDevice.label})가 감지되어 자동으로 선택되었습니다.`);
+          console.log(`🎙️ Auto-selected Bluetooth input: ${btDevice.label}`);
+          return;
+        }
+      }
+
       if (selectedInputDeviceIdRef.current && !normalized.some(device => device.deviceId === selectedInputDeviceIdRef.current)) {
         persistInputSelection('', '선택한 마이크가 연결 해제되어 기본 마이크로 전환했습니다.');
         onSelectedDeviceLostRef.current?.();
@@ -164,8 +216,13 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
 
   useEffect(() => {
     try {
-      selectedInputDeviceIdRef.current = localStorage.getItem(INPUT_DEVICE_KEY) || '';
-      setSelectedInputDeviceId(selectedInputDeviceIdRef.current);
+      const saved = localStorage.getItem(INPUT_DEVICE_KEY) || '';
+      selectedInputDeviceIdRef.current = saved;
+      setSelectedInputDeviceId(saved);
+      userChoseInputRef.current = !!(localStorage.getItem(INPUT_USER_CHOSE_KEY));
+      const savedAuto = !!saved && !userChoseInputRef.current && !!(localStorage.getItem(INPUT_AUTO_SELECTED_KEY));
+      inputAutoSelectedRef.current = savedAuto;
+      setInputAutoSelected(savedAuto);
     } catch {}
     refreshInputDevices();
     const onDeviceChange = () => { refreshInputDevices(); };
@@ -182,7 +239,9 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
     inputStatus,
     inputMessage,
     inputNeedsPermission,
+    inputAutoSelected,
     persistInputSelection,
+    persistInputSelectionByUser,
     reportInputError,
     refreshInputDevices,
     requestInputDevicePermission,

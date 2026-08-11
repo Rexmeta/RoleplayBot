@@ -12,15 +12,18 @@ const RECALIBRATION_SILENCE_INTERVAL_MS = 30_000;
 const RECALIBRATION_COOLDOWN_MS = 10_000;
 
 const VAD_SENSITIVITY_KEY = 'vad_sensitivity';
-const VAD_SENSITIVITY_DEFAULT = 3;
+// 0 = auto (noise-floor only), 1-5 = manual levels; default is now auto.
+const VAD_SENSITIVITY_DEFAULT = 0;
 
 function getSensitivityMultiplier(level: number): number {
-  const multipliers: Record<number, number> = { 1: 3.0, 2: 2.0, 3: 1.0, 4: 0.65, 5: 0.4 };
+  // level 0 (auto) uses the noise-floor measurement directly with multiplier 1.0
+  const multipliers: Record<number, number> = { 0: 1.0, 1: 3.0, 2: 2.0, 3: 1.0, 4: 0.65, 5: 0.4 };
   return multipliers[level] ?? 1.0;
 }
 
 function computeVADThresholds(noiseFloor: number, sensitivityLevel: number): { entry: number; exit: number } {
-  const mult = getSensitivityMultiplier(sensitivityLevel);
+  // In auto mode (0) rely purely on the measured noise floor without additional scaling.
+  const mult = sensitivityLevel === 0 ? 1.0 : getSensitivityMultiplier(sensitivityLevel);
   const baseEntry = Math.max(VAD_ENTRY_MIN, noiseFloor * VAD_ENTRY_MULTIPLIER);
   const entry = Math.min(0.30, baseEntry * mult);
   const exit = entry * VAD_EXIT_RATIO;
@@ -130,12 +133,14 @@ interface UseRealtimeVoiceReturn {
   isBargeInActive: boolean;
   outputDevices: { deviceId: string; label: string }[];
   selectedOutputDeviceId: string;
+  outputAutoSelected: boolean;
   outputStatus: 'supported' | 'unsupported' | 'selecting' | 'error';
   outputMessage: string | null;
   outputNeedsPermission: boolean;
   outputListUnavailable: boolean;
   inputDevices: AudioInputDeviceOption[];
   selectedInputDeviceId: string;
+  inputAutoSelected: boolean;
   inputStatus: AudioInputStatus;
   inputMessage: string | null;
   inputNeedsPermission: boolean;
@@ -192,7 +197,8 @@ export function useRealtimeVoice({
       const saved = localStorage.getItem(VAD_SENSITIVITY_KEY);
       if (saved) {
         const parsed = parseInt(saved, 10);
-        if (parsed >= 1 && parsed <= 5) return parsed;
+        // Valid range: 0 (auto) through 5
+        if (parsed >= 0 && parsed <= 5) return parsed;
       }
     } catch {}
     return VAD_SENSITIVITY_DEFAULT;
@@ -315,11 +321,13 @@ export function useRealtimeVoice({
     gainNodeRef,
     outputDevices,
     selectedOutputDeviceId,
+    outputAutoSelected,
     outputStatus,
     outputMessage,
     outputNeedsPermission,
     outputListUnavailable,
     selectOutputDevice,
+    selectOutputDeviceByUser,
     refreshOutputDevices,
     requestOutputDevicePermission,
     initializePlaybackContext,
@@ -342,7 +350,9 @@ export function useRealtimeVoice({
     inputStatus,
     inputMessage,
     inputNeedsPermission,
+    inputAutoSelected,
     persistInputSelection,
+    persistInputSelectionByUser,
     reportInputError,
     refreshInputDevices,
     requestInputDevicePermission,
@@ -956,13 +966,14 @@ export function useRealtimeVoice({
   }, [refreshOutputDevices, resumePlayback]);
 
   const setVadSensitivity = useCallback((level: number) => {
-    const clamped = Math.max(1, Math.min(5, level));
+    // 0 = auto (noise-floor driven); 1-5 = manual levels.
+    const clamped = Math.max(0, Math.min(5, level));
     setVadSensitivityState(clamped);
     vadSensitivityRef.current = clamped;
     try { localStorage.setItem(VAD_SENSITIVITY_KEY, String(clamped)); } catch {}
     const noiseFloor = noiseFloorRef.current ?? 0;
     const { entry, exit } = computeVADThresholds(noiseFloor, clamped);
-    console.log(`🎙️ VAD sensitivity changed to level ${clamped} — entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
+    console.log(`🎙️ VAD sensitivity changed to level ${clamped}${clamped === 0 ? ' (auto)' : ''} — entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
     updateThresholds(entry, exit);
   }, [updateThresholds]);
 
@@ -1239,6 +1250,8 @@ export function useRealtimeVoice({
     swapMicrophoneStreamRef.current = swapMicrophoneStream;
   }, [swapMicrophoneStream]);
 
+  // User-explicit selection from the settings panel: marks the choice so
+  // auto-Bluetooth selection never overrides it on future devicechange events.
   const selectInputDevice = useCallback(async (deviceId: string): Promise<boolean> => {
     if (!navigator.mediaDevices?.getUserMedia) {
       reportInputError('이 브라우저에서는 마이크를 선택할 수 없습니다.');
@@ -1247,12 +1260,12 @@ export function useRealtimeVoice({
     if (isRecordingRef.current && captureContextRef.current) {
       const swapped = await swapMicrophoneStream(deviceId);
       if (!swapped) return false;
-      persistInputSelection(deviceId, deviceId ? '선택한 마이크로 녹음합니다.' : '기본 마이크로 녹음합니다.');
+      persistInputSelectionByUser(deviceId, deviceId ? '선택한 마이크로 녹음합니다.' : '기본 마이크로 녹음합니다.');
       return true;
     }
-    persistInputSelection(deviceId, deviceId ? '다음 녹음부터 선택한 마이크를 사용합니다.' : '기본 마이크를 사용합니다.');
+    persistInputSelectionByUser(deviceId, deviceId ? '다음 녹음부터 선택한 마이크를 사용합니다.' : '기본 마이크를 사용합니다.');
     return true;
-  }, [swapMicrophoneStream, persistInputSelection, reportInputError]);
+  }, [swapMicrophoneStream, persistInputSelectionByUser, reportInputError]);
 
   // Internal utility — kept for potential future use (e.g. injecting context into a
   // live voice turn without switching modes). NOT used for user-typed messages: the
@@ -1307,17 +1320,21 @@ export function useRealtimeVoice({
     isBargeInActive,
     outputDevices,
     selectedOutputDeviceId,
+    outputAutoSelected,
     outputStatus,
     outputMessage,
     outputNeedsPermission,
     outputListUnavailable,
     inputDevices,
     selectedInputDeviceId,
+    inputAutoSelected,
     inputStatus,
     inputMessage,
     inputNeedsPermission,
     setVadSensitivity,
-    selectOutputDevice,
+    // The UI selection path is user-explicit: it must never be overridden by
+    // auto-Bluetooth selection afterwards.
+    selectOutputDevice: selectOutputDeviceByUser,
     refreshOutputDevices,
     requestOutputDevicePermission,
     selectInputDevice,

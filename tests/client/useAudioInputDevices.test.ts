@@ -4,6 +4,8 @@ import { renderHook, act } from '@testing-library/react';
 import { useAudioInputDevices, buildMicrophoneConstraints } from '../../client/src/hooks/useAudioInputDevices';
 
 const INPUT_DEVICE_KEY = 'realtime_voice_input_device_id';
+const INPUT_USER_CHOSE_KEY = 'realtime_voice_input_user_chose';
+const INPUT_AUTO_SELECTED_KEY = 'realtime_voice_input_auto_selected';
 
 beforeEach(() => {
   localStorage.clear();
@@ -153,6 +155,101 @@ describe('useAudioInputDevices', () => {
     const { result: second } = renderHook(() => useAudioInputDevices());
     await act(async () => {});
     expect(second.current.selectedInputDeviceId).toBe('bt-mic');
+  });
+
+  describe('Bluetooth auto-selection', () => {
+    it('auto-selects a Bluetooth mic when there is no saved choice', async () => {
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'AirPods Pro Microphone' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices());
+      await act(async () => {});
+      expect(result.current.selectedInputDeviceId).toBe('bt-mic');
+      expect(result.current.inputAutoSelected).toBe(true);
+      expect(localStorage.getItem(INPUT_DEVICE_KEY)).toBe('bt-mic');
+      expect(localStorage.getItem(INPUT_AUTO_SELECTED_KEY)).toBe('1');
+      expect(result.current.inputMessage).toContain('자동으로 선택');
+    });
+
+    it('keeps the OS/browser default when no Bluetooth mic exists', async () => {
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices());
+      await act(async () => {});
+      expect(result.current.selectedInputDeviceId).toBe('');
+      expect(result.current.inputAutoSelected).toBe(false);
+      expect(localStorage.getItem(INPUT_DEVICE_KEY)).toBeNull();
+    });
+
+    it('does not override a device the user explicitly chose', async () => {
+      localStorage.setItem(INPUT_DEVICE_KEY, 'wired-mic');
+      localStorage.setItem(INPUT_USER_CHOSE_KEY, '1');
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'wired-mic', label: 'USB Microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'Galaxy Buds3 Headset' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices());
+      await act(async () => {});
+      expect(result.current.selectedInputDeviceId).toBe('wired-mic');
+      expect(result.current.inputAutoSelected).toBe(false);
+    });
+
+    it('auto-switches to a newly connected Bluetooth mic on devicechange when nothing was chosen', async () => {
+      let deviceChangeHandler: (() => void) | null = null;
+      (navigator.mediaDevices.addEventListener as any).mockImplementation((event: string, handler: () => void) => {
+        if (event === 'devicechange') deviceChangeHandler = handler;
+      });
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices());
+      await act(async () => {});
+      expect(result.current.selectedInputDeviceId).toBe('');
+
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'AirPods Pro Microphone' },
+      ]);
+      await act(async () => { deviceChangeHandler?.(); });
+      expect(result.current.selectedInputDeviceId).toBe('bt-mic');
+      expect(result.current.inputAutoSelected).toBe(true);
+    });
+
+    it('replaces a previously auto-selected mic with a newly connected Bluetooth mic', async () => {
+      localStorage.setItem(INPUT_DEVICE_KEY, 'old-bt-mic');
+      localStorage.setItem(INPUT_AUTO_SELECTED_KEY, '1');
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'new-bt-mic', label: 'WF-1000XM5 Headset' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices());
+      await act(async () => {});
+      expect(result.current.selectedInputDeviceId).toBe('new-bt-mic');
+      expect(result.current.inputAutoSelected).toBe(true);
+    });
+
+    it('persistInputSelectionByUser marks the choice explicit so auto-selection stays off', async () => {
+      (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+        { kind: 'audioinput', deviceId: 'default', label: 'Default - Phone microphone' },
+        { kind: 'audioinput', deviceId: 'bt-mic', label: 'AirPods Headset' },
+      ]);
+      const { result } = renderHook(() => useAudioInputDevices());
+      await act(async () => {});
+      // Auto-selected the Bluetooth mic first.
+      expect(result.current.inputAutoSelected).toBe(true);
+
+      act(() => { result.current.persistInputSelectionByUser('', null); });
+      expect(result.current.inputAutoSelected).toBe(false);
+      expect(localStorage.getItem(INPUT_USER_CHOSE_KEY)).toBe('1');
+
+      // A later refresh must not re-grab the Bluetooth mic.
+      await act(async () => { await result.current.refreshInputDevices(); });
+      expect(result.current.selectedInputDeviceId).toBe('');
+      expect(result.current.inputAutoSelected).toBe(false);
+    });
   });
 
   it('reports a retryable error when device enumeration fails', async () => {

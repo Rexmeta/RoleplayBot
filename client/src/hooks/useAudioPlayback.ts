@@ -2,6 +2,12 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 
 const DEFAULT_GAIN = 1.0;
 const OUTPUT_DEVICE_KEY = 'realtime_voice_output_device_id';
+// Tracks whether the user explicitly picked an output device so auto-selection
+// on devicechange does not overwrite a deliberate choice.
+const OUTPUT_USER_CHOSE_KEY = 'realtime_voice_output_user_chose';
+// Tracks that the persisted selection was made automatically (Bluetooth
+// auto-pick), so a newly connected Bluetooth device may still replace it.
+const OUTPUT_AUTO_SELECTED_KEY = 'realtime_voice_output_auto_selected';
 
 const AGC_TARGET_RMS = 0.15;
 const AGC_SILENCE_THRESHOLD = 0.01;
@@ -80,6 +86,8 @@ interface UseAudioPlaybackReturn {
   audioAmplitude: number;
   outputDevices: AudioOutputDevice[];
   selectedOutputDeviceId: string;
+  /** Whether current selection was auto-chosen (not explicitly by the user). */
+  outputAutoSelected: boolean;
   outputStatus: AudioOutputStatus;
   outputMessage: string | null;
   outputNeedsPermission: boolean;
@@ -91,6 +99,9 @@ interface UseAudioPlaybackReturn {
   startAmplitudeAnalysis: () => void;
   stopAmplitudeAnalysis: () => void;
   selectOutputDevice: (deviceId: string) => Promise<boolean>;
+  /** Like selectOutputDevice but marks the choice as user-explicit,
+   *  preventing future auto-overrides on devicechange. */
+  selectOutputDeviceByUser: (deviceId: string) => Promise<boolean>;
   refreshOutputDevices: () => Promise<void>;
   initializePlaybackContext: () => Promise<AudioContext | null>;
   resumePlayback: () => Promise<boolean>;
@@ -104,6 +115,7 @@ export function useAudioPlayback(
   const [audioAmplitude, setAudioAmplitude] = useState(0);
   const [outputDevices, setOutputDevices] = useState<AudioOutputDevice[]>([]);
   const [selectedOutputDeviceId, setSelectedOutputDeviceId] = useState('');
+  const [outputAutoSelected, setOutputAutoSelected] = useState(false);
   const [outputStatus, setOutputStatus] = useState<AudioOutputStatus>('unsupported');
   const [outputMessage, setOutputMessage] = useState<string | null>(null);
   const [outputNeedsPermission, setOutputNeedsPermission] = useState(false);
@@ -122,6 +134,11 @@ export function useAudioPlayback(
 
   const agcConfigRef = useRef<AgcConfig>({ ...DEFAULT_AGC_CONFIG, ...agcConfig });
   const selectedOutputDeviceIdRef = useRef('');
+  // True once the user explicitly picked an output device; suppresses auto-bluetooth selection.
+  const userChoseOutputRef = useRef(false);
+  // True while the current persisted selection came from auto-selection, so a
+  // newer Bluetooth device may still replace it.
+  const outputAutoSelectedRef = useRef(false);
   const playbackQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const reportOutputError = useCallback((message: string) => {
@@ -162,7 +179,12 @@ export function useAudioPlayback(
     if (!context) {
       selectedOutputDeviceIdRef.current = deviceId;
       setSelectedOutputDeviceId(deviceId);
-      try { localStorage.setItem(OUTPUT_DEVICE_KEY, deviceId); } catch {}
+      outputAutoSelectedRef.current = false;
+      setOutputAutoSelected(false);
+      try {
+        localStorage.setItem(OUTPUT_DEVICE_KEY, deviceId);
+        localStorage.removeItem(OUTPUT_AUTO_SELECTED_KEY);
+      } catch {}
       setOutputStatus('supported');
       setOutputMessage(deviceId ? '다음 음성 재생에 선택한 출력 기기를 적용합니다.' : '기본 출력 기기를 사용합니다.');
       return true;
@@ -172,7 +194,12 @@ export function useAudioPlayback(
       await context.setSinkId(deviceId);
       selectedOutputDeviceIdRef.current = deviceId;
       setSelectedOutputDeviceId(deviceId);
-      try { localStorage.setItem(OUTPUT_DEVICE_KEY, deviceId); } catch {}
+      outputAutoSelectedRef.current = false;
+      setOutputAutoSelected(false);
+      try {
+        localStorage.setItem(OUTPUT_DEVICE_KEY, deviceId);
+        localStorage.removeItem(OUTPUT_AUTO_SELECTED_KEY);
+      } catch {}
       setOutputStatus('supported');
       setOutputMessage(deviceId ? '선택한 출력 기기로 재생합니다.' : '기본 출력 기기로 재생합니다.');
       return true;
@@ -181,6 +208,14 @@ export function useAudioPlayback(
       return false;
     }
   }, [reportOutputError, supportsOutputSelection]);
+
+  // User-explicit selection: marks userChoseOutput so auto-BT logic won't override.
+  const selectOutputDeviceByUser = useCallback(async (deviceId: string) => {
+    userChoseOutputRef.current = true;
+    setOutputAutoSelected(false);
+    try { localStorage.setItem(OUTPUT_USER_CHOSE_KEY, '1'); } catch {}
+    return selectOutputDevice(deviceId);
+  }, [selectOutputDevice]);
 
   const refreshOutputDevices = useCallback(async () => {
     if (!supportsOutputSelection() || !navigator.mediaDevices?.enumerateDevices) {
@@ -225,11 +260,32 @@ export function useAudioPlayback(
         setOutputListUnavailable(false);
         const fellBack = await selectOutputDevice('');
         if (fellBack) {
+          setOutputAutoSelected(false);
           setOutputMessage('선택한 출력 기기가 연결 해제되어 기본 출력 기기로 전환했습니다.');
         }
       } else {
         setOutputNeedsPermission(false);
         setOutputListUnavailable(false);
+
+        // Auto-select Bluetooth when the user never explicitly chose a device and
+        // either (a) nothing is selected yet, or (b) the current selection was
+        // itself auto-picked — so a newly connected Bluetooth device can take over.
+        const hasPersistedChoice = !!(selectedOutputDeviceIdRef.current);
+        if (!userChoseOutputRef.current && (!hasPersistedChoice || outputAutoSelectedRef.current)) {
+          const btDevice = normalized.find(d => d.kind === 'bluetooth');
+          if (btDevice && btDevice.deviceId !== selectedOutputDeviceIdRef.current) {
+            const selected = await selectOutputDevice(btDevice.deviceId);
+            if (selected) {
+              outputAutoSelectedRef.current = true;
+              setOutputAutoSelected(true);
+              try { localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1'); } catch {}
+              setOutputMessage(`블루투스 기기(${btDevice.label})가 감지되어 자동으로 선택되었습니다.`);
+              console.log(`🔊 Auto-selected Bluetooth output: ${btDevice.label}`);
+              return;
+            }
+          }
+        }
+
         setOutputStatus('supported');
       }
     } catch {
@@ -290,6 +346,10 @@ export function useAudioPlayback(
     try {
       selectedOutputDeviceIdRef.current = localStorage.getItem(OUTPUT_DEVICE_KEY) || '';
       setSelectedOutputDeviceId(selectedOutputDeviceIdRef.current);
+      userChoseOutputRef.current = !!(localStorage.getItem(OUTPUT_USER_CHOSE_KEY));
+      const savedAuto = !!selectedOutputDeviceIdRef.current && !userChoseOutputRef.current && !!(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY));
+      outputAutoSelectedRef.current = savedAuto;
+      setOutputAutoSelected(savedAuto);
     } catch {}
     refreshOutputDevices();
     const onDeviceChange = () => { refreshOutputDevices(); };
@@ -522,6 +582,7 @@ export function useAudioPlayback(
     audioAmplitude,
     outputDevices,
     selectedOutputDeviceId,
+    outputAutoSelected,
     outputStatus,
     outputMessage,
     outputNeedsPermission,
@@ -533,6 +594,7 @@ export function useAudioPlayback(
     startAmplitudeAnalysis,
     stopAmplitudeAnalysis,
     selectOutputDevice,
+    selectOutputDeviceByUser,
     refreshOutputDevices,
     initializePlaybackContext,
     resumePlayback,

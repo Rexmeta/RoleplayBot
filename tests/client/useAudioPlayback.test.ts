@@ -362,6 +362,103 @@ describe('useAudioPlayback', () => {
       expect(mockContext.createBufferSource).not.toHaveBeenCalled();
     });
 
+    describe('Bluetooth auto-selection', () => {
+      const OUTPUT_DEVICE_KEY = 'realtime_voice_output_device_id';
+      const OUTPUT_USER_CHOSE_KEY = 'realtime_voice_output_user_chose';
+      const OUTPUT_AUTO_SELECTED_KEY = 'realtime_voice_output_auto_selected';
+
+      it('auto-selects a Bluetooth output when there is no saved choice', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'bt-1', label: 'AirPods Pro' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('bt-1');
+        expect(result.current.outputAutoSelected).toBe(true);
+        expect(mockContext.setSinkId).toHaveBeenCalledWith('bt-1');
+        expect(localStorage.getItem(OUTPUT_DEVICE_KEY)).toBe('bt-1');
+        expect(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY)).toBe('1');
+        expect(result.current.outputMessage).toContain('자동으로 선택');
+      });
+
+      it('keeps the OS/browser default when no Bluetooth output exists', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'speaker-1', label: 'Speaker' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('');
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(localStorage.getItem(OUTPUT_DEVICE_KEY)).toBeNull();
+      });
+
+      it('does not override an output the user explicitly chose', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        localStorage.setItem(OUTPUT_DEVICE_KEY, 'speaker-1');
+        localStorage.setItem(OUTPUT_USER_CHOSE_KEY, '1');
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'speaker-1', label: 'Speaker' },
+          { kind: 'audiooutput', deviceId: 'bt-1', label: 'Galaxy Buds Pro (Bluetooth)' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        expect(result.current.selectedOutputDeviceId).toBe('speaker-1');
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(mockContext.setSinkId).not.toHaveBeenCalledWith('bt-1');
+      });
+
+      it('replaces a previously auto-selected output with a newly connected Bluetooth device', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        localStorage.setItem(OUTPUT_DEVICE_KEY, 'old-bt');
+        localStorage.setItem(OUTPUT_AUTO_SELECTED_KEY, '1');
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'old-bt', label: 'Old Buds (Bluetooth)' },
+          { kind: 'audiooutput', deviceId: 'new-bt', label: 'AirPods Pro' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+
+        // First matching Bluetooth device in list order wins; the point is the
+        // auto-selected slot stays auto and is re-evaluated on devicechange.
+        expect(result.current.outputAutoSelected).toBe(true);
+        expect(['old-bt', 'new-bt']).toContain(result.current.selectedOutputDeviceId);
+      });
+
+      it('selectOutputDeviceByUser marks the choice explicit so auto-selection stays off', async () => {
+        mockContext.setSinkId = vi.fn(async () => {});
+        (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+          { kind: 'audiooutput', deviceId: 'default', label: 'Default - Speaker' },
+          { kind: 'audiooutput', deviceId: 'bt-1', label: 'AirPods Pro' },
+        ]);
+        const { result } = renderAudioPlayback();
+        result.current.playbackContextRef.current = mockContext as unknown as AudioContext;
+        await act(async () => { await result.current.refreshOutputDevices(); });
+        expect(result.current.outputAutoSelected).toBe(true);
+
+        await act(async () => { await result.current.selectOutputDeviceByUser(''); });
+        expect(result.current.outputAutoSelected).toBe(false);
+        expect(localStorage.getItem(OUTPUT_USER_CHOSE_KEY)).toBe('1');
+
+        // A later refresh must not re-grab the Bluetooth output.
+        await act(async () => { await result.current.refreshOutputDevices(); });
+        expect(result.current.selectedOutputDeviceId).toBe('');
+        expect(result.current.outputAutoSelected).toBe(false);
+      });
+    });
+
     it('keeps the output error when fallback to the default device fails', async () => {
       mockContext.setSinkId = vi.fn(async () => { throw new Error('default unavailable'); });
       localStorage.setItem('realtime_voice_output_device_id', 'bluetooth-1');
