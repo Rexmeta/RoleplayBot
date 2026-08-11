@@ -6,6 +6,27 @@ const VAD_SENSITIVITY_KEY = 'vad_sensitivity';
 // 0 = 자동(권장) — 노이즈 플로어 측정 기반. 1-5 = 수동 레벨.
 const VAD_SENSITIVITY_DEFAULT = 0;
 
+vi.mock('../../client/src/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
+vi.mock('../../client/src/hooks/useAudioInputDevices', () => ({
+  useAudioInputDevices: () => ({
+    inputDevices: [],
+    selectedInputDeviceId: '',
+    inputStatus: 'idle',
+    inputMessage: null,
+    inputNeedsPermission: false,
+    inputAutoSelected: false,
+    persistInputSelection: vi.fn(),
+    persistInputSelectionByUser: vi.fn(),
+    reportInputError: vi.fn(),
+    refreshInputDevices: vi.fn(),
+    requestInputDevicePermission: vi.fn(async () => false),
+  }),
+  buildMicrophoneConstraints: vi.fn((id: string) => ({ audio: id ? { deviceId: { exact: id } } : true })),
+}));
+
 vi.mock('../../client/src/hooks/useAudioPlayback', () => ({
   useAudioPlayback: () => ({
     playbackContextRef: { current: null },

@@ -764,7 +764,7 @@ ${conversationHistory}
       const dimensions = evaluationCriteria?.dimensions ?? [];
       const fewShotParts = await Promise.all(
         dimensions.map(async (dim) => {
-          const examples = await storage.getActiveFewShotExamplesByDimension(dim.id);
+          const examples = await storage.getActiveFewShotExamplesByDimension((dim as any).id);
           if (examples.length === 0) return null;
           const exampleText = examples.map((ex, i) => {
             const lines = [`  예시 ${i + 1} (점수: ${ex.score}/10)`];
@@ -1357,9 +1357,9 @@ JSON 형식${hasStrategyReflection ? ' (sequenceAnalysis 포함)' : ''}:
             : bargeInAnalysis.events;
           return {
             count: finalEvents.length,
-            positiveCount: finalEvents.filter(e => e.assessment === 'positive').length,
-            negativeCount: finalEvents.filter(e => e.assessment === 'negative').length,
-            neutralCount: finalEvents.filter(e => e.assessment === 'neutral').length,
+            positiveCount: finalEvents.filter((e: any) => e.assessment === 'positive').length,
+            negativeCount: finalEvents.filter((e: any) => e.assessment === 'negative').length,
+            neutralCount: finalEvents.filter((e: any) => e.assessment === 'neutral').length,
             rate: parsedBargeIn.rate ?? bargeInAnalysis.rate,
             netScoreAdjustment: bargeInAnalysis.netScoreAdjustment,
             events: finalEvents,

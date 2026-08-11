@@ -262,10 +262,10 @@ export default function createConversationsRouter(isAuthenticated: any) {
       }
     }
 
-    let scenarioPersona = scenarioObj.personas.find((p: any) => p.id === personaId) as any;
+    let scenarioPersona = scenarioObj?.personas.find((p: any) => p.id === personaId) as any;
     if (!scenarioPersona) {
       const normalizedPersonaId = personaId.toLowerCase();
-      scenarioPersona = scenarioObj.personas.find((p: any) =>
+      scenarioPersona = scenarioObj?.personas.find((p: any) =>
         p.id?.toLowerCase() === normalizedPersonaId ||
         p.personaRef?.replace('.json', '').toLowerCase() === normalizedPersonaId
       ) as any;
@@ -300,7 +300,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
         personaId,
         personaSnapshot: duplicatePersonaRun.personaSnapshot,
         messages: existingMessages,
-        turnCount: existingMessages.filter(m => m.role === 'user').length,
+        turnCount: existingMessages.filter(m => m.sender === 'user').length,
         status: 'active',
         mode: duplicatePersonaRun.mode,
         difficulty: duplicatePersonaRun.difficulty,
@@ -1248,7 +1248,7 @@ ${userNameLine}
         isCompleted: streamIsCompleted || streamIsTerminated,
         turnCount: newTurnCount,
         personaRun: streamUpdatedPersonaRun,
-        messages: [{ sender: 'ai', message: streamAiMessageContent, timestamp: new Date().toISOString(), emotion: streamEmotion, emotionReason: streamEmotionReason, turnIndex: currentTurnIndex, ...(streamJoinSegments ? { speakerSegments: streamJoinSegments } : {}) }],
+        messages: [{ sender: 'ai', message: streamAiMessageContent, timestamp: new Date().toISOString(), emotion: streamEmotion, emotionReason: streamEmotionReason, ...(streamJoinSegments ? { speakerSegments: streamJoinSegments } : {}) } as any],
         simulationState: streamSimulationState,
         turnScore: streamSimTurnScore,
         ...(streamTerminationReason ? { terminationReason: streamTerminationReason } : {}),

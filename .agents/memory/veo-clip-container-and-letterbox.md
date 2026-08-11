@@ -1,0 +1,16 @@
+---
+name: Veo clip container & letterbox
+description: Veo always returns MP4/H.264; letterbox black bars are baked into frames and must be normalized before storage.
+---
+
+# Veo clip container & letterbox
+
+## Rule
+Veo API always returns MP4/H.264 regardless of what container format is requested. Additionally, clips often have black letterbox bars baked into the frames (not as metadata padding). These bars must be detected and removed with `ffprobe`/`cropdetect` before storing the clip.
+
+**Why:** If the raw Veo output is saved without normalization, players show black bars that look like broken UI. Serving the file as `.webm` after a container rename causes Chrome to refuse playback because the codec is H.264, not VP8/VP9/AV1.
+
+**How to apply:** Any code path that receives a video blob or URL from Veo must:
+1. Run `ffprobe` to detect letterbox regions (`cropdetect` filter).
+2. Re-encode or crop if bars are detected before storing.
+3. Always save as `.mp4` with H.264 — never rename to `.webm`.

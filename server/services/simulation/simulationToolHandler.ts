@@ -146,8 +146,8 @@ function handleUpdateNpcAffectiveState(rawArgs: unknown, ctx: ToolCallContext): 
   }
 
   const h = resolveHarness({ simulationHarness: ctx.harness });
-  const maxCalls = h.toolPolicy.npcAffectiveStateDelta.maxCallsPerTurn;
-  const maxDelta = h.toolPolicy.npcAffectiveStateDelta.maxDeltaPerCall;
+  const maxCalls = h.toolPolicy.npcAffectiveStateDelta?.maxCallsPerTurn ?? 10;
+  const maxDelta = h.toolPolicy.npcAffectiveStateDelta?.maxDeltaPerCall ?? 30;
 
   if (ctx.emotionCallCountThisTurn >= maxCalls) {
     return { success: false, error: `Maximum ${maxCalls} affective state updates per turn` };
@@ -205,7 +205,7 @@ function handleUpdateScenarioState(rawArgs: unknown, ctx: ToolCallContext): Tool
   }
 
   const h = resolveHarness({ simulationHarness: ctx.harness });
-  if (h.toolPolicy.updateScenarioState.enabled === false) {
+  if (h.toolPolicy.updateScenarioState?.enabled === false) {
     return { success: false, error: 'update_scenario_state is disabled for this scenario' };
   }
 
@@ -243,7 +243,7 @@ function handleTriggerIncident(rawArgs: unknown, ctx: ToolCallContext): ToolHand
 
   const args = parsed.data;
   const h = resolveHarness({ simulationHarness: ctx.harness });
-  const allowedTypes = h.toolPolicy.triggerIncident.allowedTypes;
+  const allowedTypes = h.toolPolicy.triggerIncident?.allowedTypes ?? [];
 
   if (!allowedTypes.includes(args.type)) {
     return { success: false, error: `Incident type '${args.type}' is not allowed for this scenario. Allowed: ${allowedTypes.join(', ')}` };

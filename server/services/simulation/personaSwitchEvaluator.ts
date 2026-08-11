@@ -18,7 +18,7 @@ function resolveMetric(metric: string, state: SimulationState): number {
   if (parts[0] === 'npcAffectiveState' && parts[1] && parts[2]) {
     const layer = parts[1];
     const field = parts[2];
-    const affective = state.npcAffectiveState as Record<string, Record<string, number>>;
+    const affective = state.npcAffectiveState as unknown as Record<string, Record<string, number>>;
     return affective[layer]?.[field] ?? 0;
   }
   if (parts[0] === 'turnScores' && parts[1]) {

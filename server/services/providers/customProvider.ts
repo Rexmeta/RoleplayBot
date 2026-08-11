@@ -298,10 +298,10 @@ ${conversationHistory}
     // no [USAGE:] sidecar is emitted for this path.
     if (this.config.apiFormat === 'custom' || this.config.apiKey === 'test-key') {
       const self = this;
-      async function* buffered(): AsyncGenerator<string> {
+      const buffered = async function*(): AsyncGenerator<string> {
         const result = await self.generateResponse(scenario, messages, persona, userMessage, lang, userName);
         yield result.content;
-      }
+      };
       return buffered();
     }
 

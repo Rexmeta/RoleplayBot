@@ -225,6 +225,7 @@ export class MemConversationsStorage implements IConversationsStorage {
       modelSnapshot: insertFeedback.modelSnapshot ?? null,
       criteriaSetVersion: insertFeedback.criteriaSetVersion ?? null,
       scoreAdjustments: (insertFeedback.scoreAdjustments ?? null) as any,
+      metricSnapshot: null,
       createdAt: new Date(),
     };
     this._feedbacks.set(id, feedback);

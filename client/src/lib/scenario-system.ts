@@ -18,6 +18,7 @@ export interface ScenarioPersona {
   // 레거시 호환성을 위한 필드들 (하드코딩 시나리오)
   role?: string;            // 역할 설명 (예: "개발팀 선임")
   image?: string;
+  npcBehaviorHarness?: any;
   expressions?: Record<string, string>; // user persona 표정 이미지 맵 {emotion: url}
   personality?: {
     traits: string[];
@@ -119,6 +120,17 @@ export interface ComplexScenario {
   personaSwitchRules?: any;
   /** Whether this scenario uses a video avatar instead of a static image */
   useVideoAvatar?: boolean;
+  modelVideoOverride?: string;
+  personaSwitchMode?: string | null;
+  simulationHarness?: any;
+  storeListed?: boolean;
+  storePriceUsd?: number;
+  storePackId?: string;
+  evaluationHarness?: any;
+  terminationRules?: any;
+  playerConstraints?: any;
+  difficultyProfile?: any;
+  analyticsSpec?: any;
 }
 
 // 사용자 제작 페르소나 자유 대화용 ComplexScenario 확장 타입

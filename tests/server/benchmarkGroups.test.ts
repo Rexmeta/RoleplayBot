@@ -11,12 +11,12 @@ import request from 'supertest';
 
 // ─── Storage mock ──────────────────────────────────────────────────────────────
 const {
-  mockGetScenarios,
+  mockGetAllScenarios,
   mockGetAllFeedbacks,
   mockGetAllPersonaRuns,
   mockGetAllScenarioRuns,
 } = vi.hoisted(() => ({
-  mockGetScenarios: vi.fn(),
+  mockGetAllScenarios: vi.fn(),
   mockGetAllFeedbacks: vi.fn(),
   mockGetAllPersonaRuns: vi.fn(),
   mockGetAllScenarioRuns: vi.fn(),
@@ -24,7 +24,7 @@ const {
 
 vi.mock('../../server/storage', () => ({
   storage: {
-    getScenarios: mockGetScenarios,
+    getAllScenarios: mockGetAllScenarios,
     getAllFeedbacks: mockGetAllFeedbacks,
     getAllPersonaRuns: mockGetAllPersonaRuns,
     getAllScenarioRuns: mockGetAllScenarioRuns,
@@ -86,7 +86,7 @@ function seedMocks({
   personaRuns = [] as any[],
   feedbacks = [] as any[],
 } = {}) {
-  mockGetScenarios.mockResolvedValue(scenarios);
+  mockGetAllScenarios.mockResolvedValue(scenarios);
   mockGetAllScenarioRuns.mockResolvedValue(scenarioRuns);
   mockGetAllPersonaRuns.mockResolvedValue(personaRuns);
   mockGetAllFeedbacks.mockResolvedValue(feedbacks);

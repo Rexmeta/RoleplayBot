@@ -70,7 +70,7 @@ function detectCycle(stages: Array<{ id: string; nextStage: string }>): boolean 
     return false;
   }
 
-  for (const id of stageIds) {
+  for (const id of Array.from(stageIds)) {
     if (dfs(id)) return true;
   }
   return false;
@@ -91,7 +91,7 @@ function findDeadEndStages(stages: Array<{ id: string; nextStage: string }>): st
   if (stages.length > 0) traverse(stages[0].id);
 
   const deadEnds: string[] = [];
-  for (const id of reachable) {
+  for (const id of Array.from(reachable)) {
     const stage = stages.find(s => s.id === id);
     if (!stage) continue;
     const next = stage.nextStage;
@@ -225,7 +225,7 @@ export function validateScenario(
         check: 7,
         key: 'incident_types',
         severity: 'warning',
-        message: `알 수 없는 incident 타입: ${unknownTypes.join(', ')}. 지원 타입: ${[...KNOWN_INCIDENT_TYPES].join(', ')}`,
+        message: `알 수 없는 incident 타입: ${unknownTypes.join(', ')}. 지원 타입: ${Array.from(KNOWN_INCIDENT_TYPES).join(', ')}`,
       });
     }
   }

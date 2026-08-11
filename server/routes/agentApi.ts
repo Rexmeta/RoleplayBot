@@ -347,7 +347,7 @@ async function createRateLimitStore() {
     });
     if (client.status !== "ready") return undefined;
     console.log("[agentApi] Using Redis rate-limit store.");
-    return new RedisStore({ sendCommand: (...args: string[]) => client.call(...args) as any });
+    return new RedisStore({ sendCommand: (...args: string[]) => (client as any).call(...args) });
   } catch (err) {
     console.warn("[agentApi] Redis store init error, falling back to memory store:", err);
     return undefined;
@@ -980,7 +980,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
               currentState = createDefaultSimulationState();
             }
           }
-          getOrCreateSessionContext(personaRunId, currentState);
+          getOrCreateSessionContext(personaRunId, currentState ?? undefined);
 
           const evalResult = await evaluateUserResponse({
             personaRunId,
@@ -988,7 +988,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
             turnIndex: turn,
             userText: message,
             aiText: cleanContent,
-            simulationState: currentState,
+            simulationState: currentState!,
             language: (session.language as any) ?? "ko",
             evaluationMode: "fast",
           });
@@ -1021,7 +1021,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
               result: { turnScore: evalResult.turnScore },
               stateBefore: currentState,
               stateAfter: newState,
-              stateVersionBefore: currentState.version,
+              stateVersionBefore: currentState!.version,
               stateVersionAfter: newState.version,
               includeInReport: true,
             }).catch((e) => console.warn("[agentApi] Failed to save simulation event:", e));
@@ -1148,7 +1148,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
             currentState = createDefaultSimulationState();
           }
         }
-        getOrCreateSessionContext(personaRunId, currentState);
+        getOrCreateSessionContext(personaRunId, currentState ?? undefined);
 
         // Evaluate the user's message (LLM-based with rule fallback)
         const evalResult = await evaluateUserResponse({
@@ -1157,7 +1157,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
           turnIndex: turn,
           userText: message,
           aiText: aiResult.content,
-          simulationState: currentState,
+          simulationState: currentState!,
           language: (session.language as any) ?? "ko",
           evaluationMode: "fast",
         });
@@ -1193,7 +1193,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
             result: { turnScore: evalResult.turnScore },
             stateBefore: currentState,
             stateAfter: newState,
-            stateVersionBefore: currentState.version,
+            stateVersionBefore: currentState!.version,
             stateVersionAfter: newState.version,
             includeInReport: true,
           }).catch((e) => console.warn("[agentApi] Failed to save simulation event:", e));

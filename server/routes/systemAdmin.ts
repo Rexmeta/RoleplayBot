@@ -305,7 +305,7 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
     if (key === 'model_realtime' && !VALID_REALTIME_MODEL_VALUES.has(String(value))) {
       throw createHttpError(
         400,
-        `Invalid realtime model: "${value}". Must be one of: ${[...VALID_REALTIME_MODEL_VALUES].join(', ')}`
+        `Invalid realtime model: "${value}". Must be one of: ${Array.from(VALID_REALTIME_MODEL_VALUES).join(', ')}`
       );
     }
     if (category === VIDEO_AVATAR_ACCESS_SETTING.category && key === VIDEO_AVATAR_ACCESS_SETTING.key) {
@@ -348,7 +348,7 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
       if (key === 'model_realtime' && !VALID_REALTIME_MODEL_VALUES.has(String(value))) {
         throw createHttpError(
           400,
-          `Invalid realtime model: "${value}". Must be one of: ${[...VALID_REALTIME_MODEL_VALUES].join(', ')}`
+          `Invalid realtime model: "${value}". Must be one of: ${Array.from(VALID_REALTIME_MODEL_VALUES).join(', ')}`
         );
       }
       if (category === VIDEO_AVATAR_ACCESS_SETTING.category && key === VIDEO_AVATAR_ACCESS_SETTING.key) {

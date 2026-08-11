@@ -14,6 +14,7 @@ export const REALTIME_MODEL_MIGRATION_ALLOWLIST: ReadonlySet<string> = new Set([
   'gpt-4o-mini-realtime-preview',
 ]);
 
+
 const migrationSQL = `
 -- 1. Users 테이블
 CREATE TABLE IF NOT EXISTS "users" (

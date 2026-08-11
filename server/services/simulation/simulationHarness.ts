@@ -68,22 +68,22 @@ export function resolveHarness(scenario: { simulationHarness?: SimulationHarness
     affectiveAxes: harness.affectiveAxes ?? DEFAULT_SIMULATION_HARNESS.affectiveAxes,
     toolPolicy: {
       npcAffectiveStateDelta: {
-        maxCallsPerTurn: harness.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.npcAffectiveStateDelta.maxCallsPerTurn,
-        maxDeltaPerCall: harness.toolPolicy?.npcAffectiveStateDelta?.maxDeltaPerCall ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.npcAffectiveStateDelta.maxDeltaPerCall,
+        maxCallsPerTurn: harness.toolPolicy?.npcAffectiveStateDelta?.maxCallsPerTurn ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.npcAffectiveStateDelta!.maxCallsPerTurn,
+        maxDeltaPerCall: harness.toolPolicy?.npcAffectiveStateDelta?.maxDeltaPerCall ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.npcAffectiveStateDelta!.maxDeltaPerCall,
       },
       triggerIncident: {
-        allowedTypes: harness.toolPolicy?.triggerIncident?.allowedTypes ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident.allowedTypes,
+        allowedTypes: harness.toolPolicy?.triggerIncident?.allowedTypes ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident!.allowedTypes,
         cooldownOverride: {
-          globalCooldownSec: harness.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident.cooldownOverride.globalCooldownSec,
-          perTypeCooldownSec: harness.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident.cooldownOverride.perTypeCooldownSec,
+          globalCooldownSec: harness.toolPolicy?.triggerIncident?.cooldownOverride?.globalCooldownSec ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident!.cooldownOverride!.globalCooldownSec,
+          perTypeCooldownSec: harness.toolPolicy?.triggerIncident?.cooldownOverride?.perTypeCooldownSec ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident!.cooldownOverride!.perTypeCooldownSec,
         },
         cooldowns: {
-          ...DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident.cooldowns,
+          ...DEFAULT_SIMULATION_HARNESS.toolPolicy.triggerIncident!.cooldowns,
           ...(harness.toolPolicy?.triggerIncident?.cooldowns ?? {}),
         },
       },
       updateScenarioState: {
-        enabled: harness.toolPolicy?.updateScenarioState?.enabled ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.updateScenarioState.enabled,
+        enabled: harness.toolPolicy?.updateScenarioState?.enabled ?? DEFAULT_SIMULATION_HARNESS.toolPolicy.updateScenarioState!.enabled,
       },
     },
     preferredSignals: harness.preferredSignals ?? DEFAULT_SIMULATION_HARNESS.preferredSignals,
@@ -94,12 +94,12 @@ export function resolveCooldownsForType(
   h: Required<SimulationHarness>,
   incidentType: string
 ): { globalCooldownMs: number; perTypeCooldownMs: number } {
-  const typeOverride = h.toolPolicy.triggerIncident.cooldowns?.[incidentType];
+  const typeOverride = h.toolPolicy.triggerIncident?.cooldowns?.[incidentType];
   const globalCooldownSec = typeOverride?.globalCooldownSec
-    ?? h.toolPolicy.triggerIncident.cooldownOverride.globalCooldownSec
+    ?? h.toolPolicy.triggerIncident?.cooldownOverride?.globalCooldownSec
     ?? 60;
   const perTypeCooldownSec = typeOverride?.perTypeCooldownSec
-    ?? h.toolPolicy.triggerIncident.cooldownOverride.perTypeCooldownSec
+    ?? h.toolPolicy.triggerIncident?.cooldownOverride?.perTypeCooldownSec
     ?? 120;
   return {
     globalCooldownMs: globalCooldownSec * 1000,

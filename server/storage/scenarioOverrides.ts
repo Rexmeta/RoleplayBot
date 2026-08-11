@@ -42,7 +42,7 @@ export function ScenarioOverridesMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async upsertScenarioOverride(organizationId: string, scenarioId: string, override: InsertScenarioOverride['override']): Promise<ScenarioOverride> {
-      const [row] = await db.execute<ScenarioOverride>(sql`
+      const result = await db.execute<ScenarioOverride>(sql`
         INSERT INTO scenario_overrides (id, organization_id, scenario_id, override, created_at, updated_at)
         VALUES (gen_random_uuid(), ${organizationId}, ${scenarioId}, ${JSON.stringify(override)}::jsonb, NOW(), NOW())
         ON CONFLICT (organization_id, scenario_id) DO UPDATE SET
@@ -50,7 +50,7 @@ export function ScenarioOverridesMixin<TBase extends Constructor>(Base: TBase) {
           updated_at = NOW()
         RETURNING *
       `);
-      return row;
+      return result.rows[0];
     }
 
     async deleteScenarioOverride(id: string): Promise<void> {

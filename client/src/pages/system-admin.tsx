@@ -986,7 +986,8 @@ export default function SystemAdminPage() {
 
   const bulkAnonymizeMutation = useMutation({
     mutationFn: async (userIds: string[]) => {
-      return await apiRequest("POST", `/api/admin/users/bulk-anonymize`, { userIds }) as { succeeded: string[]; failed: { userId: string; reason: string }[] };
+      const res = await apiRequest("POST", `/api/admin/users/bulk-anonymize`, { userIds });
+      return res.json() as Promise<{ succeeded: string[]; failed: { userId: string; reason: string }[] }>;
     },
     onSuccess: (data) => {
       const { succeeded, failed } = data;
@@ -1501,7 +1502,7 @@ export default function SystemAdminPage() {
                                   checked={allSelected ? true : someSelected ? 'indeterminate' : false}
                                   onCheckedChange={(checked) => {
                                     if (checked) {
-                                      setSelectedUserIds(prev => new Set([...prev, ...selectableIds]));
+                                      setSelectedUserIds(prev => new Set([...Array.from(prev), ...selectableIds]));
                                     } else {
                                       setSelectedUserIds(prev => {
                                         const next = new Set(prev);
@@ -2807,7 +2808,7 @@ export default function SystemAdminPage() {
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => bulkAnonymizeMutation.mutate([...selectedUserIds])}
+                  onClick={() => bulkAnonymizeMutation.mutate(Array.from(selectedUserIds))}
                   disabled={bulkAnonymizeMutation.isPending}
                 >
                   {bulkAnonymizeMutation.isPending ? (

@@ -107,6 +107,7 @@ export function useChatSession({
         timestamp: new Date().toISOString(),
         emotion: undefined,
         emotionReason: undefined,
+        userAffect: undefined,
       });
     }
     return messages;

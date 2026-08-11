@@ -179,4 +179,3 @@ export const insertPersonaUserSceneSchema = createInsertSchema(personaUserScenes
 });
 export type InsertPersonaUserScene = z.infer<typeof insertPersonaUserSceneSchema>;
 export type PersonaUserScene = typeof personaUserScenes.$inferSelect;
-

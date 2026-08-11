@@ -32,7 +32,9 @@ export type AgentApiErrorCode =
   | "request_timeout"
   | "service_unavailable"
   | "internal_error"
-  | "provider_timeout";
+  | "provider_timeout"
+  | "feedback_not_available"
+  | "date_range_too_large";
 
 export function agentError(
   res: Response,

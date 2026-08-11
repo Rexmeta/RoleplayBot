@@ -16,8 +16,6 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'gemini-2.0-flash-live-preview-04-09': { input: 0.35, output: 1.50 },
   'gemini-2.0-flash-live-001': { input: 0.35, output: 1.50 },
   'gemini-live-2.5-flash': { input: 0.35, output: 1.50 },
-  'gemini-live-2.5-flash-preview': { input: 0.35, output: 1.50 },
-  'gemini-3.1-flash-live-preview': { input: 0.35, output: 1.50 },
   'gemini-2.5-flash-native-audio-preview-09-2025': { input: 0.35, output: 1.50 },
   'gemini-2.5-flash-image-preview': { input: 0.30, output: 2.50 }, // Image generation
   'gemini-2.0-flash-preview-image-generation': { input: 0.30, output: 2.50 }, // Image generation (legacy)
@@ -135,7 +133,7 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
       conversationId: params.conversationId || null,
       requestId: params.requestId || null,
       durationMs: params.durationMs || null,
-      metadata: { ...(params.metadata || {}), cacheSavingsUsd },
+      metadata: { ...(params.metadata || {}), cacheSavingsUsd } as Record<string, any>,
       tokensEstimated: params.tokensEstimated ?? false,
     };
     
@@ -172,7 +170,7 @@ export async function trackUsageSync(params: TrackUsageParams): Promise<void> {
     conversationId: params.conversationId || null,
     requestId: params.requestId || null,
     durationMs: params.durationMs || null,
-    metadata: { ...(params.metadata || {}), cacheSavingsUsd },
+    metadata: { ...(params.metadata || {}), cacheSavingsUsd } as Record<string, any>,
     tokensEstimated: params.tokensEstimated ?? false,
   };
   

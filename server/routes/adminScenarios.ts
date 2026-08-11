@@ -375,7 +375,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     const activeLangs = allLangs.map((l: any) => l.code);
     const preValidation = validateScenario(scenarioData as any, mbtiPersonaIds, [], activeLangs);
     if (preValidation.hasFatalErrors) {
-      throw createHttpError(400, "치명적 품질 오류로 저장할 수 없습니다.", { errors: preValidation.issues.filter(i => i.severity === 'error') } as any);
+      throw Object.assign(createHttpError(400, "치명적 품질 오류로 저장할 수 없습니다."), { errors: preValidation.issues.filter(i => i.severity === 'error') });
     }
 
     const scenario = await fileManager.createScenario(scenarioData);
@@ -467,7 +467,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     const activeLangs = allLangs.map((l: any) => l.code);
     const preValidation = validateScenario(mergedData as any, mbtiPersonaIds, existingTranslations, activeLangs);
     if (preValidation.hasFatalErrors) {
-      throw createHttpError(400, "치명적 품질 오류로 저장할 수 없습니다.", { errors: preValidation.issues.filter(i => i.severity === 'error') } as any);
+      throw Object.assign(createHttpError(400, "치명적 품질 오류로 저장할 수 없습니다."), { errors: preValidation.issues.filter(i => i.severity === 'error') });
     }
 
     const scenario = await fileManager.updateScenario(scenarioId, req.body);
@@ -754,7 +754,7 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     const publishValidation = validateScenario(scenarioForPublish as any, publishMbtiIds, translationsForPublish, publishActiveLangs);
 
     if (publishValidation.hasFatalErrors) {
-      throw createHttpError(400, "치명적 품질 오류로 발행할 수 없습니다.", { errors: publishValidation.issues.filter(i => i.severity === 'error') } as any);
+      throw Object.assign(createHttpError(400, "치명적 품질 오류로 발행할 수 없습니다."), { errors: publishValidation.issues.filter(i => i.severity === 'error') });
     }
 
     const version = await storage.publishScenarioVersion(scenarioId, user.id);

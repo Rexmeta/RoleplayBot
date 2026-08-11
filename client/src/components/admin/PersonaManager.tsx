@@ -129,8 +129,6 @@ const emotionKeyMap: Record<string, string> = {
   '실망': 'disappointment',
   '당혹': 'embarrassment'
 };
-
-// MBTI 페르소나 타입 정의
 interface MBTIPersona {
   id: string;
   mbti: string;
@@ -1902,6 +1900,17 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                             }}
                           />
                         </div>
+                        {clipUrl && (
+                          <video
+                            key={clipUrl}
+                            src={clipUrl}
+                            controls
+                            loop
+                            muted
+                            className="w-full rounded border border-slate-200 bg-black"
+                            style={{ maxHeight: 120 }}
+                          />
+                        )}
                         <Input
                           value={clipUrl}
                           onChange={(e) =>

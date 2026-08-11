@@ -225,9 +225,9 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
     "/api/admin/personas/:id/video/upload-clip",
     isAuthenticated,
     isOperatorOrAdmin,
-    asyncHandler(async (req, _res, next) => {
+    asyncHandler(async (req, _res, next?: any) => {
       await requireVideoAvatarManagementAccess(req);
-      next();
+      if (next) next();
     }),
     videoUpload.single('file'),
     asyncHandler(async (req: any, res) => {

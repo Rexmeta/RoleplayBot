@@ -20,7 +20,7 @@ function validateSchema(
     errors.push({
       tool: toolName,
       path,
-      message: `Invalid type "${type}". Must be one of: ${[...VALID_GEMINI_TYPES].join(', ')}.`,
+      message: `Invalid type "${type}". Must be one of: ${Array.from(VALID_GEMINI_TYPES).join(', ')}.`,
     });
   }
 

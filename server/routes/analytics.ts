@@ -1121,10 +1121,10 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
 
     const scenarioRunsByUser = new Map<string, any[]>();
     for (const sr of scenarioRuns) {
-      if (!scenarioRunsByUser.has(sr.userId)) {
-        scenarioRunsByUser.set(sr.userId, []);
+      if (!scenarioRunsByUser.has(sr.userId!)) {
+        scenarioRunsByUser.set(sr.userId!, []);
       }
-      scenarioRunsByUser.get(sr.userId)!.push(sr);
+      scenarioRunsByUser.get(sr.userId!)!.push(sr);
     }
 
     const scenarioRunMap = new Map(scenarioRuns.map(sr => [sr.id, sr]));
@@ -1132,13 +1132,13 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const personaRunToUserId = new Map<string, string>();
     for (const pr of personaRuns) {
       const sr = scenarioRunMap.get(pr.scenarioRunId);
-      if (sr) personaRunToUserId.set(pr.id, sr.userId);
+      if (sr) personaRunToUserId.set(pr.id, sr.userId!);
     }
 
     const feedbacksByUser = new Map<string, any[]>();
     for (const f of feedbacks) {
       if (!f.personaRunId) continue;
-      const uid = personaRunToUserId.get(f.personaRunId);
+      const uid = personaRunToUserId.get(f.personaRunId!);
       if (!uid) continue;
       if (!feedbacksByUser.has(uid)) feedbacksByUser.set(uid, []);
       feedbacksByUser.get(uid)!.push(f);
@@ -1147,9 +1147,9 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     const lastTrainingByUser = new Map<string, Date>();
     for (const sr of scenarioRuns) {
       if (!sr.completedAt) continue;
-      const existing = lastTrainingByUser.get(sr.userId);
+      const existing = lastTrainingByUser.get(sr.userId!);
       if (!existing || sr.completedAt > existing) {
-        lastTrainingByUser.set(sr.userId, sr.completedAt);
+        lastTrainingByUser.set(sr.userId!, sr.completedAt);
       }
     }
 
@@ -1163,8 +1163,8 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
     for (const sr of scenarioRuns) {
       const catName = scenarioToCategoryName.get(sr.scenarioId);
       if (!catName) continue;
-      if (!userCategoriesMap.has(sr.userId)) userCategoriesMap.set(sr.userId, new Set<string>());
-      userCategoriesMap.get(sr.userId)!.add(catName);
+      if (!userCategoriesMap.has(sr.userId!)) userCategoriesMap.set(sr.userId!, new Set<string>());
+      userCategoriesMap.get(sr.userId!)!.add(catName);
     }
 
     const participantUserIds = new Set(personaRuns.map(pr => {
@@ -1401,7 +1401,7 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
         scenarioName: (scenario as any).title || scenId,
         mbti,
         userId: scenarioRun.userId,
-        userName: userMap.get(scenarioRun.userId) || scenarioRun.userId,
+        userName: userMap.get(scenarioRun.userId!) || scenarioRun.userId!,
         completedAt: scenarioRun.completedAt || scenarioRun.startedAt,
         difficulty: (scenario as any).difficulty || 4,
         criteriaSetVersion: fb.criteriaSetVersion ?? null,
@@ -1447,12 +1447,13 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
   }));
 
   // Benchmark group comparison endpoint
-  router.get('/api/admin/analytics/benchmark-groups', isAuthenticated, asyncHandler(async (req: any, res: Response) => {
+  router.get('/api/admin/analytics/benchmark-groups', isAuthenticated, asyncHandler(async (req: any, res: any) => {
+
     const user = req.user;
     if (user?.role !== 'admin' && user?.role !== 'operator') {
       return res.status(403).json({ message: 'Forbidden' });
     }
-    const allScenarios = await storage.getScenarios() as any[];
+    const allScenarios = await storage.getAllScenarios() as any[];
     const allFeedbacks = await storage.getAllFeedbacks() as any[];
     const allPersonaRuns = await storage.getAllPersonaRuns() as any[];
 
@@ -1508,14 +1509,14 @@ export default function createAnalyticsRouter(isAuthenticated: any) {
   }));
 
   // Benchmark group detail: per-scenario breakdown
-  router.get('/api/admin/analytics/benchmark-groups/:groupName', isAuthenticated, asyncHandler(async (req: any, res: Response) => {
+  router.get('/api/admin/analytics/benchmark-groups/:groupName', isAuthenticated, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
     if (user?.role !== 'admin' && user?.role !== 'operator') {
       return res.status(403).json({ message: 'Forbidden' });
     }
     const groupName = decodeURIComponent(req.params.groupName);
 
-    const allScenarios = await storage.getScenarios() as any[];
+    const allScenarios = await storage.getAllScenarios() as any[];
     const allFeedbacks = await storage.getAllFeedbacks() as any[];
     const allPersonaRuns = await storage.getAllPersonaRuns() as any[];
     const allScenarioRuns = await storage.getAllScenarioRuns() as any[];

@@ -137,7 +137,7 @@ function collectIncidentsByTurn(events: SimulationEventRecord[]): Map<number, In
   }
 
   const byTurn = new Map<number, Incident[]>();
-  for (const inc of seen.values()) {
+  for (const inc of Array.from(seen.values())) {
     const list = byTurn.get(inc.turnIndex) ?? [];
     list.push(inc);
     byTurn.set(inc.turnIndex, list);
@@ -478,7 +478,7 @@ function computeSessionInsights(
   // 1. Turning point — largest NPC emotion change (trust drop or anger rise)
   let turningPoint: SessionInsights["turningPoint"] = null;
   let maxMagnitude = 0;
-  for (const [turnIndex, delta] of emotionDeltasByTurn) {
+  for (const [turnIndex, delta] of Array.from(emotionDeltasByTurn)) {
     // Trust drop is most impactful
     if (delta.trust < 0 && Math.abs(delta.trust) > maxMagnitude) {
       maxMagnitude = Math.abs(delta.trust);

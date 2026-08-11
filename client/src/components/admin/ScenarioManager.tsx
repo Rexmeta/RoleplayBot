@@ -52,6 +52,7 @@ interface ScenarioPersona {
   voiceId?: string;
   entryLine?: string;
   triggerHints?: string[];
+  npcBehaviorHarness?: NpcBehaviorHarness;
 }
 
 interface ScenarioFormData {
@@ -106,6 +107,9 @@ interface ScenarioFormData {
   flowGraph?: any;
   personaSwitchRules?: any;
   simulationHarness?: any;
+  playerConstraints?: any;
+  difficultyProfile?: any;
+  analyticsSpec?: any;
 }
 
 interface ScenarioManagerProps {
@@ -2654,6 +2658,20 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       {formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
                     </span>
                   </div>}
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="useVideoAvatar"
+                      checked={formData.useVideoAvatar || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, useVideoAvatar: checked }))}
+                    />
+                    <Label htmlFor="useVideoAvatar" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      🎬 비디오 아바타 사용
+                    </Label>
+                    <span className="text-xs text-slate-500">
+                      {formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
+                    </span>
+                  </div>
 
                   <div className="flex items-center gap-3">
                     <Switch

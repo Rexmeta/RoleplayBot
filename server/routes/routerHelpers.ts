@@ -13,7 +13,7 @@ import {
   applyPassingRule,
 } from "../services/evaluationEngine";
 
-export function asyncHandler(fn: (req: any, res: Response, next: NextFunction) => Promise<any>) {
+export function asyncHandler(fn: (...args: any[]) => Promise<any>) {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
@@ -497,9 +497,10 @@ export async function generateAndSaveFeedback(
   // Apply evaluationHarness.passingRule if configured on the scenario.
   // scenarioObj is file-based and does not carry DB columns, so we fetch
   // the DB record explicitly to get evaluationHarness.
+  let scenarioDbRow: Awaited<ReturnType<typeof storage.getScenario>> | null = null;
   try {
     const scenarioId = scenarioObj?.id ? String(scenarioObj.id) : null;
-    const scenarioDbRow = scenarioId
+    scenarioDbRow = scenarioId
       ? await storage.getScenario(scenarioId).catch(() => null)
       : null;
     const harnessPR = (scenarioDbRow as any)?.evaluationHarness?.passingRule ?? null;

@@ -1127,7 +1127,7 @@ export default function Home() {
               onExit={handleReturnToScenarios}
               onReady={handleChatReady}
               onConversationEnding={() => setIsTransitioningToFeedback(true)}
-              initialInputMode={resumedInputMode}
+              initialInputMode={resumedInputMode === 'tts' ? 'realtime-voice' : resumedInputMode}
               earlyConnect={currentView === "video-intro"}
               delayGreeting={currentView === "video-intro"}
             />

@@ -293,7 +293,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       defaultModelsExpandDepth: 2,
       defaultModelExpandDepth: 3,
     },
-    customJsStr: `
+    customJs: `
 (function () {
   var STORAGE_KEY = 'agentApiKeyPrefill';
   var apiKey = localStorage.getItem(STORAGE_KEY);

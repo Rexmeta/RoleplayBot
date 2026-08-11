@@ -891,6 +891,284 @@ describe('VideoAvatarRenderer pause/resume', () => {
     // isPaused flag must remain false (the special reverse-pause branch was not taken)
     expect(st.isPaused).toBe(false);
   });
+
+  // ── New edge-case tests ────────────────────────────────────────────────────
+
+  it('pause() suspends the reverse RAF loop and resume() restarts it', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    // videoInstances[0] is videoA, which is the initial frontVideo (frontIsA = true)
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 5.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended'); // start reverse pass
+
+    // Init tick — just records timestamp
+    flushRaf(1000);
+
+    // Pause via the public API (operates on frontVideo = videoInstances[0])
+    (r as unknown as { pause: () => void }).pause();
+
+    const ppState = r.pingPongState.get(stub);
+    expect(ppState?.isPaused).toBe(true);
+    // RAF must have been cancelled — no pending callbacks
+    expect(rafCallbacks.size).toBe(0);
+
+    // currentTime must be unchanged while paused
+    const timeAtPause = stub.currentTime;
+    flushRaf(1100); // flushing nothing — should be a no-op
+    expect(stub.currentTime).toBe(timeAtPause);
+
+    // Resume: should reschedule the RAF
+    (r as unknown as { resume: () => void }).resume();
+    expect(ppState?.isPaused).toBe(false);
+    expect(rafCallbacks.size).toBe(1);
+
+    // Flush the rescheduled ticks.
+    // Resume first-tick: seeds 16 ms before `now`, applies 0.016 s decrement.
+    flushRaf(1300); // first post-resume tick — seeds timestamp and applies 16 ms
+    // Second tick: 100 ms elapsed → clamped to 50 ms → 0.050 s decrement
+    flushRaf(1400); // 100 ms elapsed → clamped to 50 ms = 0.05 s decrement
+    // Total decrement from timeAtPause: 0.016 (first tick) + 0.050 (second tick)
+    expect(stub.currentTime).toBeCloseTo(timeAtPause - 0.016 - 0.05, 5);
+  });
+
+  it('handles ended firing when currentTime is already 0 — calls play() without going negative', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 0; // already at start when ended fires
+
+    const playSpy = vi.spyOn(stub as any, 'play').mockResolvedValue(undefined);
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    // Init tick
+    flushRaf(1000);
+    // Second tick: next = 0 − deltaSeconds ≤ 0 → immediate boundary
+    flushRaf(1100);
+
+    // currentTime must not be negative
+    expect(stub.currentTime).toBe(0);
+    // play() must have been called to restart forward pass
+    expect(playSpy).toHaveBeenCalled();
+    // direction must be back to forward
+    const st = r.pingPongState.get(stub);
+    expect(st?.direction).toBe('forward');
+  });
+
+  it('rapid alternating _startPingPong / _stopPingPong calls do not crash or leak state', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    // Rapid interleaving — must not throw
+    expect(() => {
+      for (let i = 0; i < 10; i++) {
+        r._startPingPong(stub);
+        r._stopPingPong(stub);
+      }
+    }).not.toThrow();
+
+    // After all that, no ping-pong state should remain
+    expect(r.pingPongState.has(stub)).toBe(false);
+
+    // No RAF callbacks should be pending
+    expect(rafCallbacks.size).toBe(0);
+
+    // Firing ended now must have no effect (all listeners cleaned up)
+    stub.dispatch('ended');
+    expect(rafCallbacks.size).toBe(0);
+  });
+
+  // ── Tick-level delta-clamp tests ────────────────────────────────────────────
+
+  it('normal delta (< 50 ms): currentTime decrements by the exact elapsed amount', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    // Tick 1: first frame seeds 16 ms before `now` so the renderer immediately
+    // applies one frame's worth of movement (3.0 - 0.016 = 2.984)
+    flushRaf(2000);
+    expect(stub.currentTime).toBeCloseTo(2.984, 5);
+
+    // Tick 2: 30 ms elapsed — well under the 50 ms cap, no clamp applied
+    flushRaf(2030);
+    // Expected: 2.984 - 0.030 = 2.954
+    expect(stub.currentTime).toBeCloseTo(2.954, 5);
+  });
+
+  it('large delta (> 50 ms): clamp caps the step at 50 ms worth of time', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 10.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    // Tick 1: first frame seeds 16 ms before `now` → 10.0 - 0.016 = 9.984
+    flushRaf(5000);
+    expect(stub.currentTime).toBeCloseTo(9.984, 5);
+
+    // Tick 2: 300 ms of elapsed wall-clock time (tab backgrounded, etc.)
+    // Clamp fires: max step is 50 ms → 0.050 s decrement
+    flushRaf(5300);
+    // Expected: 9.984 - 0.050 = 9.934
+    expect(stub.currentTime).toBeCloseTo(9.934, 5);
+  });
+
+  it('delta that overshoots currentTime=0: clamps currentTime to 0 and flips direction to forward', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    // Place currentTime very close to the start so even a tiny step crosses zero
+    stub.currentTime = 0.01;
+
+    const playSpy = vi.spyOn(stub as any, 'play').mockResolvedValue(undefined);
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+
+    // Tick 1: first frame seeds 16 ms before `now` → 0.01 - 0.016 = -0.006 → overshoots
+    // currentTime is clamped to 0 and direction flips to forward immediately
+    flushRaf(3000);
+
+    // currentTime must be clamped to exactly 0, not negative
+    expect(stub.currentTime).toBe(0);
+
+    // play() must have been called to restart forward playback
+    expect(playSpy).toHaveBeenCalled();
+
+    // direction must have flipped back to forward
+    const st = r.pingPongState.get(stub);
+    expect(st?.direction).toBe('forward');
+
+    // No RAF frame should be pending (reverse loop exited)
+    expect(rafCallbacks.size).toBe(0);
+  });
+});
+
+// ── pause / resume during reverse pass ───────────────────────────────────────
+
+describe('VideoAvatarRenderer pause/resume', () => {
+  type PrivateRenderer = Awaited<ReturnType<typeof makeRenderer>> & {
+    _startPingPong: (v: unknown) => void;
+    pingPongState: Map<unknown, {
+      direction: 'forward' | 'reverse';
+      rafId: number | null;
+      lastTimestamp: number;
+      endedListener: (() => void) | null;
+      isPaused: boolean;
+      tick: ((now: number) => void) | null;
+    }>;
+  };
+
+  let rafCallbacks: Map<number, (now: number) => void>;
+  let nextRafId: number;
+  let cancelledIds: Set<number>;
+
+  beforeEach(() => {
+    rafCallbacks = new Map();
+    nextRafId = 0;
+    cancelledIds = new Set();
+
+    vi.stubGlobal('requestAnimationFrame', (cb: (now: number) => void) => {
+      const id = ++nextRafId;
+      rafCallbacks.set(id, cb);
+      return id;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+      cancelledIds.add(id);
+      rafCallbacks.delete(id);
+    });
+  });
+
+  function flushRaf(now: number) {
+    const entries = [...rafCallbacks.entries()];
+    for (const [id, cb] of entries) {
+      rafCallbacks.delete(id);
+      cb(now);
+    }
+  }
+
+  it('pause() while direction is reverse sets isPaused, cancels the RAF, and resets lastTimestamp', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    // videoInstances[0] is videoA, which is the initial frontVideo
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended'); // triggers startReverse → schedules first RAF
+
+    // Init tick: records lastTimestamp, schedules next RAF
+    flushRaf(1000);
+
+    const st = r.pingPongState.get(stub)!;
+    expect(st.direction).toBe('reverse');
+    const rafIdBeforePause = st.rafId;
+    expect(rafIdBeforePause).not.toBeNull();
+
+    r.pause();
+
+    expect(st.isPaused).toBe(true);
+    expect(st.rafId).toBeNull();
+    expect(st.lastTimestamp).toBe(0); // reset so resume won't produce a huge delta
+    expect(cancelledIds.has(rafIdBeforePause!)).toBe(true);
+  });
+
+  it('resume() while isPaused in reverse restarts the RAF with a zeroed lastTimestamp (no jump)', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    r._startPingPong(stub);
+    stub.dispatch('ended');
+    flushRaf(1000); // init tick
+
+    r.pause();
+
+    const st = r.pingPongState.get(stub)!;
+    expect(st.isPaused).toBe(true);
+
+    r.resume();
+
+    expect(st.isPaused).toBe(false);
+    expect(st.lastTimestamp).toBe(0); // still zero — will be set on the first tick
+    expect(st.rafId).not.toBeNull(); // RAF was rescheduled
+
+    // First tick after resume seeds 16 ms before `now` and immediately applies one
+    // frame's worth of movement (same as the initial reverse tick).
+    // After the init tick at flushRaf(1000): currentTime = 3.0 - 0.016 = 2.984
+    // After this resume tick: 2.984 - 0.016 = 2.968
+    // The 16 ms seed means even a huge elapsed value doesn't produce a big jump.
+    flushRaf(99999);
+    expect(stub.currentTime).toBeCloseTo(2.968, 5);
+  });
+
+  it('pause() while direction is forward calls native video pause and does not cancel any RAF', async () => {
+    const r = await makeRenderer() as unknown as PrivateRenderer;
+    const stub = videoInstances[0] as StubVideo & { currentTime: number };
+    stub.currentTime = 3.0;
+
+    // _startPingPong in forward mode: attaches ended listener, no RAF running yet
+    r._startPingPong(stub);
+    const st = r.pingPongState.get(stub)!;
+    expect(st.direction).toBe('forward');
+
+    const pauseSpy = vi.spyOn(stub as any, 'pause');
+
+    r.pause();
+
+    // Native pause must have been invoked
+    expect(pauseSpy).toHaveBeenCalled();
+    // No RAF should have been scheduled or cancelled — we're still in forward mode
+    expect(cancelledIds.size).toBe(0);
+    // isPaused flag must remain false (the special reverse-pause branch was not taken)
+    expect(st.isPaused).toBe(false);
+  });
 });
 
 // ── destroy ───────────────────────────────────────────────────────────────────
