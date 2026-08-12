@@ -32,6 +32,13 @@ import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder, E
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { ScenarioVersionHistory } from './ScenarioVersionHistory';
+import {
+  createScenariosZip,
+  parseScenarioImportFile,
+  safeScenarioFileName,
+  scenarioJson,
+  serializeScenario,
+} from '@/lib/scenarioExport';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -422,6 +429,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [previewScenario, setPreviewScenario] = useState<ComplexScenario | null>(null);
   const [versionHistoryScenario, setVersionHistoryScenario] = useState<ComplexScenario | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [exportingScenarioId, setExportingScenarioId] = useState<string | number | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
@@ -1835,48 +1843,83 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     return !stats || stats.completionCount === 0;
   };
 
-  // Export: 전체 시나리오를 JSON으로 다운로드
+  const downloadBlob = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 200);
+  };
+
+  // Export: 전체 시나리오를 시나리오별 JSON ZIP으로 다운로드
   const handleExport = () => {
     if (!scenarios || scenarios.length === 0) {
       toast({ title: '내보낼 시나리오가 없습니다', variant: 'destructive' });
       return;
     }
-    const exportData = scenarios.map(s => {
-      const { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, modelVideoOverride, videoPrompt, objectiveType, isDemo, isPublic } = s as any;
-      return { id, title, description, difficulty, estimatedTime, skills, context, objectives, successCriteria, personas, recommendedFlow, image, imagePrompt, introVideoUrl, introVideoMode, modelVideoOverride, videoPrompt, objectiveType, isDemo, isPublic, categoryId: (s as any).categoryId, evaluationCriteriaSetId: (s as any).evaluationCriteriaSetId };
-    });
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `scenarios-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: `${exportData.length}개 시나리오를 내보냈습니다` });
+    try {
+      const zip = createScenariosZip(scenarios);
+      downloadBlob(new Blob([zip], { type: 'application/zip' }), `scenarios-export-${new Date().toISOString().slice(0, 10)}.zip`);
+      toast({ title: `${scenarios.length}개 시나리오를 내보냈습니다` });
+    } catch (error: any) {
+      console.error('Scenario ZIP export error:', error);
+      toast({
+        title: '내보내기 실패',
+        description: error?.message || 'ZIP 파일을 생성하거나 다운로드하지 못했습니다.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  // Import: JSON 파일 파싱 후 시나리오 생성
+  const handleExportScenario = (scenario: ComplexScenario) => {
+    setExportingScenarioId(scenario.id);
+    try {
+      downloadBlob(
+        new Blob([scenarioJson(scenario)], { type: 'application/json' }),
+        safeScenarioFileName(scenario),
+      );
+      toast({ title: '시나리오를 내보냈습니다' });
+    } catch (error: any) {
+      console.error('Scenario export error:', error);
+      toast({
+        title: '내보내기 실패',
+        description: error?.message || 'JSON 파일을 생성하거나 다운로드하지 못했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setExportingScenarioId(null);
+    }
+  };
+
+  // Import: JSON/ZIP 파일 파싱 후 시나리오 생성
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (importFileRef.current) importFileRef.current.value = '';
     
-    let parsed: any[];
+    let parsed: unknown[];
+    let parseFailures = 0;
     try {
-      const text = await file.text();
-      parsed = JSON.parse(text);
-      if (!Array.isArray(parsed)) throw new Error('배열 형식이 아닙니다');
+      const result = await parseScenarioImportFile(file);
+      parsed = result.items;
+      parseFailures = result.invalidEntries;
+      if (parsed.length === 0 && parseFailures > 0) {
+        throw new Error('유효한 시나리오 JSON이 없습니다');
+      }
     } catch (err: any) {
-      toast({ title: '파일 파싱 실패', description: err.message, variant: 'destructive' });
+      toast({ title: '파일 파싱 실패', description: err.message || 'JSON 또는 ZIP 파일을 읽지 못했습니다', variant: 'destructive' });
       return;
     }
 
     setIsImporting(true);
     let successCount = 0;
-    let failCount = 0;
+    let failCount = parseFailures;
 
-    for (const item of parsed) {
+    for (const rawItem of parsed) {
       try {
+        if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) { failCount++; continue; }
+        const item = rawItem as Record<string, any>;
         if (!item.title || typeof item.title !== 'string') { failCount++; continue; }
         if (item.description !== undefined && typeof item.description !== 'string') { failCount++; continue; }
         if (item.objectives !== undefined && !Array.isArray(item.objectives)) { failCount++; continue; }
@@ -1919,7 +1962,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           <input
             ref={importFileRef}
             type="file"
-            accept=".json"
+                accept=".json,.zip,application/json,application/zip"
             className="hidden"
             onChange={handleImportFile}
           />
@@ -1951,7 +1994,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   내보내기
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">시나리오 전체를 JSON 파일로 내보냅니다</TooltipContent>
+              <TooltipContent side="bottom">시나리오별 JSON을 ZIP 파일로 내보냅니다</TooltipContent>
             </Tooltip>
             <AIScenarioGenerator onGenerated={handleAIGenerated} />
             <Tooltip>
@@ -4429,6 +4472,16 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                         >
                           <i className="fas fa-history mr-2 w-4 h-4 text-center"></i>
                           버전 이력
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleExportScenario(scenario)}
+                          disabled={exportingScenarioId === scenario.id}
+                          data-testid={`button-export-scenario-${scenario.id}`}
+                        >
+                          {exportingScenarioId === scenario.id
+                            ? <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                            : <Download className="mr-2 w-4 h-4" />}
+                          JSON 내보내기
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <AlertDialog>
