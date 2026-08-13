@@ -451,7 +451,7 @@ export default function Home() {
       const videoSrc = videoMode === 'default'
         ? resolvedDefaultVideoSrc
         : videoMode === 'custom' && selectedScenario.introVideoUrl
-          ? selectedScenario.introVideoUrl
+          ? toMediaUrl(selectedScenario.introVideoUrl)
           : null;
       if (videoSrc && !hasSeenIntroVideo) {
         setCurrentView("video-intro");

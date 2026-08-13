@@ -12,7 +12,18 @@ export function getVideoIntroSources(videoSrc: string): {
   webmSrc: string;
   hasSeparateMp4: boolean;
 } {
-  const isWebmSource = /\.webm$/i.test(videoSrc);
+  // For opaque URLs like /objects?key=... or signed GCS URLs, detect the
+  // underlying file extension from the key parameter rather than the URL path.
+  let testUrl = videoSrc;
+  try {
+    const u = new URL(videoSrc, "http://x");
+    const keyParam = u.searchParams.get("key");
+    if (keyParam) testUrl = keyParam;
+  } catch {
+    // fall through — use videoSrc as-is
+  }
+
+  const isWebmSource = /\.webm$/i.test(testUrl);
   const webmSrc = isWebmSource ? videoSrc : videoSrc.replace(/\.mp4$/i, ".webm");
   return {
     webmSrc,
