@@ -179,8 +179,13 @@ export async function generateIntroVideo(request: VideoGenerationRequest): Promi
       };
     }
 
-    const localVideoPath = await mediaStorage.saveVideo(videoBytes, request.scenarioId, request.scenarioTitle);
-    
+    // Veo returns H.264/AAC in an MP4 container regardless of the requested
+    // format. The intro video is stored under a `.webm` key, so the bytes MUST
+    // be transcoded to real WebM (VP9/Opus) first — storing MP4 bytes under a
+    // `.webm` key makes Chrome start playback and then abort mid-stream.
+    const webmBytes = await transcodeIntroToWebM(videoBytes);
+    const localVideoPath = await mediaStorage.saveVideo(webmBytes, request.scenarioId, request.scenarioTitle);
+
     console.log(`✅ Gemini Veo 비디오 생성 성공, Object Storage 저장 완료: ${localVideoPath}`);
 
     // AI 사용량 추적 (비디오 생성은 토큰이 아닌 건당 비용)
@@ -327,6 +332,37 @@ async function saveVideoToLocal(videoBytes: Uint8Array, scenarioId: string, scen
   } catch (convertError) {
     console.error('WebM 변환 실패, MP4 사용:', convertError);
     return `/scenarios/videos/${mp4Filename}`;
+  }
+}
+
+/** True when the buffer starts with the EBML magic all WebM/Matroska files share. */
+export function isWebMContainer(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 &&
+    bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+}
+
+/**
+ * Ensure intro-video bytes are a real WebM (VP9/Opus) container.
+ *
+ * Veo always returns H.264/AAC in MP4 regardless of the requested format, and
+ * the intro pipeline stores under a `.webm` key with `video/webm`. Chrome
+ * begins playback of an MP4 mislabelled as WebM and then aborts mid-stream,
+ * so the bytes must be transcoded before storage. If the bytes are already
+ * WebM they pass through untouched. A transcode failure throws — silently
+ * storing an unplayable clip is worse than failing the generation.
+ */
+export async function transcodeIntroToWebM(videoBytes: Uint8Array): Promise<Uint8Array> {
+  if (isWebMContainer(videoBytes)) return videoBytes;
+
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'intro-video-'));
+  const inputPath = path.join(workDir, 'source.mp4');
+  const outputPath = path.join(workDir, 'converted.webm');
+  try {
+    fs.writeFileSync(inputPath, Buffer.from(videoBytes));
+    await convertToWebM(inputPath, outputPath);
+    return fs.readFileSync(outputPath);
+  } finally {
+    fs.rmSync(workDir, { recursive: true, force: true });
   }
 }
 

@@ -70,7 +70,9 @@ import { mediaStorage } from '../../server/services/mediaStorage';
 
 /** A minimal done-operation response with one video whose bytes are inline. */
 function makeDoneOperation() {
-  const fakeBase64 = btoa('\x00\x01\x02'); // 3-byte payload
+  // Payload starts with the EBML magic (0x1A45DFA3) so the intro pipeline's
+  // WebM check passes it through without invoking a real ffmpeg transcode.
+  const fakeBase64 = btoa('\x1a\x45\xdf\xa3\x00\x01\x02');
   return {
     name: 'operations/fake-op-id',
     done: true,
