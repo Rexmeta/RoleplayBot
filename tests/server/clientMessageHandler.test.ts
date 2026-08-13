@@ -1110,17 +1110,27 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       expect(session.cancelledTurnSeq).toBe(4);
     });
 
-    it('clears userTranscriptBuffer when it has content on first cancel', () => {
+    it('flushes the buffered user transcript before clearing it on first cancel', () => {
       const geminiSession = makeGeminiSession();
-      const session = makeSession({ geminiSession, userTranscriptBuffer: 'partial speech text' });
+      const session = makeSession({
+        geminiSession,
+        userTranscriptBuffer: '  partial speech text  ',
+        recentMessages: [{ role: 'ai', text: '이전 응답' }],
+      });
       const sessions = new Map([[session.id, session]]);
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
 
       expect(session.userTranscriptBuffer).toBe('');
+      expect(sendToClient).toHaveBeenNthCalledWith(
+        1,
+        session,
+        { type: 'user.transcription', transcript: 'partial speech text' }
+      );
+      expect(session.recentMessages).toContainEqual({ role: 'user', text: 'partial speech text' });
     });
 
-    it('sends user.transcription.reset when userTranscriptBuffer has content on first cancel', () => {
+    it('sends user.transcription.reset after flushing buffered user text', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({ geminiSession, userTranscriptBuffer: 'partial speech text' });
       const sessions = new Map([[session.id, session]]);
@@ -1128,7 +1138,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
 
       const types = sendToClient.mock.calls.map(([, msg]) => msg.type);
-      expect(types).toContain('user.transcription.reset');
+      expect(types.indexOf('user.transcription')).toBeLessThan(types.indexOf('user.transcription.reset'));
     });
 
     it('does not send user.transcription.reset when userTranscriptBuffer is empty on first cancel', () => {
@@ -1140,6 +1150,20 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
       const types = sendToClient.mock.calls.map(([, msg]) => msg.type);
       expect(types).not.toContain('user.transcription.reset');
+    });
+
+    it('does not flush a whitespace-only user transcript as a message', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession, userTranscriptBuffer: '   ' });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
+
+      const types = sendToClient.mock.calls.map(([, msg]) => msg.type);
+      expect(types).not.toContain('user.transcription');
+      expect(types).toContain('user.transcription.reset');
+      expect(session.recentMessages).toEqual([]);
+      expect(session.userTranscriptBuffer).toBe('');
     });
 
     it('increments turnSeq by exactly 1 on first cancel', () => {

@@ -349,6 +349,14 @@ export function handleClientMessage(
       // inputTranscription deltas (AI audio echoes arriving after the cancel)
       // cannot pollute the next user message.
       if (session.userTranscriptBuffer) {
+        const pendingUserTranscript = session.userTranscriptBuffer.trim();
+        if (pendingUserTranscript) {
+          console.log(`🎤 [barge-in] Flushing ${pendingUserTranscript.length} chars to client before clearing buffer`);
+          sendToClient(session, { type: 'user.transcription', transcript: pendingUserTranscript });
+          session.recentMessages.push({ role: 'user', text: pendingUserTranscript.slice(0, 300) });
+          if (session.recentMessages.length > 30) session.recentMessages.shift();
+        }
+
         console.log(`🧹 Clearing userTranscriptBuffer on barge-in (had ${session.userTranscriptBuffer.length} chars)`);
         session.userTranscriptBuffer = '';
         sendToClient(session, { type: 'user.transcription.reset' });
