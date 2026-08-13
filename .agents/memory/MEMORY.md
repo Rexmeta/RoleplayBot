@@ -13,3 +13,4 @@
 - [Android Chrome 출력 열거 미지원](android-chrome-audio-output.md) — setSinkId는 지원해도 audiooutput 열거는 미제공; 빈 출력 목록 ≠ 권한 미허용, 다른 기기 라벨 존재 여부로 판별
 - [GitHub sync via connector API](github-sync-via-connector.md) — local git has no origin credentials; sync GitHub through connector proxyFetch, recreate objects blobs→trees→commits, throttle to <10 RPS
 - [Device auto-selection tri-state](device-auto-selection-state.md) — 자동 선택된 기기 ID를 사용자 선택과 같은 슬롯에 저장하면 자동 선택이 영구 고착됨; user/auto 플래그를 분리 저장
+- [Audio default-device representation](audio-default-device-representation.md) — 기본 기기는 항상 `''`로 표현; 브라우저의 `'default'` pseudo-ID를 state/storage에 넣지 말고 렌더 시점에만 매핑

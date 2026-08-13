@@ -380,11 +380,17 @@ export function ChatInputBar({
                         ) : (
                           <div className="mt-2 flex flex-col gap-1">
                             {sortedInputs.map(device => {
-                              const isSelected = (rv.selectedInputDeviceId ?? '') === device.deviceId;
+                              // An empty selection means the browser/system default is in
+                              // use, so highlight the default-kind row in that case. Clicking
+                              // the default row persists '' (the uniform "use default" value)
+                              // rather than the browser's literal 'default' pseudo-ID.
+                              const selectedInputId = rv.selectedInputDeviceId ?? '';
+                              const isSelected = selectedInputId === device.deviceId
+                                || (!selectedInputId && device.kind === 'default');
                               return (
                                 <button
                                   key={device.deviceId || 'default'}
-                                  onClick={() => rv.onInputDeviceChange!(device.deviceId)}
+                                  onClick={() => rv.onInputDeviceChange!(device.kind === 'default' ? '' : device.deviceId)}
                                   data-testid={`button-input-device-${device.deviceId || 'default'}`}
                                   className={`w-full rounded-lg border px-2.5 py-2 text-left text-xs transition-colors ${
                                     isSelected
@@ -449,11 +455,16 @@ export function ChatInputBar({
                         ) : (
                           <div className="mt-2 flex flex-col gap-1">
                             {sortedOutputs.map(device => {
-                              const isSelected = (rv.selectedOutputDeviceId ?? '') === device.deviceId;
+                              // Same as the input list: an empty selection means the
+                              // browser/system default output, so mark the default row as
+                              // selected and normalise clicks on it to '' for persistence.
+                              const selectedOutputId = rv.selectedOutputDeviceId ?? '';
+                              const isSelected = selectedOutputId === device.deviceId
+                                || (!selectedOutputId && device.kind === 'default');
                               return (
                                 <button
                                   key={device.deviceId || 'default'}
-                                  onClick={() => rv.onOutputDeviceChange!(device.deviceId)}
+                                  onClick={() => rv.onOutputDeviceChange!(device.kind === 'default' ? '' : device.deviceId)}
                                   disabled={rv.outputStatus === 'selecting'}
                                   data-testid={`button-output-device-${device.deviceId || 'default'}`}
                                   className={`w-full rounded-lg border px-2.5 py-2 text-left text-xs transition-colors ${
