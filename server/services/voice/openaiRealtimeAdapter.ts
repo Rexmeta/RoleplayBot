@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { RealtimeSession, PendingOutgoingMessage } from './types';
 import { analyzeEmotion, analyzeUserEmotion, NEUTRAL_USER_AFFECT } from './emotionAnalyzer';
+import { stripInternalActionMarkers, collapseDoubledTranscript } from './textFilter';
 import { GoogleGenAI } from '@google/genai';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
@@ -125,19 +126,26 @@ export function createMessageHandler(
             session.cancelledTurnSeq = -1;
             sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
           }
-          aiTranscriptBuffer += msg.delta;
-          session.currentTranscript += msg.delta;
+          const cleanDelta = stripInternalActionMarkers(msg.delta);
+          aiTranscriptBuffer += cleanDelta;
+          session.currentTranscript += cleanDelta;
           if (!session.hasReceivedFirstTranscriptDelta) {
             session.hasReceivedFirstTranscriptDelta = true;
             session.firstGreetingRetryCount = 3;
           }
-          sendToClient(session, { type: 'ai.transcription.delta', text: msg.delta });
+          if (cleanDelta) {
+            sendToClient(session, { type: 'ai.transcription.delta', text: cleanDelta });
+          }
         }
         break;
       }
 
       case 'response.done': {
-        const fullTranscript = aiTranscriptBuffer.trim();
+        // Safety net: strip any internal markers that slipped through the delta
+        // path and collapse an exact back-to-back duplication of the whole turn.
+        const fullTranscript = collapseDoubledTranscript(
+          stripInternalActionMarkers(aiTranscriptBuffer).trim()
+        );
         aiTranscriptBuffer = '';
         session.currentTranscript = '';
         const wasInterrupted = session.isInterrupted;

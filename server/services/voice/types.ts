@@ -84,5 +84,11 @@ export interface RealtimeSession {
   suppressTimeoutId?: ReturnType<typeof setTimeout>;
   lastAudioCommitSentAt: number;
   audioSourceThisTurn: 'top' | 'inline' | null;
+  // Cross-frame transcript source dedup: gemini-live can deliver modelTurn
+  // part.text and outputTranscription for the SAME turn in DIFFERENT frames.
+  // Accumulating both doubles the transcript. Once outputTranscription is seen
+  // for a turn it is authoritative; any modelTurn text already accumulated for
+  // that turn is discarded. Reset to null at each turn boundary.
+  transcriptSourceThisTurn?: 'model' | 'output' | null;
   lastUserAffect?: import('./emotionAnalyzer').UserAffectState;
 }

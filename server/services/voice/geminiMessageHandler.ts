@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { RealtimeSession } from './types';
-import { filterThinkingText, isThinkingText, stripSimulationToolCallText } from './textFilter';
+import { filterThinkingText, isThinkingText, stripSimulationToolCallText, collapseDoubledTranscript } from './textFilter';
 import { analyzeEmotion, analyzeUserEmotion, NEUTRAL_USER_AFFECT } from './emotionAnalyzer';
 import { GoogleGenAI } from '@google/genai';
 import { handleToolCall } from '../simulation/simulationToolHandler';
@@ -578,21 +578,27 @@ export function handleGeminiMessage(
         if (part.text) {
           console.log(`🤖 AI transcript (raw): ${part.text.substring(0, 100)}...`);
           // Only accumulate modelTurn text to currentTranscript when
-          // outputTranscription is NOT present in this same message.
-          // outputTranscription is the authoritative transcription source;
-          // using both would cause double-counting.
-          if (!preferOutputTranscription) {
+          // outputTranscription is NOT the authoritative source for this turn.
+          // Two dedup gates:
+          //  1. preferOutputTranscription — outputTranscription in this SAME message.
+          //  2. transcriptSourceThisTurn === 'output' — outputTranscription already
+          //     seen for this turn in a PRIOR frame. gemini-live can deliver
+          //     modelTurn text and outputTranscription for the same turn in
+          //     different frames; accumulating both doubles the transcript
+          //     (the "AI says everything twice" production bug).
+          const outputAlreadyAuthoritative =
+            preferOutputTranscription || session.transcriptSourceThisTurn === 'output';
+          if (!outputAlreadyAuthoritative) {
             session.currentTranscript += stripSimulationToolCallText(part.text);
-          }
-          // Always send as delta to the client UI (for live streaming display),
-          // but only when outputTranscription is not already handling it.
-          if (!preferOutputTranscription) {
+            session.transcriptSourceThisTurn = 'model';
             // strictMode on turn 0: aggressively strip reasoning preambles that
             // Gemini often emits at the start of the very first response.
             const filteredText = filterThinkingText(part.text, session.userLanguage, { strictMode: session.turnSeq === 0 });
             if (filteredText) {
               sendToClient(session, { type: 'ai.transcription.delta', text: filteredText });
             }
+          } else {
+            console.log(`🔇 Skipping modelTurn text — outputTranscription is authoritative for this turn (cross-frame transcript dedup)`);
           }
         }
 
@@ -677,6 +683,18 @@ export function handleGeminiMessage(
           console.log(`✅ First transcript delta received`);
         }
 
+        // Cross-frame transcript source dedup: if modelTurn text was already
+        // accumulated for this turn in a PRIOR frame, discard it now —
+        // outputTranscription is the authoritative record of what was spoken.
+        // Keeping both doubles the transcript ("AI says everything twice").
+        if (session.transcriptSourceThisTurn === 'model' && transcript.length > 0) {
+          console.log(`🧹 Discarding modelTurn-accumulated transcript (${session.currentTranscript.length} chars) — outputTranscription arrived for the same turn (cross-frame transcript dedup)`);
+          session.currentTranscript = '';
+        }
+        if (transcript.length > 0) {
+          session.transcriptSourceThisTurn = 'output';
+        }
+
         // Always accumulate outputTranscription: it is the authoritative
         // transcription of what the AI actually spoke (produced by Gemini's
         // outputAudioTranscription feature). Previously this was gated on
@@ -708,6 +726,8 @@ export function handleGeminiMessage(
       // Fix 2: Reset source-aware cross-frame audio dedup on each turn boundary
       // so the next AI turn can use either source again.
       session.audioSourceThisTurn = null;
+      // Reset transcript-source dedup for the next turn (modelTurn vs outputTranscription).
+      session.transcriptSourceThisTurn = null;
       // Capture counters BEFORE reset so evaluation/fallback gates use actual values
       const toolCallsThisTurn = session.toolCallCountThisTurn;
       // Capture incident flag BEFORE reset so server-rule inference cannot fire when
@@ -1027,7 +1047,12 @@ export function handleGeminiMessage(
         // turnSeq has already been incremented by the time we reach here, so
         // the first completed turn has turnSeq === 1.  Use <= 1 to keep strict
         // mode active for the first turn's accumulated transcript.
-        const filteredTranscript = filterThinkingText(session.currentTranscript, session.userLanguage, { strictMode: session.turnSeq <= 1 });
+        // collapseDoubledTranscript: safety net that collapses an exact
+        // back-to-back duplication of the whole turn ("XX" → "X") caused by
+        // upstream double-accumulation or the model echoing itself.
+        const filteredTranscript = collapseDoubledTranscript(
+          filterThinkingText(session.currentTranscript, session.userLanguage, { strictMode: session.turnSeq <= 1 })
+        );
         console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
 
         // Detect persona switch announcement: the AI told the user it will connect

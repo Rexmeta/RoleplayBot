@@ -344,6 +344,8 @@ export function handleClientMessage(
       }
 
       session.currentTranscript = '';
+      // Reset transcript-source dedup — the cancelled turn's source no longer applies.
+      session.transcriptSourceThisTurn = null;
 
       // Clear any in-progress user transcript so that stale Gemini
       // inputTranscription deltas (AI audio echoes arriving after the cancel)

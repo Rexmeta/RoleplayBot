@@ -6,6 +6,9 @@ import {
   computeReasoningScore,
   REASONING_SCORE_THRESHOLD,
   isStageDirectionText,
+  stripInternalActionMarkers,
+  stripSimulationToolCallText,
+  collapseDoubledTranscript,
 } from '../../server/services/voice/textFilter';
 
 // ─── isThinkingText ───────────────────────────────────────────────────────────
@@ -545,5 +548,123 @@ describe('isThinkingText — new reasoning fragment patterns', () => {
 
   it('does not catch normal English dialogue', () => {
     expect(isThinkingText('Good morning. How can I help you today?')).toBe(false);
+  });
+});
+
+// ─── stripInternalActionMarkers ──────────────────────────────────────────────
+
+describe('stripInternalActionMarkers', () => {
+  it('removes a bare action_result: prefix', () => {
+    expect(stripInternalActionMarkers('action_result:안녕하세요, 반갑습니다.'))
+      .toBe('안녕하세요, 반갑습니다.');
+  });
+
+  it('removes doubled action_result:action_result: prefixes (production bug shape)', () => {
+    expect(stripInternalActionMarkers('action_result:action_result:제가 그랬나요? 중간점검 어떻게 할까요?'))
+      .toBe('제가 그랬나요? 중간점검 어떻게 할까요?');
+  });
+
+  it('removes action_result with JSON payload', () => {
+    expect(stripInternalActionMarkers('action_result: {"success": true} 네, 알겠습니다.'))
+      .toBe('네, 알겠습니다.');
+  });
+
+  it('removes tool_result / function_response variants', () => {
+    expect(stripInternalActionMarkers('tool_result: 확인했습니다.')).toBe('확인했습니다.');
+    expect(stripInternalActionMarkers('function_response: {"ok":1} 좋습니다.')).toBe('좋습니다.');
+    expect(stripInternalActionMarkers('tool_output: 진행하겠습니다.')).toBe('진행하겠습니다.');
+  });
+
+  it('removes markers with fullwidth colon', () => {
+    expect(stripInternalActionMarkers('action_result：네, 확인했습니다.')).toBe('네, 확인했습니다.');
+  });
+
+  it('removes markers in the middle of a sentence', () => {
+    expect(stripInternalActionMarkers('네 action_result: 알겠습니다.')).toBe('네 알겠습니다.');
+  });
+
+  it('is case-insensitive', () => {
+    expect(stripInternalActionMarkers('Action_Result: 확인')).toBe('확인');
+  });
+
+  it('leaves normal text untouched', () => {
+    const text = '하... Rex님, 지금 중요한 건 프로젝트 기획안 진행 상황이에요.';
+    expect(stripInternalActionMarkers(text)).toBe(text);
+  });
+
+  it('does not remove words that merely contain marker-like substrings without a colon', () => {
+    expect(stripInternalActionMarkers('the action resulted in success'))
+      .toBe('the action resulted in success');
+  });
+
+  it('handles empty string', () => {
+    expect(stripInternalActionMarkers('')).toBe('');
+  });
+});
+
+// ─── stripSimulationToolCallText strips internal markers ─────────────────────
+
+describe('stripSimulationToolCallText internal marker integration', () => {
+  it('strips action_result markers alongside tool-call text', () => {
+    expect(stripSimulationToolCallText('action_result:action_result:내일 오전 점검 가능하신 겁니까?'))
+      .toBe('내일 오전 점검 가능하신 겁니까?');
+  });
+});
+
+// ─── filterThinkingText strips internal markers ──────────────────────────────
+
+describe('filterThinkingText internal marker integration', () => {
+  it('strips action_result prefix from Korean transcript', () => {
+    const result = filterThinkingText('action_result:action_result:제가 그랬나요? 확답 주세요.', 'ko');
+    expect(result).not.toContain('action_result');
+    expect(result).toContain('제가 그랬나요?');
+  });
+
+  it('strips action_result prefix from English transcript', () => {
+    const result = filterThinkingText('action_result: Sure, tomorrow morning works for me.', 'en');
+    expect(result).not.toContain('action_result');
+    expect(result).toContain('tomorrow morning works');
+  });
+});
+
+// ─── collapseDoubledTranscript ───────────────────────────────────────────────
+
+describe('collapseDoubledTranscript', () => {
+  it('collapses an exact back-to-back duplicated sentence', () => {
+    const half = '제가 그랬나요? 업무 내용에 집중하다 보니 저도 모르게 그랬을 수도 있겠네요.';
+    expect(collapseDoubledTranscript(half + half)).toBe(half);
+  });
+
+  it('collapses duplication with whitespace differences between halves', () => {
+    const a = '하... Rex님, 제가 분명히 다른 말씀도 드렸는데 왜 그 부분만 계속 지적하시는지 모르겠네요.';
+    const b = '하...Rex님,제가분명히다른말씀도드렸는데왜그 부분만계속지적하시는지모르겠네요.'.replace(/,/g, ',');
+    // whitespace-normalized halves must match for collapse; construct that case
+    const doubled = a + ' ' + a.replace(/\s+/g, '');
+    const collapsed = collapseDoubledTranscript(doubled);
+    expect(collapsed.replace(/\s+/g, '')).toBe(a.replace(/\s+/g, ''));
+  });
+
+  it('does not touch short repeated phrases', () => {
+    expect(collapseDoubledTranscript('네, 네,')).toBe('네, 네,');
+    expect(collapseDoubledTranscript('좋아요좋아요')).toBe('좋아요좋아요');
+  });
+
+  it('does not touch non-duplicated text', () => {
+    const text = '내일 오전 점검 가능하신 겁니까? 확답 주세요. 지금 중요한 건 프로젝트 기획안 진행 상황이에요.';
+    expect(collapseDoubledTranscript(text)).toBe(text);
+  });
+
+  it('does not touch text where only part repeats', () => {
+    const text = '제가 그랬나요? 제가 그랬나요? 그런데 내일 오전은 괜찮으세요?';
+    expect(collapseDoubledTranscript(text)).toBe(text);
+  });
+
+  it('handles empty string', () => {
+    expect(collapseDoubledTranscript('')).toBe('');
+  });
+
+  it('collapses English duplicated transcript', () => {
+    const half = 'Did I really do that? I may have done it without realizing while focusing on work.';
+    expect(collapseDoubledTranscript(half + half)).toBe(half);
   });
 });

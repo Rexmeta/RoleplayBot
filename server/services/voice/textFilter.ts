@@ -1,3 +1,74 @@
+// ─── Internal action/tool marker stripping ──────────────────────────────────
+
+/**
+ * Internal marker labels that must never surface in a user-visible transcript.
+ * Gemini live occasionally echoes tool/function plumbing back into the spoken
+ * transcription as literal text like "action_result:..." (observed in
+ * production: "action_result:action_result:<sentence><sentence>").
+ */
+const INTERNAL_MARKER_NAMES =
+  '(?:action_result|action_response|tool_result|tool_response|tool_output|tool_outputs|function_response|function_result|function_call_result)';
+
+// Marker followed by a brace payload: action_result: {...}
+const INTERNAL_MARKER_WITH_PAYLOAD_RE = new RegExp(
+  `\\b${INTERNAL_MARKER_NAMES}\\s*[:：]?\\s*\\{[^}]*\\}\\s*`,
+  'gi'
+);
+// Bare marker label: action_result:
+const INTERNAL_MARKER_RE = new RegExp(`\\b${INTERNAL_MARKER_NAMES}\\s*[:：]\\s*`, 'gi');
+
+/**
+ * Removes internal action/tool result markers (and any attached JSON payload)
+ * from transcript text. These are plumbing artifacts, never legitimate speech.
+ */
+export function stripInternalActionMarkers(text: string): string {
+  if (!text) return text;
+  let result = text.replace(INTERNAL_MARKER_WITH_PAYLOAD_RE, '');
+  result = result.replace(INTERNAL_MARKER_RE, '');
+  return result;
+}
+
+// ─── Doubled-transcript collapse ─────────────────────────────────────────────
+
+/**
+ * Collapses a transcript that consists of the exact same content repeated
+ * twice back-to-back ("XX" → "X"). This is a safety net for upstream
+ * double-accumulation bugs (e.g. modelTurn text + outputTranscription for the
+ * same turn arriving in different frames) and for the model itself echoing
+ * its answer twice.
+ *
+ * Only fires when each half is at least 10 non-whitespace characters, so
+ * short legitimate repetitions ("네, 네" etc.) are never affected.
+ */
+export function collapseDoubledTranscript(text: string): string {
+  if (!text) return text;
+  const trimmed = text.trim();
+
+  // Fast path: exact halves
+  if (trimmed.length >= 20 && trimmed.length % 2 === 0) {
+    const half = trimmed.length / 2;
+    if (trimmed.slice(0, half) === trimmed.slice(half)) {
+      return trimmed.slice(0, half).trim();
+    }
+  }
+
+  // Whitespace-tolerant path: compare halves of the whitespace-normalized string
+  const norm = trimmed.replace(/\s+/g, '');
+  if (norm.length >= 20 && norm.length % 2 === 0) {
+    const half = norm.length / 2;
+    if (norm.slice(0, half) === norm.slice(half)) {
+      // Walk the original string until we have consumed `half` non-whitespace chars
+      let count = 0;
+      for (let i = 0; i < trimmed.length; i++) {
+        if (!/\s/.test(trimmed[i])) count++;
+        if (count === half) return trimmed.slice(0, i + 1).trim();
+      }
+    }
+  }
+
+  return text;
+}
+
 // ─── Tool-call text stripping ────────────────────────────────────────────────
 
 /**
@@ -18,8 +89,12 @@
 export function stripSimulationToolCallText(text: string): string {
   if (!text) return text;
 
+  // 0. Remove internal action/tool result markers (e.g. "action_result:{...}")
+  //    that Gemini occasionally echoes into the spoken transcription.
+  let result = stripInternalActionMarkers(text);
+
   // 1. Remove complete brace-enclosed calls: toolname{...}
-  let result = text.replace(/(?:update_npc_\w+|update_scenario_state|trigger_incident|switch_persona)\s*\{[^}]*\}\s*/g, '');
+  result = result.replace(/(?:update_npc_\w+|update_scenario_state|trigger_incident|switch_persona)\s*\{[^}]*\}\s*/g, '');
 
   // 2. Remove complete parenthetical calls: Call toolname(...)
   result = result.replace(/Call\s+(?:update_npc_\w+|update_scenario_state|trigger_incident|switch_persona)\s*\([^)]*\)\s*/g, '');
@@ -219,8 +294,12 @@ export function filterThinkingText(
 
   const { strictMode = false } = options;
 
+  // Defense-in-depth: internal action/tool markers must never reach the user,
+  // regardless of which upstream path produced this text.
+  let filtered = stripInternalActionMarkers(text);
+
   // Remove inline parenthesised asides and bold markdown spans globally
-  let filtered = text.replace(/\([^)]{1,30}\)/g, '');
+  filtered = filtered.replace(/\([^)]{1,30}\)/g, '');
   filtered = filtered.replace(/\*\*[^*]+\*\*\s*/g, '');
 
   const languagePatterns: Record<string, RegExp> = {

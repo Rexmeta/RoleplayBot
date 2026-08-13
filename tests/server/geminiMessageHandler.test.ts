@@ -2181,4 +2181,135 @@ describe('handleGeminiMessage', () => {
       expect(session.activePersonaIndex).toBe(0);
     });
   });
+
+  describe('cross-frame transcript source dedup (transcriptSourceThisTurn)', () => {
+    it('discards modelTurn-accumulated transcript when outputTranscription arrives in a later frame', async () => {
+      session.hasReceivedFirstAIResponse = true;
+
+      // Frame 1: modelTurn text only
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ text: '제가 그랬나요? 내일 오전 괜찮으세요?' }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      expect(session.currentTranscript).toBe('제가 그랬나요? 내일 오전 괜찮으세요?');
+      expect(session.transcriptSourceThisTurn).toBe('model');
+
+      // Frame 2: outputTranscription for the SAME turn — authoritative; modelTurn text discarded
+      handleGeminiMessage(
+        session,
+        { serverContent: { outputTranscription: { text: '제가 그랬나요? 내일 오전 괜찮으세요?' } } },
+        sendToClient, null, proactiveReconnect
+      );
+      expect(session.currentTranscript).toBe('제가 그랬나요? 내일 오전 괜찮으세요?');
+      expect(session.transcriptSourceThisTurn).toBe('output');
+
+      // Frame 3: turnComplete — final transcript is sent exactly once, not doubled
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient, null, proactiveReconnect
+      );
+      await vi.runAllTimersAsync();
+
+      const doneCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'ai.transcription.done');
+      expect(doneCalls).toHaveLength(1);
+      expect(doneCalls[0][1].text).toBe('제가 그랬나요? 내일 오전 괜찮으세요?');
+    });
+
+    it('skips modelTurn text arriving AFTER outputTranscription for the same turn', () => {
+      session.hasReceivedFirstAIResponse = true;
+
+      // Frame 1: outputTranscription first
+      handleGeminiMessage(
+        session,
+        { serverContent: { outputTranscription: { text: '확답 주세요.' } } },
+        sendToClient, null, proactiveReconnect
+      );
+      expect(session.currentTranscript).toBe('확답 주세요.');
+
+      // Frame 2: modelTurn text for the same turn — must be skipped
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ text: '확답 주세요.' }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      expect(session.currentTranscript).toBe('확답 주세요.');
+    });
+
+    it('resets transcriptSourceThisTurn at turnComplete so next turn accumulates normally', async () => {
+      session.hasReceivedFirstAIResponse = true;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { outputTranscription: { text: '첫 번째 응답입니다.' } } },
+        sendToClient, null, proactiveReconnect
+      );
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient, null, proactiveReconnect
+      );
+      await vi.runAllTimersAsync();
+      expect(session.transcriptSourceThisTurn).toBeNull();
+
+      // Next turn: modelTurn-only transcript must accumulate again
+      handleGeminiMessage(
+        session,
+        { serverContent: { modelTurn: { parts: [{ text: '두 번째 턴 텍스트' }] } } },
+        sendToClient, null, proactiveReconnect
+      );
+      expect(session.currentTranscript).toBe('두 번째 턴 텍스트');
+    });
+
+    it('same-frame modelTurn + outputTranscription still prefers outputTranscription (no double count)', async () => {
+      session.hasReceivedFirstAIResponse = true;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            modelTurn: { parts: [{ text: '같은 프레임 텍스트' }] },
+            outputTranscription: { text: '같은 프레임 텍스트' },
+          },
+        },
+        sendToClient, null, proactiveReconnect
+      );
+      expect(session.currentTranscript).toBe('같은 프레임 텍스트');
+    });
+
+    it('strips action_result markers from outputTranscription before accumulation', () => {
+      session.hasReceivedFirstAIResponse = true;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { outputTranscription: { text: 'action_result:action_result:네, 내일 오전 괜찮습니다.' } } },
+        sendToClient, null, proactiveReconnect
+      );
+      expect(session.currentTranscript).not.toContain('action_result');
+      expect(session.currentTranscript).toContain('네, 내일 오전 괜찮습니다.');
+
+      const deltaCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'ai.transcription.delta');
+      for (const [, msg] of deltaCalls) {
+        expect(msg.text).not.toContain('action_result');
+      }
+    });
+
+    it('collapses a fully doubled transcript at turnComplete (safety net)', async () => {
+      session.hasReceivedFirstAIResponse = true;
+      const half = '제가 분명히 다른 말씀도 드렸는데 왜 그 부분만 계속 지적하시는지 모르겠네요.';
+      session.currentTranscript = half + half;
+
+      handleGeminiMessage(
+        session,
+        { serverContent: { turnComplete: true } },
+        sendToClient, null, proactiveReconnect
+      );
+      await vi.runAllTimersAsync();
+
+      const doneCalls = sendToClient.mock.calls.filter(([, m]) => m.type === 'ai.transcription.done');
+      expect(doneCalls).toHaveLength(1);
+      expect(doneCalls[0][1].text).toBe(half);
+    });
+  });
 });
