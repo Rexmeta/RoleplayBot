@@ -34,6 +34,7 @@ import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { ScenarioVersionHistory } from './ScenarioVersionHistory';
 import {
   createScenariosZip,
+  normalizeScenarioImport,
   parseScenarioImportFile,
   safeScenarioFileName,
   scenarioJson,
@@ -1918,14 +1919,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
     for (const rawItem of parsed) {
       try {
-        if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) { failCount++; continue; }
-        const item = rawItem as Record<string, any>;
-        if (!item.title || typeof item.title !== 'string') { failCount++; continue; }
-        if (item.description !== undefined && typeof item.description !== 'string') { failCount++; continue; }
-        if (item.objectives !== undefined && !Array.isArray(item.objectives)) { failCount++; continue; }
-        if (item.personas !== undefined && !Array.isArray(item.personas)) { failCount++; continue; }
-        if (item.skills !== undefined && !Array.isArray(item.skills)) { failCount++; continue; }
-        const { id: _id, ...scenarioData } = item;
+        const scenarioData = normalizeScenarioImport(rawItem);
         await apiRequest('POST', '/api/admin/scenarios', scenarioData);
         successCount++;
       } catch {
