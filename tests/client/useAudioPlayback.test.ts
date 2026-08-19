@@ -171,6 +171,53 @@ describe('useAudioPlayback', () => {
       expect(result.current.outputMessage).toContain('직접 선택할 수 없습니다');
     });
 
+    it('uses the iOS system route, clears stale output choices, and activates the call audio session', async () => {
+      const userAgent = vi.spyOn(navigator, 'userAgent', 'get')
+        .mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15');
+      const audioSession = { type: 'auto' };
+      Object.defineProperty(navigator, 'audioSession', {
+        configurable: true,
+        value: audioSession,
+      });
+      const audioContextConstructor = vi.fn(function MockIOSAudioContext() {
+        expect(audioSession.type).toBe('play-and-record');
+        return mockContext;
+      });
+      (globalThis as any).AudioContext = audioContextConstructor;
+      (globalThis as any).webkitAudioContext = audioContextConstructor;
+      (window as any).AudioContext = audioContextConstructor;
+      (window as any).webkitAudioContext = audioContextConstructor;
+      localStorage.setItem('realtime_voice_output_device_id', 'stale-airpods-output');
+      localStorage.setItem('realtime_voice_output_auto_selected', '1');
+      localStorage.setItem('realtime_voice_output_user_chose', '1');
+
+      const { result } = renderAudioPlayback();
+      await act(async () => {});
+
+      expect(result.current.selectedOutputDeviceId).toBe('');
+      expect(result.current.outputDevices).toEqual([]);
+      expect(result.current.outputListUnavailable).toBe(true);
+      expect(result.current.outputMessage).toContain('iOS가 함께 제어');
+      expect(localStorage.getItem('realtime_voice_output_device_id')).toBeNull();
+      expect(localStorage.getItem('realtime_voice_output_auto_selected')).toBeNull();
+      expect(localStorage.getItem('realtime_voice_output_user_chose')).toBeNull();
+
+      await act(async () => {
+        await result.current.initializePlaybackContext();
+      });
+      expect(audioSession.type).toBe('play-and-record');
+
+      audioSession.type = 'auto';
+      mockContext.state = 'suspended';
+      await act(async () => {
+        await expect(result.current.resumePlayback()).resolves.toBe(true);
+      });
+      expect(audioSession.type).toBe('play-and-record');
+
+      userAgent.mockRestore();
+      delete (navigator as any).audioSession;
+    });
+
     it('lists output devices and persists a supported selected device', async () => {
       mockContext.setSinkId = vi.fn(async () => {});
       (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
@@ -306,7 +353,7 @@ describe('useAudioPlayback', () => {
 
       expect(stopTrack).toHaveBeenCalled();
       expect(result.current.outputNeedsPermission).toBe(false);
-      expect(result.current.outputDevices.map((d: any) => d.deviceId)).toEqual(['default', 'bt-1']);
+      expect(result.current.outputDevices.map((d: any) => d.deviceId)).toEqual(['', 'bt-1']);
     });
 
     it('surfaces a retryable message when device permission is denied', async () => {
@@ -337,7 +384,7 @@ describe('useAudioPlayback', () => {
       ]);
       await act(async () => { await result.current.refreshOutputDevices(); });
 
-      expect(result.current.outputDevices.map((d: any) => d.deviceId)).toEqual(['default', 'bt-1']);
+      expect(result.current.outputDevices.map((d: any) => d.deviceId)).toEqual(['', 'bt-1']);
       expect(result.current.outputDevices[1].kind).toBe('bluetooth');
     });
 

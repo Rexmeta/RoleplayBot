@@ -450,7 +450,7 @@ export function ChatInputBar({
                             className="mt-1.5 text-[11px] leading-relaxed text-slate-500"
                             data-testid="text-output-list-unavailable"
                           >
-                            {t('audioOutput.listUnavailable')}
+                            {rv.outputMessage || t('audioOutput.listUnavailable')}
                           </p>
                         ) : (
                           <div className="mt-2 flex flex-col gap-1">

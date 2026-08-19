@@ -5,6 +5,13 @@ import { useRealtimeVoice } from '../../client/src/hooks/useRealtimeVoice';
 import { resolvePersonaAfterSwitch } from '../../client/src/components/chat/resolvePersonaAfterSwitch';
 import type { ScenarioPersona } from '../../client/src/lib/scenario-system';
 
+const iosAudioSessionMock = vi.hoisted(() => vi.fn(() => true));
+
+vi.mock('../../client/src/lib/iosAudioSession', () => ({
+  isIOSWebKitAudioPlatform: () => false,
+  setIOSRealtimeAudioSessionActive: iosAudioSessionMock,
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQuery: vi.fn(() => ({ data: undefined, isLoading: false })),
   useQueryClient: () => ({ invalidateQueries: vi.fn().mockResolvedValue(undefined) }),
@@ -56,6 +63,7 @@ type MockWebSocketInstance = {
   onerror: ((e: Event) => void) | null;
   _fireMessage: (payload: object) => void;
   _fireOpen: () => void;
+  _fireClose: () => void;
 };
 
 let lastWsInstance: MockWebSocketInstance | null = null;
@@ -74,6 +82,10 @@ function buildMockWebSocket(): MockWebSocketInstance {
     },
     _fireOpen() {
       inst.onopen?.({} as Event);
+    },
+    _fireClose() {
+      inst.readyState = WebSocket.CLOSED;
+      inst.onclose?.({ code: 1000, reason: 'test close' } as CloseEvent);
     },
   };
   return inst;
@@ -99,6 +111,7 @@ beforeEach(() => {
   (globalThis as any).cancelAnimationFrame = vi.fn();
 
   lastWsInstance = null;
+  iosAudioSessionMock.mockClear();
   const MockWebSocket = vi.fn(function MockWebSocket() {
     const ws = buildMockWebSocket();
     lastWsInstance = ws;
@@ -133,6 +146,7 @@ afterEach(() => {
   delete (globalThis as any).WebSocket;
   delete (globalThis as any).requestAnimationFrame;
   delete (globalThis as any).cancelAnimationFrame;
+  delete (navigator as any).mediaDevices;
 });
 
 // ---------------------------------------------------------------------------
@@ -176,6 +190,58 @@ async function connectHook(overrides: {
 // ---------------------------------------------------------------------------
 
 describe('useRealtimeVoice — persona.switched event', () => {
+  it('ignores a stale socket close after a new connection owns the audio session', async () => {
+    const { result, ws: firstSocket } = await connectHook();
+
+    await act(async () => {
+      result.current.disconnect();
+    });
+
+    await act(async () => {
+      await result.current.connect();
+    });
+    const secondSocket = lastWsInstance;
+    expect(secondSocket).not.toBe(firstSocket);
+    expect(iosAudioSessionMock).toHaveBeenLastCalledWith(true);
+
+    iosAudioSessionMock.mockClear();
+    await act(async () => {
+      firstSocket._fireClose();
+    });
+
+    expect(iosAudioSessionMock).not.toHaveBeenCalled();
+    expect(result.current.status).not.toBe('disconnected');
+  });
+
+  it('activates the iOS call session before microphone capture and restores auto on disconnect', async () => {
+    const getUserMedia = vi.fn(async () => {
+      expect(iosAudioSessionMock).toHaveBeenLastCalledWith(true);
+      throw new Error('stop after ordering assertion');
+    });
+    (navigator as any).mediaDevices = {
+      enumerateDevices: vi.fn(async () => []),
+      getUserMedia,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const { result, ws } = await connectHook();
+    await act(async () => {
+      ws._fireMessage({ type: 'session.ready' });
+    });
+
+    iosAudioSessionMock.mockClear();
+    await act(async () => {
+      await result.current.startRecording();
+    });
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(iosAudioSessionMock).toHaveBeenCalledWith(true);
+
+    await act(async () => {
+      result.current.disconnect();
+    });
+    expect(iosAudioSessionMock).toHaveBeenLastCalledWith(false);
+  });
+
   it('calls onPersonaSwitched with the newPersonaName from the server message', async () => {
     const { ws, onPersonaSwitched } = await connectHook();
 

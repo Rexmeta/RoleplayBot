@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isIOSWebKitAudioPlatform } from '@/lib/iosAudioSession';
 
 const INPUT_DEVICE_KEY = 'realtime_voice_input_device_id';
 // Tracks whether the user explicitly picked a device so that auto-selection on
@@ -45,7 +46,7 @@ function describeInputDevice(
   const rawLabel = (device.label || '').trim();
   if (device.deviceId === 'default' || device.deviceId === '') {
     return {
-      deviceId: device.deviceId,
+      deviceId: '',
       label: rawLabel
         ? t('audioInput.defaultMicWithLabel', { label: rawLabel.replace(/^default\s*-\s*/i, '') })
         : t('audioInput.defaultMic'),
@@ -177,6 +178,23 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
       setInputDevices(normalized);
 
       const labelsHidden = inputs.length === 0 || inputs.every(device => !(device.label || '').trim());
+      const exposesIndividualInputs = inputs.some(device =>
+        device.deviceId !== 'default' && device.deviceId !== '',
+      );
+
+      // iOS may expose only its default input even when a Bluetooth headset is
+      // routed by the system. A stale exact deviceId would fight that route and
+      // make getUserMedia fail, so fall back to the OS-managed default.
+      if (
+        isIOSWebKitAudioPlatform()
+        && !labelsHidden
+        && !exposesIndividualInputs
+        && selectedInputDeviceIdRef.current
+      ) {
+        persistInputSelection('', t('audioInput.deviceLost'));
+        onSelectedDeviceLostRef.current?.();
+      }
+
       if (labelsHidden) {
         // Permission-gated list: the saved device is not proven gone, keep it.
         setInputNeedsPermission(true);

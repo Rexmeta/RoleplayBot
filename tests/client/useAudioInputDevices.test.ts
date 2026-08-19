@@ -80,6 +80,46 @@ describe('useAudioInputDevices', () => {
     expect(result.current.inputDevices).toEqual([]);
   });
 
+  it('uses the iOS-managed default input when no individual microphone is exposed', async () => {
+    const userAgent = vi.spyOn(navigator, 'userAgent', 'get')
+      .mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15');
+    localStorage.setItem(INPUT_DEVICE_KEY, 'stale-airpods-mic');
+    (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+      { kind: 'audioinput', deviceId: 'default', label: 'Default - AirPods Microphone' },
+    ]);
+    const onSelectedDeviceLost = vi.fn();
+
+    const { result } = renderHook(() => useAudioInputDevices({ onSelectedDeviceLost }));
+    await act(async () => {});
+
+    expect(result.current.selectedInputDeviceId).toBe('');
+    expect(result.current.inputDevices).toEqual([
+      expect.objectContaining({ deviceId: '', kind: 'default' }),
+    ]);
+    expect(localStorage.getItem(INPUT_DEVICE_KEY)).toBeNull();
+    expect(onSelectedDeviceLost).toHaveBeenCalledTimes(1);
+    userAgent.mockRestore();
+  });
+
+  it('keeps a saved iOS microphone while the permission-gated list still hides labels', async () => {
+    const userAgent = vi.spyOn(navigator, 'userAgent', 'get')
+      .mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15');
+    localStorage.setItem(INPUT_DEVICE_KEY, 'bt-mic');
+    (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
+      { kind: 'audioinput', deviceId: 'bt-mic', label: '' },
+    ]);
+    const onSelectedDeviceLost = vi.fn();
+
+    const { result } = renderHook(() => useAudioInputDevices({ onSelectedDeviceLost }));
+    await act(async () => {});
+
+    expect(result.current.selectedInputDeviceId).toBe('bt-mic');
+    expect(result.current.inputNeedsPermission).toBe(true);
+    expect(localStorage.getItem(INPUT_DEVICE_KEY)).toBe('bt-mic');
+    expect(onSelectedDeviceLost).not.toHaveBeenCalled();
+    userAgent.mockRestore();
+  });
+
   it('lists phone and Bluetooth microphones as separate labelled choices', async () => {
     (navigator.mediaDevices.enumerateDevices as any).mockResolvedValue([
       { kind: 'audioinput', deviceId: 'default', label: 'Default - Built-in Microphone' },
@@ -90,7 +130,7 @@ describe('useAudioInputDevices', () => {
     await act(async () => {});
     expect(result.current.inputStatus).toBe('supported');
     expect(result.current.inputDevices).toHaveLength(2);
-    expect(result.current.inputDevices[0]).toMatchObject({ deviceId: 'default', kind: 'default' });
+    expect(result.current.inputDevices[0]).toMatchObject({ deviceId: '', kind: 'default' });
     expect(result.current.inputDevices[1]).toMatchObject({ deviceId: 'bt-mic', kind: 'bluetooth' });
     expect(result.current.inputDevices[1].label).toContain('블루투스');
     expect(result.current.inputNeedsPermission).toBe(false);
@@ -124,7 +164,7 @@ describe('useAudioInputDevices', () => {
     await act(async () => { granted = await result.current.requestInputDevicePermission(); });
     expect(granted).toBe(true);
     expect(result.current.inputNeedsPermission).toBe(false);
-    expect(result.current.inputDevices.map(d => d.deviceId)).toEqual(['default', 'bt-mic']);
+    expect(result.current.inputDevices.map(d => d.deviceId)).toEqual(['', 'bt-mic']);
   });
 
   it('surfaces a retryable error when the permission request is denied', async () => {

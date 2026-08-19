@@ -1693,6 +1693,7 @@
     "listUnsupported": "Cannot list output devices in this browser.",
     "permissionDenied": "Microphone permission denied — could not load connected output devices. Allow microphone access in browser settings and try again.",
     "savedDeviceFailed": "Saved output device unavailable — switched to default.",
+    "iosSystemRouting": "On iPhone, iOS controls the microphone and speaker together. Connect your Bluetooth earphones and select them in Control Center; the voice conversation will use the current system route automatically.",
     "unsupportedBrowser": "This browser does not allow the app to select speakers or Bluetooth devices directly. Change the output device from your phone's Control Center or Bluetooth menu, then retry."
   }
 }

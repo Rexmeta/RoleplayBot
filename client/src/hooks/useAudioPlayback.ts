@@ -1,5 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  isIOSWebKitAudioPlatform,
+  setIOSRealtimeAudioSessionActive,
+} from '@/lib/iosAudioSession';
 
 const DEFAULT_GAIN = 1.0;
 const OUTPUT_DEVICE_KEY = 'realtime_voice_output_device_id';
@@ -58,7 +62,7 @@ function describeOutputDevice(
   const rawLabel = (device.label || '').trim();
   if (device.deviceId === 'default' || device.deviceId === '') {
     return {
-      deviceId: device.deviceId,
+      deviceId: '',
       label: rawLabel
         ? t('audioOutput.defaultDeviceWithLabel', { label: rawLabel.replace(/^default\s*-\s*/i, '') })
         : t('audioOutput.defaultDevice'),
@@ -168,7 +172,31 @@ export function useAudioPlayback(
       || typeof AudioContextConstructor?.prototype?.setSinkId === 'function';
   }, []);
 
+  const usesIOSSystemAudioRouting = useCallback(
+    () => isIOSWebKitAudioPlatform() && !supportsOutputSelection(),
+    [supportsOutputSelection],
+  );
+
+  const markIOSOutputAsSystemManaged = useCallback(() => {
+    selectedOutputDeviceIdRef.current = '';
+    userChoseOutputRef.current = false;
+    outputAutoSelectedRef.current = false;
+    setSelectedOutputDeviceId('');
+    setOutputAutoSelected(false);
+    setOutputDevices([]);
+    setOutputStatus('unsupported');
+    setOutputNeedsPermission(false);
+    setOutputListUnavailable(true);
+    setOutputMessage(t('audioOutput.iosSystemRouting'));
+    try {
+      localStorage.removeItem(OUTPUT_DEVICE_KEY);
+      localStorage.removeItem(OUTPUT_AUTO_SELECTED_KEY);
+      localStorage.removeItem(OUTPUT_USER_CHOSE_KEY);
+    } catch {}
+  }, [t]);
+
   const resumePlayback = useCallback(async () => {
+    setIOSRealtimeAudioSessionActive(true);
     const context = playbackContextRef.current;
     if (!context || context.state === 'running') return true;
     try {
@@ -183,6 +211,10 @@ export function useAudioPlayback(
 
   const selectOutputDevice = useCallback(async (deviceId: string) => {
     if (!supportsOutputSelection()) {
+      if (usesIOSSystemAudioRouting()) {
+        markIOSOutputAsSystemManaged();
+        return false;
+      }
       setOutputStatus('unsupported');
       setOutputMessage(t('audioOutput.unsupportedError'));
       return false;
@@ -219,7 +251,7 @@ export function useAudioPlayback(
       reportOutputError(t('audioOutput.changeError'));
       return false;
     }
-  }, [reportOutputError, supportsOutputSelection, t]);
+  }, [markIOSOutputAsSystemManaged, reportOutputError, supportsOutputSelection, t, usesIOSSystemAudioRouting]);
 
   // User-explicit selection: marks userChoseOutput so auto-BT logic won't override.
   const selectOutputDeviceByUser = useCallback(async (deviceId: string) => {
@@ -230,6 +262,10 @@ export function useAudioPlayback(
   }, [selectOutputDevice]);
 
   const refreshOutputDevices = useCallback(async () => {
+    if (usesIOSSystemAudioRouting()) {
+      markIOSOutputAsSystemManaged();
+      return;
+    }
     if (!supportsOutputSelection() || !navigator.mediaDevices?.enumerateDevices) {
       setOutputStatus('unsupported');
       setOutputDevices([]);
@@ -303,9 +339,13 @@ export function useAudioPlayback(
     } catch {
       reportOutputError(t('audioOutput.enumError'));
     }
-  }, [reportOutputError, selectOutputDevice, supportsOutputSelection, t]);
+  }, [markIOSOutputAsSystemManaged, reportOutputError, selectOutputDevice, supportsOutputSelection, t, usesIOSSystemAudioRouting]);
 
   const requestOutputDevicePermission = useCallback(async () => {
+    if (usesIOSSystemAudioRouting()) {
+      markIOSOutputAsSystemManaged();
+      return false;
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       reportOutputError(t('audioOutput.listUnsupported'));
       return false;
@@ -319,7 +359,7 @@ export function useAudioPlayback(
     }
     await refreshOutputDevices();
     return true;
-  }, [refreshOutputDevices, reportOutputError, t]);
+  }, [markIOSOutputAsSystemManaged, refreshOutputDevices, reportOutputError, t, usesIOSSystemAudioRouting]);
 
   const ensureOutputDevice = useCallback(async (context: AudioContext) => {
     if (!selectedOutputDeviceIdRef.current || typeof (context as any).setSinkId !== 'function') return;
@@ -334,6 +374,7 @@ export function useAudioPlayback(
   }, [reportOutputError, t]);
 
   const initializePlaybackContext = useCallback(async () => {
+    setIOSRealtimeAudioSessionActive(true);
     if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
       playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       await ensureOutputDevice(playbackContextRef.current);
@@ -356,12 +397,16 @@ export function useAudioPlayback(
 
   useEffect(() => {
     try {
-      selectedOutputDeviceIdRef.current = localStorage.getItem(OUTPUT_DEVICE_KEY) || '';
-      setSelectedOutputDeviceId(selectedOutputDeviceIdRef.current);
-      userChoseOutputRef.current = !!(localStorage.getItem(OUTPUT_USER_CHOSE_KEY));
-      const savedAuto = !!selectedOutputDeviceIdRef.current && !userChoseOutputRef.current && !!(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY));
-      outputAutoSelectedRef.current = savedAuto;
-      setOutputAutoSelected(savedAuto);
+      if (usesIOSSystemAudioRouting()) {
+        markIOSOutputAsSystemManaged();
+      } else {
+        selectedOutputDeviceIdRef.current = localStorage.getItem(OUTPUT_DEVICE_KEY) || '';
+        setSelectedOutputDeviceId(selectedOutputDeviceIdRef.current);
+        userChoseOutputRef.current = !!(localStorage.getItem(OUTPUT_USER_CHOSE_KEY));
+        const savedAuto = !!selectedOutputDeviceIdRef.current && !userChoseOutputRef.current && !!(localStorage.getItem(OUTPUT_AUTO_SELECTED_KEY));
+        outputAutoSelectedRef.current = savedAuto;
+        setOutputAutoSelected(savedAuto);
+      }
     } catch {}
     refreshOutputDevices();
     const onDeviceChange = () => { refreshOutputDevices(); };
@@ -377,7 +422,7 @@ export function useAudioPlayback(
       navigator.mediaDevices?.removeEventListener?.('devicechange', onDeviceChange);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [refreshOutputDevices, resumePlayback]);
+  }, [markIOSOutputAsSystemManaged, refreshOutputDevices, resumePlayback, usesIOSSystemAudioRouting]);
 
   const startAmplitudeAnalysis = useCallback(() => {
     if (amplitudeAnimationRef.current) return;

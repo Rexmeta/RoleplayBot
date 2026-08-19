@@ -4,6 +4,7 @@ import { useToast } from './use-toast';
 import { useAudioPlayback, type AgcConfig } from './useAudioPlayback';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
 import { useAudioInputDevices, buildMicrophoneConstraints, type AudioInputDeviceOption, type AudioInputStatus } from './useAudioInputDevices';
+import { setIOSRealtimeAudioSessionActive } from '@/lib/iosAudioSession';
 
 const NOISE_FLOOR_DURATION_MS = 1500;
 const VAD_ENTRY_MULTIPLIER = 3.0;
@@ -236,6 +237,7 @@ export function useRealtimeVoice({
 
   const hasConversationStartedRef = useRef<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const connectionAttemptRef = useRef(0);
   const captureContextRef = useRef<AudioContext | null>(null);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -440,6 +442,9 @@ export function useRealtimeVoice({
   }, []);
 
   const disconnect = useCallback(() => {
+    // Invalidate token requests and socket callbacks from any earlier attempt
+    // before closing resources. Safari may deliver close asynchronously.
+    connectionAttemptRef.current += 1;
     stopCurrentPlayback();
 
     if (textSyncIntervalRef.current) {
@@ -501,6 +506,7 @@ export function useRealtimeVoice({
     setGreetingFailed(false);
     setIsReconnecting(false);
     setIsBargeInActive(false);
+    setIOSRealtimeAudioSessionActive(false);
   }, [stopCurrentPlayback, stopAmplitudeAnalysis, analyserNodeRef, gainNodeRef, playbackContextRef, setIsAISpeaking]);
 
   const previousMessagesRef = useRef<PreviousMessage[] | undefined>(undefined);
@@ -511,6 +517,7 @@ export function useRealtimeVoice({
       return;
     }
     previousMessagesRef.current = previousMessages;
+    const connectionAttempt = ++connectionAttemptRef.current;
 
     setStatus('connecting');
     statusRef.current = 'connecting';
@@ -522,8 +529,12 @@ export function useRealtimeVoice({
     noiseFloorRef.current = null;
 
     try {
+      // Must be set before either AudioContext or getUserMedia is created on
+      // iPhone, otherwise WebKit may bind playback to the handset speaker.
+      setIOSRealtimeAudioSessionActive(true);
       if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
         await initializePlaybackContext();
+        if (connectionAttempt !== connectionAttemptRef.current) return;
         console.log('🔊 Pre-created playback AudioContext for first greeting');
       }
 
@@ -532,6 +543,7 @@ export function useRealtimeVoice({
           if (!await resumePlayback()) {
             throw new Error('AudioContext resume failed');
           }
+          if (connectionAttempt !== connectionAttemptRef.current) return;
           console.log('🔊 AudioContext resumed for first greeting playback');
         } catch (err) {
           console.warn('⚠️ Failed to resume AudioContext:', err);
@@ -539,11 +551,13 @@ export function useRealtimeVoice({
       }
 
       const token = await getRealtimeToken();
+      if (connectionAttempt !== connectionAttemptRef.current) return;
       const url = getWebSocketUrl(token);
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (wsRef.current !== ws) return;
         console.log('🎙️ WebSocket connected for realtime voice, waiting for Gemini session.ready...');
         autoReconnectCountRef.current = 0;
 
@@ -555,7 +569,7 @@ export function useRealtimeVoice({
         setGreetingRetryCount(0);
 
         setTimeout(() => {
-          if (ws.readyState === WebSocket.OPEN) {
+          if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) {
             const readyMessage: any = { type: 'client.ready' };
             if (isVoiceReconnect) {
               readyMessage.previousMessages = previousMessagesRef.current;
@@ -579,13 +593,14 @@ export function useRealtimeVoice({
 
         if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
         heartbeatTimerRef.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
+          if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ping' }));
           }
         }, 25000);
       };
 
       ws.onmessage = (event) => {
+        if (wsRef.current !== ws) return;
         try {
           const data = JSON.parse(event.data);
           switch (data.type) {
@@ -853,6 +868,7 @@ export function useRealtimeVoice({
       };
 
       ws.onerror = (event) => {
+        if (wsRef.current !== ws) return;
         console.error('❌ WebSocket error:', event);
         setError('WebSocket connection error');
         setStatus('error');
@@ -863,6 +879,8 @@ export function useRealtimeVoice({
       };
 
       ws.onclose = (event) => {
+        if (wsRef.current !== ws) return;
+        wsRef.current = null;
         console.log('🔌 WebSocket closed:', event.code, event.reason);
         if (heartbeatTimerRef.current) {
           clearInterval(heartbeatTimerRef.current);
@@ -913,10 +931,13 @@ export function useRealtimeVoice({
           return;
         }
 
+        setIOSRealtimeAudioSessionActive(false);
         setStatus('disconnected');
       };
 
     } catch (err) {
+      if (connectionAttempt !== connectionAttemptRef.current) return;
+      setIOSRealtimeAudioSessionActive(false);
       console.error('Error connecting to WebSocket:', err);
       setError(err instanceof Error ? err.message : 'Connection failed');
       setStatus('error');
@@ -954,6 +975,11 @@ export function useRealtimeVoice({
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
 
+      const isActiveConversation = hasConversationStartedRef.current && conversationPhaseRef.current !== 'ended';
+      if (isActiveConversation || statusRef.current === 'connected' || statusRef.current === 'reconnecting') {
+        setIOSRealtimeAudioSessionActive(true);
+      }
+
       if (playbackContextRef.current?.state === 'suspended' && !isInterruptedRef.current) {
         resumePlayback();
       }
@@ -961,7 +987,6 @@ export function useRealtimeVoice({
 
       const wsState = wsRef.current?.readyState;
       const isClosed = wsState === WebSocket.CLOSED || wsState === WebSocket.CLOSING || wsRef.current === null;
-      const isActiveConversation = hasConversationStartedRef.current && conversationPhaseRef.current !== 'ended';
 
       if (isClosed && isActiveConversation && connectRef.current !== null) {
         console.log('📱 화면 잠금 해제: WebSocket 재연결 시작');
@@ -1055,6 +1080,7 @@ export function useRealtimeVoice({
     }
 
     try {
+      setIOSRealtimeAudioSessionActive(true);
       let stream: MediaStream;
       const preferredMicId = selectedInputDeviceIdRef.current;
       try {
@@ -1238,6 +1264,7 @@ export function useRealtimeVoice({
 
     let newStream: MediaStream;
     try {
+      setIOSRealtimeAudioSessionActive(true);
       newStream = await navigator.mediaDevices.getUserMedia({
         audio: buildMicrophoneConstraints(deviceId),
       });
