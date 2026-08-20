@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Brain, ChevronDown } from "lucide-react";
+import { Brain, ChevronDown, Target, UserRound } from "lucide-react";
 import { formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import type { ComplexScenario } from "@/lib/scenario-system";
@@ -61,6 +61,62 @@ function NpcCollapsedPreview({ simulationState }: { simulationState: SimulationS
   );
 }
 
+type DesktopSection = 'role' | 'goals' | 'npc';
+
+interface DesktopAccordionSectionProps {
+  id: DesktopSection;
+  title: string;
+  summary: React.ReactNode;
+  icon: React.ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  bodyClassName?: string;
+}
+
+function DesktopAccordionSection({
+  id,
+  title,
+  summary,
+  icon,
+  isOpen,
+  onToggle,
+  children,
+  bodyClassName = '',
+}: DesktopAccordionSectionProps) {
+  const bodyId = `desktop-info-${id}-body`;
+
+  return (
+    <section className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden shrink-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full px-4 py-3 flex items-center gap-2 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-corporate-500 transition-colors duration-200"
+        aria-expanded={isOpen}
+        aria-controls={bodyId}
+        data-testid={`desktop-info-section-${id}-toggle`}
+      >
+        <span className="text-slate-600 shrink-0" aria-hidden="true">{icon}</span>
+        <span className="flex-1 min-w-0">
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-semibold text-slate-800 shrink-0">{title}</span>
+            <span className="min-w-0 truncate">{summary}</span>
+          </span>
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 text-slate-500 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+      {isOpen && (
+        <div id={bodyId} className={`border-t border-slate-100 ${bodyClassName}`} data-testid={`desktop-info-section-${id}-body`}>
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
 interface GoalsSidebarProps {
   scenario: ComplexScenario;
   personaName: string;
@@ -78,8 +134,8 @@ interface GoalsSidebarProps {
   latestTurnScore?: TurnScore | null;
   evaluationSkipped?: boolean;
   hasActiveIncident?: boolean;
-  isNpcExpanded?: boolean;
-  onToggleNpc?: () => void;
+  desktopSection?: DesktopSection | null;
+  onToggleDesktopSection?: (section: DesktopSection | null) => void;
 }
 
 export function GoalsSidebar({
@@ -99,26 +155,42 @@ export function GoalsSidebar({
   latestTurnScore,
   evaluationSkipped,
   hasActiveIncident,
-  isNpcExpanded = false,
-  onToggleNpc,
+  desktopSection = 'goals',
+  onToggleDesktopSection,
 }: GoalsSidebarProps) {
   const { t } = useTranslation();
   const npcBodyRef = useRef<HTMLDivElement>(null);
-  const [npcBodyOverflow, setNpcBodyOverflow] = useState<'hidden' | 'auto'>('hidden');
+  const role = scenario.context?.playerRole;
+  const hasRole = !!(scenario.context?.playerRoleText || role?.responsibility || role?.position);
+  const objectives = scenario.objectives ?? [];
+  const hasObjectives = objectives.length > 0;
+  const toggleDesktopSection = (section: DesktopSection) => {
+    onToggleDesktopSection?.(desktopSection === section ? null : section);
+  };
 
-  // Reset overflow to hidden as soon as a collapse begins
-  useEffect(() => {
-    if (!isNpcExpanded) {
-      setNpcBodyOverflow('hidden');
-    }
-  }, [isNpcExpanded]);
-
-  const hasGoals = scenario?.objectives || scenario?.context?.playerRoleText || scenario?.context?.playerRole?.responsibility;
+  const rolePosition = role?.position || personaRole || t('common.unknown', { defaultValue: '—' });
+  const roleSummary = (
+    <span className="text-[11px] text-slate-500 font-normal truncate">
+      {rolePosition}
+    </span>
+  );
+  const goalsSummary = (
+    <span className="text-[11px] text-blue-600 font-normal whitespace-nowrap">
+      {t('chat.goalCount', { count: objectives.length })}
+    </span>
+  );
+  const npcSummary = simulationState ? (
+    <NpcCollapsedPreview simulationState={simulationState} />
+  ) : (
+    <span className="text-[11px] text-slate-400 font-normal">
+      {t('chat.waiting', { defaultValue: '...' })}
+    </span>
+  );
 
   if (variant === 'sidebar') {
     return (
       <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 z-30 h-full overflow-hidden">
-        {/* 상단: 페르소나 정보 — 고정 높이 */}
+        {/* Conversation partner identity stays visible while context sections collapse. */}
         <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4 shrink-0">
           <div className="flex items-center space-x-2">
             <span className="text-sm font-semibold text-slate-800">{personaDept} {personaRole} {personaName}</span>
@@ -134,78 +206,78 @@ export function GoalsSidebar({
           </div>
         </div>
 
-        {/* 중단: 역할·목표 — 내용이 길면 이 영역 안에서 스크롤 */}
-        {hasGoals && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 mb-4 text-xs leading-relaxed flex flex-col min-h-0 shrink overflow-hidden">
-            <div className="overflow-y-auto p-4 space-y-3">
-              {(scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility) && (
-                <div>
-                  <div className="font-semibold text-corporate-600 mb-1.5 flex items-center justify-between">
-                    <span>👤 {t('chat.yourRole')}</span>
-                    <span className="text-slate-500 font-normal">
-                      {scenario.context?.playerRole?.position}
-                      {scenario.context?.playerRole?.experience && ` (${scenario.context.playerRole.experience})`}
-                    </span>
-                  </div>
-                  <div className="bg-slate-50 text-slate-700 rounded px-2 py-1.5">
-                    {scenario.context?.playerRoleText || scenario.context?.playerRole?.responsibility}
-                  </div>
-                </div>
-              )}
-              {scenario.objectives && scenario.objectives.length > 0 && (
-                <div>
-                  <div className="font-semibold text-blue-600 mb-1.5">🎯 {t('chat.achievementGoals')}</div>
-                  <div className="space-y-1.5">
-                    {scenario.objectives.map((objective: string, index: number) => (
-                      <div key={index} className="flex items-start space-x-2">
-                        <span className="text-blue-500 text-xs mt-0.5">•</span>
-                        <span className="flex-1 text-slate-700">{objective}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 하단: NPC 상태 — 항상 보이도록 shrink-0 */}
-        {isSimulationEnabled && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden shrink-0">
-            <button
-              onClick={onToggleNpc}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors duration-200"
-              aria-expanded={isNpcExpanded}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
+          {hasRole && (
+            <DesktopAccordionSection
+              id="role"
+              title={t('chat.yourRole')}
+              summary={roleSummary}
+              icon={<UserRound className="h-4 w-4" />}
+              isOpen={desktopSection === 'role'}
+              onToggle={() => toggleDesktopSection('role')}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <Brain className="h-4 w-4 text-slate-600 shrink-0" />
-                <span className="text-sm font-semibold text-slate-800 shrink-0">{t('chat.npcStatusPanel')}</span>
-                {hasActiveIncident && (
-                  <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0" />
+              <div className="p-4 space-y-2 text-xs leading-relaxed max-h-48 overflow-y-auto">
+                <div className="flex items-center justify-between gap-2 text-corporate-600 font-semibold">
+                  <span>{t('chat.roleDetails')}</span>
+                  <span className="text-slate-500 font-normal text-right">
+                    {role?.position || personaRole}
+                    {role?.experience && ` (${role.experience})`}
+                  </span>
+                </div>
+                {role?.department && (
+                  <div className="text-slate-500">{role.department}</div>
                 )}
-                {!simulationState && (
-                  <span className="text-xs text-slate-400">{t('chat.waiting', { defaultValue: '...' })}</span>
-                )}
-                {!isNpcExpanded && simulationState && (
-                  <NpcCollapsedPreview simulationState={simulationState} />
-                )}
+                <div className="bg-slate-50 text-slate-700 rounded px-2 py-1.5">
+                  {scenario.context?.playerRoleText || role?.responsibility}
+                </div>
               </div>
-              <ChevronDown
-                className="h-4 w-4 text-slate-500 transition-transform duration-300"
-                style={{ transform: isNpcExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              />
-            </button>
+            </DesktopAccordionSection>
+          )}
 
-            <div
-              style={{
-                maxHeight: isNpcExpanded ? '9999px' : '0px',
-                opacity: isNpcExpanded ? 1 : 0,
-                overflow: npcBodyOverflow,
-                transition: 'max-height 0.35s ease-in-out, opacity 0.3s ease-in-out',
-              }}
-              onTransitionEnd={() => { if (isNpcExpanded) setNpcBodyOverflow('auto'); }}
+          {hasObjectives && (
+            <DesktopAccordionSection
+              id="goals"
+              title={t('chat.achievementGoals')}
+              summary={goalsSummary}
+              icon={<Target className="h-4 w-4" />}
+              isOpen={desktopSection === 'goals'}
+              onToggle={() => toggleDesktopSection('goals')}
             >
-              <div ref={npcBodyRef} className="border-t border-slate-100 pb-2 max-h-56 overflow-y-auto">
+              <div className="p-4 text-xs leading-relaxed max-h-64 overflow-y-auto">
+                <div className="space-y-2">
+                  {objectives.map((objective: string, index: number) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <span className="text-blue-500 text-xs mt-0.5" aria-hidden="true">•</span>
+                      <span className="flex-1 text-slate-700">{objective}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </DesktopAccordionSection>
+          )}
+
+          {isSimulationEnabled && (
+            <DesktopAccordionSection
+              id="npc"
+              title={t('chat.npcStatusPanel')}
+              summary={
+                <span className="flex items-center min-w-0">
+                  {hasActiveIncident && (
+                    <span
+                      className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0 mr-1.5"
+                      title={t('chat.activeIncident')}
+                      aria-label={t('chat.activeIncident')}
+                    />
+                  )}
+                  {npcSummary}
+                </span>
+              }
+              icon={<Brain className="h-4 w-4" />}
+              isOpen={desktopSection === 'npc'}
+              onToggle={() => toggleDesktopSection('npc')}
+              bodyClassName="pb-2"
+            >
+              <div ref={npcBodyRef} className="max-h-[min(55vh,28rem)] overflow-y-auto">
                 {simulationState ? (
                   <SimulationPanel
                     state={simulationState}
@@ -213,7 +285,7 @@ export function GoalsSidebar({
                     latestTurnScore={latestTurnScore}
                     evaluationSkipped={evaluationSkipped}
                     hasActiveIncident={hasActiveIncident}
-                    isVisible={isNpcExpanded}
+                    isVisible={desktopSection === 'npc'}
                     className="border-0 rounded-none bg-transparent"
                   />
                 ) : (
@@ -222,16 +294,16 @@ export function GoalsSidebar({
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        )}
+            </DesktopAccordionSection>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="absolute top-16 left-4 z-20 space-y-3 lg:hidden" style={{ maxWidth: 'min(100vw - 32px, 384px)' }}>
-      {hasGoals && (
+      {(hasRole || hasObjectives) && (
         <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg transition-all duration-300 lg:hidden">
           <button
             onClick={onToggleGoals}

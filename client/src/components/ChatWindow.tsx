@@ -100,18 +100,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       return next;
     });
   };
-  const DESKTOP_NPC_KEY = 'npc-panel-desktop-open';
-  const [isDesktopSimOpen, setIsDesktopSimOpenRaw] = useState(
-    () => localStorage.getItem(DESKTOP_NPC_KEY) === 'true'
-  );
-  const hasAutoExpandedNpcRef = useRef(false);
-  const setIsDesktopSimOpen = (value: boolean | ((prev: boolean) => boolean)) => {
-    setIsDesktopSimOpenRaw(prev => {
-      const next = typeof value === 'function' ? value(prev) : value;
-      localStorage.setItem(DESKTOP_NPC_KEY, String(next));
-      if (next) clearIncidentCount();
-      return next;
-    });
+  const [desktopInfoSection, setDesktopInfoSection] = useState<'role' | 'goals' | 'npc' | null>('goals');
+  const setDesktopInfoSectionAndClearIncidents = (section: 'role' | 'goals' | 'npc' | null) => {
+    setDesktopInfoSection(section);
+    if (section === 'npc') clearIncidentCount();
   };
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
@@ -743,20 +735,6 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const hasActiveIncident = !!(simulationState?.recentIncidents?.some(i => !i.resolved));
 
-  useEffect(() => {
-    if (simulationState && !hasAutoExpandedNpcRef.current && localStorage.getItem(DESKTOP_NPC_KEY) === null) {
-      hasAutoExpandedNpcRef.current = true;
-      setIsDesktopSimOpenRaw(true);
-    }
-  }, [simulationState]);
-
-  useEffect(() => {
-    if (latestAiMessage && isSimulationEnabled && !hasAutoExpandedNpcRef.current && localStorage.getItem(DESKTOP_NPC_KEY) === null) {
-      hasAutoExpandedNpcRef.current = true;
-      setIsDesktopSimOpenRaw(true);
-    }
-  }, [latestAiMessage, isSimulationEnabled]);
-
   const lastUserTextRef = useRef<string>('');
 
   const handleSendMessage = () => {
@@ -980,7 +958,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar"
                     isSimulationEnabled={isSimulationEnabled} simulationState={simulationState} newIncident={newIncident}
                     latestTurnScore={latestTurnScore} evaluationSkipped={lastScoreSkipped} hasActiveIncident={hasActiveIncident}
-                    isNpcExpanded={isDesktopSimOpen} onToggleNpc={() => setIsDesktopSimOpen(v => !v)} />
+                    desktopSection={desktopInfoSection}
+                    onToggleDesktopSection={setDesktopInfoSectionAndClearIncidents} />
                 )}
 
                 <div className="relative flex-1 overflow-hidden">
