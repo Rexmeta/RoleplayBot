@@ -772,6 +772,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const handleSkipTurn = () => {
     if (isLoading) return;
+    startConversationTimer();
     setIsLoading(true); if (window.innerWidth < 1024) setShowInputMode(false);
     const transitionMode = pendingModeTransitionRef.current;
     pendingModeTransitionRef.current = undefined;
@@ -822,7 +823,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     greetingRetryCount: realtimeVoice.greetingRetryCount, conversationPhase: realtimeVoice.conversationPhase,
     sessionWarning: realtimeVoice.sessionWarning, error: realtimeVoice.error,
     showMicPrompt,
-    onConnect: (msgs?: PreviousMessage[]) => realtimeVoice.connect(msgs),
+    onConnect: (msgs?: PreviousMessage[]) => {
+      startConversationTimer();
+      realtimeVoice.connect(msgs);
+    },
     onStartRecording: () => { hasUserSpokenRef.current = true; setShowMicPrompt(false); realtimeVoice.startRecording(); },
     onStopRecording: () => realtimeVoice.stopRecording(),
     onEndConversation: handleEndRealtimeConversation,
@@ -962,7 +966,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
             >
                 {!isPersonaX && (
                   <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
-                    latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
+                    elapsedTime={elapsedTime}
                     isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar"
                     isSimulationEnabled={isSimulationEnabled} simulationState={simulationState} newIncident={newIncident}
                     latestTurnScore={latestTurnScore} evaluationSkipped={lastScoreSkipped} hasActiveIncident={hasActiveIncident}
@@ -1127,7 +1131,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
                   {!isPersonaX && (
                     <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
-                      latestEmotion={latestAiMessage?.emotion} elapsedTime={elapsedTime} isAdmin={user?.role === 'admin'}
+                      elapsedTime={elapsedTime}
                       isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
                   )}
 
