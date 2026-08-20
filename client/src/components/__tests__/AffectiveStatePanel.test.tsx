@@ -106,10 +106,13 @@ function getValueForLabel(label: string): number {
 // ---------------------------------------------------------------------------
 
 describe('AffectiveStatePanel', () => {
-  it('renders a "자세히 보기" toggle button', () => {
+  it('shows detail metrics by default without a "자세히 보기" toggle', () => {
     render(<AffectiveStatePanel affectiveState={layeredAffective} />);
-    // The detail toggle button must always be present
-    expect(screen.getByRole('button')).toBeTruthy();
+    expect(screen.queryByText('자세히 보기')).toBeNull();
+    expect(screen.getByText('Confusion')).toBeTruthy();
+    expect(screen.getByText('Load')).toBeTruthy();
+    expect(screen.getByText('Rapport')).toBeTruthy();
+    expect(screen.getByText('Valence')).toBeTruthy();
   });
 
   it('summary metrics are visible without expanding', () => {
@@ -121,18 +124,8 @@ describe('AffectiveStatePanel', () => {
     expect(screen.getByText('Cooperativeness')).toBeTruthy();
   });
 
-  it('detail metrics are hidden until toggle is clicked', () => {
+  it('detail metrics remain visible by default', () => {
     render(<AffectiveStatePanel affectiveState={layeredAffective} />);
-    // Detail metrics must NOT be visible before expanding
-    expect(screen.queryByText('Confusion')).toBeNull();
-    expect(screen.queryByText('Load')).toBeNull();
-    expect(screen.queryByText('Rapport')).toBeNull();
-    expect(screen.queryByText('Valence')).toBeNull();
-  });
-
-  it('shows detail metrics after clicking the toggle', () => {
-    render(<AffectiveStatePanel affectiveState={layeredAffective} />);
-    fireEvent.click(screen.getByRole('button'));
     expect(screen.getByText('Confusion')).toBeTruthy();
     expect(screen.getByText('Load')).toBeTruthy();
     expect(screen.getByText('Rapport')).toBeTruthy();
@@ -159,9 +152,8 @@ describe('AffectiveStatePanel', () => {
     expect(getValueForLabel('Cooperativeness')).toBe(layeredAffective.motivational.cooperativeness);
   });
 
-  it('detail fields (confusion, load, rapport, valence) read from layered state after expand', () => {
+  it('detail fields (confusion, load, rapport, valence) read from layered state by default', () => {
     render(<AffectiveStatePanel affectiveState={layeredAffective} />);
-    fireEvent.click(screen.getByRole('button'));
     expect(getValueForLabel('Confusion')).toBe(layeredAffective.cognitive.confusion);
     expect(getValueForLabel('Load')).toBe(layeredAffective.cognitive.load);
     expect(getValueForLabel('Rapport')).toBe(layeredAffective.relational.rapport);

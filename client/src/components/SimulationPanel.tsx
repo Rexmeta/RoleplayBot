@@ -365,7 +365,6 @@ export function AffectiveStatePanel({
   isCompact?: boolean;
 }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
   const summaryMetrics = [
     {
       label: t('simulation.affectiveState.intensity', { defaultValue: 'Intensity' }),
@@ -426,22 +425,11 @@ export function AffectiveStatePanel({
           <EmotionBar key={metric.label} {...metric} />
         ))}
       </div>
-      <button
-        type="button"
-        className="flex items-center justify-between w-full mt-2 pt-1.5 border-t border-border/30 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-        onClick={() => setExpanded(e => !e)}
-        aria-expanded={expanded}
-      >
-        <span className="font-medium">{t('simulation.affectiveState.details', { defaultValue: '자세히 보기' })}</span>
-        <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
-      </button>
-      {expanded && (
-        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-          {detailMetrics.map(metric => (
-            <EmotionBar key={metric.label} {...metric} />
-          ))}
-        </div>
-      )}
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+        {detailMetrics.map(metric => (
+          <EmotionBar key={metric.label} {...metric} />
+        ))}
+      </div>
     </div>
   );
 }
