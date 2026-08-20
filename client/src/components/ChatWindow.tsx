@@ -787,7 +787,14 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       }
     );
   };
-  const handleVoiceInput = () => { if (isRecording) stopRecording(); else startRecording(); };
+  const handleVoiceInput = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startConversationTimer();
+      startRecording();
+    }
+  };
 
   if (error) return (
     <div className="text-center py-8">
@@ -827,7 +834,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       startConversationTimer();
       realtimeVoice.connect(msgs);
     },
-    onStartRecording: () => { hasUserSpokenRef.current = true; setShowMicPrompt(false); realtimeVoice.startRecording(); },
+    onStartRecording: () => {
+      startConversationTimer();
+      hasUserSpokenRef.current = true;
+      setShowMicPrompt(false);
+      realtimeVoice.startRecording();
+    },
     onStopRecording: () => realtimeVoice.stopRecording(),
     onEndConversation: handleEndRealtimeConversation,
     previousMessages,
