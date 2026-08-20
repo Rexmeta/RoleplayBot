@@ -193,7 +193,7 @@ export function GoalsSidebar({
   if (variant === 'sidebar') {
     return (
       <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 z-30 h-full overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
+        <div className="flex flex-col flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
           {hasRole && (
             <DesktopAccordionSection
               id="role"
