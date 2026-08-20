@@ -122,9 +122,10 @@ describe('GoalsSidebar desktop information accordion', () => {
     expect(roleToggle.getAttribute('aria-controls')).toBe('desktop-info-role-body');
   });
 
-  it('shows NPC stage, dominant state, and active incident in the collapsed header', () => {
+  it('shows the persona identity, stage, dominant state, and active incident in the collapsed header', () => {
     render(<SidebarHarness hasActiveIncident />);
 
+    expect(screen.getByText('Support Taylor')).toBeTruthy();
     expect(screen.getByText('Conflict')).toBeTruthy();
     expect(screen.getByText('Trust')).toBeTruthy();
     expect(screen.getByLabelText('NPC incident needs attention')).toBeTruthy();

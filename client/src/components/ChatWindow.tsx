@@ -719,6 +719,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
     return [activePersona.role, activePersona.department].filter(Boolean).join(' · ');
   })();
+  const activePersonaIdentityLabel = [activePersona.department || activePersona.role, activePersona.name]
+    .filter(Boolean)
+    .join(' ') || t('common.unknown', { defaultValue: '—' });
 
   useEffect(() => {
     const newEmotion = latestAiMessage?.emotion || '중립';
@@ -1006,11 +1009,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                           </div>
                         )}
                       </div>
-                      {/* NPC simulation toggle (integrated into header, only when simulation active) */}
+                      {/* Persona simulation toggle (integrated into header, only when simulation active) */}
                       {isSimulationEnabled && simulationState && (
                         <button
                           onClick={() => setIsMobileSimOpen(v => !v)}
-                          aria-label={t('chat.npcStatusButton')}
+                          aria-label={activePersonaIdentityLabel}
                           className="relative shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-colors"
                         >
                           <Brain className="h-3.5 w-3.5" />
@@ -1416,7 +1419,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   onClick={() => setIsMobileSimOpen(true)}
                   className="text-white/90 underline underline-offset-2 text-xs font-medium hover:text-white"
                 >
-                  {t('chat.npcStatusButton')}
+                  {activePersonaIdentityLabel}
                 </button>
                 <button
                   onClick={() => {
@@ -1501,7 +1504,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       <span className="text-sm font-semibold leading-tight truncate">{activePersona.name}</span>
                       <div className="flex items-center gap-1">
                         <Brain className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                        <span className="text-xs text-muted-foreground">{t('chat.npcStatusPanel')}</span>
+                        <span className="text-xs text-muted-foreground">{activePersonaIdentityLabel}</span>
                       </div>
                     </div>
                   </div>

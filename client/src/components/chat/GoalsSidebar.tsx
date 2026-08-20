@@ -169,6 +169,9 @@ export function GoalsSidebar({
   };
 
   const rolePosition = role?.position || personaRole || t('common.unknown', { defaultValue: '—' });
+  const personaIdentityLabel = [personaDept || personaRole, personaName]
+    .filter(Boolean)
+    .join(' ') || t('common.unknown', { defaultValue: '—' });
   const roleSummary = (
     <span className="text-[11px] text-slate-500 font-normal truncate">
       {rolePosition}
@@ -259,7 +262,7 @@ export function GoalsSidebar({
           {isSimulationEnabled && (
             <DesktopAccordionSection
               id="npc"
-              title={t('chat.npcStatusPanel')}
+              title={personaIdentityLabel}
               summary={
                 <span className="flex items-center min-w-0">
                   {hasActiveIncident && (
