@@ -64,6 +64,7 @@ type DesktopSection = 'role' | 'goals' | 'npc';
 
 interface DesktopAccordionSectionProps {
   id: DesktopSection;
+  className?: string;
   title: React.ReactNode;
   titleTrailing?: React.ReactNode;
   summary: React.ReactNode;
@@ -76,6 +77,7 @@ interface DesktopAccordionSectionProps {
 
 function DesktopAccordionSection({
   id,
+  className = '',
   title,
   titleTrailing,
   summary,
@@ -88,7 +90,7 @@ function DesktopAccordionSection({
   const bodyId = `desktop-info-${id}-body`;
 
   return (
-    <section className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden shrink-0">
+    <section className={`bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden shrink-0 ${className}`}>
       <button
         type="button"
         onClick={onToggle}
@@ -195,6 +197,7 @@ export function GoalsSidebar({
           {hasRole && (
             <DesktopAccordionSection
               id="role"
+              className="order-2"
               title={t('chat.yourRole')}
               summary={roleSummary}
               icon={<UserRound className="h-4 w-4" />}
@@ -222,6 +225,7 @@ export function GoalsSidebar({
           {hasObjectives && (
             <DesktopAccordionSection
               id="goals"
+              className="order-3"
               title={t('chat.achievementGoals')}
               summary={goalsSummary}
               icon={<Target className="h-4 w-4" />}
@@ -244,6 +248,7 @@ export function GoalsSidebar({
           {isSimulationEnabled && (
             <DesktopAccordionSection
               id="npc"
+              className="order-1"
               title={personaIdentityLabel}
               titleTrailing={
                 <span className="flex items-center gap-1 text-xs font-normal text-slate-500 whitespace-nowrap" data-testid="text-elapsed-time-sidebar">

@@ -96,6 +96,17 @@ function SidebarHarness({ hasActiveIncident = false }: { hasActiveIncident?: boo
 }
 
 describe('GoalsSidebar desktop information accordion', () => {
+  it('shows persona, role, and achievement goals in that order', () => {
+    render(<SidebarHarness />);
+
+    const getSectionClass = (id: string) =>
+      screen.getByTestId(`desktop-info-section-${id}-toggle`).closest('section')?.className;
+
+    expect(getSectionClass('npc')).toContain('order-1');
+    expect(getSectionClass('role')).toContain('order-2');
+    expect(getSectionClass('goals')).toContain('order-3');
+  });
+
   it('opens achievement goals by default and keeps role and NPC details closed', () => {
     render(<SidebarHarness />);
 
