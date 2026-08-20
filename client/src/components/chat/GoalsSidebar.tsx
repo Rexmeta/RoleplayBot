@@ -2,7 +2,6 @@ import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Brain, ChevronDown, Target, UserRound } from "lucide-react";
 import { formatElapsedTime } from "@/hooks/chat/useConversationTimer";
-import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import type { ComplexScenario } from "@/lib/scenario-system";
 import SimulationPanel, { STAGE_COLORS, EMOTION_COLORS } from "@/components/SimulationPanel";
 import type { SimulationState, Incident, TurnScore, NpcAffectiveState } from "@/hooks/useSimulationState";
@@ -65,7 +64,8 @@ type DesktopSection = 'role' | 'goals' | 'npc';
 
 interface DesktopAccordionSectionProps {
   id: DesktopSection;
-  title: string;
+  title: React.ReactNode;
+  titleTrailing?: React.ReactNode;
   summary: React.ReactNode;
   icon: React.ReactNode;
   isOpen: boolean;
@@ -77,6 +77,7 @@ interface DesktopAccordionSectionProps {
 function DesktopAccordionSection({
   id,
   title,
+  titleTrailing,
   summary,
   icon,
   isOpen,
@@ -100,6 +101,7 @@ function DesktopAccordionSection({
         <span className="flex-1 min-w-0">
           <span className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-semibold text-slate-800 shrink-0">{title}</span>
+            {titleTrailing}
             <span className="min-w-0 truncate">{summary}</span>
           </span>
         </span>
@@ -122,9 +124,7 @@ interface GoalsSidebarProps {
   personaName: string;
   personaDept?: string;
   personaRole?: string;
-  latestEmotion?: string;
   elapsedTime: number;
-  isAdmin?: boolean;
   isGoalsExpanded: boolean;
   onToggleGoals: () => void;
   variant: 'sidebar' | 'overlay';
@@ -143,9 +143,7 @@ export function GoalsSidebar({
   personaName,
   personaDept,
   personaRole,
-  latestEmotion,
   elapsedTime,
-  isAdmin,
   isGoalsExpanded,
   onToggleGoals,
   variant,
@@ -193,22 +191,6 @@ export function GoalsSidebar({
   if (variant === 'sidebar') {
     return (
       <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 z-30 h-full overflow-hidden">
-        {/* Conversation partner identity stays visible while context sections collapse. */}
-        <div className="bg-white rounded-xl px-4 py-3 shadow-sm border border-slate-100 mb-4 shrink-0">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-semibold text-slate-800">{personaDept} {personaRole} {personaName}</span>
-            {isAdmin && latestEmotion && (
-              <span className="text-lg">{emotionEmojis[latestEmotion] || '😐'}</span>
-            )}
-          </div>
-          <div className="flex items-center space-x-3 text-xs text-slate-500 mt-2">
-            <span className="flex items-center" data-testid="text-elapsed-time-sidebar">
-              <i className="fas fa-clock mr-1"></i>
-              {formatElapsedTime(elapsedTime)}
-            </span>
-          </div>
-        </div>
-
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
           {hasRole && (
             <DesktopAccordionSection
@@ -263,6 +245,12 @@ export function GoalsSidebar({
             <DesktopAccordionSection
               id="npc"
               title={personaIdentityLabel}
+              titleTrailing={
+                <span className="flex items-center gap-1 text-xs font-normal text-slate-500 whitespace-nowrap" data-testid="text-elapsed-time-sidebar">
+                  <i className="fas fa-clock" aria-hidden="true"></i>
+                  {formatElapsedTime(elapsedTime)}
+                </span>
+              }
               summary={
                 <span className="flex items-center min-w-0">
                   {hasActiveIncident && (

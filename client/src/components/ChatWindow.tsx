@@ -422,6 +422,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const { elapsedTime, setConversationStartTime, setElapsedTime } = useConversationTimer({
     conversation, maxTurns: MAX_TURNS,
   });
+  const startConversationTimer = useCallback(() => {
+    setConversationStartTime(previous => previous ?? new Date());
+    setElapsedTime(0);
+  }, [setConversationStartTime, setElapsedTime]);
 
   const { isRecording, speechSupported, startRecording, stopRecording, removeInterimText, cleanup: cleanupVoiceRecording } = useVoiceRecording({
     onTranscript: (transcript) => setUserInput(prev => { const t = removeInterimText(prev); return t + (t ? ' ' : '') + transcript; }),
@@ -742,6 +746,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const handleSendMessage = () => {
     const message = userInput.trim(); if (!message || isLoading) return;
+    startConversationTimer();
     // Always route text input through the HTTP endpoint, even when a realtime-voice
     // session is active. Sending text via the voice WebSocket (sendTextMessage) only
     // produces ctrl46 control characters from the Gemini Live audio endpoint, which

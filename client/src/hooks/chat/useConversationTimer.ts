@@ -17,15 +17,9 @@ export function useConversationTimer({ conversation, maxTurns }: UseConversation
   const [conversationStartTime, setConversationStartTime] = useState<Date | null>(null);
 
   useEffect(() => {
-    if (conversation && conversation.createdAt && !conversationStartTime) {
-      setConversationStartTime(new Date(conversation.createdAt));
-    }
-  }, [conversation, conversationStartTime]);
-
-  useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (conversationStartTime && conversation && conversation.turnCount < maxTurns) {
+    if (conversationStartTime && (!conversation || conversation.turnCount < maxTurns)) {
       interval = setInterval(() => {
         const now = new Date();
         const elapsed = Math.floor((now.getTime() - conversationStartTime.getTime()) / 1000);
