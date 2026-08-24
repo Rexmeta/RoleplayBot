@@ -1,0 +1,322 @@
+{
+  "schemaVersion": "contentx.canonical/1.0",
+  "exportedAt": "2026-08-24T10:49:45.108Z",
+  "content": {
+    "id": "content_70756481341460c4",
+    "title": "출하 전 72시간",
+    "sourcePrompt": "스마트폰 개발 업체인 에스 전자에서 개발팀과 품질팀이 목표 일정과 품질 이슈로 대립하는 상황",
+    "version": 1,
+    "createdAt": "2026-08-24T10:12:18.960Z",
+    "updatedAt": "2026-08-24T10:12:18.960Z",
+    "entities": [
+      {
+        "id": "entity_986ef87745a9c7ed",
+        "kind": "world",
+        "name": "출하 전 72시간",
+        "description": "세림전자 모바일사업부는 통신사 사전예약 물량과 해외 유통 계약 때문에 신제품 '루멘 X'의 출하 일정을 더 미룰 수 없는 상황이다. 개발2팀장 윤태식은 발열 현상이 초고속 충전과 특정 통신 환경이 겹칠 때만 발생하며, 출시 후 소프트웨어 업데이트로 제한값을 조정할 수 있다고 주장한다. 반면 품질보증실의 서지아 책임은 열화상 시험에서 발견된 배터리 팽창 전조를 근거로, 재현 빈도가 낮더라도 대량 생산 단계에서 치명적 사고가 될 수 있다고 보고 출하 보류를 요구한다. 태식은 일정 지연이 협력사와 생산직 계약직 인력의 생계까지 흔들 수 있다고 생각하고, 지아는 과거 자신이 놓친 미세 결함이 리콜로 이어졌던 경험 때문에 불확실성을 숫자로 축소하는 일을 거부한다. 두 사람은 로그를 역추적하며 문제가 새 배터리 자체가 아니라, 원가 절감을 위해 변경된 충전 제어 칩의 펌웨어 검증 조건에서 비롯됐음을 알아낸다. 그러나 그 변경은 태식의 팀이 아니라 사업부장이 수율 개선을 이유로 승인한 것이었고, 내부 보고서에는 시험 범위 축소 결정이 이미 기록돼 있었다. 지아는 출하 중단을 공식 요청하는 대신 제한 충전 모드로 선출하하고, 전량 원격 업데이트와 무상 교체 기준을 계약서에 반영하는 조건부 방안을 제시한다. 태식은 자신의 팀 성과를 방어하는 대신 변경 승인 과정을 공개하는 데 동의하며, 두 사람은 출시를 성공시키는 것보다 실패했을 때 소비자에게 책임지는 구조를 만드는 쪽을 택한다.",
+        "attributes": {
+          "theme": "일정과 품질의 충돌은 어느 한쪽의 무능이 아니라, 위험의 비용을 누가 언제 부담할 것인가에 대한 결정이다.",
+          "logline": "국내 스마트폰 제조사 세림전자의 차기 플래그십 출시를 사흘 앞두고, 개발 총괄과 품질 책임자는 특정 조건에서만 재현되는 배터리 발열 문제를 두고 출하 강행과 일정 중단 사이에서 맞선다. 두 사람은 각자 회사를 지키려 하지만, 해결책을 선택할 권한과 책임이 서로 다른 곳에 있다는 사실이 갈등을 키운다."
+        }
+      },
+      {
+        "id": "entity_fc53d8c3d1b025aa",
+        "kind": "theme",
+        "name": "일정과 품질의 충돌은 어느 한쪽의 무능이 아니라, 위험의 비용을 누가 언제 부담할 것인가에 대한 결정이다.",
+        "description": "국내 스마트폰 제조사 세림전자의 차기 플래그십 출시를 사흘 앞두고, 개발 총괄과 품질 책임자는 특정 조건에서만 재현되는 배터리 발열 문제를 두고 출하 강행과 일정 중단 사이에서 맞선다. 두 사람은 각자 회사를 지키려 하지만, 해결책을 선택할 권한과 책임이 서로 다른 곳에 있다는 사실이 갈등을 키운다.",
+        "attributes": {}
+      },
+      {
+        "id": "entity_e47d185a30dcaf1f",
+        "kind": "conflict",
+        "name": "중심 갈등",
+        "description": "개발팀에게는 지연으로 인한 통신사 신뢰 상실, 협력사 손실, 수백 명의 생산 인력 고용과 차기 프로젝트 예산이 걸려 있다. 품질팀에게는 소비자 안전, 대규모 리콜 가능성, 회사의 장기 신뢰와 결함을 알고도 출하했다는 법적·윤리적 책임이 걸려 있다.",
+        "attributes": {
+          "twist": "문제의 직접 원인은 개발팀의 설계 실수가 아니라 생산 수율을 높이기 위해 사업부장이 승인한 충전 제어 칩 변경과 그에 따른 시험 조건 축소였다. 태식이 초기부터 소프트웨어 해결을 고집한 이유는 그 변경 사실을 몰랐기 때문이었지만, 시험 범위가 비정상적으로 좁다는 흔적은 그가 승인한 일정표에도 남아 있었다."
+        }
+      },
+      {
+        "id": "entity_7e6045c09ec73a15",
+        "kind": "character",
+        "name": "윤태식",
+        "description": "현장 엔지니어 출신으로, 수년간 준비한 제품을 시장에 제때 내놓아 팀원들의 성과와 생산 협력사들의 일감을 지키려 한다. 다만 기술적 해결이 가능하다는 확신이 위험의 책임까지 대신해 주지는 않는다는 사실을 배운다.",
+        "attributes": {
+          "role": "세림전자 모바일사업부 개발2팀장"
+        }
+      },
+      {
+        "id": "entity_1c5d6e327c1584b8",
+        "kind": "goal",
+        "name": "윤태식의 목표",
+        "description": "현장 엔지니어 출신으로, 수년간 준비한 제품을 시장에 제때 내놓아 팀원들의 성과와 생산 협력사들의 일감을 지키려 한다. 다만 기술적 해결이 가능하다는 확신이 위험의 책임까지 대신해 주지는 않는다는 사실을 배운다.",
+        "attributes": {}
+      },
+      {
+        "id": "entity_a079629b4fee8c95",
+        "kind": "character",
+        "name": "서지아",
+        "description": "과거 소형 가전의 미세 결함을 경미하게 판단했다가 리콜을 겪은 뒤, 낮은 확률의 안전 문제도 끝까지 검증해야 한다는 원칙을 세웠다. 동시에 무조건적인 중단이 회사와 현장 노동자에게 남길 비용도 외면하지 않는다.",
+        "attributes": {
+          "role": "세림전자 품질보증실 신뢰성평가 책임"
+        }
+      },
+      {
+        "id": "entity_f3e2ece1745b9cf6",
+        "kind": "goal",
+        "name": "서지아의 목표",
+        "description": "과거 소형 가전의 미세 결함을 경미하게 판단했다가 리콜을 겪은 뒤, 낮은 확률의 안전 문제도 끝까지 검증해야 한다는 원칙을 세웠다. 동시에 무조건적인 중단이 회사와 현장 노동자에게 남길 비용도 외면하지 않는다.",
+        "attributes": {}
+      },
+      {
+        "id": "entity_73a011a0fea6784f",
+        "kind": "character",
+        "name": "한규석",
+        "description": "해외 부품 공급 불안과 판매 목표 압박 속에서 생산 차질을 막기 위해 대체 부품과 시험 축소를 승인했다. 자신의 결정이 합리적인 운영 판단이었다고 믿지만, 그 판단이 누구에게 위험을 전가했는지 마주하게 된다.",
+        "attributes": {
+          "role": "모바일사업부 사업부장"
+        }
+      },
+      {
+        "id": "entity_3b3601a20e534834",
+        "kind": "goal",
+        "name": "한규석의 목표",
+        "description": "해외 부품 공급 불안과 판매 목표 압박 속에서 생산 차질을 막기 위해 대체 부품과 시험 축소를 승인했다. 자신의 결정이 합리적인 운영 판단이었다고 믿지만, 그 판단이 누구에게 위험을 전가했는지 마주하게 된다.",
+        "attributes": {}
+      },
+      {
+        "id": "entity_6af80011ab5386a3",
+        "kind": "character",
+        "name": "문혜린",
+        "description": "출하 지연이 반복되면 단기 계약 인력의 연장이 어려워질 것을 알기에 일정 강행을 원한다. 그러나 생산라인에서 이상 샘플을 직접 확인한 뒤, 현장도 위험 정보를 알 권리가 있다는 입장을 갖게 된다.",
+        "attributes": {
+          "role": "평택 공장 생산관리 과장"
+        }
+      },
+      {
+        "id": "entity_4202a6147c6e71b7",
+        "kind": "goal",
+        "name": "문혜린의 목표",
+        "description": "출하 지연이 반복되면 단기 계약 인력의 연장이 어려워질 것을 알기에 일정 강행을 원한다. 그러나 생산라인에서 이상 샘플을 직접 확인한 뒤, 현장도 위험 정보를 알 권리가 있다는 입장을 갖게 된다.",
+        "attributes": {}
+      },
+      {
+        "id": "entity_6d3b07d97e91d0e1",
+        "kind": "event",
+        "name": "1막: 출하를 향한 카운트다운",
+        "description": "출하 사흘 전, 낮은 빈도의 발열 이상이 발견되며 개발팀과 품질팀의 공개 충돌이 시작된다.",
+        "attributes": {
+          "beats": [
+            "세림전자 평택 생산라인은 루멘 X 초도 물량 포장을 시작하고, 윤태식은 통신사 공동 출시 행사를 앞두고 최종 소프트웨어 빌드를 승인한다.",
+            "서지아의 품질보증실은 고온 다습 챔버 시험에서 충전 중 기기 후면이 비정상적으로 팽창한 샘플 두 대를 발견한다.",
+            "태식은 수천 대 중 두 대의 사례이며 충전 전력을 제한하는 패치로 대응 가능하다고 판단해 출하 준비를 지속한다.",
+            "지아는 안전 관련 결함은 발생률이 아니라 최악의 결과로 평가해야 한다며 공식 출하보류 검토회의를 소집한다."
+          ],
+          "order": 1
+        }
+      },
+      {
+        "id": "entity_f1240b1bc7489baa",
+        "kind": "event",
+        "name": "2막: 누락된 조건",
+        "description": "양측은 재현 시험과 책임 공방을 거치며, 문제를 키운 의사결정이 개발과 품질의 대립 바깥에 있음을 발견한다.",
+        "attributes": {
+          "beats": [
+            "태식은 품질팀이 실제 사용 환경보다 가혹한 조건을 만들었다고 반박하고, 지아는 개발팀에 동일 조건의 공동 재현 시험을 요구한다.",
+            "공동 시험에서 문제는 초고속 충전, 약한 이동통신 신호, 영상 업로드가 동시에 지속될 때 집중적으로 발생한다는 사실이 확인된다.",
+            "지아는 이전 모델과 달리 충전 제어 칩의 검증 항목이 줄어든 점을 발견하고, 태식은 자신이 받은 부품 변경 문서에 해당 위험이 표시되지 않았음을 확인한다.",
+            "구매·생산 회의록을 통해 사업부장이 공급 차질을 막고 수율을 높이기 위해 대체 칩 사용과 시험 항목 축소를 승인했다는 사실이 드러난다.",
+            "태식은 자신도 출시 일정표에서 시험 기간 단축을 승인했다는 점을 인정하고, 지아는 출하 전면 중단만이 유일한 답인지 다시 계산하기 시작한다."
+          ],
+          "order": 2
+        }
+      },
+      {
+        "id": "entity_96cc4f71e9a3678a",
+        "kind": "event",
+        "name": "3막: 책임 있는 출시",
+        "description": "두 책임자는 서로의 요구를 일부 받아들인 조건부 출시안을 만들고, 경영진에게 문제의 원인과 책임을 함께 공개한다.",
+        "attributes": {
+          "beats": [
+            "지아는 초고속 충전을 기본 제한한 상태로 출하하되, 판매 전 원격 업데이트 일정과 배터리 교체 기준을 공개하는 조건부 승인안을 제안한다.",
+            "태식은 통신사 행사에서 약속한 충전 성능 수치를 낮춰야 하지만, 현장 교체보다 선제적 제한이 소비자 피해를 줄인다는 판단으로 제안을 받아들인다.",
+            "두 사람은 사업부장에게 변경 승인 및 시험 축소 경위를 경영회의에 그대로 보고하겠다고 통보한다.",
+            "경영진은 출시를 일주일 연기하고 제한 충전 모드, 무상 점검 프로그램, 독립 안전성 재검증을 포함한 대책을 발표한다.",
+            "출시 당일, 태식과 지아는 각자의 부서가 승리했다는 표현 대신 향후 부품 변경은 품질팀 공동 승인 없이는 진행할 수 없도록 절차를 개정한다."
+          ],
+          "order": 3
+        }
+      },
+      {
+        "id": "entity_4ecdb42c75b03fd7",
+        "kind": "narrative",
+        "name": "반전",
+        "description": "문제의 직접 원인은 개발팀의 설계 실수가 아니라 생산 수율을 높이기 위해 사업부장이 승인한 충전 제어 칩 변경과 그에 따른 시험 조건 축소였다. 태식이 초기부터 소프트웨어 해결을 고집한 이유는 그 변경 사실을 몰랐기 때문이었지만, 시험 범위가 비정상적으로 좁다는 흔적은 그가 승인한 일정표에도 남아 있었다.",
+        "attributes": {}
+      }
+    ],
+    "relationships": [
+      {
+        "id": "relationship_4470f88fcc04f7b2",
+        "source": "entity_e47d185a30dcaf1f",
+        "type": "expresses",
+        "target": "entity_fc53d8c3d1b025aa",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_217ed58c5df3b271",
+        "source": "entity_7e6045c09ec73a15",
+        "type": "wants",
+        "target": "entity_1c5d6e327c1584b8",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_944948522c87131f",
+        "source": "entity_e47d185a30dcaf1f",
+        "type": "involves",
+        "target": "entity_7e6045c09ec73a15",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_b131b96b24b65af0",
+        "source": "entity_7e6045c09ec73a15",
+        "type": "lives_in",
+        "target": "entity_986ef87745a9c7ed",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_1bbdf7b4939e3600",
+        "source": "entity_a079629b4fee8c95",
+        "type": "wants",
+        "target": "entity_f3e2ece1745b9cf6",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_a21631f16ce789ce",
+        "source": "entity_e47d185a30dcaf1f",
+        "type": "involves",
+        "target": "entity_a079629b4fee8c95",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_b2597b61145b8567",
+        "source": "entity_a079629b4fee8c95",
+        "type": "lives_in",
+        "target": "entity_986ef87745a9c7ed",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_c84f225f3e6e81bc",
+        "source": "entity_73a011a0fea6784f",
+        "type": "wants",
+        "target": "entity_3b3601a20e534834",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_6353bee208b6f6f7",
+        "source": "entity_e47d185a30dcaf1f",
+        "type": "involves",
+        "target": "entity_73a011a0fea6784f",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_32c469912dd19491",
+        "source": "entity_73a011a0fea6784f",
+        "type": "lives_in",
+        "target": "entity_986ef87745a9c7ed",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_22a710f5a7105350",
+        "source": "entity_6af80011ab5386a3",
+        "type": "wants",
+        "target": "entity_4202a6147c6e71b7",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_bf2f38f38bada225",
+        "source": "entity_e47d185a30dcaf1f",
+        "type": "involves",
+        "target": "entity_6af80011ab5386a3",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_e5b82f993c61a21d",
+        "source": "entity_6af80011ab5386a3",
+        "type": "lives_in",
+        "target": "entity_986ef87745a9c7ed",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_98f3ec1ed62f4287",
+        "source": "entity_6d3b07d97e91d0e1",
+        "type": "occurs_in",
+        "target": "entity_986ef87745a9c7ed",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_478409f098650f91",
+        "source": "entity_6d3b07d97e91d0e1",
+        "type": "advances",
+        "target": "entity_e47d185a30dcaf1f",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_76741258ea977f2b",
+        "source": "entity_f1240b1bc7489baa",
+        "type": "occurs_in",
+        "target": "entity_986ef87745a9c7ed",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_338672bd6fbf1e02",
+        "source": "entity_f1240b1bc7489baa",
+        "type": "advances",
+        "target": "entity_e47d185a30dcaf1f",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_1798c6ec3e21c38c",
+        "source": "entity_6d3b07d97e91d0e1",
+        "type": "precedes",
+        "target": "entity_f1240b1bc7489baa",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_00ab592ce1afefcc",
+        "source": "entity_96cc4f71e9a3678a",
+        "type": "occurs_in",
+        "target": "entity_986ef87745a9c7ed",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_92aed63992994352",
+        "source": "entity_96cc4f71e9a3678a",
+        "type": "advances",
+        "target": "entity_e47d185a30dcaf1f",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_ec0965af9d696a11",
+        "source": "entity_f1240b1bc7489baa",
+        "type": "precedes",
+        "target": "entity_96cc4f71e9a3678a",
+        "attributes": {}
+      },
+      {
+        "id": "relationship_75cd983fe82bc902",
+        "source": "entity_4ecdb42c75b03fd7",
+        "type": "transforms",
+        "target": "entity_e47d185a30dcaf1f",
+        "attributes": {}
+      }
+    ],
+    "provenance": {
+      "operation": "compose",
+      "createdAt": "2026-08-24T10:12:18.958Z",
+      "sourceType": "scenario",
+      "sourceTitle": "스마트폰 개발 업체인 에스 전자에서 개발팀과 품질팀이 목표 일정과 품질 이슈로 대립하는 상황",
+      "generatedByProvider": "mock",
+      "generatedByModel": "contentx-amplifier-v1"
+    }
+  }
+}
