@@ -29,6 +29,9 @@ export interface ISessionsStorage {
   getAllPersonaRuns(): Promise<PersonaRun[]>;
 
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+  upsertVoiceTranscript(
+    message: InsertChatMessage & { voiceTurnId: string; voiceTranscriptFinal: boolean },
+  ): Promise<ChatMessage>;
   getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]>;
   deleteChatMessagesByPersonaRun(personaRunId: string): Promise<void>;
   getAllEmotionStats(scenarioIds?: string[], personaType?: 'mbti' | 'user' | 'all'): Promise<EmotionStat[]>;
@@ -145,6 +148,80 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     async createChatMessage(insertMessage: InsertChatMessage): Promise<ChatMessage> {
       const [message] = await db.insert(chatMessages).values(insertMessage).returning();
       return message;
+    }
+
+    async upsertVoiceTranscript(
+      insertMessage: InsertChatMessage & { voiceTurnId: string; voiceTranscriptFinal: boolean },
+    ): Promise<ChatMessage> {
+      return db.transaction(async tx => {
+        // Serialize all voice-transcript identity decisions for one conversation.
+        // This covers page-hide beacons racing the server's orphan-close flush.
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${insertMessage.personaRunId}))`,
+        );
+
+        const [byVoiceTurn] = await tx
+          .select()
+          .from(chatMessages)
+          .where(and(
+            eq(chatMessages.personaRunId, insertMessage.personaRunId),
+            eq(chatMessages.voiceTurnId, insertMessage.voiceTurnId),
+          ))
+          .limit(1);
+
+        if (byVoiceTurn) {
+          if (byVoiceTurn.voiceTranscriptFinal) return byVoiceTurn;
+          const [updated] = await tx
+            .update(chatMessages)
+            .set({
+              message: insertMessage.message,
+              voiceTranscriptFinal: insertMessage.voiceTranscriptFinal,
+              createdAt: insertMessage.createdAt,
+            })
+            .where(eq(chatMessages.id, byVoiceTurn.id))
+            .returning();
+          return updated;
+        }
+
+        const [atPosition] = await tx
+          .select()
+          .from(chatMessages)
+          .where(and(
+            eq(chatMessages.personaRunId, insertMessage.personaRunId),
+            eq(chatMessages.turnIndex, insertMessage.turnIndex),
+            eq(chatMessages.sender, 'user'),
+          ))
+          .limit(1);
+
+        if (atPosition && !atPosition.voiceTurnId) {
+          const [updated] = await tx
+            .update(chatMessages)
+            .set({
+              ...insertMessage,
+              turnIndex: atPosition.turnIndex,
+            })
+            .where(eq(chatMessages.id, atPosition.id))
+            .returning();
+          return updated;
+        }
+
+        let turnIndex = insertMessage.turnIndex;
+        if (atPosition) {
+          const [last] = await tx
+            .select({ turnIndex: chatMessages.turnIndex })
+            .from(chatMessages)
+            .where(eq(chatMessages.personaRunId, insertMessage.personaRunId))
+            .orderBy(desc(chatMessages.turnIndex))
+            .limit(1);
+          turnIndex = Math.max(turnIndex, (last?.turnIndex ?? -1) + 1);
+        }
+
+        const [created] = await tx
+          .insert(chatMessages)
+          .values({ ...insertMessage, turnIndex })
+          .returning();
+        return created;
+      });
     }
 
     async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
@@ -355,6 +432,7 @@ export class MemSessionsStorage implements ISessionsStorage {
   async getPersonaRunsByScenarioRun(_: string): Promise<PersonaRun[]> { throw new Error("MemStorage does not support Persona Runs"); }
   async getAllPersonaRuns(): Promise<PersonaRun[]> { throw new Error("MemStorage does not support Persona Runs"); }
   async createChatMessage(_: InsertChatMessage): Promise<ChatMessage> { throw new Error("MemStorage does not support Chat Messages"); }
+  async upsertVoiceTranscript(_: InsertChatMessage & { voiceTurnId: string; voiceTranscriptFinal: boolean }): Promise<ChatMessage> { throw new Error("MemStorage does not support Chat Messages"); }
   async getChatMessagesByPersonaRun(_: string): Promise<ChatMessage[]> { throw new Error("MemStorage does not support Chat Messages"); }
   async deleteChatMessagesByPersonaRun(_: string): Promise<void> { throw new Error("MemStorage does not support Chat Messages"); }
   async getAllEmotionStats(_?: string[], __?: 'mbti' | 'user' | 'all'): Promise<EmotionStat[]> { throw new Error("MemStorage does not support emotion stats"); }

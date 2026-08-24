@@ -134,6 +134,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   const [pendingAiMessage, setPendingAiMessage] = useState(false);
   const [pendingUserMessage, setPendingUserMessage] = useState(false);
   const [pendingUserText, _setPendingUserText] = useState('');
+  const [pendingUserVoiceTurnId, _setPendingUserVoiceTurnId] = useState('');
   const [isStreamingActive, setIsStreamingActive] = useState(false);
 
   // Ref that mirrors localMessages synchronously at dispatch time.
@@ -159,6 +160,11 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   const setPendingUserText = (value: string) => {
     pendingUserTextRef.current = value;
     _setPendingUserText(value);
+  };
+  const pendingUserVoiceTurnIdRef = useRef('');
+  const setPendingUserVoiceTurnId = (value: string) => {
+    pendingUserVoiceTurnIdRef.current = value;
+    _setPendingUserVoiceTurnId(value);
   };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -371,7 +377,11 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     return aiMessage;
   };
 
-  const addRealtimeUserMessage = (transcript: string) => {
+  const addRealtimeUserMessage = (
+    transcript: string,
+    voiceTurnId?: string,
+    voiceTranscriptFinal = true,
+  ) => {
     hasPendingLocalRef.current = true;
     setPendingUserMessage(false);
     // Append message BEFORE clearing pendingUserText so that any save path
@@ -379,25 +389,41 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     // localMessagesRef.current OR the pending text in pendingUserTextRef.current
     // — never neither.
     setLocalMessages(prev => {
-      // Replay dedup guard: suppress only when the *immediately preceding*
-      // message is a user turn with the exact same text. Reconnect replay
-      // always delivers the duplicate transcript back-to-back, so a strict
-      // last-message check is sufficient. Legitimate repeated utterances
-      // (e.g. "네" said again after an AI response) are always allowed through
-      // because an AI turn will have appeared in between.
-      const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
-      if (lastMsg && lastMsg.sender === 'user' && lastMsg.message === transcript) {
-        console.log('⚠️ [user-dedup] Suppressing adjacent duplicate user transcription:', transcript.substring(0, 60));
-        return prev;
+      // Stable provider turn identity lets a final event replace a provisional
+      // flush while suppressing later replays. Distinct IDs preserve legitimate
+      // repeated utterances even when their text is identical.
+      if (voiceTurnId) {
+        const existingIndex = prev.findIndex(
+          msg => msg.sender === 'user' && msg.voiceTurnId === voiceTurnId,
+        );
+        if (existingIndex >= 0) {
+          const existing = prev[existingIndex];
+          if (existing.voiceTranscriptFinal) {
+            console.log(`⚠️ [user-dedup] Suppressing replayed final user turn ${voiceTurnId}`);
+            return prev;
+          }
+          const next = [...prev];
+          next[existingIndex] = {
+            ...existing,
+            message: transcript,
+            voiceTranscriptFinal,
+          };
+          return next;
+        }
       }
+      const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
+      if (!voiceTurnId && lastMsg && lastMsg.sender === 'user' && lastMsg.message === transcript) return prev;
       return [...prev, {
         id: nextId(),
         sender: 'user',
         message: transcript,
         timestamp: new Date().toISOString(),
+        voiceTurnId,
+        voiceTranscriptFinal,
       }];
     });
     setPendingUserText('');
+    setPendingUserVoiceTurnId('');
   };
 
   const addRealtimeAiMessage = (message: string, emotion?: string, emotionReason?: string) => {
@@ -420,6 +446,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     setPendingAiMessage(false);
     setPendingUserMessage(false);
     setPendingUserText('');
+    setPendingUserVoiceTurnId('');
   };
 
   return {
@@ -433,6 +460,9 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     pendingUserText,
     setPendingUserText,
     pendingUserTextRef,
+    pendingUserVoiceTurnId,
+    setPendingUserVoiceTurnId,
+    pendingUserVoiceTurnIdRef,
     isStreamingActive,
     messagesEndRef,
     sendMessageMutation,

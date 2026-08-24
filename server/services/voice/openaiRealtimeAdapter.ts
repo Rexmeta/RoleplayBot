@@ -3,6 +3,13 @@ import { RealtimeSession, PendingOutgoingMessage } from './types';
 import { analyzeEmotion, analyzeUserEmotion, NEUTRAL_USER_AFFECT } from './emotionAnalyzer';
 import { stripInternalActionMarkers, collapseDoubledTranscript } from './textFilter';
 import { GoogleGenAI } from '@google/genai';
+import {
+  ensureUserTranscriptTurn,
+  finalizeUserTranscript,
+  providerTranscriptionLanguage,
+  recordUserTranscriptDiagnostic,
+  recordVoiceSessionConfiguration,
+} from './transcriptionIntegrity';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
 
@@ -68,6 +75,7 @@ export function createMessageHandler(
   let aiTranscriptBuffer = '';
   let sessionReadySent = false;
   let accumulatedUserTranscript = '';
+  let accumulatedUserProviderEventId: string | null = null;
   let latestUserAffect: import('./emotionAnalyzer').UserAffectState = { ...NEUTRAL_USER_AFFECT };
 
   return function handleMessage(msg: any): void {
@@ -223,37 +231,66 @@ export function createMessageHandler(
           // that was picked up by the microphone; accumulating them would pollute the next
           // user message. Mirrors the Gemini handler's isStaleDelta guard.
           if (session.isInterrupted) {
-            console.log(`🚫 [OpenAI Realtime] Discarding stale user transcript delta during barge-in: "${msg.delta.substring(0, 50)}"`);
+            console.log(`🚫 [OpenAI Realtime] Discarding stale user transcript delta during barge-in (length=${msg.delta.length})`);
             break;
+          }
+          const turnId = ensureUserTranscriptTurn(session);
+          if (typeof msg.item_id === 'string' && msg.item_id) {
+            accumulatedUserProviderEventId = msg.item_id;
+            session.activeUserTranscriptProviderEventId = msg.item_id;
           }
           accumulatedUserTranscript += msg.delta;
           session.userTranscriptBuffer = accumulatedUserTranscript;
+          recordUserTranscriptDiagnostic(session, {
+            stage: 'provider.delta',
+            provider: 'openai',
+            source: 'openai.input_audio_transcription.delta',
+            transcript: msg.delta,
+            turnId,
+            providerEventId: accumulatedUserProviderEventId,
+          });
           sendToClient(session, {
             type: 'user.transcription.delta',
             text: msg.delta,
             accumulated: accumulatedUserTranscript,
+            turnId,
+            provider: 'openai',
+            source: 'openai.input_audio_transcription.delta',
+            language: session.userLanguage,
           });
         }
         break;
       }
 
       case 'conversation.item.input_audio_transcription.completed': {
-        const userText = (msg.transcript || accumulatedUserTranscript).trim();
+        const userText = typeof msg.transcript === 'string'
+          ? msg.transcript
+          : accumulatedUserTranscript;
+        const providerEventId =
+          msg.item_id ??
+          msg.item?.id ??
+          accumulatedUserProviderEventId ??
+          msg.id ??
+          null;
+        recordUserTranscriptDiagnostic(session, {
+          stage: 'provider.final',
+          provider: 'openai',
+          source: 'openai.input_audio_transcription.completed',
+          transcript: userText,
+          turnId: session.activeUserTranscriptTurnId,
+          providerEventId,
+        });
         accumulatedUserTranscript = '';
-        session.userTranscriptBuffer = '';
-        session.userTurnsCompleted++;
+        accumulatedUserProviderEventId = null;
         session.lastEvaluatedUserTurnIndex = -1;
 
-        if (userText) {
-          // Match Gemini handler contract: type 'user.transcription' with transcript field
-          sendToClient(session, { type: 'user.transcription', transcript: userText });
-          if (session.recentMessages) {
-            session.recentMessages.push({ role: 'user', text: userText.slice(0, 300) });
-            if (session.recentMessages.length > 30) {
-              session.recentMessages.splice(0, session.recentMessages.length - 30);
-            }
-          }
+        const finalized = finalizeUserTranscript(session, userText, sendToClient, {
+          provider: 'openai',
+          source: 'openai.input_audio_transcription.completed',
+          providerEventId,
+        });
 
+        if (finalized.emitted) {
           // Fire user affect analysis in parallel (result stored for the next ai.transcription.done)
           const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
           if (geminiApiKey) {
@@ -277,10 +314,19 @@ export function createMessageHandler(
       case 'response.cancelled': {
         aiTranscriptBuffer = '';
         session.currentTranscript = '';
+        if (accumulatedUserTranscript.trim()) {
+          finalizeUserTranscript(session, accumulatedUserTranscript, sendToClient, {
+            provider: 'openai',
+            source: 'openai.response_cancelled_flush',
+            providerEventId: accumulatedUserProviderEventId,
+            final: false,
+          });
+        }
         // Also reset the user transcript accumulation buffer so any in-flight Whisper
         // deltas that were already discarded by the barge-in guard don't ghost into the
         // next turn if the buffer somehow held partial state before the barge-in.
         accumulatedUserTranscript = '';
+        accumulatedUserProviderEventId = null;
         session.userTranscriptBuffer = '';
 
         // Increment turnSeq for the cancelled response (mirrors Gemini's turnComplete behaviour).
@@ -329,14 +375,12 @@ export function createMessageHandler(
   };
 }
 
-function buildSessionConfig(session: RealtimeSession): object {
+export function buildSessionConfig(session: RealtimeSession): object {
   const voice = getOpenAIVoice(session.voiceGender, session.activePersonaIndex);
-  const langCodeMap: Record<string, string> = {
-    ko: 'ko', en: 'en', ja: 'ja', zh: 'zh',
-  };
-  const lang = langCodeMap[session.userLanguage] || 'ko';
+  const lang = providerTranscriptionLanguage(session.userLanguage, 'openai');
 
   session.selectedVoice = voice;
+  recordVoiceSessionConfiguration(session, 'openai', lang);
 
   return {
     modalities: ['audio', 'text'],

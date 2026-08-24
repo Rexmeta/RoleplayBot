@@ -12,7 +12,7 @@ import {
   personaRuns,
   chatMessages as chatMessagesTable,
 } from "@shared/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import {
   verifyConversationOwnership,
   verifyPersonaRunOwnership,
@@ -457,6 +457,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       emotionReason: msg.emotionReason || undefined,
       turnIndex: msg.turnIndex,
       userAffect: (msg.userAffect as Record<string, unknown>) ?? undefined,
+      voiceTurnId: msg.voiceTurnId ?? undefined,
+      voiceTranscriptFinal: msg.voiceTranscriptFinal,
     }));
 
     const isPersonaXGet = scenarioRun.scenarioId === '__free_chat__' ||
@@ -1546,6 +1548,44 @@ ${userNameLine}
       throw createHttpError(400, "Messages must be an array");
     }
 
+    const seenVoiceTurns = new Map<string, string>();
+    for (const msg of messages) {
+      if (!msg || (msg.sender !== 'user' && msg.sender !== 'ai')) {
+        throw createHttpError(400, "Each message sender must be user or ai");
+      }
+      if (typeof msg.message !== 'string') {
+        throw createHttpError(400, "Each message must contain a string message");
+      }
+      if (msg.voiceTurnId !== undefined) {
+        if (
+          msg.sender !== 'user' ||
+          typeof msg.voiceTurnId !== 'string' ||
+          msg.voiceTurnId.length < 1 ||
+          msg.voiceTurnId.length > 160
+        ) {
+          throw createHttpError(400, "voiceTurnId is only valid for user messages");
+        }
+        const priorText = seenVoiceTurns.get(msg.voiceTurnId);
+        if (priorText !== undefined) {
+          throw createHttpError(
+            priorText === msg.message ? 400 : 409,
+            "A voice turn may appear only once in a save payload",
+          );
+        }
+        seenVoiceTurns.set(msg.voiceTurnId, msg.message);
+      }
+      if (
+        msg.voiceTranscriptFinal !== undefined &&
+        (
+          typeof msg.voiceTranscriptFinal !== 'boolean' ||
+          msg.sender !== 'user' ||
+          typeof msg.voiceTurnId !== 'string'
+        )
+      ) {
+        throw createHttpError(400, "voiceTranscriptFinal requires a user voiceTurnId");
+      }
+    }
+
     console.log(`🎙️ 실시간 음성 대화 메시지 일괄 저장: ${personaRunId}, ${messages.length}개 메시지, isFinal=${isFinal}`);
 
     // Upsert each message individually using (personaRunId, turnIndex, sender)
@@ -1572,21 +1612,37 @@ ${userNameLine}
         emotion: msg.emotion || null,
         emotionReason: msg.emotionReason || null,
         userAffect: msg.userAffect ?? null,
+        voiceTurnId: msg.voiceTurnId ?? null,
+        voiceTranscriptFinal: msg.voiceTranscriptFinal === true,
         createdAt: msg.timestamp ? new Date(msg.timestamp) : new Date()
       };
-      await db.insert(chatMessagesTable)
-        .values(values)
-        .onConflictDoUpdate({
+      if (values.sender === 'user' && values.voiceTurnId) {
+        await storage.upsertVoiceTranscript({
+          ...values,
+          voiceTurnId: values.voiceTurnId,
+          voiceTranscriptFinal: values.voiceTranscriptFinal,
+        });
+      } else {
+        const insert = db.insert(chatMessagesTable).values(values);
+        await insert.onConflictDoUpdate({
           target: [chatMessagesTable.personaRunId, chatMessagesTable.turnIndex, chatMessagesTable.sender],
           set: {
             sender: values.sender,
-            message: values.message,
+            // An identity-less stale snapshot must not overwrite a row that was
+            // already finalized under a provider voice turn ID.
+            message: sql`CASE
+              WHEN ${chatMessagesTable.voiceTurnId} IS NOT NULL
+                AND ${chatMessagesTable.voiceTranscriptFinal}
+              THEN ${chatMessagesTable.message}
+              ELSE ${values.message}
+            END`,
             emotion: values.emotion,
             emotionReason: values.emotionReason,
             userAffect: values.userAffect,
             createdAt: values.createdAt,
           },
         });
+      }
     }
 
     const turnCount = Math.floor(messages.length / 2);
@@ -1799,7 +1855,9 @@ ${userNameLine}
         message: msg.message,
         timestamp: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
         emotion: msg.emotion || undefined,
-        emotionReason: msg.emotionReason || undefined
+        emotionReason: msg.emotionReason || undefined,
+        voiceTurnId: msg.voiceTurnId ?? undefined,
+        voiceTranscriptFinal: msg.voiceTranscriptFinal,
       })),
       status: personaRun.status,
       createdAt: personaRun.startedAt,

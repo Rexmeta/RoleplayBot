@@ -25,8 +25,22 @@ const capturedInserts = vi.hoisted(() => {
   return {
     push(v: any) {
       calls.push(v);
-      // Replicate ON CONFLICT DO UPDATE — same key → overwrites, never appends
-      const key = `${v.personaRunId}|${v.turnIndex}|${v.sender}`;
+      const positionalKey = `${v.personaRunId}|${v.turnIndex}|${v.sender}`;
+      const voiceEntry = v.voiceTurnId
+        ? [...state.entries()].find(([, row]) =>
+            row.personaRunId === v.personaRunId && row.voiceTurnId === v.voiceTurnId)
+        : undefined;
+      const existingEntry = voiceEntry ?? (
+        state.has(positionalKey)
+          ? [positionalKey, state.get(positionalKey)] as [string, any]
+          : undefined
+      );
+      if (existingEntry) {
+        const [existingKey, existing] = existingEntry;
+        if (existing.voiceTranscriptFinal) return;
+        state.delete(existingKey);
+      }
+      const key = positionalKey;
       state.set(key, v);
     },
     clear() {
@@ -67,6 +81,14 @@ vi.mock('../../server/storage', () => ({
       plan: { tokenQuotaMonthly: -1 },
     }),
     deleteChatMessagesByPersonaRun: vi.fn().mockResolvedValue(undefined),
+    getChatMessagesByPersonaRun: vi.fn().mockResolvedValue([]),
+    getSimulationState: vi.fn().mockResolvedValue(null),
+    saveSimulationState: vi.fn().mockResolvedValue(undefined),
+    createSimulationEvent: vi.fn().mockResolvedValue({}),
+    upsertVoiceTranscript: vi.fn().mockImplementation(async (values: any) => {
+      capturedInserts.push(values);
+      return capturedInserts.rows().find(row => row.voiceTurnId === values.voiceTurnId);
+    }),
     getFeedbackByConversationId: vi.fn().mockResolvedValue(null),
     addStrategyChoice: vi.fn().mockResolvedValue({}),
   },
@@ -116,6 +138,36 @@ beforeAll(async () => {
 }, 30000);
 
 // ─── Route-level tests ────────────────────────────────────────────────────────
+
+describe('GET /api/conversations/:id', () => {
+  it('returns voice turn identity and finality for reload hydration', async () => {
+    vi.mocked(storage.getScenarioRun).mockResolvedValueOnce({
+      id: 'srun-1',
+      userId: 'user-1',
+      scenarioId: '__free_chat__',
+      status: 'completed',
+    } as any);
+    vi.mocked(storage.getChatMessagesByPersonaRun).mockResolvedValueOnce([{
+      id: 'message-1',
+      personaRunId: 'prun-1',
+      sender: 'user',
+      message: '제공자 최종 원문',
+      turnIndex: 0,
+      voiceTurnId: 'voice-user:hydrated:1',
+      voiceTranscriptFinal: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    } as any]);
+
+    const res = await request(app).get('/api/conversations/prun-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.messages[0]).toMatchObject({
+      message: '제공자 최종 원문',
+      voiceTurnId: 'voice-user:hydrated:1',
+      voiceTranscriptFinal: true,
+    });
+  });
+});
 
 describe('POST /api/conversations/:id/realtime-messages', () => {
   beforeEach(() => {
@@ -233,6 +285,112 @@ describe('POST /api/conversations/:id/realtime-messages', () => {
     const res = await request(app)
       .post('/api/conversations/prun-1/realtime-messages')
       .send({ messages: 'not-an-array' });
+    expect(res.status).toBe(400);
+  });
+
+  it('stores provider-final user text byte-for-byte with its voice turn ID', async () => {
+    const transcript = '  네, PO-42 Jane입니다.  ';
+    const res = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({
+        messages: [{
+          sender: 'user',
+          message: transcript,
+          voiceTurnId: 'voice-user:session:1',
+          voiceTranscriptFinal: true,
+        }],
+        isFinal: false,
+      });
+
+    expect(res.status).toBe(200);
+    expect(capturedInserts.rows()).toContainEqual(expect.objectContaining({
+      sender: 'user',
+      message: transcript,
+      voiceTurnId: 'voice-user:session:1',
+      voiceTranscriptFinal: true,
+    }));
+  });
+
+  it('replaces a provisional page-exit transcript with the provider-final text', async () => {
+    const voiceTurnId = 'voice-user:session:2';
+    await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{
+        sender: 'user',
+        message: '정상 한국어',
+        voiceTurnId,
+        voiceTranscriptFinal: false,
+      }] });
+    await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{
+        sender: 'user',
+        message: '정상 한국어 원문',
+        voiceTurnId,
+        voiceTranscriptFinal: true,
+      }] });
+
+    expect(capturedInserts.rows()).toHaveLength(1);
+    expect(capturedInserts.rows()[0].message).toBe('정상 한국어 원문');
+    expect(capturedInserts.rows()[0].voiceTranscriptFinal).toBe(true);
+  });
+
+  it('keeps provider-final text when a stale save reuses the same voice turn ID', async () => {
+    const voiceTurnId = 'voice-user:session:3';
+    await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{
+        sender: 'user',
+        message: '정상 한국어 원문',
+        voiceTurnId,
+        voiceTranscriptFinal: true,
+      }] });
+    await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{
+        sender: 'user',
+        message: '后来的错误字符串',
+        voiceTurnId,
+        voiceTranscriptFinal: false,
+      }] });
+
+    expect(capturedInserts.rows()).toHaveLength(1);
+    expect(capturedInserts.rows()[0].message).toBe('정상 한국어 원문');
+  });
+
+  it('resolves a reordered replay by voice turn identity instead of array position', async () => {
+    const voiceTurnId = 'voice-user:session:reordered';
+    await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{
+        sender: 'user',
+        message: '제공자 최종 원문',
+        voiceTurnId,
+        voiceTranscriptFinal: true,
+      }] });
+
+    const res = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [
+        { sender: 'ai', message: '앞에 추가된 메시지' },
+        {
+          sender: 'user',
+          message: 'stale replay',
+          voiceTurnId,
+          voiceTranscriptFinal: false,
+        },
+      ] });
+
+    expect(res.status).toBe(200);
+    const voiceRows = capturedInserts.rows().filter(row => row.voiceTurnId === voiceTurnId);
+    expect(voiceRows).toHaveLength(1);
+    expect(voiceRows[0].message).toBe('제공자 최종 원문');
+  });
+
+  it('rejects a voice turn ID on an AI message', async () => {
+    const res = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{ sender: 'ai', message: 'not a user transcript', voiceTurnId: 'voice-user:x:1' }] });
     expect(res.status).toBe(400);
   });
 });

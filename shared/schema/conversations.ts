@@ -104,10 +104,13 @@ export const chatMessages = pgTable("chat_messages", {
   emotionReason: text("emotion_reason"),
   userAffect: jsonb("user_affect"),
   interrupted: boolean("interrupted").default(false),
+  voiceTurnId: varchar("voice_turn_id"),
+  voiceTranscriptFinal: boolean("voice_transcript_final").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("idx_chat_messages_persona_run_id").on(table.personaRunId),
   uniqueIndex("idx_chat_messages_upsert_key").on(table.personaRunId, table.turnIndex, table.sender),
+  uniqueIndex("idx_chat_messages_voice_turn_id").on(table.personaRunId, table.voiceTurnId),
 ]);
 
 export const insertSimulationEventSchema = createInsertSchema(simulationEvents).omit({

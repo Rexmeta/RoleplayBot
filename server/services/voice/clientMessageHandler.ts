@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { RealtimeSession, PendingOutgoingMessage, MAX_PENDING_MESSAGES } from './types';
 import { filterThinkingText } from './textFilter';
 import { storage } from '../../storage';
+import { finalizeUserTranscript, realtimeVoiceProvider } from './transcriptionIntegrity';
 
 function pushPending(session: RealtimeSession, msg: PendingOutgoingMessage): void {
   session.pendingMessages.push(msg);
@@ -96,6 +97,23 @@ export function handleClientMessage(
   }
 
   switch (message.type) {
+    case 'client.user_speech.started': {
+      if (Number.isInteger(message.speechSeq) && message.speechSeq > 0) {
+        session.currentClientSpeechSeq = message.speechSeq;
+        if (
+          session.pendingGeminiProvisionalSpeechSeq != null &&
+          session.pendingGeminiProvisionalSpeechSeq !== message.speechSeq
+        ) {
+          // A new physical utterance began before Gemini completed the old one.
+          // Preserve the old provisional row, but never merge new speech into it.
+          session.pendingGeminiProvisionalTurnId = null;
+          session.pendingGeminiProvisionalTranscript = null;
+          session.pendingGeminiProvisionalSpeechSeq = null;
+        }
+      }
+      break;
+    }
+
     case 'input_audio_buffer.append': {
       const audioLength = message.audio ? message.audio.length : 0;
       console.log(`🎤 Received audio chunk: ${audioLength} bytes (base64)`);
@@ -351,17 +369,25 @@ export function handleClientMessage(
       // inputTranscription deltas (AI audio echoes arriving after the cancel)
       // cannot pollute the next user message.
       if (session.userTranscriptBuffer) {
-        const pendingUserTranscript = session.userTranscriptBuffer.trim();
-        if (pendingUserTranscript) {
-          console.log(`🎤 [barge-in] Flushing ${pendingUserTranscript.length} chars to client before clearing buffer`);
-          sendToClient(session, { type: 'user.transcription', transcript: pendingUserTranscript });
-          session.recentMessages.push({ role: 'user', text: pendingUserTranscript.slice(0, 300) });
-          if (session.recentMessages.length > 30) session.recentMessages.shift();
-        }
+        const pendingUserTranscript = session.userTranscriptBuffer;
+        const pendingLength = pendingUserTranscript.length;
+        const finalized = finalizeUserTranscript(
+          session,
+          pendingUserTranscript,
+          sendToClient,
+          {
+            provider: realtimeVoiceProvider(session),
+            source: 'server.barge_in_flush',
+            final: false,
+          },
+        );
 
-        console.log(`🧹 Clearing userTranscriptBuffer on barge-in (had ${session.userTranscriptBuffer.length} chars)`);
+        console.log(`🧹 Clearing userTranscriptBuffer on barge-in (had ${pendingLength} chars)`);
         session.userTranscriptBuffer = '';
-        sendToClient(session, { type: 'user.transcription.reset' });
+        sendToClient(session, {
+          type: 'user.transcription.reset',
+          ...(finalized.turnId ? { turnId: finalized.turnId } : {}),
+        });
       }
 
       // Increment turnSeq so that any in-flight audio.delta packets from the

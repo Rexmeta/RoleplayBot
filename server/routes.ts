@@ -11,6 +11,7 @@ import mediaRoutes from "./routes/media.js";
 import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "./services/videoAvatarAccess";
+import { normalizeVoiceLanguage } from "./services/voice/transcriptionIntegrity";
 
 import createUserRouter from "./routes/user";
 import createFreeChatRouter from "./routes/freeChat";
@@ -476,7 +477,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
       const userSelectedDifficulty = personaRun.difficulty || scenarioRun.difficulty || 4;
       console.log(`🎯 실시간 음성 세션 난이도: Level ${userSelectedDifficulty}`);
 
-      const voiceUserLanguage = (voiceUser?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
+      const voiceUserLanguage = normalizeVoiceLanguage(voiceUser?.preferredLanguage);
       console.log(`🌐 실시간 음성 세션 언어: ${voiceUserLanguage}`);
 
       await realtimeVoiceService.createSession(

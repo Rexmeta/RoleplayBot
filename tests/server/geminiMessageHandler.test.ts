@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleGeminiMessage } from '../../server/services/voice/geminiMessageHandler';
+import { finalizeUserTranscript } from '../../server/services/voice/transcriptionIntegrity';
 import type { RealtimeSession } from '../../server/services/voice/types';
 
 vi.mock('../../server/services/voice/emotionAnalyzer', () => ({
@@ -679,7 +680,7 @@ describe('handleGeminiMessage', () => {
       );
     });
 
-    it('flushes userTranscriptBuffer as user.transcription message', () => {
+    it('flushes userTranscriptBuffer byte-for-byte as user.transcription message', () => {
       session.hasReceivedFirstAIResponse = true;
       session.userTranscriptBuffer = '  안녕하세요  ';
 
@@ -693,9 +694,107 @@ describe('handleGeminiMessage', () => {
 
       expect(sendToClient).toHaveBeenCalledWith(
         session,
-        expect.objectContaining({ type: 'user.transcription', transcript: '안녕하세요' })
+        expect.objectContaining({
+          type: 'user.transcription',
+          transcript: '  안녕하세요  ',
+          turnId: expect.stringMatching(/^voice-user:/),
+          provider: 'gemini',
+          language: 'ko',
+        })
       );
       expect(session.userTranscriptBuffer).toBe('');
+    });
+
+    it('upgrades a Gemini provisional flush under the same turn ID at turnComplete', () => {
+      session.hasReceivedFirstAIResponse = true;
+      session.currentClientSpeechSeq = 11;
+      const provisional = finalizeUserTranscript(
+        session,
+        '  바지인 중 ',
+        sendToClient,
+        {
+          provider: 'gemini',
+          source: 'server.barge_in_flush',
+          final: false,
+        },
+      );
+      session.isInterrupted = true;
+      session.cancelledTurnSeq = 0;
+      session.turnSeq = 1;
+
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            inputTranscription: { text: '계속된 발화  ' },
+            turnComplete: true,
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect,
+      );
+
+      const events = sendToClient.mock.calls
+        .map(([, event]) => event)
+        .filter(event => event.type === 'user.transcription');
+      expect(events).toHaveLength(2);
+      expect(events[0]).toMatchObject({
+        transcript: '  바지인 중 ',
+        turnId: provisional.turnId,
+        final: false,
+      });
+      expect(events[1]).toMatchObject({
+        transcript: '  바지인 중 계속된 발화  ',
+        turnId: provisional.turnId,
+        final: true,
+      });
+      expect(session.recentMessages).toContainEqual({
+        role: 'user',
+        text: '  바지인 중 계속된 발화  ',
+      });
+    });
+
+    it('does not merge a later Gemini utterance into an abandoned provisional turn', () => {
+      session.hasReceivedFirstAIResponse = true;
+      session.currentClientSpeechSeq = 21;
+      const provisional = finalizeUserTranscript(
+        session,
+        '이전 미완료 발화',
+        sendToClient,
+        {
+          provider: 'gemini',
+          source: 'server.barge_in_flush',
+          final: false,
+        },
+      );
+
+      // A new VAD speech sequence is an explicit physical utterance boundary.
+      session.currentClientSpeechSeq = 22;
+      handleGeminiMessage(
+        session,
+        {
+          serverContent: {
+            inputTranscription: { text: '완전히 새로운 발화' },
+            turnComplete: true,
+          },
+        },
+        sendToClient,
+        null,
+        proactiveReconnect,
+      );
+
+      const events = sendToClient.mock.calls
+        .map(([, event]) => event)
+        .filter(event => event.type === 'user.transcription');
+      expect(events).toHaveLength(2);
+      expect(events[0].turnId).toBe(provisional.turnId);
+      expect(events[1]).toMatchObject({
+        transcript: '완전히 새로운 발화',
+        final: true,
+      });
+      expect(events[1].turnId).not.toBe(provisional.turnId);
+      expect(events[1].transcript).not.toContain('이전 미완료 발화');
     });
 
     it('pushes user message into recentMessages on turn complete', () => {

@@ -99,6 +99,15 @@ interface PreviousMessage {
   content: string;
 }
 
+export interface UserTranscriptionMetadata {
+  turnId?: string;
+  provider?: 'gemini' | 'openai';
+  source?: string;
+  language?: 'ko' | 'en' | 'ja' | 'zh';
+  providerEventId?: string;
+  final?: boolean;
+}
+
 interface UseRealtimeVoiceProps {
   conversationId: string;
   scenarioId: string;
@@ -108,8 +117,8 @@ interface UseRealtimeVoiceProps {
   onMessage?: (message: string) => void;
   onMessageComplete?: (message: string, emotion?: string, emotionReason?: string, userAffect?: Record<string, unknown>, interrupted?: boolean) => void;
   onReconnectGreetingComplete?: () => void;
-  onUserTranscription?: (transcript: string) => void;
-  onUserTranscriptionDelta?: (delta: string, accumulated: string) => void;
+  onUserTranscription?: (transcript: string, metadata: UserTranscriptionMetadata) => void;
+  onUserTranscriptionDelta?: (delta: string, accumulated: string, metadata: UserTranscriptionMetadata) => void;
   onAiSpeakingStart?: () => void;
   onUserSpeakingStart?: () => void;
   onError?: (error: string) => void;
@@ -234,6 +243,7 @@ export function useRealtimeVoice({
   } : undefined;
 
   const statusRef = useRef<RealtimeVoiceStatus>('disconnected');
+  const userSpeechSeqRef = useRef(0);
 
   const hasConversationStartedRef = useRef<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -260,6 +270,7 @@ export function useRealtimeVoice({
   const autoReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const accumulatedMessagesRef = useRef<PreviousMessage[]>([]);
+  const finalizedUserTurnIdsRef = useRef<Set<string>>(new Set());
   const conversationPhaseRef = useRef<ConversationPhase>('idle');
   const connectRef = useRef<((previousMessages?: PreviousMessage[]) => Promise<void>) | null>(null);
   const wasRecordingBeforeReconnectRef = useRef<boolean>(false);
@@ -611,20 +622,40 @@ export function useRealtimeVoice({
               break;
 
             case 'user.transcription':
-              if (data.transcript && onUserTranscriptionRef.current) {
-                onUserTranscriptionRef.current(data.transcript);
-              }
-              if (data.transcript) {
-                accumulatedMessagesRef.current.push({ role: 'user', content: data.transcript });
-                if (accumulatedMessagesRef.current.length > 30) accumulatedMessagesRef.current.shift();
-                try { sessionStorage.setItem(sessionStorageKeyRef.current, JSON.stringify(accumulatedMessagesRef.current)); } catch {}
+              if (typeof data.transcript === 'string' && data.transcript.trim().length > 0) {
+                const metadata: UserTranscriptionMetadata = {
+                  turnId: typeof data.turnId === 'string' ? data.turnId : undefined,
+                  provider: data.provider === 'openai' ? 'openai' : data.provider === 'gemini' ? 'gemini' : undefined,
+                  source: typeof data.source === 'string' ? data.source : undefined,
+                  language: ['ko', 'en', 'ja', 'zh'].includes(data.language) ? data.language : undefined,
+                  providerEventId: typeof data.providerEventId === 'string' ? data.providerEventId : undefined,
+                  final: data.final !== false,
+                };
+                if (metadata.final && metadata.turnId && finalizedUserTurnIdsRef.current.has(metadata.turnId)) {
+                  console.log(`[voice-transcript] Ignoring replayed final user turn ${metadata.turnId}`);
+                  break;
+                }
+                if (metadata.final && metadata.turnId) finalizedUserTurnIdsRef.current.add(metadata.turnId);
+                if (onUserTranscriptionRef.current) {
+                  onUserTranscriptionRef.current(data.transcript, metadata);
+                }
+                if (metadata.final) {
+                  accumulatedMessagesRef.current.push({ role: 'user', content: data.transcript });
+                  if (accumulatedMessagesRef.current.length > 30) accumulatedMessagesRef.current.shift();
+                  try { sessionStorage.setItem(sessionStorageKeyRef.current, JSON.stringify(accumulatedMessagesRef.current)); } catch {}
+                }
               }
               serverVoiceDetectedTimeRef.current = null;
               break;
 
             case 'user.transcription.delta':
               if (data.accumulated && onUserTranscriptionDeltaRef.current) {
-                onUserTranscriptionDeltaRef.current(data.text, data.accumulated);
+                onUserTranscriptionDeltaRef.current(data.text, data.accumulated, {
+                  turnId: typeof data.turnId === 'string' ? data.turnId : undefined,
+                  provider: data.provider === 'openai' ? 'openai' : data.provider === 'gemini' ? 'gemini' : undefined,
+                  source: typeof data.source === 'string' ? data.source : undefined,
+                  language: ['ko', 'en', 'ja', 'zh'].includes(data.language) ? data.language : undefined,
+                });
               }
               break;
 
@@ -632,7 +663,9 @@ export function useRealtimeVoice({
               // Server cleared the buffer due to barge-in; clear any partial
               // user transcript display on the client side.
               if (onUserTranscriptionDeltaRef.current) {
-                onUserTranscriptionDeltaRef.current('', '');
+                onUserTranscriptionDeltaRef.current('', '', {
+                  turnId: typeof data.turnId === 'string' ? data.turnId : undefined,
+                });
               }
               break;
 
@@ -1138,6 +1171,15 @@ export function useRealtimeVoice({
         exitThreshold,
         onNoiseDrift: recalibrateNoiseFloor,
         onBargeIn: () => setIsBargeInActive(true),
+        onVoiceStart: () => {
+          const speechSeq = ++userSpeechSeqRef.current;
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+              type: 'client.user_speech.started',
+              speechSeq,
+            }));
+          }
+        },
       });
 
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
@@ -1330,7 +1372,7 @@ export function useRealtimeVoice({
   const sendTextMessage = useCallback((text: string) => {
     if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
-    if (onUserTranscriptionRef.current) onUserTranscriptionRef.current(text);
+    if (onUserTranscriptionRef.current) onUserTranscriptionRef.current(text, {});
 
     wsRef.current.send(JSON.stringify({
       type: 'conversation.item.create',

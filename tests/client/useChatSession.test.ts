@@ -258,6 +258,70 @@ describe('flushRealtimeMessages — pending guard preserved on failure', () => {
     expect(hasPendingLocalRef.current).toBe(false);
   });
 
+  it('preserves pending provider transcript whitespace and voice turn ID in the save payload', async () => {
+    const pendingUserTextRef = { current: '  네, PO-42 Jane입니다.  ' };
+    const pendingUserVoiceTurnIdRef = { current: 'voice-user:session:7' };
+    const { result } = renderHook(() =>
+      useChatSession(buildDefaultOptions({
+        pendingUserTextRef,
+        pendingUserVoiceTurnIdRef,
+      }))
+    );
+
+    await act(async () => {
+      await result.current.flushRealtimeMessages(false);
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      'POST',
+      '/api/conversations/conv-123/realtime-messages',
+      expect.objectContaining({
+        messages: [expect.objectContaining({
+          sender: 'user',
+          message: '  네, PO-42 Jane입니다.  ',
+          voiceTurnId: 'voice-user:session:7',
+          voiceTranscriptFinal: false,
+        })],
+      }),
+    );
+  });
+
+  it('merges a newer pending delta into its provisional row instead of sending the turn twice', async () => {
+    const pendingUserTextRef = { current: '부분 전사 + 계속된 발화' };
+    const pendingUserVoiceTurnIdRef = { current: 'voice-user:session:8' };
+    const { result } = renderHook(() =>
+      useChatSession(buildDefaultOptions({
+        localMessages: [{
+          sender: 'user',
+          message: '부분 전사',
+          timestamp: '2026-01-01T00:00:00.000Z',
+          voiceTurnId: 'voice-user:session:8',
+          voiceTranscriptFinal: false,
+        }],
+        pendingUserTextRef,
+        pendingUserVoiceTurnIdRef,
+      }))
+    );
+
+    await act(async () => {
+      await result.current.flushRealtimeMessages(false);
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      'POST',
+      '/api/conversations/conv-123/realtime-messages',
+      expect.objectContaining({
+        messages: [expect.objectContaining({
+          message: '부분 전사 + 계속된 발화',
+          voiceTurnId: 'voice-user:session:8',
+          voiceTranscriptFinal: false,
+        })],
+      }),
+    );
+    const payload = mockApiRequest.mock.calls[0][2];
+    expect(payload.messages).toHaveLength(1);
+  });
+
   it('keeps hasPendingLocalRef=true across multiple consecutive flush failures (no bounded fallback)', async () => {
     const hasPendingLocalRef = { current: true };
     const localMessagesRef = { current: [

@@ -218,6 +218,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { localMessages, localMessagesRef, setLocalMessages, pendingAiMessage: rawPendingAiMessage, setPendingAiMessage,
     pendingUserMessage, setPendingUserMessage, pendingUserText, setPendingUserText, pendingUserTextRef,
+    pendingUserVoiceTurnId, setPendingUserVoiceTurnId, pendingUserVoiceTurnIdRef,
     isStreamingActive, addUserMessage, addRealtimeUserMessage,
     messagesEndRef, sendMessageMutation, hasPendingLocalRef } = useChatMessages({
     conversationId,
@@ -305,21 +306,24 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       // abnormally, as many turns as possible are already saved.
       flushRealtimeMessagesRef.current?.(false).catch(console.error);
     },
-    onUserTranscription: (transcript) => {
-      addRealtimeUserMessage(transcript);
+    onUserTranscription: (transcript, metadata) => {
+      addRealtimeUserMessage(transcript, metadata.turnId, metadata.final !== false);
       // The final transcript is the only signal that the user's turn is over —
       // `isRecording` stays true for the whole open-mic session, so without this
       // the avatar would sit in `listening` until the AI starts speaking and
       // `thinking` would never be reached in voice mode.
       dispatchAvatarEvent({ type: 'UserSpeechEnd' });
     },
-    onUserTranscriptionDelta: (_delta, accumulated) => { setPendingUserText(accumulated); },
+    onUserTranscriptionDelta: (_delta, accumulated, metadata) => {
+      setPendingUserText(accumulated);
+      setPendingUserVoiceTurnId(metadata.turnId ?? '');
+    },
     onAiSpeakingStart: () => {
       setPendingAiMessage(true); isAISpeakingForBargeInRef.current = true;
       dispatchAvatarEvent({ type: 'TTSStart' });
     },
     onUserSpeakingStart: () => {
-      setPendingUserMessage(true); setPendingUserText('');
+      setPendingUserMessage(true); setPendingUserText(''); setPendingUserVoiceTurnId('');
       hasUserSpokenRef.current = true; setShowMicPrompt(false);
       dispatchAvatarEvent({ type: 'UserSpeechStart' });
       if (isAISpeakingForBargeInRef.current) {
@@ -472,7 +476,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
     handleGoToFeedback, handleFeedbackRequest, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages,
     messageSaveError, retrySave } = useChatSession({
-    conversationId, localMessages, localMessagesRef, pendingUserText, pendingUserTextRef, hasPendingLocalRef, isPersonaMode, isNearingEnd, currentTurn, targetTurns,
+    conversationId, localMessages, localMessagesRef, pendingUserText, pendingUserTextRef,
+    pendingUserVoiceTurnId, pendingUserVoiceTurnIdRef, hasPendingLocalRef,
+    isPersonaMode, isNearingEnd, currentTurn, targetTurns,
     onChatComplete, onExit, onConversationEnding,
     disconnectVoice: realtimeVoice.disconnect, resetPhase: realtimeVoice.resetPhase,
     setLocalMessages, setConversationStartTime, setElapsedTime,
@@ -636,19 +642,44 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       if (isGoingToFeedbackRef.current) return;
 
       const msgs = localMessagesRef.current;
-      const pending = pendingUserTextRef.current.trim();
+      const pending = pendingUserTextRef.current;
+      const pendingVoiceTurnId = pendingUserVoiceTurnIdRef.current;
       const convId = conversationIdRef.current;
 
-      const payload: Array<{ sender: string; message: string; timestamp: string; emotion?: string; emotionReason?: string }> = msgs.map(msg => ({
+      const payload: Array<{ sender: string; message: string; timestamp: string; emotion?: string; emotionReason?: string; voiceTurnId?: string; voiceTranscriptFinal?: boolean }> = msgs.map(msg => ({
         sender: msg.sender,
         message: msg.message,
         timestamp: msg.timestamp,
         emotion: msg.emotion,
         emotionReason: msg.emotionReason,
+        voiceTurnId: msg.voiceTurnId,
+        voiceTranscriptFinal: msg.voiceTranscriptFinal,
       }));
 
-      if (pending) {
-        payload.push({ sender: 'user', message: pending, timestamp: new Date().toISOString() });
+      if (pending.trim()) {
+        const provisionalIndex = pendingVoiceTurnId
+          ? payload.findIndex(
+              message =>
+                message.sender === 'user' &&
+                message.voiceTurnId === pendingVoiceTurnId &&
+                message.voiceTranscriptFinal !== true,
+            )
+          : -1;
+        if (provisionalIndex >= 0) {
+          payload[provisionalIndex] = {
+            ...payload[provisionalIndex],
+            message: pending,
+            voiceTranscriptFinal: false,
+          };
+        } else {
+          payload.push({
+            sender: 'user',
+            message: pending,
+            timestamp: new Date().toISOString(),
+            voiceTurnId: pendingVoiceTurnId || undefined,
+            voiceTranscriptFinal: false,
+          });
+        }
       }
 
       if (payload.length === 0 || !convId) return;

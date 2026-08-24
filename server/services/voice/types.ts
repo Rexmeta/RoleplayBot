@@ -91,4 +91,19 @@ export interface RealtimeSession {
   // that turn is discarded. Reset to null at each turn boundary.
   transcriptSourceThisTurn?: 'model' | 'output' | null;
   lastUserAffect?: import('./emotionAnalyzer').UserAffectState;
+  /** Stable logical identity for the in-progress provider user transcript. */
+  activeUserTranscriptTurnId?: string | null;
+  userTranscriptTurnCounter?: number;
+  finalizedUserTranscriptTurnIds?: string[];
+  /** Provider event ID -> logical turn ID, used to reject reconnect/replay duplicates. */
+  finalizedUserTranscriptProviderEvents?: Record<string, string>;
+  /** Provider event/item identity to stable logical turn identity, including provisional flushes. */
+  userTranscriptProviderEventTurns?: Record<string, string>;
+  /** OpenAI item_id associated with the active transcription delta stream. */
+  activeUserTranscriptProviderEventId?: string | null;
+  /** Gemini has no item ID, so a forced flush keeps this turn until provider turnComplete. */
+  pendingGeminiProvisionalTurnId?: string | null;
+  pendingGeminiProvisionalTranscript?: string | null;
+  currentClientSpeechSeq?: number | null;
+  pendingGeminiProvisionalSpeechSeq?: number | null;
 }

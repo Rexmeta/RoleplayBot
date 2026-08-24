@@ -9,6 +9,10 @@ export type ConversationMessage = {
   interrupted?: boolean;
   turnIndex?: number;
   userAffect?: Record<string, unknown>;
+  /** Stable realtime provider turn identity for idempotent user transcript saves. */
+  voiceTurnId?: string;
+  /** False only for a page-exit snapshot captured before provider finalization. */
+  voiceTranscriptFinal?: boolean;
 };
 
 export type ScoreAdjustments = {

@@ -122,3 +122,77 @@ describe('useChatMessages — sync effect sorting', () => {
     expect(result.current.localMessages.map(m => m.message)).toEqual(['a', 'b', 'c']);
   });
 });
+
+describe('useChatMessages — realtime user turn identity', () => {
+  it('suppresses a replayed turn even when another message arrived in between', () => {
+    const { result } = renderHook(() =>
+      useChatMessages({ conversationId: 'conv-voice' })
+    );
+
+    act(() => {
+      result.current.addRealtimeUserMessage('정상 원문', 'voice-user:s:1');
+      result.current.addRealtimeAiMessage('AI 응답');
+      result.current.addRealtimeUserMessage('다른 언어로 바뀐 stale 값', 'voice-user:s:1');
+    });
+
+    expect(result.current.localMessages.map(m => m.message)).toEqual(['정상 원문', 'AI 응답']);
+  });
+
+  it('keeps legitimate repeated speech when each provider turn ID is different', () => {
+    const { result } = renderHook(() =>
+      useChatMessages({ conversationId: 'conv-repeat' })
+    );
+
+    act(() => {
+      result.current.addRealtimeUserMessage('네', 'voice-user:s:1');
+      result.current.addRealtimeUserMessage('네', 'voice-user:s:2');
+    });
+
+    expect(result.current.localMessages.map(m => m.message)).toEqual(['네', '네']);
+    expect(result.current.localMessages.every(m => m.voiceTranscriptFinal === true)).toBe(true);
+  });
+
+  it('retains hydrated voice turn identity so a replay after reload is suppressed', () => {
+    const hydrated = [
+      makeMsg({
+        sender: 'user',
+        message: '저장된 원문',
+        timestamp: '2026-01-01T00:00:00Z',
+        turnIndex: 0,
+        voiceTurnId: 'voice-user:hydrated:1',
+        voiceTranscriptFinal: true,
+      }),
+    ];
+    const { result } = renderHook(() =>
+      useChatMessages({ conversationId: 'conv-hydrated', serverMessages: hydrated })
+    );
+
+    act(() => {
+      result.current.addRealtimeUserMessage('stale replay', 'voice-user:hydrated:1');
+    });
+
+    expect(result.current.localMessages.map(m => m.message)).toEqual(['저장된 원문']);
+  });
+
+  it('replaces a provisional flush with the provider-final transcript for the same turn', () => {
+    const { result } = renderHook(() =>
+      useChatMessages({ conversationId: 'conv-provisional' })
+    );
+
+    act(() => {
+      result.current.addRealtimeUserMessage('부분 전사', 'voice-user:session:9', false);
+      result.current.addRealtimeUserMessage(
+        '부분 전사가 아닌 제공자 최종 원문',
+        'voice-user:session:9',
+        true,
+      );
+    });
+
+    expect(result.current.localMessages).toHaveLength(1);
+    expect(result.current.localMessages[0]).toMatchObject({
+      message: '부분 전사가 아닌 제공자 최종 원문',
+      voiceTurnId: 'voice-user:session:9',
+      voiceTranscriptFinal: true,
+    });
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createMessageHandler } from '../../server/services/voice/openaiRealtimeAdapter';
+import { buildSessionConfig, createMessageHandler } from '../../server/services/voice/openaiRealtimeAdapter';
 import type { RealtimeSession } from '../../server/services/voice/types';
 
 vi.mock('../../server/services/voice/emotionAnalyzer', () => ({
@@ -555,6 +555,81 @@ describe('createMessageHandler — barge-in state machine', () => {
         session,
         expect.objectContaining({ type: 'user.transcription', transcript: 'partial' })
       );
+    });
+
+    it('preserves the provider final transcript exactly and includes its turn identity', () => {
+      handleMessage({
+        type: 'conversation.item.input_audio_transcription.completed',
+        item_id: 'provider-item-1',
+        transcript: '  네, PO-42 Jane입니다.  ',
+      });
+
+      expect(sendToClient).toHaveBeenCalledWith(
+        session,
+        expect.objectContaining({
+          type: 'user.transcription',
+          transcript: '  네, PO-42 Jane입니다.  ',
+          turnId: expect.stringMatching(/^voice-user:/),
+          providerEventId: 'provider-item-1',
+          provider: 'openai',
+          language: 'ko',
+        }),
+      );
+    });
+
+    it('does not emit a provider completed event twice when OpenAI replays the same item', () => {
+      const event = {
+        type: 'conversation.item.input_audio_transcription.completed',
+        item_id: 'provider-item-replayed',
+        transcript: '반복 이벤트',
+      };
+      handleMessage(event);
+      handleMessage(event);
+
+      const finalCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'user.transcription');
+      expect(finalCalls).toHaveLength(1);
+      expect(session.userTurnsCompleted).toBe(1);
+    });
+
+    it('does not duplicate a turn when completed arrives after response.cancelled flushed that item', () => {
+      handleMessage({
+        type: 'conversation.item.input_audio_transcription.delta',
+        item_id: 'barge-item-1',
+        delta: '바지인 중 발화',
+      });
+      handleMessage({ type: 'response.cancelled' });
+      handleMessage({
+        type: 'conversation.item.input_audio_transcription.completed',
+        item_id: 'barge-item-1',
+        transcript: '바지인 중 발화',
+      });
+
+      const transcriptCalls = sendToClient.mock.calls.filter(([, msg]) => msg.type === 'user.transcription');
+      expect(transcriptCalls).toHaveLength(2);
+      expect(transcriptCalls[0][1]).toMatchObject({
+        transcript: '바지인 중 발화',
+        providerEventId: 'barge-item-1',
+        final: false,
+      });
+      expect(transcriptCalls[1][1]).toMatchObject({
+        transcript: '바지인 중 발화',
+        providerEventId: 'barge-item-1',
+        final: true,
+      });
+      expect(transcriptCalls[0][1].turnId).toBe(transcriptCalls[1][1].turnId);
+      expect(session.userTurnsCompleted).toBe(1);
+    });
+  });
+
+  describe('buildSessionConfig', () => {
+    it.each([
+      ['ko', 'ko'],
+      ['en', 'en'],
+      ['ja', 'ja'],
+      ['zh', 'zh'],
+    ] as const)('uses the normalized %s language for OpenAI transcription', (language, expected) => {
+      const config = buildSessionConfig(makeSession({ userLanguage: language })) as any;
+      expect(config.input_audio_transcription.language).toBe(expected);
     });
   });
 

@@ -12,6 +12,11 @@ import { createDefaultSimulationState, SimulationDirective } from '../simulation
 import { storage } from '../../storage';
 import { v4 as uuidv4 } from 'uuid';
 import { getSoftClosingInstruction } from '../conversationDifficultyPolicy';
+import {
+  ensureUserTranscriptTurn,
+  finalizeUserTranscript,
+  recordUserTranscriptDiagnostic,
+} from './transcriptionIntegrity';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
 type ProactiveReconnect = (session: RealtimeSession) => void;
@@ -494,7 +499,13 @@ export function handleGeminiMessage(
 
     if (serverContent.inputTranscription) {
       const transcript = serverContent.inputTranscription.text || '';
-      console.log(`🎤 User transcript delta: ${transcript}`);
+      recordUserTranscriptDiagnostic(session, {
+        stage: 'provider.delta',
+        provider: 'gemini',
+        source: 'gemini.inputTranscription',
+        transcript,
+        turnId: session.activeUserTranscriptTurnId ?? session.pendingGeminiProvisionalTurnId,
+      });
 
       // Suppress stale deltas that arrive while barge-in is still active. These
       // are typically echoes of the AI's own audio picked up by the mic, or
@@ -524,10 +535,28 @@ export function handleGeminiMessage(
 
       const isStaleDelta = session.isInterrupted && transcript.length > 0;
       if (isStaleDelta) {
-        console.log(`🚫 Discarding stale inputTranscription delta during barge-in: "${transcript.substring(0, 50)}"`);
+        console.log(`🚫 Discarding stale inputTranscription delta during barge-in (length=${transcript.length})`);
       }
 
       if (!isStaleDelta) {
+        if (
+          transcript.length > 0 &&
+          !session.activeUserTranscriptTurnId &&
+          session.pendingGeminiProvisionalTurnId &&
+          session.pendingGeminiProvisionalSpeechSeq != null &&
+          session.pendingGeminiProvisionalSpeechSeq === session.currentClientSpeechSeq
+        ) {
+          session.activeUserTranscriptTurnId = session.pendingGeminiProvisionalTurnId;
+          if (
+            session.userTranscriptBuffer.length === 0 &&
+            session.pendingGeminiProvisionalTranscript
+          ) {
+            session.userTranscriptBuffer = session.pendingGeminiProvisionalTranscript;
+          }
+        }
+        const transcriptTurnId = transcript.length > 0
+          ? ensureUserTranscriptTurn(session)
+          : session.activeUserTranscriptTurnId;
         if (session.userTranscriptBuffer.length === 0 && transcript.length > 0) {
           if (session.isInterrupted) {
             console.log(`🔄 User speech confirmed by VAD — clearing barge-in state (cancelledTurn=${session.cancelledTurnSeq})`);
@@ -550,6 +579,10 @@ export function handleGeminiMessage(
             type: 'user.transcription.delta',
             text: transcript,
             accumulated: session.userTranscriptBuffer,
+            turnId: transcriptTurnId,
+            provider: 'gemini',
+            source: 'gemini.inputTranscription',
+            language: session.userLanguage,
           });
         }
       }
@@ -760,14 +793,18 @@ export function handleGeminiMessage(
       sendToClient(session, { type: 'response.done' });
 
       if (session.userTranscriptBuffer.trim()) {
-        const userText = session.userTranscriptBuffer.trim();
+        const userText = session.userTranscriptBuffer;
+        const finalizedUserTurn = finalizeUserTranscript(
+          session,
+          userText,
+          sendToClient,
+          {
+            provider: 'gemini',
+            source: 'gemini.inputTranscription.turnComplete',
+          },
+        );
         capturedUserTextForAffect = userText;
-        console.log(`🎤 User turn complete (VAD): "${userText}"`);
-        sendToClient(session, { type: 'user.transcription', transcript: userText });
-        session.recentMessages.push({ role: 'user', text: userText.slice(0, 300) });
-        if (session.recentMessages.length > 30) session.recentMessages.shift();
-        session.userTranscriptBuffer = '';
-        session.userTurnsCompleted++;
+        console.log(`🎤 User turn complete (VAD, length=${userText.length})`);
 
         // Update timer elapsed and enforce time limit
         if (session.simulationState?.timer?.enabled && session.simulationState.timer.startedAt) {
@@ -851,7 +888,7 @@ export function handleGeminiMessage(
           session.scenarioId.startsWith('__free_chat__') ||
           session.scenarioId.startsWith('__mbti_persona__:');
 
-        const currentTurnId = `turn:${session.userTurnsCompleted}`;
+        const currentTurnId = finalizedUserTurn.turnId ?? `turn:${session.userTurnsCompleted}`;
         // Robust djb2 hash of normalized transcript — resistant to turn/length collisions
         const normalizedText = userText.trim().toLowerCase().replace(/\s+/g, ' ');
         let _h = 5381;

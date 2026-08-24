@@ -30,6 +30,13 @@ import { personaRuns } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { getOrCreateSessionContext } from './simulation/simulationEngine';
 import { createDefaultSimulationState } from './simulation/simulationTypes';
+import {
+  finalizeUserTranscript,
+  normalizeVoiceLanguage,
+  providerTranscriptionLanguage,
+  realtimeVoiceProvider,
+  recordVoiceSessionConfiguration,
+} from './voice/transcriptionIntegrity';
 
 // Per Google official docs (ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-live-preview):
 // 'gemini-3.1-flash-live-preview' is the current supported model for v1beta bidiGenerateContent.
@@ -237,6 +244,7 @@ export class RealtimeVoiceService {
     userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
   ): Promise<void> {
     const sessionStartTime = Date.now();
+    userLanguage = normalizeVoiceLanguage(userLanguage);
     console.log(`⏱️ [TIMING] createSession 시작: ${new Date(sessionStartTime).toISOString()}`);
 
     if (!this.isAvailable) {
@@ -602,10 +610,8 @@ export class RealtimeVoiceService {
         console.log(`🎤 Setting voice for ${gender} persona[${session.activePersonaIndex}]: ${voiceName}`);
       }
 
-      const langCodeMap: Record<'ko' | 'en' | 'ja' | 'zh', string> = {
-        ko: 'ko-KR', en: 'en-US', ja: 'ja-JP', zh: 'zh-CN',
-      };
-      const langCode = langCodeMap[session.userLanguage] || 'ko-KR';
+      const langCode = providerTranscriptionLanguage(session.userLanguage, 'gemini');
+      recordVoiceSessionConfiguration(session, 'gemini', langCode);
 
       const isPersonaXSession = session.scenarioId.startsWith('__user_persona__:');
       const hasMultiplePersonas = session.scenarioPersonas && session.scenarioPersonas.length > 1;
@@ -780,13 +786,25 @@ export class RealtimeVoiceService {
         // Flush any accumulated user transcript before resetting the buffer so
         // the partial speech is not lost and will not re-accumulate after the new
         // Gemini session replays pending audio — preventing a duplicate user turn.
-        const pendingUserSpeech = currentSession.userTranscriptBuffer.trim();
-        if (pendingUserSpeech) {
-          console.log(`🎤 [proactiveReconnect] Flushing pending user buffer before reset: "${pendingUserSpeech.substring(0, 60)}"`);
-          this.sendToClient(currentSession, { type: 'user.transcription', transcript: pendingUserSpeech });
-          currentSession.recentMessages.push({ role: 'user', text: pendingUserSpeech.slice(0, 300) });
-          if (currentSession.recentMessages.length > 30) currentSession.recentMessages.shift();
+        const pendingUserSpeech = currentSession.userTranscriptBuffer;
+        if (pendingUserSpeech.trim()) {
+          console.log(`🎤 [proactiveReconnect] Flushing pending user buffer before reset (length=${pendingUserSpeech.length})`);
+          finalizeUserTranscript(
+            currentSession,
+            pendingUserSpeech,
+            this.sendToClient.bind(this),
+            {
+              provider: realtimeVoiceProvider(currentSession),
+              source: 'server.proactive_reconnect_flush',
+              final: false,
+            },
+          );
         }
+        // A new Gemini connection cannot complete the old provider turn. Keep
+        // its provisional DB/UI row, but do not attach future speech to it.
+        currentSession.pendingGeminiProvisionalTurnId = null;
+        currentSession.pendingGeminiProvisionalTranscript = null;
+        currentSession.pendingGeminiProvisionalSpeechSeq = null;
         currentSession.userTranscriptBuffer = '';
         currentSession.usingReconnectInstructions = true;
         console.log(`✅ proactiveReconnect 성공: 새 Gemini 세션 활성화`);
@@ -859,23 +877,34 @@ export class RealtimeVoiceService {
     const session = this.sessions.get(sessionId);
     if (session) {
       console.log(`🔚 Closing realtime voice session: ${sessionId}`);
-      trackSessionUsage(session);
 
-      const pendingUserText = session.userTranscriptBuffer.trim();
-      if (pendingUserText && session.personaRunId) {
+      const pendingUserText = session.userTranscriptBuffer;
+      if (pendingUserText.trim() && session.personaRunId) {
         const clientWsOpen = session.clientWs && session.clientWs.readyState === WebSocket.OPEN;
+        const finalized = finalizeUserTranscript(
+          session,
+          pendingUserText,
+          this.sendToClient.bind(this),
+          {
+            provider: realtimeVoiceProvider(session),
+            source: clientWsOpen ? 'server.session_close_flush' : 'server.orphan_close_flush',
+            emitToClient: clientWsOpen,
+            final: false,
+          },
+        );
         if (clientWsOpen) {
-          console.log(`🎤 [closeSession] Flushing pending user buffer to client: "${pendingUserText.substring(0, 60)}"`);
-          this.sendToClient(session, { type: 'user.transcription', transcript: pendingUserText });
-          session.recentMessages.push({ role: 'user', text: pendingUserText.slice(0, 300) });
+          console.log(`🎤 [closeSession] Flushed pending user buffer to client (length=${pendingUserText.length})`);
         } else {
-          console.log(`💾 [closeSession] Flushing pending user buffer to DB: "${pendingUserText.substring(0, 60)}"`);
+          console.log(`💾 [closeSession] Flushing pending user buffer to DB (length=${pendingUserText.length})`);
           storage.getChatMessagesByPersonaRun(session.personaRunId).then(existing => {
-            storage.createChatMessage({
+            if (!finalized.turnId) return;
+            storage.upsertVoiceTranscript({
               personaRunId: session.personaRunId,
               sender: 'user',
               message: pendingUserText,
               turnIndex: existing.length,
+              voiceTurnId: finalized.turnId,
+              voiceTranscriptFinal: false,
               emotion: null,
               emotionReason: null,
               createdAt: new Date(),
@@ -884,6 +913,7 @@ export class RealtimeVoiceService {
         }
         session.userTranscriptBuffer = '';
       }
+      trackSessionUsage(session);
 
       // Log session_end simulation event to complete the audit trail
       if (session.personaRunId && session.simulationState) {

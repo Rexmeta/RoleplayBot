@@ -1125,9 +1125,15 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       expect(sendToClient).toHaveBeenNthCalledWith(
         1,
         session,
-        { type: 'user.transcription', transcript: 'partial speech text' }
+        expect.objectContaining({
+          type: 'user.transcription',
+          transcript: '  partial speech text  ',
+          turnId: expect.stringMatching(/^voice-user:/),
+          provider: 'gemini',
+          source: 'server.barge_in_flush',
+        })
       );
-      expect(session.recentMessages).toContainEqual({ role: 'user', text: 'partial speech text' });
+      expect(session.recentMessages).not.toContainEqual({ role: 'user', text: '  partial speech text  ' });
     });
 
     it('sends user.transcription.reset after flushing buffered user text', () => {
@@ -1205,6 +1211,28 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
       const types = sendToClient.mock.calls.map(([, msg]) => msg.type);
       expect(types).not.toContain('user.transcription.reset');
+    });
+
+    it('abandons a pending Gemini provisional binding when a new VAD speech sequence starts', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ geminiSession });
+      const sessions = new Map([[session.id, session]]);
+      session.currentClientSpeechSeq = 4;
+      session.pendingGeminiProvisionalSpeechSeq = 4;
+      session.pendingGeminiProvisionalTurnId = 'voice-user:old:1';
+      session.pendingGeminiProvisionalTranscript = '이전 미완료 발화';
+
+      handleClientMessage(
+        session.id,
+        { type: 'client.user_speech.started', speechSeq: 5 },
+        sessions,
+        sendToClient,
+      );
+
+      expect(session.currentClientSpeechSeq).toBe(5);
+      expect(session.pendingGeminiProvisionalSpeechSeq).toBeNull();
+      expect(session.pendingGeminiProvisionalTurnId).toBeNull();
+      expect(session.pendingGeminiProvisionalTranscript).toBeNull();
     });
 
     it('duplicate cancel does not increment turnSeq', () => {

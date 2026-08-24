@@ -251,7 +251,7 @@ describe('useVoiceActivityDetection', () => {
   });
 
   describe('onaudioprocess – voice detection and barge-in', () => {
-    function setupFull() {
+    function setupFull(onVoiceStart = vi.fn()) {
       const { result } = renderHook(() => useVoiceActivityDetection());
       const ctx = buildMockAudioContext();
       const source = buildMockMediaStreamSource();
@@ -270,6 +270,7 @@ describe('useVoiceActivityDetection', () => {
           isRecordingRef,
           expectedTurnSeqRef,
           stopPlayback,
+          onVoiceStart,
         });
       });
 
@@ -287,7 +288,7 @@ describe('useVoiceActivityDetection', () => {
         });
       };
 
-      return { result, processor, wsRef, expectedTurnSeqRef, stopPlayback, fireVoice, fireSilence };
+      return { result, processor, wsRef, expectedTurnSeqRef, stopPlayback, onVoiceStart, fireVoice, fireSilence };
     }
 
     it('sets voiceActivityStartRef on first voice frame above threshold', () => {
@@ -296,6 +297,19 @@ describe('useVoiceActivityDetection', () => {
       act(() => { fireVoice(); });
 
       expect(result.current.voiceActivityStartRef.current).not.toBeNull();
+    });
+
+    it('signals one speech sequence start per distinct VAD activity', () => {
+      const { onVoiceStart, fireVoice, fireSilence } = setupFull();
+
+      act(() => {
+        fireVoice();
+        fireVoice();
+        fireSilence();
+        fireVoice();
+      });
+
+      expect(onVoiceStart).toHaveBeenCalledTimes(2);
     });
 
     it('triggers barge-in after sustained voice above BARGE_IN_DELAY_MS', () => {

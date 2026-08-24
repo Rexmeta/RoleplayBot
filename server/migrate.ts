@@ -1906,6 +1906,22 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to ensure chat_messages upsert index:', err);
       }
 
+      // A provider-final user transcript carries a stable logical turn ID.
+      // Persisting it gives replay/reconnect saves an immutable idempotency key
+      // independent of mutable array position.
+      try {
+        await client.query(`
+          ALTER TABLE "chat_messages"
+            ADD COLUMN IF NOT EXISTS "voice_turn_id" varchar,
+            ADD COLUMN IF NOT EXISTS "voice_transcript_final" boolean NOT NULL DEFAULT false;
+          CREATE UNIQUE INDEX IF NOT EXISTS "idx_chat_messages_voice_turn_id"
+            ON "chat_messages"("persona_run_id", "voice_turn_id");
+        `);
+        console.log('✅ chat_messages voice transcript turn identity ensured');
+      } catch (err) {
+        console.warn('⚠️ Failed to ensure chat_messages voice turn identity:', err);
+      }
+
       // few_shot_examples table
       try {
         await client.query(`

@@ -11,6 +11,8 @@ interface UseChatSessionOptions {
   localMessagesRef?: MutableRefObject<ConversationMessage[]>;
   pendingUserText?: string;
   pendingUserTextRef?: MutableRefObject<string>;
+  pendingUserVoiceTurnId?: string;
+  pendingUserVoiceTurnIdRef?: MutableRefObject<string>;
   hasPendingLocalRef?: MutableRefObject<boolean>;
   isPersonaMode: boolean;
   isNearingEnd: boolean;
@@ -33,6 +35,8 @@ export function useChatSession({
   localMessagesRef,
   pendingUserText = '',
   pendingUserTextRef,
+  pendingUserVoiceTurnId = '',
+  pendingUserVoiceTurnIdRef,
   hasPendingLocalRef,
   isPersonaMode,
   isNearingEnd,
@@ -96,19 +100,41 @@ export function useChatSession({
       emotion: msg.emotion,
       emotionReason: msg.emotionReason,
       userAffect: msg.userAffect ?? undefined,
+      voiceTurnId: msg.voiceTurnId,
+      voiceTranscriptFinal: msg.voiceTranscriptFinal,
     }));
     const latest = pendingUserTextRef ? pendingUserTextRef.current : pendingText;
-    const trimmed = latest.trim();
-    if (trimmed) {
-      console.log(`🎤 [save] Including pendingUserText as last message: "${trimmed.substring(0, 60)}"`);
-      messages.push({
-        sender: 'user',
-        message: trimmed,
-        timestamp: new Date().toISOString(),
-        emotion: undefined,
-        emotionReason: undefined,
-        userAffect: undefined,
-      });
+    if (latest.trim()) {
+      const latestTurnId = pendingUserVoiceTurnIdRef
+        ? pendingUserVoiceTurnIdRef.current
+        : pendingUserVoiceTurnId;
+      console.log(`🎤 [save] Including pending user transcript (length=${latest.length})`);
+      const provisionalIndex = latestTurnId
+        ? messages.findIndex(
+            message =>
+              message.sender === 'user' &&
+              message.voiceTurnId === latestTurnId &&
+              message.voiceTranscriptFinal !== true,
+          )
+        : -1;
+      if (provisionalIndex >= 0) {
+        messages[provisionalIndex] = {
+          ...messages[provisionalIndex],
+          message: latest,
+          voiceTranscriptFinal: false,
+        };
+      } else {
+        messages.push({
+          sender: 'user',
+          message: latest,
+          timestamp: new Date().toISOString(),
+          emotion: undefined,
+          emotionReason: undefined,
+          userAffect: undefined,
+          voiceTurnId: latestTurnId || undefined,
+          voiceTranscriptFinal: false,
+        });
+      }
     }
     return messages;
   };

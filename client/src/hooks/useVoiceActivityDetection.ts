@@ -18,6 +18,7 @@ interface SetupVADParams {
   exitThreshold?: number;
   onNoiseDrift?: () => void;
   onBargeIn?: () => void;
+  onVoiceStart?: () => void;
 }
 
 interface UseVADReturn {
@@ -63,6 +64,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
     exitThreshold,
     onNoiseDrift,
     onBargeIn,
+    onVoiceStart,
   }: SetupVADParams) => {
     entryThresholdRef.current = entryThreshold ?? DEFAULT_ENTRY_THRESHOLD;
     exitThresholdRef.current = exitThreshold ?? DEFAULT_EXIT_THRESHOLD;
@@ -107,6 +109,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
 
         if (voiceActivityStartRef.current === null) {
           voiceActivityStartRef.current = Date.now();
+          onVoiceStart?.();
         }
 
         const voiceDuration = Date.now() - voiceActivityStartRef.current;

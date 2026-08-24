@@ -4,6 +4,7 @@ const mockGetChatMessagesByPersonaRun = vi.fn();
 const mockGetUser = vi.fn();
 const mockGetSystemSetting = vi.fn();
 const mockGetUserPersonaById = vi.fn();
+const mockUpsertVoiceTranscript = vi.fn();
 
 vi.mock('../../server/storage', () => ({
   storage: {
@@ -11,6 +12,7 @@ vi.mock('../../server/storage', () => ({
     getUser: mockGetUser,
     getSystemSetting: mockGetSystemSetting,
     getUserPersonaById: mockGetUserPersonaById,
+    upsertVoiceTranscript: mockUpsertVoiceTranscript,
   },
   db: {
     select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([])) })) })) })),
@@ -293,6 +295,25 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       vi.advanceTimersByTime(3000);
 
       expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+
+    it('passes the selected language to both Gemini input and output transcription', async () => {
+      const fakeWs = { readyState: 1, send: vi.fn() };
+      await service.createSession(
+        SESSION_ID,
+        CONVERSATION_ID,
+        SCENARIO_ID,
+        PERSONA_ID,
+        USER_ID,
+        fakeWs as any,
+        4,
+        'ja',
+      );
+
+      const connectOptions = mockLiveConnect.mock.calls[0][0];
+      expect(connectOptions.config.inputAudioTranscription).toEqual({ languageCode: 'ja-JP' });
+      expect(connectOptions.config.outputAudioTranscription).toEqual({ languageCode: 'ja-JP' });
+      expect((service as any).sessions.get(SESSION_ID).userLanguage).toBe('ja');
     });
   });
 
@@ -1059,6 +1080,34 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       expect(session.hasTriggeredFirstGreeting).toBe(true);
       // No greeting trigger (안녕하세요) ever sent
       expect(allTexts.every((t: string) => !t.includes('안녕하세요'))).toBe(true);
+    });
+  });
+
+  it('persists an orphan close flush through the identity-aware provisional upsert', async () => {
+    mockGetChatMessagesByPersonaRun.mockResolvedValue([]);
+    mockUpsertVoiceTranscript.mockResolvedValue({});
+    const closedWs = { readyState: 3, send: vi.fn() };
+    await service.createSession(
+      SESSION_ID,
+      CONVERSATION_ID,
+      SCENARIO_ID,
+      PERSONA_ID,
+      USER_ID,
+      closedWs as any,
+    );
+
+    const session = (service as any).sessions.get(SESSION_ID);
+    session.userTranscriptBuffer = '  종료 직전 부분 전사  ';
+    service.closeSession(SESSION_ID);
+
+    await vi.waitFor(() => {
+      expect(mockUpsertVoiceTranscript).toHaveBeenCalledWith(expect.objectContaining({
+        personaRunId: CONVERSATION_ID,
+        sender: 'user',
+        message: '  종료 직전 부분 전사  ',
+        voiceTurnId: expect.stringMatching(/^voice-user:/),
+        voiceTranscriptFinal: false,
+      }));
     });
   });
 });
