@@ -21,6 +21,10 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 # OpenAI 사용 (기능별 또는 실시간 음성용)
 OPENAI_API_KEY=your_openai_api_key_here
+
+# OpenRouter 사용 (텍스트 기능 전용)
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 ```
 
 > **참고**: `AI_PROVIDER` 환경변수는 코드에서 로그 방지 목적으로 인식은 하지만, 실제 모델 라우팅은 **모델명 prefix 기반 자동 라우팅**으로 동작합니다. `AI_PROVIDER` 값이 아닌 아래 모델 결정 우선순위를 따르세요.
@@ -81,6 +85,15 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 모델명이 `gpt-*`이면 자동으로 OpenAI 프로바이더가 선택됩니다.  
 OpenAI 키가 없으면 Gemini로 자동 fallback합니다.
+
+### 🟣 OpenRouter (텍스트 기능 전용)
+OpenRouter는 관리자 페이지의 AI 모델 설정에서 제공업체를 **OpenRouter**로 명시하고,
+`provider/model` 형식의 모델 slug를 입력해 사용합니다. `conversation`, `feedback`,
+`strategy`, `scenario`, `translation`, `emotion`, `evaluation`, `summarization` 같은 텍스트
+기능에만 사용할 수 있으며 실시간 음성, 이미지, 영상, 아바타 영상에는 사용할 수 없습니다.
+API 키는 데이터베이스나 웹 UI에 저장하지 않고 배포 환경의 `OPENROUTER_API_KEY` secret에서만
+읽습니다. 관리자는 System Admin의 연결 테스트로 키를 공개하지 않고 연결 상태를 확인할 수
+있습니다. 선택한 endpoint는 `OPENROUTER_BASE_URL` (기본값 `https://openrouter.ai/api/v1`)입니다.
 
 ---
 

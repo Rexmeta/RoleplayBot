@@ -4,9 +4,55 @@ import { isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { VALID_REALTIME_MODEL_VALUES } from "../../shared/realtimeModels";
 import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "../services/videoAvatarAccess";
+import { parseAIModelPolicy, type AIFeature } from "../services/aiServiceFactory";
+import { OpenRouterProvider } from "../services/providers/openrouterProvider";
 
 export default function createSystemAdminRouter(isAuthenticated: any) {
   const router = Router();
+
+  const safeOpenRouterBaseUrl = () => {
+    const configured = process.env.OPENROUTER_BASE_URL;
+    if (!configured) return OpenRouterProvider.DEFAULT_BASE_URL;
+    try {
+      const url = new URL(configured);
+      return `${url.origin}${url.pathname}`.replace(/\/$/, "");
+    } catch {
+      return "invalid deployment configuration";
+    }
+  };
+
+  const policyFeatureBySettingKey: Record<string, AIFeature> = {
+    model_conversation: "conversation",
+    model_feedback: "feedback",
+    model_strategy: "strategy",
+    model_scenario: "scenario",
+    model_realtime: "realtime",
+    model_emotion: "emotion",
+    model_translation: "translation",
+    model_image: "image",
+    model_video: "video",
+    model_avatar_video: "avatar_video",
+    model_evaluation: "evaluation",
+    model_summarization: "summarization",
+  };
+
+  const validateAiSetting = (key: string, value: unknown) => {
+    const feature = policyFeatureBySettingKey[key];
+    if (!feature) return;
+    const serializedValue = typeof value === "object" && value !== null ? JSON.stringify(value) : String(value);
+    let policy;
+    try {
+      policy = parseAIModelPolicy(serializedValue, feature);
+    } catch (error) {
+      throw createHttpError(400, error instanceof Error ? error.message : "Invalid AI model policy");
+    }
+    if (policy.provider === "openrouter" && ["realtime", "image", "video", "avatar_video"].includes(feature)) {
+      throw createHttpError(400, `OpenRouter does not support the ${feature} feature; choose a direct provider`);
+    }
+    if (feature === "realtime" && !VALID_REALTIME_MODEL_VALUES.has(policy.model)) {
+      throw createHttpError(400, `Invalid realtime model: "${policy.model}"`);
+    }
+  };
 
   const setEndOfDay = (date: Date): Date => {
     const endOfDay = new Date(date);
@@ -302,12 +348,7 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
       throw createHttpError(400, "Category and key are required");
     }
 
-    if (key === 'model_realtime' && !VALID_REALTIME_MODEL_VALUES.has(String(value))) {
-      throw createHttpError(
-        400,
-        `Invalid realtime model: "${value}". Must be one of: ${Array.from(VALID_REALTIME_MODEL_VALUES).join(', ')}`
-      );
-    }
+    validateAiSetting(key, value);
     if (category === VIDEO_AVATAR_ACCESS_SETTING.category && key === VIDEO_AVATAR_ACCESS_SETTING.key) {
       if (typeof value !== "boolean" && value !== "true" && value !== "false") {
         throw createHttpError(400, "operator_video_avatar_enabled must be a boolean");
@@ -345,12 +386,7 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
         continue;
       }
 
-      if (key === 'model_realtime' && !VALID_REALTIME_MODEL_VALUES.has(String(value))) {
-        throw createHttpError(
-          400,
-          `Invalid realtime model: "${value}". Must be one of: ${Array.from(VALID_REALTIME_MODEL_VALUES).join(', ')}`
-        );
-      }
+       validateAiSetting(key, value);
       if (category === VIDEO_AVATAR_ACCESS_SETTING.category && key === VIDEO_AVATAR_ACCESS_SETTING.key) {
         if (typeof value !== "boolean" && value !== "true" && value !== "false") {
           throw createHttpError(400, "operator_video_avatar_enabled must be a boolean");
@@ -407,8 +443,46 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
       gemini: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
       openai: !!process.env.OPENAI_API_KEY,
       openrouter: !!process.env.OPENROUTER_API_KEY,
+      openrouterBaseUrl: safeOpenRouterBaseUrl(),
     };
     res.json(status);
+  }));
+
+  router.post("/openrouter-connection-check", isAuthenticated, isSystemAdmin, asyncHandler(async (_req, res) => {
+    const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+    if (!apiKey) {
+      return res.json({ status: "credential", message: "OPENROUTER_API_KEY is not configured in the deployment." });
+    }
+
+    const configuredUrl = process.env.OPENROUTER_BASE_URL || OpenRouterProvider.DEFAULT_BASE_URL;
+    let endpoint: URL;
+    try {
+      endpoint = new URL(configuredUrl);
+      if (!["http:", "https:"].includes(endpoint.protocol)) throw new Error("unsupported protocol");
+    } catch {
+      return res.json({ status: "configuration", message: "OPENROUTER_BASE_URL must be a valid HTTP(S) URL." });
+    }
+
+    try {
+      const response = await fetch(`${endpoint.toString().replace(/\/$/, "")}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (response.ok) return res.json({ status: "connected", message: "OpenRouter responded successfully." });
+      if (response.status === 401 || response.status === 403) {
+        return res.json({ status: "credential", message: "OpenRouter rejected the deployment credential." });
+      }
+      if (response.status >= 500 || response.status === 408 || response.status === 429) {
+        return res.json({ status: "upstream-failure", message: `OpenRouter is temporarily unavailable (HTTP ${response.status}).` });
+      }
+      return res.json({ status: "configuration", message: `OpenRouter configuration was rejected (HTTP ${response.status}).` });
+    } catch (error) {
+      const isTimeout = error instanceof Error && error.name === "TimeoutError";
+      return res.json({
+        status: "upstream-failure",
+        message: isTimeout ? "The OpenRouter connection timed out." : "OpenRouter could not be reached from this deployment.",
+      });
+    }
   }));
 
   router.get("/ai-usage/summary", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {

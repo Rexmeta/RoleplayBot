@@ -245,6 +245,22 @@ function getStaticModelsForFeature(featureId: string, supportedProviders: string
   return AI_MODELS.filter(m => supportedProviders.includes(m.provider));
 }
 
+function readFeaturePolicy(value: string): { provider: string; model: string } {
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed?.provider && typeof parsed.model === "string") return parsed;
+  } catch { /* saved legacy model-only setting */ }
+  return { provider: value.startsWith("gpt-") ? "openai" : "gemini", model: value };
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  gemini: "Gemini",
+  openai: "OpenAI",
+  openrouter: "OpenRouter",
+  "Google Live": "Gemini Live",
+  "OpenAI Realtime": "OpenAI Realtime",
+};
+
 const FEATURE_MODEL_INFO = [
   {
     id: "conversation",
@@ -321,6 +337,8 @@ const FEATURE_MODEL_INFO = [
 interface ApiKeyStatus {
   gemini: boolean;
   openai: boolean;
+  openrouter: boolean;
+  openrouterBaseUrl?: string;
 }
 
 const roleColorConfig: Record<string, { color: string; bgColor: string }> = {
@@ -1077,6 +1095,17 @@ export default function SystemAdminPage() {
     setHasSettingsChanges(true);
   };
 
+  const handleFeaturePolicyChange = (settingKey: string, provider: string, model: string) => {
+    handleFeatureModelChange(settingKey, JSON.stringify({ provider, model }));
+  };
+
+  const connectionCheckMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/system-admin/openrouter-connection-check");
+      return response.json();
+    },
+  });
+
   const handleSaveSettings = () => {
     const settings = Object.entries(featureModels).map(([key, value]) => ({
       category: "ai",
@@ -1714,19 +1743,52 @@ export default function SystemAdminPage() {
                               const supportedProviders: string[] = 'supportedProviders' in item && item.supportedProviders ? item.supportedProviders : [];
                               const modelsToShow = getStaticModelsForFeature(item.id, supportedProviders);
                               const currentValue = featureModels[item.settingKey!];
+                              const currentPolicy = readFeaturePolicy(currentValue);
+                              const canUseOpenRouter = !["realtime", "image", "video", "avatar_video"].includes(item.id);
+                              const providerOptions = [
+                                ...(supportedProviders.includes("Google") ? [{ value: "gemini", label: "Gemini" }] : []),
+                                ...(supportedProviders.includes("OpenAI") ? [{ value: "openai", label: "OpenAI" }] : []),
+                                ...(canUseOpenRouter ? [{ value: "openrouter", label: "OpenRouter" }] : []),
+                              ];
                               return (
                                 <TableRow key={item.id}>
                                   <TableCell className="font-medium whitespace-nowrap">{t(`systemAdmin.features.${item.id}.name`)}</TableCell>
                                   <TableCell className="text-muted-foreground text-sm">{t(`systemAdmin.features.${item.id}.description`)}</TableCell>
                                   <TableCell>
-                                    <Select
-                                      value={currentValue}
-                                      onValueChange={(val) => handleFeatureModelChange(item.settingKey!, val)}
+                                    <div className="flex flex-col gap-2 min-w-[260px]">
+                                      {providerOptions.length > 0 && (
+                                        <Select value={currentPolicy.provider} onValueChange={(provider) =>
+                                          handleFeaturePolicyChange(item.settingKey!, provider, provider === "openrouter"
+                                            ? currentPolicy.model
+                                            : (modelsToShow[0]?.value || currentPolicy.model))
+                                        }>
+                                          <SelectTrigger data-testid={`provider-select-${item.id}`}>
+                                            <SelectValue>{PROVIDER_LABELS[currentPolicy.provider] || currentPolicy.provider}</SelectValue>
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {providerOptions.map((provider) => (
+                                              <SelectItem key={provider.value} value={provider.value}>{provider.label}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      )}
+                                      {currentPolicy.provider === "openrouter" ? (
+                                        <Input
+                                          value={currentPolicy.model}
+                                          placeholder="provider/model (e.g. anthropic/claude-3.5-sonnet)"
+                                          onChange={(e) => handleFeaturePolicyChange(item.settingKey!, "openrouter", e.target.value)}
+                                          data-testid={`openrouter-model-${item.id}`}
+                                        />
+                                      ) : <Select
+                                      value={currentPolicy.model}
+                                      onValueChange={(val) => providerOptions.length === 0
+                                        ? handleFeatureModelChange(item.settingKey!, val)
+                                        : handleFeaturePolicyChange(item.settingKey!, currentPolicy.provider, val)}
                                     >
-                                      <SelectTrigger className="w-full min-w-[220px]" data-testid={`model-select-${item.id}`}>
+                                      <SelectTrigger className="w-full" data-testid={`model-select-${item.id}`}>
                                         <SelectValue>
                                           {(() => {
-                                            const m = allModels.find(m => m.value === currentValue);
+                                            const m = allModels.find(m => m.value === currentPolicy.model);
                                             return m ? (
                                               <span className="flex items-center gap-1.5">
                                                 {t(`systemAdmin.models.${m.modelKey}.label`)}
@@ -1734,7 +1796,7 @@ export default function SystemAdminPage() {
                                                   <Badge className="text-[10px] px-1 py-0 bg-green-100 text-green-700 hover:bg-green-100">{t('systemAdmin.settings.recommended')}</Badge>
                                                 )}
                                               </span>
-                                            ) : currentValue;
+                                            ) : currentPolicy.model;
                                           })()}
                                         </SelectValue>
                                       </SelectTrigger>
@@ -1770,6 +1832,13 @@ export default function SystemAdminPage() {
                                         })}
                                       </SelectContent>
                                     </Select>
+                                      }
+                                      {currentPolicy.provider === "openrouter" && (
+                                        <p className="text-xs text-muted-foreground">
+                                          OpenRouter supports text features only. The model slug and credential come from deployment configuration.
+                                        </p>
+                                      )}
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               );
@@ -1899,6 +1968,39 @@ export default function SystemAdminPage() {
                       <Badge variant={apiKeyStatus?.openai ? "default" : "destructive"}>
                         {apiKeyStatus?.openai ? t('systemAdmin.settings.configured') : t('systemAdmin.settings.notConfigured')}
                       </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {apiKeyStatus?.openrouter ? <CheckCircle className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-500" />}
+                        <div>
+                          <p className="font-medium">OpenRouter</p>
+                          <p className="text-sm text-muted-foreground">
+                            Text models only · endpoint: {apiKeyStatus?.openrouterBaseUrl || "deployment configuration"}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={apiKeyStatus?.openrouter ? "default" : "destructive"}>
+                        {apiKeyStatus?.openrouter ? t('systemAdmin.settings.configured') : t('systemAdmin.settings.notConfigured')}
+                      </Badge>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => connectionCheckMutation.mutate()}
+                        disabled={connectionCheckMutation.isPending}
+                        data-testid="openrouter-connection-check"
+                      >
+                        {connectionCheckMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        {connectionCheckMutation.isPending ? "Checking…" : "Test OpenRouter connection"}
+                      </Button>
+                      {connectionCheckMutation.data && (
+                        <span className={`text-sm ${connectionCheckMutation.data.status === "connected" ? "text-green-600" : "text-red-600"}`}>
+                          {connectionCheckMutation.data.message}
+                        </span>
+                      )}
                     </div>
 
                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
