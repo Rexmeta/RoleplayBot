@@ -89,4 +89,51 @@ describe("OpenRouter system admin controls", () => {
       message: expect.stringContaining("OPENROUTER_API_KEY"),
     });
   });
+
+  it("returns only safe text catalog fields and caches the catalog", async () => {
+    process.env.OPENROUTER_API_KEY = "server-only-secret";
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      data: [
+        {
+          id: "anthropic/claude-3.5-sonnet",
+          name: "Claude 3.5 Sonnet",
+          description: "A useful model",
+          context_length: 200000,
+          pricing: { prompt: "0.000003", completion: "0.000015" },
+          architecture: { input_modalities: ["text", "image"], output_modalities: ["text"] },
+          supported_parameters: ["temperature", "tools"],
+          top_provider: { name: "Anthropic" },
+          privateField: "must-not-leak",
+        },
+        { id: "openai/image-model", architecture: { input_modalities: ["image"], output_modalities: ["image"] } },
+      ],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const app = makeApp();
+    const first = await request(app).get("/api/system-admin/openrouter/catalog");
+    const second = await request(app).get("/api/system-admin/openrouter/catalog");
+
+    expect(first.status).toBe(200);
+    expect(first.body.models).toHaveLength(1);
+    expect(first.body.models[0]).toMatchObject({
+      id: "anthropic/claude-3.5-sonnet",
+      contextLength: 200000,
+      provider: "Anthropic",
+    });
+    expect(JSON.stringify(first.body)).not.toContain("server-only-secret");
+    expect(JSON.stringify(first.body)).not.toContain("must-not-leak");
+    expect(second.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects detail lookup for a slug not present in the catalog", async () => {
+    process.env.OPENROUTER_API_KEY = "server-only-secret";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: [] }), { status: 200 })));
+
+    const response = await request(makeApp()).get("/api/system-admin/openrouter/models/openai%2Funknown");
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toMatch(/not available/i);
+  });
 });

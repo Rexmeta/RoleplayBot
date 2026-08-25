@@ -35,7 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key, CreditCard, ShoppingBag, UserX, MoreHorizontal } from "lucide-react";
+import { Search, Users, Shield, UserCog, Loader2, User, KeyRound, Eye, EyeOff, FolderTree, Plus, Pencil, Trash2, GripVertical, Settings, Save, CheckCircle, XCircle, ExternalLink, Activity, DollarSign, Zap, TrendingUp, Calendar, RefreshCw, Languages, Building2, HardDrive, CloudDownload, AlertCircle, Key, CreditCard, ShoppingBag, UserX, MoreHorizontal, Database, Clock3 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -243,6 +243,122 @@ function getStaticModelsForFeature(featureId: string, supportedProviders: string
   if (featureId === "avatar_video") return AVATAR_VIDEO_MODELS;
   if (supportedProviders.length === 0) return AI_MODELS;
   return AI_MODELS.filter(m => supportedProviders.includes(m.provider));
+}
+
+interface OpenRouterModel {
+  id: string;
+  name: string;
+  description: string | null;
+  contextLength: number | null;
+  pricing: { input: number | null; output: number | null };
+  modalities: { input: string[]; output: string[] };
+  capabilities: string[];
+  provider: string | null;
+}
+
+interface OpenRouterEndpoint {
+  provider: string | null;
+  contextLength: number | null;
+  pricing: { input: number | null; output: number | null };
+  capabilities: string[];
+  latencyMs: number | null;
+  uptime: number | null;
+}
+
+function OpenRouterModelPicker({ value, onChange, testId }: {
+  value: string;
+  onChange: (model: string) => void;
+  testId: string;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [focusedId, setFocusedId] = useState(value);
+  const catalogQuery = useQuery<{ models: OpenRouterModel[] }>({
+    queryKey: ["/api/system-admin/openrouter/catalog"],
+    queryFn: async () => {
+      const response = await fetch("/api/system-admin/openrouter/catalog", { credentials: "include" });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "OpenRouter catalog unavailable");
+      return response.json();
+    },
+    enabled: open,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const detailQuery = useQuery<{ modelId: string; endpoints: OpenRouterEndpoint[] }>({
+    queryKey: ["/api/system-admin/openrouter/models", focusedId],
+    queryFn: async () => {
+      const response = await fetch(`/api/system-admin/openrouter/models/${encodeURIComponent(focusedId)}`, { credentials: "include" });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Model details unavailable");
+      return response.json();
+    },
+    enabled: open && Boolean(focusedId) && catalogQuery.data?.models.some(model => model.id === focusedId),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const models = catalogQuery.data?.models ?? [];
+  const filteredModels = models.filter(model => {
+    const query = search.trim().toLowerCase();
+    return !query || `${model.name} ${model.id} ${model.provider ?? ""}`.toLowerCase().includes(query);
+  });
+  const selected = models.find(model => model.id === focusedId);
+  const legacy = value && !models.some(model => model.id === value);
+  const formatPrice = (price: number | null) => price == null ? t("systemAdmin.openRouter.unavailable", "Unavailable") : `$${(price * 1_000_000).toFixed(2)} / 1M`;
+  const details = selected ? [
+    [t("systemAdmin.openRouter.context", "Context"), selected.contextLength ? `${selected.contextLength.toLocaleString()} tokens` : t("systemAdmin.openRouter.unavailable", "Unavailable")],
+    [t("systemAdmin.openRouter.pricing", "Input / output"), `${formatPrice(selected.pricing.input)} · ${formatPrice(selected.pricing.output)}`],
+    [t("systemAdmin.openRouter.modalities", "Modalities"), `${selected.modalities.input.join(", ") || t("systemAdmin.openRouter.unavailable", "Unavailable")} → ${selected.modalities.output.join(", ") || t("systemAdmin.openRouter.unavailable", "Unavailable")}`],
+    [t("systemAdmin.openRouter.capabilities", "Capabilities"), selected.capabilities.length ? selected.capabilities.join(", ") : t("systemAdmin.openRouter.unavailable", "Unavailable")],
+    [t("systemAdmin.openRouter.provider", "Provider"), selected.provider || t("systemAdmin.openRouter.unavailable", "Unavailable")],
+  ] : [];
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => {
+      setOpen(next);
+      if (next) setFocusedId(value);
+    }}>
+      <Button type="button" variant="outline" className="w-full justify-between font-mono text-xs" onClick={() => setOpen(true)} data-testid={testId}>
+        <span className="truncate">{value || t("systemAdmin.openRouter.chooseModel", "Choose a catalog model")}</span>
+        <Database className="h-4 w-4 ml-2 shrink-0 text-muted-foreground" />
+      </Button>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{t("systemAdmin.openRouter.title", "Choose an OpenRouter model")}</DialogTitle>
+          <DialogDescription>{t("systemAdmin.openRouter.description", "Search the current text-model catalog. Only the exact OpenRouter slug can be saved.")}</DialogDescription>
+        </DialogHeader>
+        <div className="grid md:grid-cols-[1fr_1fr] gap-4 min-h-[360px]">
+          <div className="space-y-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-9" value={search} onChange={event => setSearch(event.target.value)} placeholder={t("systemAdmin.openRouter.search", "Search provider, name, or slug")} />
+            </div>
+            {catalogQuery.isLoading && <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+            {catalogQuery.isError && <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm"><p className="text-destructive">{t("systemAdmin.openRouter.loadError", "Could not load the OpenRouter catalog.")}</p><Button size="sm" variant="outline" onClick={() => catalogQuery.refetch()}>{t("common.retry", "Retry")}</Button></div>}
+            {!catalogQuery.isLoading && !catalogQuery.isError && filteredModels.length === 0 && <p className="py-12 text-center text-sm text-muted-foreground">{t("systemAdmin.openRouter.empty", "No matching models found.")}</p>}
+            <div className="max-h-[290px] overflow-y-auto space-y-1">
+              {legacy && <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs"><strong>{t("systemAdmin.openRouter.legacy", "Saved model not in catalog")}</strong><div className="font-mono mt-1">{value}</div></div>}
+              {filteredModels.map(model => <button type="button" key={model.id} onClick={() => setFocusedId(model.id)} className={`w-full rounded-md border p-2 text-left ${focusedId === model.id ? "border-primary bg-primary/5" : "hover:bg-muted"}`} data-testid={`openrouter-catalog-model-${model.id}`}>
+                <div className="font-medium text-sm">{model.name}</div><div className="font-mono text-xs text-muted-foreground">{model.id}</div><div className="text-xs text-muted-foreground">{model.provider || t("systemAdmin.openRouter.unavailable", "Unavailable")}</div>
+              </button>)}
+            </div>
+          </div>
+          <div className="rounded-md border p-4">
+            {selected ? <div className="space-y-4">
+              <div><h3 className="font-semibold">{selected.name}</h3><p className="font-mono text-xs text-muted-foreground break-all">{selected.id}</p>{selected.description && <p className="mt-2 text-sm text-muted-foreground">{selected.description}</p>}</div>
+              <div className="grid grid-cols-1 gap-2">{details.map(([label, content]) => <div key={label} className="text-sm"><span className="font-medium">{label}: </span><span className="text-muted-foreground">{content}</span></div>)}</div>
+              <div><h4 className="text-sm font-medium flex items-center gap-1"><Clock3 className="h-4 w-4" /> {t("systemAdmin.openRouter.endpoints", "Provider endpoints")}</h4>
+                {detailQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin mt-2" />}
+                {detailQuery.isError && <p className="text-xs text-muted-foreground mt-2">{t("systemAdmin.openRouter.detailsUnavailable", "Endpoint details are unavailable.")}</p>}
+                {detailQuery.data?.endpoints.length === 0 && <p className="text-xs text-muted-foreground mt-2">{t("systemAdmin.openRouter.unavailable", "Unavailable")}</p>}
+                <div className="mt-2 space-y-1">{detailQuery.data?.endpoints.map((endpoint, index) => <div key={`${endpoint.provider}-${index}`} className="text-xs rounded bg-muted p-2"><span className="font-medium">{endpoint.provider || t("systemAdmin.openRouter.unavailable", "Unavailable")}</span> · {endpoint.contextLength == null ? t("systemAdmin.openRouter.contextUnavailable", "Context unavailable") : `${endpoint.contextLength.toLocaleString()} tokens`} · {endpoint.latencyMs == null ? t("systemAdmin.openRouter.latencyUnavailable", "Latency unavailable") : `${endpoint.latencyMs} ms`} · {endpoint.uptime == null ? t("systemAdmin.openRouter.uptimeUnavailable", "Uptime unavailable") : `${endpoint.uptime}% uptime`}<div className="text-muted-foreground mt-1">{endpoint.pricing.input == null ? t("systemAdmin.openRouter.unavailable", "Unavailable") : formatPrice(endpoint.pricing.input)} / {endpoint.pricing.output == null ? t("systemAdmin.openRouter.unavailable", "Unavailable") : formatPrice(endpoint.pricing.output)} · {endpoint.capabilities.length ? endpoint.capabilities.join(", ") : t("systemAdmin.openRouter.unavailable", "Unavailable")}</div></div>)}</div>
+              </div>
+              <Button className="w-full" onClick={() => { onChange(selected.id); setOpen(false); }} data-testid="openrouter-select-model">{t("systemAdmin.openRouter.select", "Use this model")}</Button>
+            </div> : <p className="text-sm text-muted-foreground">{t("systemAdmin.openRouter.selectHint", "Select a model to see its details.")}</p>}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function readFeaturePolicy(value: string): { provider: string; model: string } {
@@ -1773,11 +1889,10 @@ export default function SystemAdminPage() {
                                         </Select>
                                       )}
                                       {currentPolicy.provider === "openrouter" ? (
-                                        <Input
+                                        <OpenRouterModelPicker
                                           value={currentPolicy.model}
-                                          placeholder="provider/model (e.g. anthropic/claude-3.5-sonnet)"
-                                          onChange={(e) => handleFeaturePolicyChange(item.settingKey!, "openrouter", e.target.value)}
-                                          data-testid={`openrouter-model-${item.id}`}
+                                          onChange={(model) => handleFeaturePolicyChange(item.settingKey!, "openrouter", model)}
+                                          testId={`openrouter-model-${item.id}`}
                                         />
                                       ) : <Select
                                       value={currentPolicy.model}
@@ -1835,7 +1950,7 @@ export default function SystemAdminPage() {
                                       }
                                       {currentPolicy.provider === "openrouter" && (
                                         <p className="text-xs text-muted-foreground">
-                                          OpenRouter supports text features only. The model slug and credential come from deployment configuration.
+                                          {t("systemAdmin.openRouter.textOnly", "OpenRouter supports text features only. The credential is managed by the deployment.")}
                                         </p>
                                       )}
                                     </div>

@@ -5,10 +5,62 @@ import { asyncHandler, createHttpError } from "./routerHelpers";
 import { VALID_REALTIME_MODEL_VALUES } from "../../shared/realtimeModels";
 import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "../services/videoAvatarAccess";
 import { parseAIModelPolicy, type AIFeature } from "../services/aiServiceFactory";
-import { OpenRouterProvider } from "../services/providers/openrouterProvider";
+import { OpenRouterProvider, normalizeOpenRouterEndpoint, normalizeOpenRouterModel, type OpenRouterCatalogModel } from "../services/providers/openrouterProvider";
 
 export default function createSystemAdminRouter(isAuthenticated: any) {
   const router = Router();
+  const catalogCache: { expiresAt: number; models: OpenRouterCatalogModel[] } = { expiresAt: 0, models: [] };
+  const detailCache = new Map<string, { expiresAt: number; value: any }>();
+  const CATALOG_TTL = 60_000;
+  const DETAIL_TTL = 30_000;
+
+  const openRouterConfig = () => {
+    const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+    if (!apiKey) throw createHttpError(503, "OpenRouter deployment credential is not configured.");
+    const configuredUrl = process.env.OPENROUTER_BASE_URL || OpenRouterProvider.DEFAULT_BASE_URL;
+    let baseUrl: URL;
+    try {
+      baseUrl = new URL(configuredUrl);
+      if (!["http:", "https:"].includes(baseUrl.protocol)) throw new Error("protocol");
+    } catch {
+      throw createHttpError(503, "OpenRouter deployment endpoint is invalid.");
+    }
+    return { apiKey, baseUrl: baseUrl.toString().replace(/\/$/, "") };
+  };
+
+  const upstreamJson = async (url: string, apiKey: string) => {
+    try {
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (response.ok) return await response.json();
+      if (response.status === 401 || response.status === 403) {
+        throw createHttpError(503, "OpenRouter rejected the deployment credential.");
+      }
+      if (response.status >= 500 || response.status === 408 || response.status === 429) {
+        throw createHttpError(503, "OpenRouter is temporarily unavailable. Please retry.");
+      }
+      throw createHttpError(503, "OpenRouter deployment endpoint rejected the request.");
+    } catch (error) {
+      if (error && typeof error === "object" && "status" in error) throw error;
+      throw createHttpError(503, error instanceof Error && error.name === "TimeoutError"
+        ? "The OpenRouter catalog request timed out. Please retry."
+        : "OpenRouter could not be reached from this deployment.");
+    }
+  };
+
+  const getCatalog = async (): Promise<OpenRouterCatalogModel[]> => {
+    if (catalogCache.expiresAt > Date.now()) return catalogCache.models;
+    const { apiKey, baseUrl } = openRouterConfig();
+    const payload = await upstreamJson(`${baseUrl}/models`, apiKey);
+    const models = (Array.isArray(payload?.data) ? payload.data : [])
+      .map(normalizeOpenRouterModel)
+      .filter((model: OpenRouterCatalogModel | null): model is OpenRouterCatalogModel => model !== null);
+    catalogCache.models = models;
+    catalogCache.expiresAt = Date.now() + CATALOG_TTL;
+    return models;
+  };
 
   const safeOpenRouterBaseUrl = () => {
     const configured = process.env.OPENROUTER_BASE_URL;
@@ -483,6 +535,33 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
         message: isTimeout ? "The OpenRouter connection timed out." : "OpenRouter could not be reached from this deployment.",
       });
     }
+  }));
+
+  router.get("/openrouter/catalog", isAuthenticated, isSystemAdmin, asyncHandler(async (_req, res) => {
+    const models = await getCatalog();
+    res.set("Cache-Control", "private, max-age=60");
+    res.json({ models, cachedUntil: new Date(catalogCache.expiresAt).toISOString() });
+  }));
+
+  router.get("/openrouter/models/:modelId(*)", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
+    const modelId = req.params.modelId;
+    if (!modelId || modelId.length > 300 || !/^[^/\s]+\/[^/\s]+$/.test(modelId)) {
+      throw createHttpError(400, "Invalid OpenRouter model slug.");
+    }
+    const catalog = await getCatalog();
+    if (!catalog.some((model: OpenRouterCatalogModel) => model.id === modelId)) {
+      throw createHttpError(404, "That OpenRouter model is not available in the catalog.");
+    }
+    const cached = detailCache.get(modelId);
+    if (cached && cached.expiresAt > Date.now()) return res.json(cached.value);
+    const { apiKey, baseUrl } = openRouterConfig();
+    const payload = await upstreamJson(`${baseUrl}/models/${modelId}/endpoints`, apiKey);
+    const endpoints = (Array.isArray(payload?.data) ? payload.data : [])
+      .map(normalizeOpenRouterEndpoint);
+    const value = { modelId, endpoints };
+    detailCache.set(modelId, { expiresAt: Date.now() + DETAIL_TTL, value });
+    res.set("Cache-Control", "private, max-age=30");
+    res.json(value);
   }));
 
   router.get("/ai-usage/summary", isAuthenticated, isSystemAdmin, asyncHandler(async (req, res) => {
