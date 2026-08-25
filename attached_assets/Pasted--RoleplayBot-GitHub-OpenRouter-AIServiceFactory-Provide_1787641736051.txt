@@ -1,0 +1,821 @@
+현재 **RoleplayBot 최신 GitHub 구조를 기준으로 보면**, OpenRouter를 넣기 좋은 상태입니다. 특히 이미 `AIServiceFactory`와 Provider 추상화가 있어서 **기존 Gemini/OpenAI 구조를 깨지 않고 OpenRouter를 하나의 Provider로 추가하는 방식**이 가장 효과적입니다. 현재 `AIServiceFactory`는 모델명 prefix로 provider를 결정하고, 기능별 모델 설정을 DB의 `system setting`에서 읽는 구조입니다.  
+
+그리고 OpenRouter는 OpenAI-compatible API이므로 별도 SDK 의존성을 크게 늘리지 않고 기존 OpenAI client의 `baseURL`을 OpenRouter로 지정하는 방식도 가능합니다. OpenRouter 공식 문서도 이 방식을 지원합니다. ([OpenRouter][1])
+
+## 결론
+
+**RoleplayX에서는 다음 구조를 추천합니다.**
+
+```text
+                    ┌──────────────────────┐
+                    │   System Admin       │
+                    │   AI Provider 설정    │
+                    └──────────┬───────────┘
+                               │
+                ┌──────────────▼──────────────┐
+                │      AI Provider Config     │
+                │                            │
+                │ Gemini                     │
+                │ OpenAI                     │
+                │ OpenRouter ★               │
+                │ Claude / 기타              │
+                └──────────────┬──────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │ AIServiceFactory    │
+                    └──────────┬──────────┘
+                               │
+             ┌─────────────────┼──────────────────┐
+             ▼                 ▼                  ▼
+       conversation         feedback          evaluation
+             │
+             ▼
+       OpenRouterProvider
+             │
+             ▼
+      OpenRouter API
+             │
+       ┌─────┼───────────────┐
+       ▼     ▼               ▼
+     GPT     Claude        Gemini
+```
+
+핵심은 **"OpenRouter를 특정 모델 하나로 취급하지 않는 것"**입니다.
+
+---
+
+# 1. 현재 구조에서 가장 먼저 바꿔야 할 부분
+
+현재 `AIServiceFactory`는 사실상:
+
+```text
+gpt-*      → OpenAI
+claude-*   → Claude
+그 외      → Gemini
+```
+
+방식입니다.
+
+이 구조는 OpenRouter를 넣으면 문제가 생깁니다.
+
+예를 들어:
+
+```text
+openai/gpt-5.4
+anthropic/claude-sonnet-4.6
+google/gemini-3.1-pro
+```
+
+같은 OpenRouter model slug를 사용하기 때문입니다.
+
+따라서 앞으로는 **모델 이름으로 Provider를 추론하지 말고, Provider와 Model을 분리**해야 합니다.
+
+현재:
+
+```text
+model = "gpt-5"
+→ OpenAI
+```
+
+에서
+
+```text
+provider = "openrouter"
+model = "openai/gpt-5.4"
+```
+
+로 바꾸는 것이 맞습니다.
+
+---
+
+# 2. Admin 설정 화면도 Provider 중심으로 바꾸는 것이 좋음
+
+System Admin에 단순히
+
+```text
+AI Model
+[ gpt-5 ]
+```
+
+를 두는 것보다 다음 구조가 좋습니다.
+
+### AI Provider
+
+```text
+Provider
+○ Gemini
+○ OpenAI
+● OpenRouter
+○ Claude
+```
+
+### API 설정
+
+OpenRouter 선택:
+
+```text
+API Key
+[ sk-or-v1-**************** ]
+
+Base URL
+[ https://openrouter.ai/api/v1 ]
+
+Connection
+[ Test Connection ]
+
+Status
+● Connected
+```
+
+그리고 아래에:
+
+### Default Model
+
+```text
+Conversation
+[ anthropic/claude-sonnet-4.6 ]
+
+Feedback
+[ openai/gpt-5.4 ]
+
+Strategy
+[ google/gemini-3.1-pro ]
+
+Emotion
+[ google/gemini-3.1-flash ]
+```
+
+이렇게 **기능별 모델을 독립적으로 지정**하는 것이 중요합니다.
+
+현재 프로젝트가 이미 `conversation`, `feedback`, `strategy`, `scenario`, `translation`, `emotion`, `evaluation`, `summarization` 등의 feature별 model 설정 구조를 가지고 있기 때문에 이 방향과 잘 맞습니다.
+
+---
+
+# 3. OpenRouter API Key는 DB에 평문 저장하지 않는 것을 추천
+
+이 부분은 특히 중요합니다.
+
+Admin 화면에서 입력한:
+
+```text
+sk-or-v1-xxxx
+```
+
+를 `system_settings.value`에 그대로 저장하는 것은 피하는 것이 좋습니다.
+
+추천 구조:
+
+```text
+system_settings
+
+provider = openrouter
+enabled = true
+default_model = ...
+api_base_url = ...
+api_key_ref = secret://openrouter/default
+```
+
+실제 API Key는:
+
+```text
+Google Secret Manager
+```
+
+또는 현재 RoleplayX 인프라에 맞는 Secret Storage에 보관합니다.
+
+즉:
+
+```text
+Admin UI
+   ↓
+API
+   ↓
+Secret Manager
+   ↓
+OpenRouterProvider
+```
+
+입니다.
+
+다만 **MVP에서는 DB 암호화 저장**도 가능하지만, RoleplayX가 B2B SaaS로 가는 것을 생각하면 처음부터 Secret abstraction을 두는 것이 낫습니다.
+
+---
+
+# 4. 더 중요한 것은 "OpenRouter를 단순 API Proxy로 쓰지 않는 것"
+
+OpenRouter의 가장 큰 장점은 단순히 API를 하나 더 연결하는 것이 아닙니다.
+
+OpenRouter는 **model routing + provider routing**을 분리해서 제공합니다. 하나의 API endpoint로 여러 모델과 provider를 사용할 수 있고, provider 장애 시 fallback도 구성할 수 있습니다. ([OpenRouter][1])
+
+따라서 Admin 화면도 장기적으로:
+
+```text
+OpenRouter
+
+Primary Model
+[ Claude Sonnet ]
+
+Fallback Models
+[ GPT-5.4 ]
+[ Gemini ]
+
+Provider Routing
+[ Auto ]
+
+Routing Strategy
+○ Cost
+○ Latency
+○ Throughput
+
+Allow Fallback
+☑
+```
+
+형태로 확장하는 것이 좋습니다.
+
+---
+
+# 5. RoleplayX에서 가장 좋은 모델 설정 구조
+
+나는 다음 3단계 구조를 추천합니다.
+
+### Level 1 — Global Provider
+
+```text
+AI Provider
+└── OpenRouter
+```
+
+### Level 2 — Feature
+
+```text
+conversation
+feedback
+strategy
+emotion
+evaluation
+translation
+scenario
+```
+
+### Level 3 — Model Policy
+
+각 feature마다:
+
+```text
+primary
+fallback[]
+temperature
+maxTokens
+providerPolicy
+```
+
+예:
+
+```text
+conversation
+ ├─ primary: anthropic/claude-sonnet-4.6
+ ├─ fallback:
+ │    ├─ openai/gpt-5.4
+ │    └─ google/gemini-3.1-pro
+ ├─ temperature: 0.8
+ └─ providerPolicy:
+      └─ latency
+```
+
+이 구조가 RoleplayX의 **AI orchestration layer**로 발전하기 가장 좋습니다.
+
+---
+
+# 6. 특히 RoleplayX에서는 Preset 개념도 가져가는 것이 좋음
+
+OpenRouter에는 현재 Preset 기능이 있어서 model, system prompt, provider routing, generation parameters 등을 하나의 설정으로 관리할 수 있습니다. ([OpenRouter][2])
+
+예를 들어:
+
+```text
+Roleplay Conversation
+        ↓
+@preset/roleplay-conversation
+```
+
+그리고 OpenRouter 쪽에서:
+
+```text
+Model
+Claude
+
+Fallback
+GPT
+Gemini
+
+Temperature
+0.8
+
+Provider
+Latency optimized
+```
+
+를 관리할 수 있습니다.
+
+다만 **RoleplayX 내부의 Scenario/Persona/Emotion 정책까지 OpenRouter Preset에 넣는 것은 추천하지 않습니다.**
+
+RoleplayX가 소유해야 할 것은:
+
+```text
+Persona
+Scenario
+Emotion
+Difficulty
+Evaluation
+Conversation Policy
+```
+
+OpenRouter가 담당할 것은:
+
+```text
+Model Routing
+Provider Routing
+Fallback
+Cost
+Latency
+Provider availability
+```
+
+로 경계를 잡는 것이 좋습니다.
+
+---
+
+# 7. DB Schema도 지금부터 Provider를 독립시키는 것이 좋음
+
+현재는 `model_conversation`, `model_feedback`처럼 모델 자체를 system setting으로 저장하고 있습니다.
+
+앞으로는:
+
+```text
+ai_provider_config
+```
+
+같은 개념을 두는 것을 추천합니다.
+
+예:
+
+```text
+AIProviderConfig
+----------------
+id
+provider
+enabled
+apiBaseUrl
+secretRef
+organization
+createdAt
+updatedAt
+```
+
+그리고:
+
+```text
+AIModelPolicy
+----------------
+id
+feature
+providerConfigId
+primaryModel
+fallbackModels
+temperature
+maxTokens
+routingPolicy
+enabled
+```
+
+이렇게 분리합니다.
+
+그러면:
+
+```text
+conversation → OpenRouter → Claude
+feedback     → OpenRouter → GPT
+emotion      → Gemini     → Gemini Flash
+video        → Gemini     → Veo
+```
+
+같은 구성이 가능합니다.
+
+---
+
+# 8. OpenRouter 전용 Provider 구현
+
+현재 이미:
+
+```text
+AIServiceFactory
+    ↓
+OpenAIProvider
+OptimizedGeminiProvider
+CustomProvider
+```
+
+구조가 있기 때문에 여기에:
+
+```text
+OpenRouterProvider
+```
+
+를 추가하면 됩니다. 현재 실제 Provider 구현도 `OpenAIProvider`가 `OpenAI` client를 직접 생성하는 구조입니다.
+
+OpenRouter는 OpenAI-compatible이므로 내부적으로는 상당히 간단합니다.
+
+개념적으로:
+
+```typescript
+new OpenAI({
+  apiKey,
+  baseURL: "https://openrouter.ai/api/v1"
+})
+```
+
+그리고:
+
+```typescript
+client.chat.completions.create({
+  model: "anthropic/claude-sonnet-4.6",
+  messages
+})
+```
+
+형태로 사용할 수 있습니다. OpenRouter 공식 문서에서도 동일한 OpenAI-compatible endpoint 방식을 안내하고 있습니다. ([OpenRouter][1])
+
+---
+
+# 9. 단, Factory는 반드시 이렇게 바꾸는 것이 좋음
+
+현재:
+
+```typescript
+getProviderFromModel(model)
+```
+
+을 중심으로 판단하고 있는데,
+
+앞으로는:
+
+```typescript
+getProviderConfig(feature)
+```
+
+가 중심이 되어야 합니다.
+
+개념적으로:
+
+```typescript
+const config = await getAIModelPolicy(feature);
+
+switch (config.provider) {
+  case "openrouter":
+    return new OpenRouterProvider(
+      config.apiKey,
+      config.primaryModel
+    );
+
+  case "openai":
+    return new OpenAIProvider(
+      config.apiKey,
+      config.primaryModel
+    );
+
+  case "gemini":
+    return new OptimizedGeminiProvider(
+      config.apiKey,
+      config.primaryModel
+    );
+}
+```
+
+즉:
+
+```text
+Model → Provider 추론
+```
+
+에서
+
+```text
+Policy → Provider → Model
+```
+
+로 바꾸는 것입니다.
+
+이것이 이번 작업에서 **가장 중요한 아키텍처 변경**입니다.
+
+---
+
+# 10. Admin에서 "Test Connection"은 반드시 넣어야 함
+
+OpenRouter 설정을 저장하기 전에:
+
+```text
+[ Test Connection ]
+```
+
+을 누르면 서버가:
+
+```text
+GET /api/admin/ai/providers/openrouter/test
+```
+
+또는
+
+```text
+POST /api/admin/ai/providers/test
+```
+
+를 호출합니다.
+
+서버에서 실제 OpenRouter API를 호출해서:
+
+```text
+✓ API Key valid
+✓ API reachable
+✓ Model available
+✓ Response successful
+Latency: 842 ms
+```
+
+를 보여줍니다.
+
+단순히 API key가 `sk-or-`로 시작하는지 검사하면 안 됩니다.
+
+---
+
+# 11. 모델 목록도 직접 입력하지 않는 것이 좋음
+
+OpenRouter는 `/models` endpoint를 제공합니다. ([OpenRouter][3])
+
+따라서 Admin 화면에서:
+
+```text
+Model
+[ Select Model ▼ ]
+```
+
+을 누르면 서버가 OpenRouter의 모델 catalog를 가져와서:
+
+```text
+Claude Sonnet
+GPT
+Gemini
+Qwen
+DeepSeek
+...
+```
+
+를 보여주도록 하는 것이 좋습니다.
+
+그리고 모델별:
+
+```text
+Context
+Pricing
+Capabilities
+Latency
+Provider
+```
+
+정보를 보여줍니다.
+
+그러면 Admin이 잘못된 model slug를 입력할 가능성이 크게 줄어듭니다.
+
+---
+
+# 12. RoleplayX에는 "Capability"가 특히 중요함
+
+단순히 모델 이름만 저장하면 향후 문제가 생깁니다.
+
+예:
+
+```text
+conversation
+→ text + streaming
+
+emotion
+→ structured JSON
+
+evaluation
+→ structured output
+
+vision
+→ image input
+
+scenario
+→ long context
+```
+
+따라서 모델 정책에:
+
+```text
+capabilities
+```
+
+를 넣는 것이 좋습니다.
+
+예:
+
+```json
+{
+  "streaming": true,
+  "vision": true,
+  "structuredOutput": true,
+  "toolCalling": false
+}
+```
+
+그리고 feature가 요구하는 capability와 모델 capability를 검사합니다.
+
+---
+
+# 13. 비용 관리도 Admin에서 같이 묶어야 함
+
+OpenRouter를 사용하는 가장 큰 이유 중 하나가 여러 모델을 비교하면서 비용을 관리할 수 있다는 점입니다.
+
+현재 OpenRouter는 모델/Provider별 routing, fallback, latency/throughput/price 기반 routing을 지원합니다. ([OpenRouter][1])
+
+그리고 2026년 현재 OpenRouter에는 workspace, API key별 spend control과 guardrail도 제공됩니다. ([OpenRouter][2])
+
+따라서 RoleplayX에서도 최소한:
+
+```text
+AI Usage
+
+Today
+$12.40
+
+This Month
+$284.20
+
+Conversation
+$121
+
+Evaluation
+$82
+
+Scenario
+$41
+
+Emotion
+$20
+```
+
+정도로 추적하는 것이 좋습니다.
+
+다행히 현재 프로젝트에 이미 `aiUsageTracker.ts`가 존재합니다.
+
+즉 **기존 Usage Tracking을 OpenRouter까지 확장하는 것이 맞습니다.**
+
+---
+
+# 14. 최종적으로 내가 추천하는 Admin 화면
+
+```text
+┌────────────────────────────────────────────┐
+│ AI Provider Settings                       │
+├────────────────────────────────────────────┤
+│                                            │
+│ Provider                                   │
+│ ● OpenRouter                               │
+│                                            │
+│ API Key                                    │
+│ [ sk-or-v1-******************** ]         │
+│                                            │
+│ Base URL                                   │
+│ [ https://openrouter.ai/api/v1 ]          │
+│                                            │
+│ [ Test Connection ]                        │
+│                                            │
+│ ● Connected                                │
+│                                            │
+├────────────────────────────────────────────┤
+│ Feature Model Policy                       │
+├──────────────┬─────────────────────────────┤
+│ Conversation  │ Claude Sonnet              │
+│ Feedback      │ GPT                         │
+│ Strategy      │ Gemini                      │
+│ Emotion       │ Gemini Flash                │
+│ Evaluation   │ Claude                      │
+│ Translation   │ Gemini                      │
+├──────────────┴─────────────────────────────┤
+│                                            │
+│ Fallback                                   │
+│ ☑ Enable automatic fallback                │
+│                                            │
+│ Primary                                    │
+│ Claude Sonnet                              │
+│                                            │
+│ Fallback 1                                 │
+│ GPT                                         │
+│                                            │
+│ Fallback 2                                 │
+│ Gemini                                      │
+│                                            │
+├────────────────────────────────────────────┤
+│ Routing                                    │
+│ ○ Auto                                     │
+│ ○ Lowest Cost                              │
+│ ○ Lowest Latency                           │
+│ ○ Highest Throughput                       │
+└────────────────────────────────────────────┘
+```
+
+---
+
+# 15. 구현 우선순위
+
+### Phase 1 — 반드시 먼저
+
+```text
+1. AI Provider Config abstraction
+2. OpenRouterProvider
+3. Admin OpenRouter API Key
+4. Test Connection
+5. feature별 OpenRouter model 설정
+6. Factory 수정
+7. Usage tracking
+```
+
+### Phase 2
+
+```text
+8. OpenRouter /models 연동
+9. 모델 capability 표시
+10. fallback model
+11. 모델별 비용 표시
+12. latency 표시
+```
+
+### Phase 3
+
+```text
+13. provider routing
+14. cost/latency policy
+15. preset
+16. budget control
+17. audit log
+```
+
+---
+
+## 특히 중요한 판단
+
+**지금 RoleplayBot에 OpenRouter를 붙이는 작업을 "OpenRouter API 하나 추가"로 끝내면 안 됩니다.**
+
+이번 기회에:
+
+```text
+AIServiceFactory
+        ↓
+AI Provider
+        ↓
+Model Policy
+        ↓
+Routing Policy
+        ↓
+Usage / Cost
+```
+
+라는 **AI Gateway/Orchestration 계층을 확립하는 것이 훨씬 가치가 큽니다.**
+
+RoleplayX의 장기 구조는 결국:
+
+```text
+RoleplayX
+   │
+   ├── Persona Engine
+   ├── Scenario Engine
+   ├── Conversation Engine
+   ├── Emotion Engine
+   ├── Evaluation Engine
+   │
+   └── AI Gateway ★
+          │
+          ├── OpenRouter
+          │     ├── GPT
+          │     ├── Claude
+          │     ├── Gemini
+          │     └── Qwen/DeepSeek...
+          │
+          ├── OpenAI
+          ├── Gemini
+          └── Local Model
+```
+
+가 되는 것이 가장 좋습니다.
+
+특히 **OpenRouter를 기본 AI Gateway로 두고, Gemini/Veo처럼 OpenRouter가 담당하기 어려운 기능은 Direct Provider로 유지**하는 하이브리드 구조를 추천합니다.
+
+현재 코드에는 이미 Provider abstraction, feature별 model policy, usage tracking이 있기 때문에 이 방향으로 확장하기 위한 기반은 상당 부분 만들어져 있습니다.  
+
+**따라서 다음 작업은 `OpenRouterProvider`부터 만드는 것이 아니라, `AIProviderConfig + AIModelPolicy`를 먼저 정의하고 그 위에 OpenRouter를 연결하는 순서가 가장 안전합니다.**
+
+[1]: https://openrouter.ai/blog/insights/model-routing/?utm_source=chatgpt.com "How OpenRouter Model Routing Works: Providers, Fallbacks & Auto Router — OpenRouter Blog"
+[2]: https://openrouter.ai/blog/tutorials/team-spend-controls-setup/?utm_source=chatgpt.com "OpenRouter Team Spend Controls: Setup Guide — OpenRouter Blog"
+[3]: https://openrouter.ai/support?utm_source=chatgpt.com "Support | OpenRouter"
