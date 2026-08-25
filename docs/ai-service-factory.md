@@ -87,6 +87,20 @@ export type AIFeature =
 | `claude-*` | Claude (미구현 → Gemini fallback) | `OptimizedGeminiProvider` |
 | 그 외 (기본값) | Gemini | `OptimizedGeminiProvider` |
 
+OpenRouter는 모델명만으로 선택하지 않는다. 다음처럼 `AI_PROVIDER=openrouter`
+와 모델을 별도로 지정하거나, 기능별 DB 설정에 명시적 정책 JSON을 저장한다:
+
+```text
+AI_PROVIDER=openrouter
+AI_MODEL_CONVERSATION=anthropic/claude-3.5-sonnet
+OPENROUTER_API_KEY=...
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+DB 설정은 `{"provider":"openrouter","model":"openai/gpt-4o-mini","baseUrl":"https://..."}` 형식이며,
+간단한 `openrouter|anthropic/claude-3.5-sonnet` 형식도 지원한다. `anthropic/...` 또는
+`openai/...` 모델 slug만 단독으로 설정하면 기존 호환성을 위해 Gemini 모델로 취급한다.
+
 ---
 
 ## 7. Fallback 순서 및 환경변수 조합
@@ -124,16 +138,27 @@ const service = await getAIServiceForFeature('conversation');
 
 ---
 
-## 9. 필수 환경변수
+## 9. OpenRouter 지원 범위 및 오류
+
+OpenRouter는 OpenAI-compatible 텍스트 호출(대화, 피드백, 번역, 요약 등)에만 사용한다.
+이미지·영상 생성은 Gemini 전용 경로를 유지하고, OpenRouter를 해당 기능에 지정하면
+명확한 설정 오류를 반환한다. Realtime 음성도 직접 Gemini/OpenAI 경로를 사용한다.
+API 키가 없거나 base URL이 HTTP(S)가 아니면 요청 전에 오류가 발생하며, upstream 오류는
+키를 포함하지 않은 정규화된 오류로 전달된다. 스트리밍 응답의 토큰 사용량도 기존
+사용량 추적기에 `provider=openrouter`로 기록된다.
+
+## 10. 필수 환경변수
 
 | 변수 | 필수 여부 | 설명 |
 |------|---------|------|
 | `GEMINI_API_KEY` 또는 `GOOGLE_API_KEY` | Gemini 모델 사용 시 필수 | 없으면 에러 |
 | `OPENAI_API_KEY` | `gpt-*` 모델 사용 시 선택적 | 없으면 Gemini로 자동 fallback |
+| `OPENROUTER_API_KEY` | OpenRouter 사용 시 필수 | 배포 Secret으로만 설정 |
+| `OPENROUTER_BASE_URL` | 선택적 | 기본값 `https://openrouter.ai/api/v1` |
 
 ---
 
-## 10. 관련 파일
+## 11. 관련 파일
 
 - `server/services/aiService.ts` — `AIServiceInterface`, `AIServiceConfig` 타입 정의
 - `server/services/providers/optimizedGeminiProvider.ts` — Gemini 구현체

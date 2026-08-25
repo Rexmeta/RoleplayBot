@@ -39,6 +39,12 @@
 | `gpt-4o-mini` | $0.15 | $0.60 | |
 | `gpt-4o-realtime-preview` | $5.00 | $20.00 | Realtime API (텍스트 토큰 기준) |
 
+### OpenRouter 모델
+
+OpenRouter 모델은 `provider=openrouter` 정책으로 선택하며 모델 slug(예: `anthropic/...`,
+`openai/...`)는 OpenRouter에 그대로 전달한다. 공급자별 가격은 OpenRouter upstream
+가격과 다를 수 있으므로, 등록되지 않은 slug는 비용을 0으로 기록하고 경고한다.
+
 ---
 
 ## 2. 레거시 모델 (히스토리 보존용)
@@ -90,7 +96,7 @@ Gemini 모델은 캐시 할인 적용: 캐시 토큰은 정가의 25% 과금 (75
 ## 5. AIProvider 타입
 
 ```typescript
-type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'other';
+type AIProvider = 'gemini' | 'openai' | 'openrouter' | 'anthropic' | 'other';
 ```
 
 모델명 prefix 기반 자동 추론:

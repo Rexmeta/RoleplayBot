@@ -45,7 +45,7 @@ export type AIFeature =
   | 'video'
   | 'other';
 
-export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'other';
+export type AIProvider = 'gemini' | 'openai' | 'openrouter' | 'anthropic' | 'other';
 
 interface TrackUsageParams {
   feature: AIFeature;

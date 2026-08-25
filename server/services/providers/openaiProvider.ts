@@ -14,12 +14,29 @@ import {
 } from "../conversationContextBuilder";
 
 export class OpenAIProvider implements AIServiceInterface {
-  private client: OpenAI;
-  private model: string;
+  protected client: OpenAI;
+  protected model: string;
+  protected readonly usageProvider: 'openai' | 'openrouter';
+  protected readonly throwOnError: boolean;
 
-  constructor(apiKey: string, model: string = 'gpt-4') {
-    this.client = new OpenAI({ apiKey });
+  constructor(apiKey: string, model: string = 'gpt-4', options: {
+    baseUrl?: string;
+    headers?: Record<string, string>;
+    usageProvider?: 'openai' | 'openrouter';
+    throwOnError?: boolean;
+  } = {}) {
+    this.client = new OpenAI({ apiKey, ...(options.baseUrl ? { baseURL: options.baseUrl } : {}), defaultHeaders: options.headers });
     this.model = model;
+    this.usageProvider = options.usageProvider || 'openai';
+    this.throwOnError = options.throwOnError ?? false;
+  }
+
+  getModel(): string {
+    return this.model;
+  }
+
+  setModel(model: string): void {
+    if (model?.trim()) this.model = model;
   }
 
   async generateResponse(
@@ -132,7 +149,7 @@ ${overridePromptBlock ? `\n${overridePromptBlock}\n` : ''}
       trackUsage({
         feature: 'conversation',
         model: getModelPricingKey(this.model),
-        provider: 'openai',
+        provider: this.usageProvider,
         promptTokens: tokens.promptTokens,
         completionTokens: tokens.completionTokens,
         durationMs: totalTime,
@@ -154,6 +171,9 @@ ${overridePromptBlock ? `\n${overridePromptBlock}\n` : ''}
       return { content, emotion, emotionReason };
     } catch (error) {
       console.error("OpenAI API error:", error);
+      if (this.throwOnError) {
+        throw new Error(`AI provider request failed: ${this.safeErrorMessage(error)}`);
+      }
       const fallbackContent = this.getFallbackResponse(persona);
       return { 
         content: fallbackContent, 
@@ -171,6 +191,7 @@ ${overridePromptBlock ? `\n${overridePromptBlock}\n` : ''}
     language: SupportedLanguage = 'ko',
     userName?: string
   ): Promise<AsyncIterable<string>> {
+    const startTime = Date.now();
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     const scenarioObj: RoleplayScenario = typeof scenario === 'string' ? {} : scenario;
     const playerRole = scenarioObj.context?.playerRole;
@@ -214,23 +235,31 @@ ${metaInstruction}`;
 
     const userMessageContent = userMessage || '앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.';
 
-    const stream = await conversationSemaphore.run(() =>
-      retryWithBackoff(() =>
-        this.client.chat.completions.create({
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemContent },
-            ...conversationHistory,
-            { role: 'user', content: userMessageContent }
-          ],
-          max_tokens: 300,
-          temperature: 0.8,
-          stream: true,
-          stream_options: { include_usage: true },
-        }),
-        { maxRetries: 2, baseDelayMs: 1000 }
-      )
-    );
+    let stream: any;
+    try {
+      stream = await conversationSemaphore.run(() =>
+        retryWithBackoff(() =>
+          this.client.chat.completions.create({
+            model: this.model,
+            messages: [
+              { role: 'system', content: systemContent },
+              ...conversationHistory,
+              { role: 'user', content: userMessageContent }
+            ],
+            max_tokens: 300,
+            temperature: 0.8,
+            stream: true,
+            stream_options: { include_usage: true },
+          }),
+          { maxRetries: 2, baseDelayMs: 1000 }
+        )
+      );
+    } catch (error) {
+      if (this.throwOnError) throw new Error(`AI provider streaming request failed: ${this.safeErrorMessage(error)}`);
+      throw error;
+    }
+    const usageModel = getModelPricingKey(this.model);
+    const usageProvider = this.usageProvider;
 
     async function* generate(): AsyncGenerator<string> {
       let inputTokens = 0;
@@ -244,6 +273,15 @@ ${metaInstruction}`;
         }
       }
       if (inputTokens > 0 || outputTokens > 0) {
+        trackUsage({
+          feature: 'conversation',
+          model: usageModel,
+          provider: usageProvider,
+          promptTokens: inputTokens,
+          completionTokens: outputTokens,
+          durationMs: Date.now() - startTime,
+          tokensEstimated: false,
+        });
         yield `[USAGE:${JSON.stringify({ inputTokens, outputTokens })}]`;
       }
     }
@@ -394,7 +432,7 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
         trackUsage({
           feature: 'feedback',
           model: getModelPricingKey(this.model),
-          provider: 'openai',
+          provider: this.usageProvider,
           promptTokens: tokens.promptTokens,
           completionTokens: tokens.completionTokens,
           durationMs: totalTime,
@@ -415,6 +453,9 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
         lastReason = validation.reason;
       } catch (error) {
         console.error(`OpenAI feedback error (attempt ${attempt + 1}):`, error);
+        if (this.throwOnError && attempt >= maxRetries) {
+          throw new Error(`AI provider feedback request failed: ${this.safeErrorMessage(error)}`);
+        }
         if (attempt >= maxRetries) return this.getFallbackFeedback(evaluationCriteria);
       }
     }
@@ -782,12 +823,28 @@ JSON 형식으로 응답:
   }
 
   async generateText(prompt: string): Promise<string> {
+    const startTime = Date.now();
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 4096,
       temperature: 0.3,
     });
+    const tokens = extractOpenAITokens(response);
+    trackUsage({
+      feature: 'other',
+      model: getModelPricingKey(this.model),
+      provider: this.usageProvider,
+      promptTokens: tokens.promptTokens,
+      completionTokens: tokens.completionTokens,
+      durationMs: Date.now() - startTime,
+      tokensEstimated: tokens.promptTokens === 0 && tokens.completionTokens === 0,
+    });
     return response.choices[0]?.message?.content ?? '';
+  }
+
+  protected safeErrorMessage(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.replace(/sk-[A-Za-z0-9_-]+/g, '[redacted]').replace(/Bearer\s+\S+/gi, 'Bearer [redacted]');
   }
 }

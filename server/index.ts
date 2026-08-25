@@ -105,7 +105,7 @@ if (process.env.DEBUG_ENDPOINT_ENABLED === 'true') {
     const envVars = [
       'NODE_ENV', 'PORT', 'DATABASE_URL', 'JWT_SECRET',
       'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'AI_PROVIDER',
-      'OPENAI_API_KEY', 'ELEVENLABS_API_KEY',
+      'OPENAI_API_KEY', 'OPENROUTER_API_KEY', 'ELEVENLABS_API_KEY',
     ];
 
     const envPresence: Record<string, boolean> = {};
@@ -266,7 +266,7 @@ async function initializeApp() {
   console.log(`CWD: ${process.cwd()}`);
 
   // Log which environment variables are present (not their values)
-  const secretVars = ['DATABASE_URL', 'JWT_SECRET', 'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'AI_PROVIDER', 'OPENAI_API_KEY', 'ELEVENLABS_API_KEY'];
+  const secretVars = ['DATABASE_URL', 'JWT_SECRET', 'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'AI_PROVIDER', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY', 'ELEVENLABS_API_KEY'];
   for (const key of secretVars) {
     const present = !!process.env[key];
     const len = process.env[key]?.length || 0;

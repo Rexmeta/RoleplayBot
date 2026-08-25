@@ -1,7 +1,8 @@
-import type { AIServiceInterface, StrategyReflectionEvaluation, StrategyEvaluationInput, RoleplayScenario, EvaluationCriteriaWithDimensions } from "./aiService";
+import type { AIServiceInterface, AIModelPolicy, StrategyReflectionEvaluation, StrategyEvaluationInput, RoleplayScenario, EvaluationCriteriaWithDimensions } from "./aiService";
 import { OptimizedGeminiProvider } from "./providers/optimizedGeminiProvider";
 import { OpenAIProvider } from "./providers/openaiProvider";
 import { CustomProvider } from "./providers/customProvider";
+import { OpenRouterProvider } from "./providers/openrouterProvider";
 import { storage } from "../storage";
 import type { ConversationMessage, DetailedFeedback, Conversation } from "@shared/schema";
 import type { ScenarioPersona, SupportedLanguage } from "./aiService";
@@ -57,7 +58,11 @@ export class AIServiceFactory {
    * @param model 사용할 모델명 (예: gemini-2.5-flash, gpt-4o)
    */
   static createServiceWithModel(model: string): AIServiceInterface {
-    const provider = this.getProviderFromModel(model);
+    return this.createServiceWithPolicy({ provider: this.getProviderFromModel(model), model });
+  }
+
+  static createServiceWithPolicy(policy: AIModelPolicy): AIServiceInterface {
+    const { provider, model } = policy;
 
     switch (provider) {
       case 'openai':
@@ -67,6 +72,16 @@ export class AIServiceFactory {
           return new OptimizedGeminiProvider(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '', 'gemini-2.5-flash');
         }
         return new OpenAIProvider(openaiKey, model);
+
+      case 'openrouter':
+        if (['image', 'video', 'avatar_video', 'realtime'].includes((policy as any).feature)) {
+          throw new Error(`OpenRouter does not support the ${String((policy as any).feature)} feature; configure a direct Gemini provider`);
+        }
+        return new OpenRouterProvider(
+          process.env.OPENROUTER_API_KEY || '',
+          model,
+          policy.baseUrl || process.env.OPENROUTER_BASE_URL || OpenRouterProvider.DEFAULT_BASE_URL
+        );
 
       case 'claude':
         console.warn('Claude provider not implemented yet, falling back to Gemini');
@@ -85,36 +100,98 @@ export class AIServiceFactory {
    * 모델명에서 프로바이더를 추론합니다
    */
   private static getProviderFromModel(model: string): 'gemini' | 'openai' | 'claude' {
-    if (model.startsWith('gpt-')) return 'openai';
-    if (model.startsWith('claude-')) return 'claude';
-    return 'gemini';
+    return inferLegacyProvider(model);
   }
+}
+
+const EXPLICIT_PROVIDERS = new Set<AIModelPolicy['provider']>(['gemini', 'openai', 'openrouter', 'claude', 'custom']);
+function inferLegacyProvider(model: string): 'gemini' | 'openai' | 'claude' {
+  if (model.startsWith('gpt-')) return 'openai';
+  if (model.startsWith('claude-')) return 'claude';
+  return 'gemini';
+}
+
+function applyExplicitEnvironmentProvider(policy: AIModelPolicy, rawModel: string): AIModelPolicy {
+  const configuredProvider = process.env.AI_PROVIDER;
+  if (configuredProvider && configuredProvider !== 'gemini' &&
+      EXPLICIT_PROVIDERS.has(configuredProvider as AIModelPolicy['provider']) &&
+      policy.provider === inferLegacyProvider(rawModel)) {
+    return { ...policy, provider: configuredProvider as AIModelPolicy['provider'] };
+  }
+  return policy;
+}
+
+/** Parse a provider policy without treating namespaced model IDs as provider hints. */
+export function parseAIModelPolicy(value: string, feature?: AIFeature): AIModelPolicy {
+  const raw = value.trim();
+  if (!raw) throw new Error('AI model policy cannot be empty');
+  let policy: AIModelPolicy;
+  if (raw.startsWith('{')) {
+    try {
+      policy = JSON.parse(raw);
+    } catch {
+      throw new Error('AI model policy must be valid JSON');
+    }
+  } else {
+    const separator = raw.indexOf('|') >= 0 ? '|' : (raw.startsWith('openrouter:') || raw.startsWith('openai:') || raw.startsWith('gemini:') ? ':' : '');
+    if (!separator) policy = { provider: inferLegacyProvider(raw), model: raw };
+    else {
+      const [provider, ...parts] = raw.split(separator);
+      policy = { provider: provider as AIModelPolicy['provider'], model: parts.join(separator) };
+    }
+  }
+  if (!EXPLICIT_PROVIDERS.has(policy?.provider) || typeof policy.model !== 'string' || !policy.model.trim()) {
+    throw new Error('AI model policy must contain a supported provider and model');
+  }
+  if (feature) policy = applyExplicitEnvironmentProvider(policy, raw);
+  if (feature && policy.provider === 'openrouter' && ['image', 'video', 'avatar_video'].includes(feature)) {
+    throw new Error(`OpenRouter does not support the ${feature} feature; configure a direct Gemini provider`);
+  }
+  return policy;
 }
 
 /**
  * 특정 기능에 대한 AI 모델을 결정하는 단일 진입점
  * 우선순위: 기능별 환경변수 → 전역 환경변수 → DB 시스템 설정 → 기본값
  */
-export async function getModelForFeature(feature: AIFeature): Promise<string> {
+async function getPolicyForFeature(feature: AIFeature): Promise<AIModelPolicy> {
   // 1. 기능별 환경변수 (예: AI_MODEL_CONVERSATION)
   const featureEnvModel = process.env[FEATURE_ENV_KEYS[feature]];
-  if (featureEnvModel) return featureEnvModel;
+  if (featureEnvModel) return parseAIModelPolicy(featureEnvModel, feature);
 
   // 2. 전역 환경변수 (예: AI_MODEL)
   const globalEnvModel = process.env.AI_MODEL;
-  if (globalEnvModel) return globalEnvModel;
+  if (globalEnvModel) return parseAIModelPolicy(globalEnvModel, feature);
 
   // 3. DB 시스템 설정
   try {
     const settingKey = FEATURE_SETTING_KEYS[feature];
     const setting = await storage.getSystemSetting("ai", settingKey);
-    if (setting?.value) return setting.value;
+    if (setting?.value) {
+      const policy = parseAIModelPolicy(setting.value, feature);
+      const configuredProvider = process.env.AI_PROVIDER;
+      if (configuredProvider && configuredProvider !== 'gemini' && !setting.value.trim().startsWith('{') && !setting.value.includes('|') && !setting.value.startsWith(`${configuredProvider}:`)) {
+        if (EXPLICIT_PROVIDERS.has(configuredProvider as AIModelPolicy['provider'])) {
+          policy.provider = configuredProvider as AIModelPolicy['provider'];
+        }
+      }
+      return policy;
+    }
   } catch (error) {
+    if (error instanceof Error && /AI model policy|OpenRouter does not support/.test(error.message)) throw error;
     console.error(`Failed to get model for feature ${feature}:`, error);
   }
 
   // 4. 기능별 기본값 또는 공통 기본값
-  return FEATURE_DEFAULTS[feature] ?? 'gemini-2.5-flash';
+  const model = FEATURE_DEFAULTS[feature] ?? 'gemini-2.5-flash';
+  const configuredProvider = process.env.AI_PROVIDER;
+  return configuredProvider && configuredProvider !== 'gemini' && EXPLICIT_PROVIDERS.has(configuredProvider as AIModelPolicy['provider'])
+    ? { provider: configuredProvider as AIModelPolicy['provider'], model, feature } as any
+    : { provider: 'gemini', model, feature } as any;
+}
+
+export async function getModelForFeature(feature: AIFeature): Promise<string> {
+  return (await getPolicyForFeature(feature)).model;
 }
 
 /**
@@ -123,9 +200,9 @@ export async function getModelForFeature(feature: AIFeature): Promise<string> {
  * @param feature 기능 유형 (conversation, feedback, strategy, scenario)
  */
 export async function getAIServiceForFeature(feature: AIFeature): Promise<AIServiceInterface> {
-  const model = await getModelForFeature(feature);
-  console.log(`🤖 Creating AI service for ${feature} with model: ${model}`);
-  return AIServiceFactory.createServiceWithModel(model);
+  const policy = await getPolicyForFeature(feature);
+  console.log(`🤖 Creating AI service for ${feature} with provider: ${policy.provider}, model: ${policy.model}`);
+  return AIServiceFactory.createServiceWithPolicy(policy);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

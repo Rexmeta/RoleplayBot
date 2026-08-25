@@ -406,6 +406,7 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
     const status = {
       gemini: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
       openai: !!process.env.OPENAI_API_KEY,
+      openrouter: !!process.env.OPENROUTER_API_KEY,
     };
     res.json(status);
   }));

@@ -159,12 +159,19 @@ export interface ScenarioPersona {
 
 // AI 서비스 설정 (CustomProvider에서 사용)
 export interface AIServiceConfig {
-  provider: 'gemini' | 'openai' | 'claude' | 'custom';
+  provider: 'gemini' | 'openai' | 'openrouter' | 'claude' | 'custom';
   apiKey: string;
   model?: string;
   baseUrl?: string;
   headers?: Record<string, string>;
   apiFormat?: 'openai' | 'custom';
+}
+
+/** Explicit feature policy. Model names are intentionally not used to infer OpenRouter. */
+export interface AIModelPolicy {
+  provider: 'gemini' | 'openai' | 'openrouter' | 'claude' | 'custom';
+  model: string;
+  baseUrl?: string;
 }
 
 // 감정 분류 매핑 (공통)
