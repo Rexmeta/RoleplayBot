@@ -334,6 +334,10 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     const user = (req as any).user;
 
     let scenarioData = req.body;
+    if (typeof scenarioData.title !== 'string' || !scenarioData.title.trim()) {
+      throw createHttpError(400, "시나리오 제목은 필수입니다");
+    }
+    scenarioData = { ...scenarioData, title: scenarioData.title.trim() };
     if (scenarioData.useVideoAvatar === true) {
       await requireVideoAvatarManagementAccess(req);
     }
@@ -417,6 +421,12 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     if (req.body._translated) {
       throw createHttpError(400, "Cannot save translated content as original. Please edit in original language mode.");
+    }
+    if (req.body.title !== undefined) {
+      if (typeof req.body.title !== 'string' || !req.body.title.trim()) {
+        throw createHttpError(400, "시나리오 제목은 필수입니다");
+      }
+      req.body.title = req.body.title.trim();
     }
 
     if (user.role === 'operator') {

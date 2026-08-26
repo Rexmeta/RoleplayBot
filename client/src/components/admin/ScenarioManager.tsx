@@ -515,7 +515,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const canManageVideoAvatar = user?.role === 'admin' || videoAvatarAccess?.operatorEnabled === true;
   
   // 편집용 원본 데이터 조회 (번역 적용 안됨)
-  const { data: originalScenarios } = useQuery<ComplexScenario[]>({
+  const { data: originalScenarios, isLoading: isLoadingOriginalScenarios } = useQuery<ComplexScenario[]>({
     queryKey: ['/api/admin/scenarios', 'edit'],
     queryFn: async () => {
       const token = localStorage.getItem('authToken');
@@ -830,9 +830,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       const result = await response.json();
       return result;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios/validate'] });
+    onSuccess: async (data) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios', currentLang] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios', 'edit'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/admin/scenarios/validate'] }),
+      ]);
       setEditingScenario(null);
       resetForm();
       setIsCreateOpen(false);
@@ -982,7 +985,16 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   const handleEdit = (scenario: ComplexScenario) => {
     // 번역된 데이터 대신 원본 데이터 사용
-    const originalScenario = originalScenarios?.find((s: any) => s.id === scenario.id) || scenario;
+    const originalScenario = originalScenarios?.find((s: any) => s.id === scenario.id)
+      || (!(scenario as any)._translated ? scenario : null);
+    if (!originalScenario) {
+      toast({
+        title: isLoadingOriginalScenarios ? '원본 시나리오를 불러오는 중입니다' : '원본 시나리오를 찾을 수 없습니다',
+        description: '번역된 제목을 원본 시나리오로 저장하지 않도록 잠시 후 다시 시도해 주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     setEditingScenario(originalScenario);
     setImageLoadFailed(false);
@@ -1095,7 +1107,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     e.preventDefault();
     
     // 필수 필드 검증
-    if (!formData.title) {
+    const normalizedTitle = formData.title.trim();
+    if (!normalizedTitle) {
       toast({
         title: t('admin.scenarioManager.toast.titleRequired'),
         description: t('admin.scenarioManager.toast.titleRequiredDesc'),
@@ -1113,7 +1126,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return;
     }
     
-    const submitData = buildSubmitPayload();
+    const submitData = buildSubmitPayload(normalizedTitle);
     if (!submitData) return;
 
     if (editingScenario) {
@@ -1123,7 +1136,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
   };
 
-  const buildSubmitPayload = (): (typeof formData & { flowGraph: any; personaSwitchRules: any; evaluationHarness: any; terminationRules: any; simulationHarness: any }) | null => {
+  const buildSubmitPayload = (title = formData.title.trim()): (typeof formData & { flowGraph: any; personaSwitchRules: any; evaluationHarness: any; terminationRules: any; simulationHarness: any }) | null => {
     let parsedFlowGraph: any = flowGraphValue ?? null;
     let parsedPSR: any = personaSwitchRulesValue ?? null;
     let parsedHarness: any = null;
@@ -1241,11 +1254,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         }
       : null;
 
-    return { ...formData, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR, evaluationHarness: parsedEH, terminationRules: parsedTR, simulationHarness: parsedHarness, playerConstraints: parsedPC, difficultyProfile: parsedDP, analyticsSpec };
+    return { ...formData, title, flowGraph: parsedFlowGraph, personaSwitchRules: parsedPSR, evaluationHarness: parsedEH, terminationRules: parsedTR, simulationHarness: parsedHarness, playerConstraints: parsedPC, difficultyProfile: parsedDP, analyticsSpec };
   };
 
   const handleSaveAndGoToPersona = () => {
-    if (!formData.title) {
+    const normalizedTitle = formData.title.trim();
+    if (!normalizedTitle) {
       toast({
         title: '시나리오 제목이 필요합니다',
         description: '시나리오 제목을 먼저 입력해 주세요.',
@@ -1253,7 +1267,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       });
       return;
     }
-    const submitData = buildSubmitPayload();
+    const submitData = buildSubmitPayload(normalizedTitle);
     if (!submitData) return;
     const afterSave = () => {
       toast({
