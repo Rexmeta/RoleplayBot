@@ -47,6 +47,7 @@ Preferred communication style: Simple, everyday language.
   - `analytics.ts` — `ai_usage_logs`, `hr_benchmark_targets`
   - `billing.ts` — `plans`, `subscriptions`
   - `store.ts` — `store_packs`, `store_entitlements`, `store_entitlement_audit_log`
+  - `contentx.ts` — versioned ContentX assessment-scenario package validation contract
   - `agentApi.ts` — `agent_api_keys`, `agent_key_scenarios`, `agent_sessions`, `agent_idempotency_keys`, `agent_usage_daily`, `agent_key_alerts`, `audit_logs`, `agent_webhooks`, `agent_webhook_deliveries`
   - `i18n.ts` — `supported_languages`, `scenario_translations`, `persona_translations`, `category_translations`, `evaluation_criteria_set_translations`, `evaluation_dimension_translations`
   - `settings.ts` — `system_settings`

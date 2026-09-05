@@ -10,3 +10,4 @@ export * from "./i18n";
 export * from "./agentApi";
 export * from "./billing";
 export * from "./store";
+export * from "./contentx";
