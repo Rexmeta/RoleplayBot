@@ -36,6 +36,7 @@ import createSubscriptionsRouter from "./routes/subscriptions";
 import createHrAnalyticsRouter from "./routes/hrAnalytics";
 import createStoreRouter from "./routes/store";
 import createFewShotExamplesRouter from "./routes/fewShotExamples";
+import createContentImportsRouter from "./routes/contentImports";
 import swaggerUi from "swagger-ui-express";
 import agentApiSpec from "./openapi/agentApi";
 
@@ -220,6 +221,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.use(createPersonaUserScenesRouter(isAuthenticated));
   app.use(createHrAnalyticsRouter(isAuthenticated));
   app.use(createFewShotExamplesRouter(isAuthenticated));
+  app.use(createContentImportsRouter(isAuthenticated));
 
   // Routers that use relative paths — mount at their domain prefix
   app.use('/api/bookmarks', createBookmarksRouter(isAuthenticated));

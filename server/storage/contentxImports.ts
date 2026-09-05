@@ -27,7 +27,9 @@ export interface ContentXImportResult {
 
 export interface ContentXImportInput {
   organizationId: string;
+  categoryId: string;
   package: MappedContentXPackage;
+  sourceContentDigest: string;
   publishedBy?: string | null;
 }
 
@@ -87,7 +89,7 @@ export function ContentXImportsMixin<TBase extends Constructor>(Base: TBase) {
     async importContentXPackage(input: ContentXImportInput): Promise<ContentXImportResult> {
       const sourcePackageId = input.package.provenance.sourcePackageId;
       const contentVersion = input.package.packageVersion;
-      const contentHash = input.package.provenance.contentHash;
+      const contentHash = input.sourceContentDigest;
       const publishedAt = new Date(input.package.publishedAt);
 
       if (Number.isNaN(publishedAt.getTime())) {
@@ -113,8 +115,9 @@ export function ContentXImportsMixin<TBase extends Constructor>(Base: TBase) {
           const exactIdentity = requestedKeys.length === existingKeys.length
             && requestedKeys.every((key, index) => key === existingKeys[index]);
           const exactContent = existing.every(item => item.contentxContentHash === contentHash);
+          const exactTarget = existing.every(item => item.categoryId === input.categoryId);
 
-          if (!exactIdentity || !exactContent) {
+          if (!exactIdentity || !exactContent || !exactTarget) {
             throw new ContentXImportConflictError(
               `ContentX package ${sourcePackageId}@${contentVersion} was already imported with different content`,
             );
@@ -146,6 +149,7 @@ export function ContentXImportsMixin<TBase extends Constructor>(Base: TBase) {
           await tx.insert(evaluationCriteriaSets).values({
             ...mapped.criteriaSet,
             id: criteriaSetId,
+            categoryId: input.categoryId,
             approvedBy: input.publishedBy ?? null,
             approvedAt: publishedAt,
           } as any);
@@ -162,6 +166,7 @@ export function ContentXImportsMixin<TBase extends Constructor>(Base: TBase) {
             ...mapped.scenario,
             id: scenarioId,
             organizationId: input.organizationId,
+            categoryId: input.categoryId,
             evaluationCriteriaSetId: criteriaSetId,
             contentxPackageId: sourcePackageId,
             contentxVersion: contentVersion,

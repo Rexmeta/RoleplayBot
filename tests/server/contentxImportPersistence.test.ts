@@ -126,7 +126,9 @@ describe("ContentX import persistence", () => {
   it("creates evaluation records, a tenant-scoped scenario, and its published snapshot atomically", async () => {
     const result = await new Storage().importContentXPackage({
       organizationId: "org-1",
+      categoryId: "category-1",
       package: mappedPackage(),
+      sourceContentDigest: "canonical-digest",
       publishedBy: "user-1",
     });
 
@@ -140,10 +142,11 @@ describe("ContentX import persistence", () => {
     const scenario = mockState.inserted[2].values;
     expect(scenario).toMatchObject({
       organizationId: "org-1",
+      categoryId: "category-1",
       contentxPackageId: "package-1",
       contentxVersion: "1.0.0",
       contentxScenarioKey: "renewal",
-      contentxContentHash: "0123456789abcdef",
+      contentxContentHash: "canonical-digest",
     });
     const snapshot = mockState.inserted[3].values;
     expect(snapshot).toMatchObject({
@@ -156,12 +159,16 @@ describe("ContentX import persistence", () => {
       evaluationCriteriaSetId: scenario.evaluationCriteriaSetId,
       contentxVersion: "1.0.0",
     });
+    expect(mockState.inserted[0].values).toMatchObject({
+      categoryId: "category-1",
+    });
   });
 
   it("returns existing identifiers without inserting anything on an exact retry", async () => {
     mockState.existing = [{
       id: "scenario-existing",
       organizationId: "org-1",
+      categoryId: "category-1",
       evaluationCriteriaSetId: "criteria-existing",
       contentxPackageId: "package-1",
       contentxVersion: "1.0.0",
@@ -172,7 +179,9 @@ describe("ContentX import persistence", () => {
 
     const result = await new Storage().importContentXPackage({
       organizationId: "org-1",
+      categoryId: "category-1",
       package: mappedPackage(),
+      sourceContentDigest: "0123456789abcdef",
     });
 
     expect(result).toEqual({
@@ -192,13 +201,16 @@ describe("ContentX import persistence", () => {
   it("rejects different content under an already-imported package version", async () => {
     mockState.existing = [{
       id: "scenario-existing",
+      categoryId: "category-1",
       contentxScenarioKey: "renewal",
       contentxContentHash: "different-content",
     }];
 
     await expect(new Storage().importContentXPackage({
       organizationId: "org-1",
+      categoryId: "category-1",
       package: mappedPackage(),
+      sourceContentDigest: "canonical-digest",
     })).rejects.toBeInstanceOf(ContentXImportConflictError);
     expect(mockState.inserted).toHaveLength(0);
   });
@@ -206,13 +218,16 @@ describe("ContentX import persistence", () => {
   it("rejects a changed scenario key set under the same immutable package version", async () => {
     mockState.existing = [{
       id: "scenario-existing",
+      categoryId: "category-1",
       contentxScenarioKey: "different-scenario",
       contentxContentHash: "0123456789abcdef",
     }];
 
     await expect(new Storage().importContentXPackage({
       organizationId: "org-1",
+      categoryId: "category-1",
       package: mappedPackage(),
+      sourceContentDigest: "canonical-digest",
     })).rejects.toBeInstanceOf(ContentXImportConflictError);
     expect(mockState.inserted).toHaveLength(0);
   });
@@ -220,14 +235,17 @@ describe("ContentX import persistence", () => {
   it("rejects an exact retry when its published runtime snapshot is missing", async () => {
     mockState.existing = [{
       id: "scenario-existing",
+      categoryId: "category-1",
       contentxScenarioKey: "renewal",
-      contentxContentHash: "0123456789abcdef",
+      contentxContentHash: "canonical-digest",
     }];
     mockState.versions = [];
 
     await expect(new Storage().importContentXPackage({
       organizationId: "org-1",
+      categoryId: "category-1",
       package: mappedPackage(),
+      sourceContentDigest: "canonical-digest",
     })).rejects.toThrow(/missing its published snapshot/);
     expect(mockState.inserted).toHaveLength(0);
   });
@@ -236,7 +254,9 @@ describe("ContentX import persistence", () => {
     mockState.failAtInsert = 3;
     await expect(new Storage().importContentXPackage({
       organizationId: "org-1",
+      categoryId: "category-1",
       package: mappedPackage(),
+      sourceContentDigest: "canonical-digest",
     })).rejects.toThrow("forced insert failure");
   });
 });
