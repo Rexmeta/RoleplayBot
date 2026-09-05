@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { and, asc, eq, sql } from "drizzle-orm";
 import {
   evaluationCriteriaSets,
@@ -10,6 +12,21 @@ import {
 } from "@shared/schema";
 import type { MappedContentXPackage } from "@shared/contentxAdapter";
 import { db } from "./db";
+import { RUNTIME_PERSONA_PROFILE_KEY } from "../services/runtimeScenario";
+
+const SUPPORTED_MBTI_TYPES = new Set([
+  "istj", "isfj", "infj", "intj", "istp", "isfp", "infp", "intp",
+  "estp", "esfp", "enfp", "entp", "estj", "esfj", "enfj", "entj",
+]);
+
+async function loadPublishedPersonaProfile(personaRef: string): Promise<Record<string, any>> {
+  const mbtiType = personaRef.toLowerCase().replace(/\.json$/, "");
+  if (!SUPPORTED_MBTI_TYPES.has(mbtiType)) {
+    throw new Error(`ContentX personaRef cannot be resolved: ${personaRef}`);
+  }
+  const content = await readFile(join(process.cwd(), "personas", `${mbtiType}.json`), "utf8");
+  return JSON.parse(content) as Record<string, any>;
+}
 
 export interface ContentXImportScenarioResult {
   sourceScenarioKey: string;
@@ -175,11 +192,29 @@ export function ContentXImportsMixin<TBase extends Constructor>(Base: TBase) {
             contentxContentHash: contentHash,
           } as any).returning();
 
+          const publishedPersonas = await Promise.all(
+            ((scenario.personas as any[]) ?? []).map(async persona => ({
+              ...persona,
+              [RUNTIME_PERSONA_PROFILE_KEY]: await loadPublishedPersonaProfile(persona.personaRef),
+            })),
+          );
+
           const [version] = await tx.insert(scenarioVersions).values({
             scenarioId,
             version: 1,
             status: "published",
-            contentSnapshot: { ...scenario },
+            contentSnapshot: {
+              ...scenario,
+              personas: publishedPersonas,
+              _evaluationCriteriaSnapshot: {
+                ...mapped.criteriaSet,
+                id: criteriaSetId,
+                dimensions: mapped.dimensions.map(dimension => ({
+                  ...dimension.input,
+                  criteriaSetId,
+                })),
+              },
+            },
             evaluationHarnessSnapshot: scenario.evaluationHarness ?? null,
             publishedAt,
             publishedBy: input.publishedBy ?? null,

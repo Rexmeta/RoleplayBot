@@ -17,3 +17,4 @@
 - [Gemini Live transcript dedup](gemini-live-transcript-dedup.md) — modelTurn text와 outputTranscription이 다른 프레임으로 같은 턴에 도착해 대사가 2번 나옴; per-turn source 추적 필수, action_result 마커도 모델이 뱉음
 - [iOS realtime audio routing](ios-realtime-audio-routing.md) — iOS 음성 통화는 AudioContext/getUserMedia 전에 play-and-record를 유지하고 출력은 OS 경로에 맡김
 - [Voice transcript finality](voice-transcript-finality.md) — 바지인·재연결·종료 flush는 provisional; provider completion만 immutable final로 승격
+- [Published runtime snapshots](published-runtime-snapshots.md) — 실행 중 scenario/persona/harness/rubric은 run에 바인딩된 snapshot만 사용; imported rubric 누락 시 live fallback 금지

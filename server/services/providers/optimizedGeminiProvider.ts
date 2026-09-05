@@ -264,6 +264,10 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
     try {
       // 시나리오에서 페르소나 찾기
       const currentPersona = scenario.personas?.find(p => p.id === persona.id || p.name === persona.name);
+      const runtimeProfile = (currentPersona as any)?._runtimeProfile;
+      if (runtimeProfile) {
+        return { ...currentPersona, ...runtimeProfile } as ScenarioPersona;
+      }
       const personaRef = currentPersona?.personaRef;
       
       if (!personaRef) {
@@ -316,7 +320,8 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
     const objectives = scenario.objectives?.join(', ') || '문제 해결';
     const playerRole = scenario.context?.playerRole;
     const playerRoleLabel = playerPosition || playerRole?.position || '';
-    const mbtiData = (persona as any).mbti ? this.globalCache.getMBTIPersona((persona as any).mbti.toLowerCase()) : null;
+    const mbtiData = (persona as any)._runtimeProfile
+      ?? ((persona as any).mbti ? this.globalCache.getMBTIPersona((persona as any).mbti.toLowerCase()) : null);
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     
     // 페르소나의 입장과 목표

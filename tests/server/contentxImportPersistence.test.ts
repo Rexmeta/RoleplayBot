@@ -94,6 +94,17 @@ function mappedPackage(hash = "0123456789abcdef"): MappedContentXPackage {
         title: "Renewal",
         description: "Handle renewal",
         evaluationCriteriaSetId: "mapped-criteria",
+        personas: [{
+          id: "buyer",
+          name: "Buyer",
+          department: "Procurement",
+          position: "Director",
+          experience: "10 years",
+          personaRef: "entj.json",
+          stance: "Skeptical",
+          goal: "Prove value",
+          tradeoff: "Will renew for measurable ROI",
+        }],
       },
       criteriaSet: {
         id: "mapped-criteria",
@@ -158,6 +169,14 @@ describe("ContentX import persistence", () => {
       id: scenario.id,
       evaluationCriteriaSetId: scenario.evaluationCriteriaSetId,
       contentxVersion: "1.0.0",
+      personas: [{
+        id: "buyer",
+        _runtimeProfile: {
+          communication_style: expect.any(String),
+          personality_traits: expect.anything(),
+          communication_patterns: expect.anything(),
+        },
+      }],
     });
     expect(mockState.inserted[0].values).toMatchObject({
       categoryId: "category-1",

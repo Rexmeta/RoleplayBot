@@ -46,6 +46,13 @@ import { v4 as uuidv4 } from "uuid";
 import { applyScenarioOverride, applyEvalWeightsOverride } from "../services/scenarios/overrideResolver";
 import type { ScenarioOverrideData } from "@shared/schema";
 import { checkTokenQuota } from "../middleware/tokenQuotaMiddleware";
+import {
+  EVALUATION_CRITERIA_SNAPSHOT_KEY,
+  assertImportedSnapshotComplete,
+  buildRuntimePersonaProfile,
+  findRuntimePersona,
+  resolveRuntimeScenario,
+} from "../services/runtimeScenario";
 
 // ── Text/TTS mode: 2-step persona switch state tracking ─────────────────────
 // Persists across HTTP requests for the same personaRunId.
@@ -165,11 +172,31 @@ export default function createConversationsRouter(isAuthenticated: any) {
         const latestVersion = await storage.getLatestPublishedVersion(validatedData.scenarioId);
         if (latestVersion) {
           scenarioVersionId = latestVersion.id;
-          scenarioSnapshotForRun = latestVersion.contentSnapshot as Record<string, unknown>;
+          scenarioSnapshotForRun = { ...(latestVersion.contentSnapshot as Record<string, unknown>) };
           evaluationHarnessSnapshotForRun = latestVersion.evaluationHarnessSnapshot as Record<string, unknown> | undefined;
+          assertImportedSnapshotComplete(scenarioSnapshotForRun);
+          if (!(scenarioSnapshotForRun as any)[EVALUATION_CRITERIA_SNAPSHOT_KEY]) {
+            const criteriaSetId = (scenarioSnapshotForRun as any).evaluationCriteriaSetId;
+            if (criteriaSetId) {
+              const criteria = await storage.getEvaluationCriteriaSetWithDimensions(criteriaSetId);
+              if (criteria) (scenarioSnapshotForRun as any)[EVALUATION_CRITERIA_SNAPSHOT_KEY] = criteria;
+            }
+          }
           console.log(`🏷️ Scenario Run에 버전 v${latestVersion.version} 연결: ${latestVersion.id}`);
+        } else {
+          const sourceScenario = await storage.getScenario(validatedData.scenarioId);
+          if ((sourceScenario as any)?.contentxPackageId) {
+            throw createHttpError(503, "Imported scenario published snapshot is unavailable");
+          }
         }
       } catch (versionErr) {
+        const sourceScenario = await storage.getScenario(validatedData.scenarioId).catch(() => null);
+        if ((sourceScenario as any)?.contentxPackageId) {
+          throw Object.assign(createHttpError(503, "Imported scenario version could not be bound"), {
+            cause: versionErr,
+            errorCode: "IMPORTED_SCENARIO_VERSION_UNAVAILABLE",
+          });
+        }
         console.warn('⚠️ 시나리오 버전 조회 실패 (무시됨):', versionErr);
       }
 
@@ -242,14 +269,17 @@ export default function createConversationsRouter(isAuthenticated: any) {
       }
     }
 
-    let scenarioObj = scenarios.find(s => s.id === validatedData.scenarioId);
+    let scenarioObj: any = resolveRuntimeScenario(
+      scenarioRun as any,
+      scenarios.find(s => s.id === validatedData.scenarioId),
+    );
     if (!scenarioObj) {
       throw new Error(`Scenario not found: ${validatedData.scenarioId}`);
     }
 
     const orgId = user?.organizationId;
     let activeScenarioOverride = null;
-    if (orgId) {
+    if (orgId && !(scenarioRun as any).scenarioSnapshot) {
       try {
         const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(orgId, validatedData.scenarioId);
         if (overrideRecord) {
@@ -262,24 +292,12 @@ export default function createConversationsRouter(isAuthenticated: any) {
       }
     }
 
-    let scenarioPersona = scenarioObj?.personas.find((p: any) => p.id === personaId) as any;
-    if (!scenarioPersona) {
-      const normalizedPersonaId = personaId.toLowerCase();
-      scenarioPersona = scenarioObj?.personas.find((p: any) =>
-        p.id?.toLowerCase() === normalizedPersonaId ||
-        p.personaRef?.replace('.json', '').toLowerCase() === normalizedPersonaId
-      ) as any;
-      if (scenarioPersona) {
-        console.warn(`[conversations] Persona ID fallback matched: requested="${personaId}", matched="${scenarioPersona.id}"`);
-      }
-    }
+    let scenarioPersona = findRuntimePersona(scenarioObj, personaId);
     if (!scenarioPersona) {
       throw new Error(`Persona not found in scenario: ${personaId}`);
     }
 
     const mbtiType = (scenarioPersona as any).mbti || (scenarioPersona as any).personaRef?.replace('.json', '');
-    const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
-
     const existingPersonaRuns = await storage.getPersonaRunsByScenarioRun(scenarioRun.id);
     const phase = existingPersonaRuns.length + 1;
 
@@ -315,7 +333,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       scenarioRunId: scenarioRun.id,
       personaId,
       personaName: (scenarioPersona as any).name,
-      personaSnapshot: validatedData.personaSnapshot || {},
+      personaSnapshot: (scenarioRun as any).scenarioSnapshot ? scenarioPersona : (validatedData.personaSnapshot || {}),
       mbtiType: mbtiType || null,
       phase,
       mode: validatedData.mode,
@@ -338,8 +356,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       }
       setSessionState(personaRun.id, freshState);
       const harnessConfig = readScenarioHarness({
-        ...(scenarioFromDb as any),
         ...(scenarioObj as any),
+        evaluationHarness: (scenarioRun as any).evaluationHarnessSnapshot ?? (scenarioObj as any).evaluationHarness ?? (scenarioFromDb as any).evaluationHarness,
         npcBehaviorHarness: (scenarioPersona as any)?.npcBehaviorHarness ?? null,
       });
       applyHarnessToSession(personaRun.id, harnessConfig);
@@ -754,12 +772,14 @@ ${userNameLine}
         })(),
       };
     } else {
-      const scenarios = await fileManager.getAllScenarios();
-      let scenarioObj: any = scenarios.find(s => s.id === scenarioRun!.scenarioId);
+      const liveScenario = (scenarioRun as any).scenarioSnapshot
+        ? null
+        : (await fileManager.getAllScenarios()).find(s => s.id === scenarioRun!.scenarioId);
+      let scenarioObj: any = resolveRuntimeScenario(scenarioRun as any, liveScenario);
       if (!scenarioObj) throw new Error(`Scenario not found: ${scenarioRun!.scenarioId}`);
 
       const msgOrgId = (user as any)?.organizationId;
-      if (msgOrgId) {
+      if (msgOrgId && !(scenarioRun as any).scenarioSnapshot) {
         try {
           const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(msgOrgId, scenarioRun!.scenarioId);
           if (overrideRecord) {
@@ -773,32 +793,14 @@ ${userNameLine}
       }
       scenarioObjRef = scenarioObj; // hoist for auto-feedback
 
-      let scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
-      if (!scenarioPersona) {
-        const normalizedPersonaId = personaId.toLowerCase();
-        scenarioPersona = scenarioObj.personas.find((p: any) =>
-          p.id?.toLowerCase() === normalizedPersonaId ||
-          p.personaRef?.replace('.json', '').toLowerCase() === normalizedPersonaId
-        );
-        if (scenarioPersona) {
-          console.warn(`[conversations/messages] Persona ID fallback matched: requested="${personaId}", matched="${scenarioPersona.id}"`);
-        }
-      }
+      let scenarioPersona: any = findRuntimePersona(scenarioObj, personaId);
       if (!scenarioPersona) throw new Error(`Persona not found in scenario: ${personaId}`);
 
       const mbtiType = scenarioPersona.personaRef?.replace('.json', '');
-      const mbtiPersonaData: any = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+      const snapshotBound = !!(scenarioRun as any).scenarioSnapshot;
+      const mbtiPersonaData: any = !snapshotBound && mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
 
-      persona = {
-        id: scenarioPersona.id,
-        name: scenarioPersona.name,
-        role: scenarioPersona.position,
-        department: scenarioPersona.department,
-        personality: mbtiPersonaData?.communication_style || (mbtiPersonaData as any)?.communicationStyle || '균형 잡힌 의사소통',
-        responseStyle: mbtiPersonaData?.communication_patterns?.opening_style || (mbtiPersonaData as any)?.communicationPatterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
-        goals: mbtiPersonaData?.communication_patterns?.win_conditions || (mbtiPersonaData as any)?.communicationPatterns?.win_conditions || ['목표 달성'],
-        background: mbtiPersonaData?.background?.personal_values?.join(', ') || (mbtiPersonaData as any)?.background?.personalValues?.join(', ') || '전문성'
-      };
+      persona = buildRuntimePersonaProfile(scenarioPersona, mbtiPersonaData, snapshotBound);
 
       const allScenarioPersonas = (scenarioObj.personas || []) as any[];
       // Resolve initial active persona from isPrimary flag when activePersonaIndex is not yet set
@@ -817,17 +819,8 @@ ${userNameLine}
       if (currentActivePersonaIdx > 0 && allScenarioPersonas.length > currentActivePersonaIdx) {
         const activeSP = allScenarioPersonas[currentActivePersonaIdx] as any;
         const activeMbtiType = activeSP.personaRef?.replace('.json', '');
-        const activeMbtiData: any = activeMbtiType ? await fileManager.getPersonaByMBTI(activeMbtiType) : null;
-        persona = {
-          id: activeSP.id,
-          name: activeSP.name,
-          role: activeSP.position,
-          department: activeSP.department,
-          personality: activeMbtiData?.communication_style || activeMbtiData?.communicationStyle || '균형 잡힌 의사소통',
-          responseStyle: activeMbtiData?.communication_patterns?.opening_style || activeMbtiData?.communicationPatterns?.opening_style || '상황에 맞는 방식으로 대화 시작',
-          goals: activeMbtiData?.communication_patterns?.win_conditions || activeMbtiData?.communicationPatterns?.win_conditions || ['목표 달성'],
-          background: activeMbtiData?.background?.personal_values?.join(', ') || activeMbtiData?.background?.personalValues?.join(', ') || '전문성',
-        };
+        const activeMbtiData: any = !snapshotBound && activeMbtiType ? await fileManager.getPersonaByMBTI(activeMbtiType) : null;
+        persona = buildRuntimePersonaProfile(activeSP, activeMbtiData, snapshotBound);
       }
     }
 
@@ -945,13 +938,13 @@ ${userNameLine}
     let fastEvalPromise: Promise<import('../services/simulation/evaluateUserResponse').EvaluationResult> | null = null;
 
     const baseScenarioEvalHarness = !isPersonaX
-      ? ((scenarioDbRecord as any)?.evaluationHarness ?? null)
+      ? ((scenarioRun as any).evaluationHarnessSnapshot ?? scenarioObjRef?.evaluationHarness ?? (scenarioDbRecord as any)?.evaluationHarness ?? null)
       : null;
     const scenarioEvalHarness = (baseScenarioEvalHarness && msgActiveScenarioOverride?.evaluationWeights && Object.keys(msgActiveScenarioOverride.evaluationWeights).length > 0)
       ? applyEvalWeightsOverride(baseScenarioEvalHarness, msgActiveScenarioOverride.evaluationWeights as Record<string, number>)
       : baseScenarioEvalHarness;
     const scenarioDifficultyProfile = !isPersonaX
-      ? ((scenarioDbRecord as any)?.difficultyProfile ?? null)
+      ? (scenarioObjRef?.difficultyProfile ?? (scenarioDbRecord as any)?.difficultyProfile ?? null)
       : null;
     const activePersonaNpcHarness = !isPersonaX
       ? getSessionHarnessConfig(personaRunId).npcBehaviorHarness ?? null
@@ -1170,7 +1163,7 @@ ${userNameLine}
         if (scenarioObjRef && persona) {
           const _convForFeedback = { messages: [...existingMessages.map(m => ({ sender: m.sender, message: m.message, timestamp: m.createdAt?.toISOString() ?? new Date().toISOString() })), { sender: 'user' as const, message, timestamp: new Date().toISOString() }] };
           setImmediate(() => {
-            generateAndSaveFeedback(personaRunId, _convForFeedback, scenarioObjRef, persona, userLanguage)
+            generateAndSaveFeedback(personaRunId, _convForFeedback, scenarioObjRef, persona, userLanguage, (scenarioRun as any).evaluationHarnessSnapshot)
               .catch(e => console.warn('[streaming] Auto-feedback generation failed:', e));
           });
         }
@@ -1389,7 +1382,7 @@ ${userNameLine}
       if (scenarioObjRef && persona) {
         const _convForFeedback = { messages: [...existingMessages, { sender: 'user', message, timestamp: new Date().toISOString() }] };
         setImmediate(() => {
-          generateAndSaveFeedback(personaRunId, _convForFeedback as any, scenarioObjRef, persona, userLanguage)
+          generateAndSaveFeedback(personaRunId, _convForFeedback as any, scenarioObjRef, persona, userLanguage, (scenarioRun as any).evaluationHarnessSnapshot)
             .catch(e => console.warn('[conversations] Auto-feedback generation failed:', e));
         });
       }
@@ -1864,20 +1857,22 @@ ${userNameLine}
       completedAt: personaRun.completedAt
     };
 
-    const scenarios = await fileManager.getAllScenarios();
-    const scenarioObj = scenarios.find((s: any) => s.id === scenarioRun!.scenarioId);
+    const liveScenario = (scenarioRun as any).scenarioSnapshot
+      ? null
+      : (await fileManager.getAllScenarios()).find((s: any) => s.id === scenarioRun!.scenarioId);
+    const scenarioObj = resolveRuntimeScenario(scenarioRun as any, liveScenario);
     if (!scenarioObj) {
       throw createHttpError(404, "Scenario not found");
     }
 
     const personas = scenarioObj.personas || [];
-    const persona = personas.find((p: any) => p.id === personaRun.personaId) || personas[0];
+    const persona = findRuntimePersona(scenarioObj, personaRun.personaId) || personas[0];
 
     const user = await storage.getUser(userId);
     const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
 
     markGenerating(personaRunId);
-    generateAndSaveFeedback(personaRunId, conversation, scenarioObj, persona, userLanguage)
+    generateAndSaveFeedback(personaRunId, conversation, scenarioObj, persona, userLanguage, (scenarioRun as any).evaluationHarnessSnapshot)
       .then(() => unmarkGenerating(personaRunId))
       .catch((err: any) => {
         console.error(`[feedback] Background generation failed for ${personaRunId}:`, err);

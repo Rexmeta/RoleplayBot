@@ -490,7 +490,8 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
         userId,
         ws,
         userSelectedDifficulty,
-        voiceUserLanguage
+        voiceUserLanguage,
+        scenarioRun,
       );
 
       console.log(`✅ Realtime voice session created: ${sessionId}`);

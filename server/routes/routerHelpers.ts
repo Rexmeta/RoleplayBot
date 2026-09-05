@@ -12,6 +12,10 @@ import {
   determineReportStatus,
   applyPassingRule,
 } from "../services/evaluationEngine";
+import {
+  getSnapshotEvaluationCriteria,
+  resolveRuntimeScenario,
+} from "../services/runtimeScenario";
 
 export function asyncHandler(fn: (...args: any[]) => Promise<any>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -67,8 +71,10 @@ export async function checkAndCompleteScenario(scenarioRunId: string) {
       return;
     }
 
-    const scenarios = await fileManager.getAllScenarios();
-    const scenario = scenarios.find(s => s.id === scenarioRun.scenarioId);
+    const liveScenario = scenarioRun.scenarioSnapshot
+      ? null
+      : (await fileManager.getAllScenarios()).find(s => s.id === scenarioRun.scenarioId);
+    const scenario = resolveRuntimeScenario(scenarioRun as any, liveScenario);
     if (!scenario) {
       return;
     }
@@ -110,6 +116,14 @@ export async function loadEvaluationCriteria(
   scenarioObj: any,
   userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
 ): Promise<any | null> {
+  const snapshotCriteria = getSnapshotEvaluationCriteria(scenarioObj);
+  if (snapshotCriteria) {
+    return {
+      ...snapshotCriteria,
+      dimensions: snapshotCriteria.dimensions.filter((dimension: any) => dimension.isActive !== false),
+    };
+  }
+
   const applyTranslations = async (criteriaSet: any): Promise<any> => {
     let translatedName = criteriaSet.name;
     let translatedDescription = criteriaSet.description;
@@ -240,7 +254,8 @@ export async function generateAndSaveFeedback(
   conversation: any,
   scenarioObj: any,
   persona: any,
-  userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
+  userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko',
+  evaluationHarnessSnapshot?: Record<string, any> | null,
 ) {
   const existingFeedback = await storage.getFeedbackByConversationId(conversationId);
   if (existingFeedback) {
@@ -503,7 +518,7 @@ export async function generateAndSaveFeedback(
     scenarioDbRow = scenarioId
       ? await storage.getScenario(scenarioId).catch(() => null)
       : null;
-    const harnessPR = (scenarioDbRow as any)?.evaluationHarness?.passingRule ?? null;
+    const harnessPR = (evaluationHarnessSnapshot ?? scenarioObj?.evaluationHarness ?? (scenarioDbRow as any)?.evaluationHarness)?.passingRule ?? null;
     if (harnessPR) {
       // Build per-dimension averages from simulation turn scores.
       // These use EvaluationDimensionKey values (clarity/empathy/logic/ownership/actionPlan)

@@ -11,6 +11,7 @@ import { buildSystemInstructions, buildReconnectSystemInstructions } from './voi
 import { applyScenarioOverride } from './scenarios/overrideResolver';
 import { getSessionState } from './simulation/simulationEngine';
 import { applyHarnessToSession, readScenarioHarness } from './simulation/harnessReader';
+import { RUNTIME_PERSONA_PROFILE_KEY, findRuntimePersona, resolveRuntimeScenario } from './runtimeScenario';
 import { handleGeminiMessage } from './voice/geminiMessageHandler';
 import { handleClientMessage as processClientMessage } from './voice/clientMessageHandler';
 import { handleGeminiClose } from './voice/geminiReconnector';
@@ -241,7 +242,12 @@ export class RealtimeVoiceService {
     userId: string,
     clientWs: WebSocket,
     userSelectedDifficulty?: number,
-    userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko'
+    userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko',
+    boundScenarioRun?: {
+      scenarioId: string;
+      scenarioSnapshot?: unknown;
+      evaluationHarnessSnapshot?: unknown;
+    } | null,
   ): Promise<void> {
     const sessionStartTime = Date.now();
     userLanguage = normalizeVoiceLanguage(userLanguage);
@@ -265,15 +271,22 @@ export class RealtimeVoiceService {
       );
     }
 
-    const scenarios = await fileManager.getAllScenarios();
-    const scenarioObj = scenarios.find(s => s.id === scenarioId);
+    const liveScenario = boundScenarioRun?.scenarioSnapshot
+      ? null
+      : (await fileManager.getAllScenarios()).find(s => s.id === scenarioId);
+    const scenarioObj = boundScenarioRun
+      ? resolveRuntimeScenario(boundScenarioRun, liveScenario)
+      : liveScenario;
     if (!scenarioObj) throw new Error(`Scenario not found: ${scenarioId}`);
 
-    const scenarioPersona: any = scenarioObj.personas.find((p: any) => p.id === personaId);
+    const scenarioPersona: any = findRuntimePersona(scenarioObj, personaId);
     if (!scenarioPersona) throw new Error(`Persona not found: ${personaId}`);
 
+    const snapshotBound = !!scenarioPersona[RUNTIME_PERSONA_PROFILE_KEY];
     const mbtiType: string = scenarioPersona.personaRef?.replace('.json', '') || '';
-    const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+    const mbtiPersona = snapshotBound
+      ? scenarioPersona[RUNTIME_PERSONA_PROFILE_KEY]
+      : (mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null);
 
     let userName = '사용자';
     let activeScenarioOverride = null;
@@ -281,7 +294,7 @@ export class RealtimeVoiceService {
     try {
       const user = await storage.getUser(userId);
       userName = normalizeProfileName(user?.name) || '사용자';
-      if (user?.organizationId) {
+      if (user?.organizationId && !boundScenarioRun?.scenarioSnapshot) {
         try {
           const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(user.organizationId, scenarioId);
           if (overrideRecord) {
@@ -362,7 +375,8 @@ export class RealtimeVoiceService {
       for (let pIdx = 1; pIdx < allPersonas.length; pIdx++) {
         const sp = allPersonas[pIdx] as any;
         const mbtiT = sp.personaRef?.replace('.json', '');
-        const mbtiP = mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null;
+        const mbtiP = sp[RUNTIME_PERSONA_PROFILE_KEY]
+          ?? (mbtiT ? await fileManager.getPersonaByMBTI(mbtiT) : null);
         personaSystemInstructions.push(buildSystemInstructions(
           scenarioWithUserDifficulty, sp, mbtiP, userRoleInfo, userLanguage,
           true, allPersonas, pIdx, resolvedScenarioObj.targetTurns, voicePersonaSwitchMode, initialStageGoal,
