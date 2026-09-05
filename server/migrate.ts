@@ -1062,7 +1062,13 @@ export async function runMigrations(): Promise<void> {
         { table: 'persona_runs', column: 'termination_reason', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='termination_reason') THEN ALTER TABLE "persona_runs" ADD COLUMN "termination_reason" text; END IF; END $$;` },
         { table: 'persona_runs', column: 'feedback_status', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_status') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_status" varchar; END IF; END $$;` },
         { table: 'persona_runs', column: 'feedback_job_started_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_started_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_started_at" timestamp; END IF; END $$;` },
-        { table: 'scenarios', column: 'use_video_avatar', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='use_video_avatar') THEN ALTER TABLE "scenarios" ADD COLUMN "use_video_avatar" boolean NOT NULL DEFAULT false; END IF; END $$;` }
+        { table: 'scenarios', column: 'use_video_avatar', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='use_video_avatar') THEN ALTER TABLE "scenarios" ADD COLUMN "use_video_avatar" boolean NOT NULL DEFAULT false; END IF; END $$;` },
+        { table: 'scenarios', column: 'organization_id', sql: `ALTER TABLE "scenarios" ADD COLUMN IF NOT EXISTS "organization_id" varchar;` },
+        { table: 'scenarios', column: 'contentx_package_id', sql: `ALTER TABLE "scenarios" ADD COLUMN IF NOT EXISTS "contentx_package_id" varchar;` },
+        { table: 'scenarios', column: 'contentx_version', sql: `ALTER TABLE "scenarios" ADD COLUMN IF NOT EXISTS "contentx_version" varchar;` },
+        { table: 'scenarios', column: 'contentx_scenario_key', sql: `ALTER TABLE "scenarios" ADD COLUMN IF NOT EXISTS "contentx_scenario_key" varchar;` },
+        { table: 'scenarios', column: 'contentx_published_at', sql: `ALTER TABLE "scenarios" ADD COLUMN IF NOT EXISTS "contentx_published_at" timestamp;` },
+        { table: 'scenarios', column: 'contentx_content_hash', sql: `ALTER TABLE "scenarios" ADD COLUMN IF NOT EXISTS "contentx_content_hash" varchar(128);` }
       );
 
       for (const patch of criticalColumnPatches) {
@@ -1073,6 +1079,22 @@ export async function runMigrations(): Promise<void> {
         }
       }
       console.log('✅ Critical column patches verified');
+
+      // These constraints are correctness boundaries for immutable imports.
+      // Unlike optional compatibility patches, startup must fail if they cannot
+      // be installed; otherwise concurrent retries could create duplicates.
+      await client.query(`
+        DO $$ BEGIN
+          ALTER TABLE "scenarios"
+            ADD CONSTRAINT "scenarios_organization_id_organizations_id_fk"
+            FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE;
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+        CREATE INDEX IF NOT EXISTS "idx_scenarios_contentx_lookup"
+          ON "scenarios" ("organization_id", "contentx_package_id", "contentx_version");
+        CREATE UNIQUE INDEX IF NOT EXISTS "uniq_scenarios_contentx_identity"
+          ON "scenarios" ("organization_id", "contentx_package_id", "contentx_version", "contentx_scenario_key");
+      `);
 
       // Persona X 사용자 장면 테이블 생성
       try {

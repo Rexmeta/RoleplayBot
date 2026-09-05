@@ -13,6 +13,7 @@ import { OrganizationsMixin, MemOrganizationsStorage } from "./organizations";
 import { ScenarioOverridesMixin, MemScenarioOverridesStorage } from "./scenarioOverrides";
 import { BillingMixin, MemBillingStorage } from "./billing";
 import { StoreMixin, MemStoreStorage } from "./store";
+import { ContentXImportsMixin, MemContentXImportsStorage } from "./contentxImports";
 
 export type { IConversationsStorage } from "./conversations";
 export type { ISessionsStorage } from "./sessions";
@@ -27,6 +28,7 @@ export type { IOrganizationsStorage } from "./organizations";
 export type { IScenarioOverridesStorage } from "./scenarioOverrides";
 export type { IBillingStorage } from "./billing";
 export type { IStoreStorage } from "./store";
+export type { IContentXImportsStorage, ContentXImportInput, ContentXImportResult } from "./contentxImports";
 
 import type { IConversationsStorage } from "./conversations";
 import type { ISessionsStorage } from "./sessions";
@@ -41,6 +43,7 @@ import type { IOrganizationsStorage } from "./organizations";
 import type { IScenarioOverridesStorage } from "./scenarioOverrides";
 import type { IBillingStorage } from "./billing";
 import type { IStoreStorage } from "./store";
+import type { IContentXImportsStorage } from "./contentxImports";
 
 export interface IStorage extends
   IConversationsStorage,
@@ -55,9 +58,11 @@ export interface IStorage extends
   IOrganizationsStorage,
   IScenarioOverridesStorage,
   IBillingStorage,
-  IStoreStorage {}
+  IStoreStorage,
+  IContentXImportsStorage {}
 
-const CombinedBase = StoreMixin(
+const CombinedBase = ContentXImportsMixin(
+  StoreMixin(
   BillingMixin(
     ScenarioOverridesMixin(
       OrganizationsMixin(
@@ -80,7 +85,7 @@ const CombinedBase = StoreMixin(
         )
       )
     )
-  )
+  ))
 );
 
 export class PostgreSQLStorage extends CombinedBase implements IStorage {}
@@ -109,6 +114,7 @@ export class MemStorage {
       new MemScenarioOverridesStorage(),
       new MemBillingStorage(),
       new MemStoreStorage(),
+      new MemContentXImportsStorage(),
     ];
 
     return new Proxy(this as unknown as IStorage, {

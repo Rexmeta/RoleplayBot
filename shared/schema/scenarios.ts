@@ -298,6 +298,12 @@ export const personaSwitchRulesSchema: z.ZodType<PersonaSwitchRules> = z.object(
 
 export const scenarios = pgTable("scenarios", {
   id: varchar("id").primaryKey(),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }),
+  contentxPackageId: varchar("contentx_package_id"),
+  contentxVersion: varchar("contentx_version"),
+  contentxScenarioKey: varchar("contentx_scenario_key"),
+  contentxPublishedAt: timestamp("contentx_published_at"),
+  contentxContentHash: varchar("contentx_content_hash", { length: 128 }),
   title: text("title").notNull(),
   description: text("description").notNull(),
   sourceLocale: varchar("source_locale", { length: 10 }).notNull().default('ko'),
@@ -376,6 +382,13 @@ export const scenarios = pgTable("scenarios", {
   index("idx_scenarios_category_id").on(table.categoryId),
   index("idx_scenarios_difficulty").on(table.difficulty),
   index("idx_scenarios_is_deleted").on(table.isDeleted),
+  index("idx_scenarios_contentx_lookup").on(table.organizationId, table.contentxPackageId, table.contentxVersion),
+  uniqueIndex("uniq_scenarios_contentx_identity").on(
+    table.organizationId,
+    table.contentxPackageId,
+    table.contentxVersion,
+    table.contentxScenarioKey,
+  ),
 ]);
 
 export const scenarioVersions = pgTable("scenario_versions", {
