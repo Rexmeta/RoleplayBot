@@ -1,0 +1,284 @@
+{
+  "schemaVersion": "1.0",
+  "packageKey": "team-leader-promotion-assessment",
+  "version": "1.0.0",
+  "publishedAt": "2026-09-05T12:00:00Z",
+  "metadata": {
+    "title": "Team Leader Promotion Assessment",
+    "description": "A practical assessment of coaching, retention, and conflict-resolution skills for first-time team leaders.",
+    "locale": "en",
+    "tags": ["leadership", "promotion", "people-management"]
+  },
+  "competencies": [
+    { "key": "coaching", "name": "Performance Coaching", "description": "Diagnoses performance gaps and agrees on accountable improvement actions." },
+    { "key": "retention", "name": "Talent Retention", "description": "Understands motivation and creates a credible retention plan within authority." },
+    { "key": "conflict-resolution", "name": "Conflict Resolution", "description": "De-escalates disagreement and restores productive collaboration." }
+  ],
+  "scenarios": [
+    {
+      "key": "low-performer-coaching",
+      "title": "Low Performer Coaching",
+      "description": "Coach an experienced employee whose quality and delivery have declined for two months.",
+      "locale": "en",
+      "categoryKey": "leadership-assessment",
+      "competencies": ["coaching"],
+      "difficulty": 6,
+      "estimatedTime": "15 minutes",
+      "objectiveType": "performance-coaching",
+      "context": {
+        "situation": "Three client deliverables from Minjun contained avoidable errors and two were late. He believes shifting priorities, not his performance, are the main cause.",
+        "timeline": "The quarterly review closes tomorrow and a client milestone is due next week.",
+        "stakes": "The manager must protect delivery quality without damaging trust or turning the conversation into a disciplinary ambush.",
+        "playerRole": {
+          "position": "New Team Leader",
+          "department": "Client Delivery",
+          "experience": "Recently promoted after five years as an individual contributor",
+          "responsibility": "Diagnose the performance gap, set expectations, and agree on a measurable support plan."
+        }
+      },
+      "objectives": [
+        "Describe the performance gap with specific evidence and invite Minjun's perspective.",
+        "Separate controllable behavior from workload constraints.",
+        "Agree on measurable actions, support, ownership, and a review date."
+      ],
+      "successCriteria": {
+        "optimal": "Minjun acknowledges the gap and commits to a dated plan with quality checks, priority escalation, and weekly reviews.",
+        "good": "Expectations and next steps are clear, with useful support and a follow-up date.",
+        "acceptable": "The concern is discussed respectfully but actions or measures remain incomplete.",
+        "failure": "The leader blames, threatens, avoids the evidence, or ends without clear accountability."
+      },
+      "personas": [
+        {
+          "key": "minjun",
+          "name": "Minjun Park",
+          "department": "Client Delivery",
+          "position": "Senior Specialist",
+          "experience": "Seven years",
+          "personaRef": "istj.json",
+          "stance": "Defensive about criticism but responsive to precise evidence and fair standards.",
+          "goal": "Avoid being labelled a poor performer and secure clearer priorities.",
+          "tradeoff": "Will accept a structured improvement plan if workload ambiguity is addressed.",
+          "mbti": "ISTJ",
+          "primary": true,
+          "entryLine": "I know the last few weeks were rough, but priorities kept changing. I don't think this is simply a performance issue.",
+          "npcBehavior": {
+            "negotiationBounds": { "minRelationalTrustToYield": 55, "maxAffectiveIntensityBeforeWalkout": 85, "maxPatienceTurns": 8 },
+            "trustTriggers": [{ "keyword": "specific example", "relationalTrustDelta": 8, "affectiveIntensityDelta": -5, "description": "Responds well to concrete, verifiable evidence." }],
+            "escalationTriggers": [{ "keyword": "attitude problem", "relationalTrustDelta": -12, "affectiveIntensityDelta": 15, "description": "Rejects vague character judgments." }]
+          }
+        }
+      ],
+      "recommendedFlow": ["Set purpose and psychological safety", "Share evidence", "Explore causes", "Agree actions and support", "Confirm review date"],
+      "flow": {
+        "stages": [
+          { "key": "diagnose", "goal": "Establish shared facts and causes.", "exitConditions": [{ "type": "turn_count", "operator": "gte", "value": 3 }], "nextStageKey": "plan" },
+          { "key": "plan", "goal": "Agree on an accountable improvement plan.", "exitConditions": [{ "type": "turn_score", "metric": "ownership", "operator": "gte", "value": 7, "windowTurns": 2 }], "nextStageKey": "end" }
+        ]
+      },
+      "personaSwitches": [],
+      "personaSwitchMode": "none",
+      "constraints": {
+        "authorityLevel": "team-leader",
+        "canOffer": ["Weekly coaching", "Priority clarification", "Peer quality review"],
+        "cannotOffer": ["Guaranteed promotion", "Immediate termination"],
+        "requiredBehaviors": ["Use specific evidence", "Invite the employee perspective", "Set a review date"],
+        "forbiddenBehaviors": ["Diagnose personality", "Threaten consequences not in policy"]
+      },
+      "difficultyProfile": { "npcPatience": 6, "hintFrequency": 0.2, "incidentProbability": 0, "passThreshold": 70 },
+      "evaluation": {
+        "name": "Low Performer Coaching Rubric",
+        "description": "Measures evidence-led, empathetic, and accountable coaching.",
+        "passThreshold": 70,
+        "dimensions": [
+          { "key": "clarity", "name": "Evidence and Expectations", "weight": 3, "minScore": 1, "maxScore": 10, "positiveSignals": ["Uses examples", "Defines expected standard"], "negativeSignals": ["Uses vague accusations"] },
+          { "key": "empathy", "name": "Listening and Fairness", "weight": 2, "minScore": 1, "maxScore": 10, "positiveSignals": ["Invites perspective", "Acknowledges constraints"] },
+          { "key": "ownership", "name": "Accountability", "weight": 3, "minScore": 1, "maxScore": 10, "positiveSignals": ["Clarifies employee and manager ownership"] },
+          { "key": "actionPlan", "name": "Improvement Plan", "weight": 2, "minScore": 1, "maxScore": 10, "positiveSignals": ["Sets measures and review date"] }
+        ],
+        "requiredDimensions": [{ "key": "clarity", "minScore": 60 }, { "key": "actionPlan", "minScore": 60 }]
+      },
+      "termination": {
+        "success": { "relational": { "trust": { "operator": "gte", "value": 60 } }, "currentScore": { "operator": "gte", "value": 70 }, "logic": "all" },
+        "failure": { "relational": { "trust": { "operator": "lte", "value": 20 } } },
+        "timeout": { "maxTurns": 14, "maxTimeSec": 900 }
+      },
+      "simulation": { "affectiveAxes": ["defensiveness", "trust"], "toolPolicy": { "npcAffectiveStateDelta": { "maxCallsPerTurn": 1, "maxDeltaPerCall": 15 } } },
+      "analytics": { "trackedMetrics": ["totalTurns", "trustAverage", "turnsToFirstActionPlan"], "reportSections": ["scoreOverview", "criticalMoments", "practiceGuide"], "benchmarkGroup": "team-leader-candidates" },
+      "targetDurationMinutes": 15,
+      "targetTurns": 10,
+      "minValidTurns": 5
+    },
+    {
+      "key": "key-talent-retention",
+      "title": "Key Talent Retention",
+      "description": "Conduct a stay conversation with a high performer who has received an external offer.",
+      "locale": "en",
+      "categoryKey": "leadership-assessment",
+      "competencies": ["retention"],
+      "difficulty": 8,
+      "context": {
+        "situation": "Sora, the team's strongest product analyst, has an external offer with higher pay and broader ownership. She has not resigned but doubts her growth path.",
+        "timeline": "The offer expires in four days; compensation review is six weeks away.",
+        "stakes": "Losing Sora would delay a strategic launch, but the team leader cannot promise an off-cycle raise or promotion.",
+        "playerRole": {
+          "position": "New Team Leader",
+          "department": "Product Strategy",
+          "experience": "Recently promoted manager",
+          "responsibility": "Understand Sora's priorities and build a credible retention proposal within delegated authority."
+        }
+      },
+      "objectives": ["Discover the real drivers behind Sora's decision.", "Avoid unsupported promises while showing ownership.", "Agree on a concrete retention or transition next step."],
+      "successCriteria": {
+        "optimal": "Sora agrees to consider a specific growth and sponsorship plan with named owners and dates.",
+        "good": "Her priorities are understood and a credible decision process is agreed.",
+        "acceptable": "The leader listens well but offers only general reassurance.",
+        "failure": "The leader pressures, guilt-trips, dismisses compensation, or makes promises outside their authority."
+      },
+      "personas": [{
+        "key": "sora",
+        "name": "Sora Kim",
+        "department": "Product Strategy",
+        "position": "Lead Product Analyst",
+        "experience": "Six years",
+        "personaRef": "entj.json",
+        "stance": "Calm, direct, and skeptical of vague career promises.",
+        "goal": "Secure meaningful ownership, executive exposure, and market-aligned recognition.",
+        "tradeoff": "May stay for a credible near-term scope expansion and sponsored career review.",
+        "mbti": "ENTJ",
+        "primary": true,
+        "entryLine": "I haven't made a final decision, but the other role gives me ownership I have been asking for here.",
+        "npcBehavior": { "negotiationBounds": { "minRelationalTrustToYield": 70, "maxPatienceTurns": 7 }, "trustTriggers": [{ "keyword": "owner and date", "relationalTrustDelta": 10, "description": "Values accountable commitments." }] }
+      }],
+      "recommendedFlow": ["Acknowledge choice", "Explore decision criteria", "Test possible options", "Commit owners and dates"],
+      "personaSwitches": [],
+      "personaSwitchMode": "none",
+      "constraints": {
+        "authorityLevel": "team-leader",
+        "canOffer": ["Strategic project ownership", "Executive presentation opportunity", "Formal compensation review request"],
+        "cannotOffer": ["Guaranteed raise", "Guaranteed promotion", "Counteroffer amount"],
+        "requiredBehaviors": ["Ask open questions", "State authority limits", "Commit to named follow-up"],
+        "forbiddenBehaviors": ["Guilt-trip", "Threaten replacement", "Disclose another employee's pay"]
+      },
+      "difficultyProfile": { "npcPatience": 5, "hintFrequency": 0.1, "incidentProbability": 0.1, "passThreshold": 75 },
+      "evaluation": {
+        "name": "Key Talent Retention Rubric",
+        "passThreshold": 75,
+        "dimensions": [
+          { "key": "empathy", "name": "Motivation Discovery", "weight": 3, "minScore": 1, "maxScore": 10, "positiveSignals": ["Explores priorities without assumptions"] },
+          { "key": "logic", "name": "Option Quality", "weight": 2, "minScore": 1, "maxScore": 10, "positiveSignals": ["Links options to stated motivations"] },
+          { "key": "ownership", "name": "Credibility and Ownership", "weight": 3, "minScore": 1, "maxScore": 10, "negativeSignals": ["Makes unsupported promises"] },
+          { "key": "actionPlan", "name": "Retention Next Steps", "weight": 2, "minScore": 1, "maxScore": 10, "positiveSignals": ["Names owners, decisions, and dates"] }
+        ],
+        "requiredDimensions": [{ "key": "ownership", "minScore": 70 }]
+      },
+      "termination": {
+        "success": { "motivational": { "cooperativeness": { "operator": "gte", "value": 70 } }, "currentScore": { "operator": "gte", "value": 75 }, "logic": "all" },
+        "failure": { "motivational": { "interest": { "operator": "lte", "value": 15 } } },
+        "timeout": { "maxTurns": 12, "maxTimeSec": 900 }
+      },
+      "simulation": { "affectiveAxes": ["interest", "trust"], "toolPolicy": { "triggerIncident": { "allowedTypes": ["executive_join"], "cooldownOverride": { "globalCooldownSec": 120 } } } },
+      "targetDurationMinutes": 15,
+      "targetTurns": 9,
+      "minValidTurns": 5
+    },
+    {
+      "key": "team-conflict-resolution",
+      "title": "Team Conflict Resolution",
+      "description": "Mediate a conflict between engineering and design leads before a release decision.",
+      "locale": "en",
+      "categoryKey": "leadership-assessment",
+      "competencies": ["conflict-resolution"],
+      "difficulty": 7,
+      "context": {
+        "situation": "Daniel, the engineering lead, says late design changes caused rework. Hana, the design lead, says engineering ignored usability risks. Daniel meets the leader first; Hana joins once the facts are framed.",
+        "timeline": "A release decision is required by end of day.",
+        "stakes": "Continued blame could delay launch and damage collaboration across both teams.",
+        "playerRole": {
+          "position": "New Team Leader",
+          "department": "Digital Product",
+          "experience": "First month leading a cross-functional squad",
+          "responsibility": "De-escalate blame, establish shared facts, and broker a workable release and process agreement."
+        }
+      },
+      "objectives": ["Surface each party's interests and evidence.", "Reframe blame into shared release criteria.", "Agree immediate decisions and a future change-control process."],
+      "successCriteria": {
+        "optimal": "Both leads accept a release decision, named actions, and a lightweight change-control agreement.",
+        "good": "The immediate conflict is de-escalated and responsibilities are clear.",
+        "acceptable": "The release decision progresses but underlying collaboration issues remain.",
+        "failure": "The leader takes sides, allows personal attacks, or ends without a release decision."
+      },
+      "personas": [
+        {
+          "key": "daniel",
+          "name": "Daniel Cho",
+          "department": "Engineering",
+          "position": "Engineering Lead",
+          "experience": "Nine years",
+          "personaRef": "intj.json",
+          "stance": "Fact-oriented, frustrated by scope changes, and resistant to process he sees as subjective.",
+          "goal": "Protect release stability and establish change control.",
+          "tradeoff": "Will accept one critical design fix if lower-priority changes move to the next release.",
+          "primary": true,
+          "entryLine": "We cannot keep rebuilding finished work because design changes its mind at the last minute."
+        },
+        {
+          "key": "hana",
+          "name": "Hana Lee",
+          "department": "Design",
+          "position": "Design Lead",
+          "experience": "Eight years",
+          "personaRef": "enfj.json",
+          "stance": "Protective of users and angry that documented usability risks were minimized.",
+          "goal": "Fix the critical user journey and gain earlier design involvement.",
+          "tradeoff": "Will defer visual polish if the critical accessibility issue is fixed now.",
+          "primary": false,
+          "entryLine": "This is not design changing its mind. We raised the accessibility risk two weeks ago."
+        }
+      ],
+      "recommendedFlow": ["Set mediation rules", "Hear evidence", "Bring in second lead", "Define shared release criteria", "Agree release and process actions"],
+      "flow": {
+        "stages": [
+          { "key": "frame", "goal": "Set neutral rules and establish Daniel's facts.", "exitConditions": [{ "type": "turn_count", "operator": "gte", "value": 2 }], "nextStageKey": "mediate" },
+          { "key": "mediate", "goal": "Surface both interests and create shared criteria.", "exitConditions": [{ "type": "turn_score", "metric": "empathy", "operator": "gte", "value": 6, "windowTurns": 2 }], "nextStageKey": "agreement" },
+          { "key": "agreement", "goal": "Commit the release and future process decisions.", "exitConditions": [], "nextStageKey": "end" }
+        ]
+      },
+      "personaSwitches": [{ "key": "hana-joins", "targetPersonaKey": "hana", "conditions": [{ "metric": "totalTurns", "operator": "gte", "value": 2 }], "reason": "Both accountable leads must participate in the mediation.", "lockAfterSwitch": true }],
+      "personaSwitchMode": "join",
+      "constraints": {
+        "authorityLevel": "team-leader",
+        "canOffer": ["Move noncritical scope", "Assign release owners", "Create change-control checkpoint"],
+        "cannotOffer": ["Cancel the product", "Change headcount"],
+        "requiredBehaviors": ["Remain neutral", "Stop personal attacks", "Confirm both perspectives"],
+        "forbiddenBehaviors": ["Choose a side before hearing both parties", "Force consensus without criteria"]
+      },
+      "difficultyProfile": { "npcPatience": 5, "hintFrequency": 0.15, "incidentProbability": 0.2, "passThreshold": 72 },
+      "evaluation": {
+        "name": "Team Conflict Resolution Rubric",
+        "passThreshold": 72,
+        "dimensions": [
+          { "key": "empathy", "name": "Balanced Listening", "weight": 2.5, "minScore": 1, "maxScore": 10, "positiveSignals": ["Validates both perspectives"] },
+          { "key": "clarity", "name": "Neutral Framing", "weight": 2, "minScore": 1, "maxScore": 10, "negativeSignals": ["Repeats blame language"] },
+          { "key": "logic", "name": "Decision Criteria", "weight": 2.5, "minScore": 1, "maxScore": 10, "positiveSignals": ["Uses risk and user impact criteria"] },
+          { "key": "actionPlan", "name": "Durable Agreement", "weight": 3, "minScore": 1, "maxScore": 10, "positiveSignals": ["Assigns owners and process checkpoints"] }
+        ],
+        "requiredDimensions": [{ "key": "empathy", "minScore": 60 }, { "key": "actionPlan", "minScore": 60 }]
+      },
+      "termination": {
+        "success": { "stage": "agreement", "currentScore": { "operator": "gte", "value": 72 }, "logic": "all" },
+        "failure": { "relational": { "rapport": { "operator": "lte", "value": 15 } }, "consecutiveTurnsBelow": { "scoreThreshold": 35, "turns": 3 }, "logic": "any" },
+        "timeout": { "maxTurns": 16, "maxTimeSec": 1200 }
+      },
+      "simulation": { "affectiveAxes": ["intensity", "rapport"], "toolPolicy": { "npcAffectiveStateDelta": { "maxCallsPerTurn": 1, "maxDeltaPerCall": 20 }, "updateScenarioState": { "enabled": true } } },
+      "targetDurationMinutes": 20,
+      "targetTurns": 12,
+      "minValidTurns": 6
+    }
+  ],
+  "provenance": {
+    "source": "ContentX",
+    "sourcePackageId": "contentx-team-leader-promotion",
+    "author": "ContentX Assessment Factory",
+    "contentHash": "demo-v1-content-0000000000000001"
+  }
+}

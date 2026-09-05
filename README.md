@@ -142,6 +142,10 @@ npm run dev
 
 ## 🎯 사용법
 
+### ContentX 평가 콘텐츠 가져오기
+
+ContentX는 평가 콘텐츠의 원본 작성 시스템이며, 이 프로젝트는 게시된 패키지를 기존 시나리오·평가 런타임에서 실행할 수 있는 불변 사본으로 가져옵니다. v1 계약, API, 보안, 버전 관리, 예제 패키지는 [ContentX → RoleplayX 통합 가이드](./docs/integrations/contentx-roleplayx.md)를 참고하세요.
+
 ### 기본 훈련 과정
 1. **홈페이지**에서 훈련 시나리오 선택
 2. **AI 캐릭터**와 10턴의 대화 진행

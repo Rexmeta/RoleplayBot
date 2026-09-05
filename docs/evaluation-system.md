@@ -204,3 +204,9 @@ Evaluation criteria sets are stored in the database (`evaluationCriteriaSets` ta
 When a custom set is provided, it replaces `DEFAULT_DIMENSIONS` throughout the pipeline. The score adjustment pipeline (non-verbal, barge-in, completion) continues to apply regardless of custom criteria.
 
 See `server/routes/evaluationCriteria.ts` for the CRUD API, and `shared/schema.ts` for the data model.
+
+## ContentX evaluation snapshots
+
+Each imported ContentX scenario creates an approved criteria set and maps contract weights (total 10) to persisted dimension weights (total 100). Its published scenario version embeds the complete criteria/dimension snapshot and evaluation harness.
+
+When a run starts, these snapshots are copied onto the run and remain authoritative for evaluation. A later ContentX version creates a new scenario/version and cannot alter the rubric used by historical runs. Imported runs never fall back to a mutable live criteria set when their published rubric snapshot is missing. See `docs/integrations/contentx-roleplayx.md`.

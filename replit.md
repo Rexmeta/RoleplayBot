@@ -30,6 +30,7 @@ Preferred communication style: Simple, everyday language.
 - **Authorization**: Resource ownership verification and role-based access control (`admin`, `operator`, `user`). System-admin level checks via `isSystemAdmin` middleware.
 - **Security**: JWT_SECRET enforcement, CSRF protection, API key logging prevention, Redis-based login rate limiting (with in-memory fallback when Redis is unavailable), strong password policies, and file upload authentication with path traversal prevention.
 - **Enterprise B2B Agent API**: Bearer API-key-authenticated routes at `/api/v1/agent/`. OpenAPI/Swagger docs at `/api/v1/agent/docs` (Swagger UI) and `/api/v1/agent/openapi.json` (dynamic spec). Spec definition in `server/openapi/agentApi.ts`.
+- **ContentX publishing boundary**: Authenticated operator/admin routes at `/api/content/import/validate` and `/api/content/import` validate and atomically import immutable `AssessmentScenarioPackage v1` content into the existing scenario registry. Contract/adapter: `shared/schema/contentx.ts`, `shared/contentxAdapter.ts`; routes/persistence: `server/routes/contentImports.ts`, `server/storage/contentxImports.ts`; guide: `docs/integrations/contentx-roleplayx.md`.
 - **Payments**: Stripe client (`server/stripeClient.ts`) and webhook handlers (`server/webhookHandlers.ts`) for subscription lifecycle events.
 - **Cloud Run Health Checks**: `/_ah/health` (liveness, always 200), `/_ah/ready` (readiness, 503 until app is fully initialized), `/_ah/debug` (diagnostic info, enabled when `DEBUG_ENDPOINT_ENABLED=true` env var is set). Server binds to `0.0.0.0` and registers health endpoints before all route initialization.
 - **Application Health API**: `/api/health` returns memory usage, uptime, and realtime voice session counts.
@@ -78,6 +79,7 @@ Preferred communication style: Simple, everyday language.
 - **Persona Discovery**: Browse and explore AI personas at `/persona` (admin-only).
 - **PersonaX Free Chat**: Messenger-style 3-column UI at `/free-chat`. Users create, manage, and share custom AI personas (stored in `user_personas` DB table). Features: public/private toggle, like system (`user_persona_likes` table), chat count tracking, persona editor modal, and MBTI persona tab. Sentinel `__user_persona__:<id>` distinguishes user-created persona chats from MBTI-based free chats in the AI message handler.
 - **NPC Simulation Engine**: Server-authoritative simulation state with per-turn Zod-validated deltas, incident cooldowns, and real-time SimulationPanel UI. Text/TTS mode uses synchronous fast-eval: `simulationState` is returned directly in the POST /messages HTTP response. Voice mode uses WebSocket `simulation_update` events. State persists in `persona_runs.simulation_state` JSONB with `simulation_events` audit log.
+- **ContentX Assessment Publishing**: One-way ContentX package import reuses the existing Scenario, persona, evaluation, and feedback runtime. Imports preserve tenant-scoped source identity and create published snapshots containing evaluation criteria and persona runtime profiles; existing runs remain bound to their historical version.
 
 # External Dependencies
 

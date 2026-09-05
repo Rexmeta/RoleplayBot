@@ -265,3 +265,15 @@ DB의 `system_settings` 테이블 (`category = 'conversation'`) 또는
 
 ### 프로바이더 추가 (예: Claude)
 `conversationContextBuilder.ts`에서 필요한 함수를 import하여 시스템 프롬프트를 구성하면 된다.
+
+---
+
+## 13. ContentX 게시 시나리오
+
+ContentX에서 가져온 시나리오도 별도 런타임 모델 없이 위의 기존 대화 흐름을 사용한다. 일반 대화 생성 시 선택된 시나리오의 최신 게시 버전을 `scenarioRun`에 연결하고, 이후 대화에서는 run의 `scenarioSnapshot`을 원본으로 사용한다.
+
+- 게시 snapshot에는 시나리오 콘텐츠, 평가 기준, evaluation harness, 각 persona의 런타임 프로필이 포함된다.
+- 이미 시작한 run은 이후 ContentX 버전 import나 live scenario 수정의 영향을 받지 않는다.
+- ContentX 시나리오에 완전한 게시 snapshot이 없으면 mutable live 데이터로 폴백하지 않고 시작을 거부한다.
+
+계약, import API, tenant 권한, 버전 규칙은 `docs/integrations/contentx-roleplayx.md`를 참조한다.
