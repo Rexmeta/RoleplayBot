@@ -1,5 +1,5 @@
 import { useRoute, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeedbackQuery, isFeedbackPending } from "@/lib/feedbackQuery";
+import { authFetchRaw } from "@/lib/authFetch";
+import { queryClient } from "@/lib/queryClient";
+import { feedbackQueryKey } from "@/lib/feedbackQuery";
 import { Users, ArrowRight, Star, TrendingUp, ThumbsUp, AlertCircle, ChevronRight, Trophy, XCircle, Clock } from "lucide-react";
 
 type TerminationReason = 'success' | 'failure' | 'timeout';
@@ -264,12 +268,21 @@ export default function FeedbackView() {
     retry: false,
   });
 
-  const { data: feedbackResult } = useQuery<any>({
-    queryKey: ["/api/conversations", conversationId, "feedback"],
-    enabled: !!conversationId,
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
-    retry: false,
+  const { data: feedbackResult } = useFeedbackQuery(conversationId);
+  const retryFeedback = useMutation({
+    mutationFn: async () => {
+      const response = await authFetchRaw(`/api/conversations/${conversationId}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
+    onSuccess: data => queryClient.setQueryData(feedbackQueryKey(conversationId || ""), data),
+    onError: error => queryClient.setQueryData(feedbackQueryKey(conversationId || ""), {
+      status: "error", message: (error as Error).message,
+    }),
   });
 
   const isAdminOrOperatorUser = currentUser?.role === 'admin' || currentUser?.role === 'operator';
@@ -325,6 +338,29 @@ export default function FeedbackView() {
 
     return { effectiveScenario: null, effectivePersona: null, isScenarioMissing: true };
   }, [conversation, scenario]);
+
+  if (!isLoading && feedbackResult && isFeedbackPending(feedbackResult)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">{t('feedback.loading')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && feedbackResult && (feedbackResult.status === "error" || feedbackResult.status === "expired")) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{feedbackResult.message || feedbackResult.error || t('report.generationFailed', '피드백 생성에 실패했습니다')}</p>
+          <Button onClick={() => retryFeedback.mutate()} disabled={retryFeedback.isPending}>{t('common.retry', '다시 시도')}</Button>
+          <Button variant="outline" className="ml-2" onClick={() => navigate('/mypage')}>{t('report.backToMyPage', '마이페이지로 돌아가기')}</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !conversation) {
     return (

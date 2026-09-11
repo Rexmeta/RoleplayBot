@@ -325,6 +325,7 @@ export const agentWebhookDeliveries = pgTable("agent_webhook_deliveries", {
 }, (table) => [
   index("idx_agent_webhook_deliveries_webhook").on(table.webhookId),
   index("idx_agent_webhook_deliveries_retry").on(table.nextRetryAt),
+  uniqueIndex("idx_agent_webhook_deliveries_claim").on(table.webhookId, table.deliveryId, table.attempt),
 ]);
 
 export type AgentWebhookDelivery = typeof agentWebhookDeliveries.$inferSelect;

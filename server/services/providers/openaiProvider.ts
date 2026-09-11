@@ -415,16 +415,15 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
 
         const feedbackPrompt = this.buildFeedbackPrompt(conversationText, messages, persona, evaluationCriteria, language, bargeInSummaryText);
 
-        const response = await retryWithBackoff(() =>
-          this.client.chat.completions.create({
-            model: this.model,
-            messages: [{ role: 'user', content: feedbackPrompt }],
-            response_format: { type: "json_object" },
-            temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1),
-            max_tokens: 16384
-          }),
-          { maxRetries: 3, baseDelayMs: 2000 }
-        );
+        // Feedback quality retries are owned by this outer loop. Keeping
+        // transport retries out of it prevents multiplicative provider calls.
+        const response = await this.client.chat.completions.create({
+          model: this.model,
+          messages: [{ role: 'user', content: feedbackPrompt }],
+          response_format: { type: "json_object" },
+          temperature: attempt === 0 ? 0.3 : 0.5 + (attempt * 0.1),
+          max_tokens: 16384
+        });
 
         const totalTime = Date.now() - startTime;
         

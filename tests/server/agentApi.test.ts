@@ -41,6 +41,11 @@ const dbQueue = vi.hoisted(() => {
   };
 });
 
+const feedbackServiceMocks = vi.hoisted(() => ({
+  enqueueFeedbackJob: vi.fn().mockResolvedValue({ status: 'queued' }),
+  getFeedbackJobStatus: vi.fn().mockResolvedValue({ status: 'queued' }),
+}));
+
 vi.mock('../../server/storage', () => ({
   db: {
     select: () => ({
@@ -70,6 +75,7 @@ vi.mock('../../server/storage', () => ({
     getSimulationState: vi.fn().mockResolvedValue(null),
     saveSimulationState: vi.fn().mockResolvedValue(undefined),
     getPersonaRun: vi.fn().mockResolvedValue(null),
+    getFeedbackByConversationId: vi.fn().mockResolvedValue(null),
     createSimulationEvent: vi.fn().mockResolvedValue({}),
   },
 }));
@@ -88,6 +94,8 @@ vi.mock('../../server/services/aiServiceFactory', () => ({
     emotionReason: 'neutral',
   }),
 }));
+
+vi.mock('../../server/services/feedbackGenerationService', () => feedbackServiceMocks);
 
 vi.mock('../../server/services/simulation/simulationEngine', () => ({
   applySimulationPatch: vi.fn().mockReturnValue({
@@ -395,6 +403,95 @@ describe('Happy-path: create → message → end session flow', () => {
     expect(endRes.body.sessionId).toBe(SESSION_ID);
     expect(endRes.body.status).toBe('ended');
     expect(endRes.body).toHaveProperty('endedAt');
+    expect(endRes.body.feedbackStatus).toBe('queued');
+    expect(feedbackServiceMocks.enqueueFeedbackJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps session end retryable when durable feedback enqueue fails', async () => {
+    const { fullKey, record } = makeAgentKeyRecord();
+    const session = makeActiveSession(KEY_ID, 'ags_enqueuefailure01');
+    vi.mocked(fileManager.getAllScenarios).mockResolvedValue([MOCK_SCENARIO] as any);
+    feedbackServiceMocks.enqueueFeedbackJob.mockClear();
+    feedbackServiceMocks.enqueueFeedbackJob.mockRejectedValueOnce(new Error('queue unavailable'));
+    dbQueue.push([record]);
+    dbQueue.push([session]);
+
+    const res = await request(buildApp())
+      .post(`/api/v1/agent/sessions/${session.id}/end`)
+      .set('Authorization', `Bearer ${fullKey}`)
+      .send({});
+
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('internal_error');
+
+    dbQueue.push([record]);
+    dbQueue.push([session]);
+    const retryRes = await request(buildApp())
+      .post(`/api/v1/agent/sessions/${session.id}/end`)
+      .set('Authorization', `Bearer ${fullKey}`)
+      .send({});
+
+    expect(retryRes.status).toBe(200);
+    expect(retryRes.body.feedbackStatus).toBe('queued');
+    expect(feedbackServiceMocks.enqueueFeedbackJob).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('GET /api/v1/agent/sessions/:id/feedback durable statuses', () => {
+  it.each([
+    ['queued', null],
+    ['generating', null],
+    ['completed', null],
+    ['error', 'provider_failed'],
+    ['expired', 'feedback_deadline_exceeded'],
+  ])('returns %s from the durable job state', async (status, feedbackError) => {
+    const { fullKey, record } = makeAgentKeyRecord();
+    const session = {
+      ...makeActiveSession(),
+      status: 'ended',
+      metadata: { feedbackStatus: 'queued' },
+    };
+    feedbackServiceMocks.getFeedbackJobStatus.mockResolvedValueOnce({
+      status,
+      error: feedbackError,
+    });
+    dbQueue.push([record]);
+    dbQueue.push([session]);
+
+    const res = await request(buildApp())
+      .get(`/api/v1/agent/sessions/${session.id}/feedback`)
+      .set('Authorization', `Bearer ${fullKey}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.feedbackStatus).toBe(status);
+    if (feedbackError) expect(res.body.error).toBe(feedbackError);
+  });
+
+  it('requeues persisted error feedback when the ended session is submitted again', async () => {
+    const { fullKey, record } = makeAgentKeyRecord();
+    const session = {
+      ...makeActiveSession(),
+      status: 'ended',
+      endedAt: new Date(),
+      metadata: { feedbackStatus: 'error' },
+    };
+    vi.mocked(fileManager.getAllScenarios).mockResolvedValue([MOCK_SCENARIO] as any);
+    feedbackServiceMocks.getFeedbackJobStatus.mockResolvedValueOnce({
+      status: 'error',
+      error: 'provider_failed',
+    });
+    feedbackServiceMocks.enqueueFeedbackJob.mockClear();
+    dbQueue.push([record]);
+    dbQueue.push([session]);
+
+    const res = await request(buildApp())
+      .post(`/api/v1/agent/sessions/${session.id}/end`)
+      .set('Authorization', `Bearer ${fullKey}`)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.feedbackStatus).toBe('queued');
+    expect(feedbackServiceMocks.enqueueFeedbackJob).toHaveBeenCalledTimes(1);
   });
 });
 

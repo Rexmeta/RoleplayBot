@@ -60,8 +60,12 @@ export function ConversationsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async createFeedback(insertFeedback: InsertFeedback): Promise<Feedback> {
-      const [feedback] = await db.insert(feedbacks).values(insertFeedback as any).returning();
-      return feedback;
+      const [feedback] = await db.insert(feedbacks).values(insertFeedback as any)
+        .onConflictDoNothing({ target: feedbacks.personaRunId }).returning();
+      if (feedback) return feedback;
+      const existing = await this.getFeedbackByConversationId(insertFeedback.personaRunId ?? insertFeedback.conversationId ?? "");
+      if (!existing) throw new Error("feedback_insert_conflict_without_existing_row");
+      return existing;
     }
 
     async getFeedbackByConversationId(conversationId: string): Promise<Feedback | undefined> {

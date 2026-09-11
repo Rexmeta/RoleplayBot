@@ -793,20 +793,19 @@ ${conversationHistory}
       try {
         const feedbackPrompt = this.buildCompactFeedbackPrompt(scenario, messages, persona, conversation, evaluationCriteria, language, hasSameScoreFailure, fewShotSection);
 
-        const response = await retryWithBackoff(() =>
-          this.genAI.models.generateContent({
-            model: this.model,
-            config: {
-              responseMimeType: "application/json",
-              maxOutputTokens: 16384,
-              temperature: attempt === 0 ? 0.5 : 0.7
-            },
-            contents: [
-              { role: "user", parts: [{ text: feedbackPrompt }] }
-            ],
-          }),
-          { maxRetries: 3, baseDelayMs: 2000 }
-        );
+        // Feedback quality retries are owned by this outer loop. Do not nest
+        // transport retries here, which can multiply one report into 12 calls.
+        const response = await this.genAI.models.generateContent({
+          model: this.model,
+          config: {
+            responseMimeType: "application/json",
+            maxOutputTokens: 16384,
+            temperature: attempt === 0 ? 0.5 : 0.7
+          },
+          contents: [
+            { role: "user", parts: [{ text: feedbackPrompt }] }
+          ],
+        });
 
         const totalTime = Date.now() - startTime;
         console.log(`✓ Optimized feedback attempt ${attempt + 1} completed in ${totalTime}ms`);

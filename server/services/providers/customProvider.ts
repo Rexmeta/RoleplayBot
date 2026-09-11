@@ -688,6 +688,10 @@ JSON 형식으로 응답:
         };
 
         const response = await retryWithBackoff(async () => {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 110_000);
+          timeout.unref?.();
+          try {
           const res = await fetch(`${this.config.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
@@ -695,7 +699,8 @@ JSON 형식으로 응답:
               'Authorization': `Bearer ${this.config.apiKey}`,
               ...this.config.headers
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(requestBody),
+            signal: controller.signal,
           });
           if (!res.ok) {
             const err: any = new Error(`Feedback generation failed: ${res.status}`);
@@ -703,7 +708,10 @@ JSON 형식으로 응답:
             throw err;
           }
           return res;
-        }, { maxRetries: 3, baseDelayMs: 2000 });
+          } finally {
+            clearTimeout(timeout);
+          }
+        }, { maxRetries: 0 });
 
         const data = await response.json();
         const feedbackText = data.choices?.[0]?.message?.content || '{}';

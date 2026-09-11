@@ -619,6 +619,8 @@ async function initializeApp() {
   initStatus = 'running_migrations';
   try {
     await runMigrations();
+    const { recoverFeedbackJobs } = await import('./services/feedbackGenerationService');
+    await recoverFeedbackJobs();
     recordStep('migrations', 'done');
   } catch (error: any) {
     // Non-fatal: tables likely already exist from a previous deployment.

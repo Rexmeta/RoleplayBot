@@ -10,6 +10,9 @@ import { buildRuleFallbackPatch, inferIncidentCandidate, resolveStageTransition 
 import { checkIncidentCooldown, recordIncidentCooldown } from '../simulation/simulationEngine';
 import { createDefaultSimulationState, SimulationDirective } from '../simulation/simulationTypes';
 import { storage } from '../../storage';
+import { fileManager } from '../fileManager';
+import { resolveRuntimeScenario, findRuntimePersona } from '../runtimeScenario';
+import { enqueueFeedbackJob } from '../feedbackGenerationService';
 import { v4 as uuidv4 } from 'uuid';
 import { getSoftClosingInstruction } from '../conversationDifficultyPolicy';
 import {
@@ -64,15 +67,44 @@ async function handleTerminationIfNeeded(
   try {
     const { storage: st } = await import('../../storage');
     const personaRun = await st.getPersonaRun(session.personaRunId);
+    const scenarioRunId = personaRun?.scenarioRunId ?? session.scenarioRunId;
+    const scenario = scenarioRunId ? resolveRuntimeScenario(
+      await st.getScenarioRun(scenarioRunId) as any,
+      (await fileManager.getAllScenarios()).find((s: any) => s.id === session.scenarioId),
+    ) : null;
+    const persona = scenario ? findRuntimePersona(scenario, session.personaId) : null;
+    if (!scenario || !persona) {
+      throw new Error('cannot_queue_feedback_without_runtime_snapshot');
+    }
+    {
+      const persisted = await st.getChatMessagesByPersonaRun(session.personaRunId);
+      const messages = persisted.map((m: any) => ({ sender: m.sender, message: m.message, timestamp: m.createdAt?.toISOString?.() }));
+      const known = new Set(messages.map((m: any) => `${m.sender}:${m.message}`));
+      for (const recent of session.recentMessages) {
+        const sender = recent.role === 'user' ? 'user' : 'ai';
+        if (recent.text && !known.has(`${sender}:${recent.text}`)) messages.push({ sender, message: recent.text, timestamp: new Date().toISOString() });
+      }
+      if (session.userTranscriptBuffer && !known.has(`user:${session.userTranscriptBuffer}`)) {
+        messages.push({ sender: 'user', message: session.userTranscriptBuffer, timestamp: new Date().toISOString() });
+      }
+      if (session.currentTranscript && !known.has(`ai:${session.currentTranscript}`)) {
+        messages.push({ sender: 'ai', message: session.currentTranscript, timestamp: new Date().toISOString() });
+      }
+      await enqueueFeedbackJob({
+        conversationId: session.personaRunId,
+        conversation: { messages },
+        scenario,
+        persona,
+        language: session.userLanguage,
+      });
+    }
     if (personaRun && personaRun.status !== 'completed') {
       await st.updatePersonaRun(session.personaRunId, { status: 'completed', completedAt: new Date() });
     }
-
     if (session.scenarioRunId) {
       const { checkAndCompleteScenario } = await import('../../routes/routerHelpers');
       await checkAndCompleteScenario(session.scenarioRunId);
     }
-
     await st.createSimulationEvent({
       personaRunId: session.personaRunId,
       scenarioRunId: session.scenarioRunId ?? null,
@@ -89,7 +121,9 @@ async function handleTerminationIfNeeded(
       includeInReport: true,
     }).catch(e => console.warn('[geminiMessageHandler] Failed to log termination session_end event:', e));
   } catch (e) {
-    console.warn('[geminiMessageHandler] Failed to complete persona run on termination:', e);
+    session.terminationHandled = false;
+    console.warn('[geminiMessageHandler] Failed to durably queue feedback before termination:', e);
+    return;
   }
 
   sendToClient(session, {

@@ -530,7 +530,7 @@ All errors follow a consistent envelope:
 
 When the session was **active** and is now being ended, \`endedAt\` and \`feedbackStatus\` are always present.
 Feedback generation runs asynchronously in the background — poll \`GET /sessions/:id/feedback\` to retrieve the report when ready.
-When the session was **already ended** (idempotent call), only \`sessionId\`, \`status\`, and \`requestId\` are returned.`,
+When the session was **already ended**, the current durable \`feedbackStatus\` is returned. Calling this endpoint again retries feedback only when that status is \`error\` or \`expired\`.`,
         properties: {
           sessionId: { type: "string", example: "ags_a1b2c3d4e5f6g7h8i9j0" },
           status: { type: "string", enum: ["ended"], example: "ended" },
@@ -542,9 +542,9 @@ When the session was **already ended** (idempotent call), only \`sessionId\`, \`
           },
           feedbackStatus: {
             type: "string",
-            enum: ["pending", "completed"],
-            example: "pending",
-            description: "Current status of the background feedback generation. `pending` means feedback is still being generated. Poll `GET /sessions/:id/feedback` to retrieve the completed report.",
+            enum: ["queued", "generating", "completed", "error", "expired"],
+            example: "queued",
+            description: "Current durable feedback job status. Poll `GET /sessions/:id/feedback` until `completed`, `error`, or `expired`.",
           },
           requestId: { type: "string", example: "req_a1b2c3d4e5f6" },
         },
@@ -557,14 +557,14 @@ When the session was **already ended** (idempotent call), only \`sessionId\`, \`
           sessionId: { type: "string", example: "ags_a1b2c3d4e5f6g7h8i9j0" },
           feedbackStatus: {
             type: "string",
-            enum: ["pending", "completed"],
+            enum: ["queued", "generating", "completed", "error", "expired"],
             example: "completed",
-            description: "`pending` when feedback generation is still in progress; `completed` when the report is ready.",
+            description: "Durable job status. `queued` and `generating` are in progress; `completed` has a report; `error` and `expired` are retryable terminal failures.",
           },
           feedbackReport: {
             type: "object",
             nullable: true,
-            description: "AI-generated feedback report. `null` when `feedbackStatus` is `pending`.",
+            description: "AI-generated feedback report. `null` unless `feedbackStatus` is `completed`.",
             example: {
               overallScore: 3.4,
               dimensions: {
@@ -579,6 +579,11 @@ When the session was **already ended** (idempotent call), only \`sessionId\`, \`
               summary:
                 "The trainee showed solid empathy but could improve on action-oriented communication.",
             },
+          },
+          error: {
+            type: "string",
+            nullable: true,
+            description: "Failure classification when `feedbackStatus` is `error` or `expired`.",
           },
           requestId: { type: "string", example: "req_a1b2c3d4e5f6" },
         },
@@ -1434,7 +1439,7 @@ Returns \`404\` with code \`feedback_not_available\` when no feedback job was ev
 # 1. End the session
 curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
   -H "Authorization: Bearer agk_live_xxxx"
-# Response: { "feedbackStatus": "pending", ... }
+# Response: { "feedbackStatus": "queued", ... }
 
 # 2. Poll until completed (typically within 10–30 seconds)
 curl https://your-host/api/v1/agent/sessions/ags_xxx/feedback \\
@@ -1459,11 +1464,11 @@ curl https://your-host/api/v1/agent/sessions/ags_xxx/feedback \\
               "application/json": {
                 schema: { $ref: "#/components/schemas/FeedbackResponse" },
                 examples: {
-                  pending: {
-                    summary: "Feedback still generating",
+                  queued: {
+                    summary: "Feedback queued",
                     value: {
                       sessionId: "ags_a1b2c3d4e5f6g7h8i9j0",
-                      feedbackStatus: "pending",
+                      feedbackStatus: "queued",
                       feedbackReport: null,
                       requestId: "req_a1b2c3d4e5f6",
                     },
@@ -1489,6 +1494,35 @@ curl https://your-host/api/v1/agent/sessions/ags_xxx/feedback \\
                       requestId: "req_a1b2c3d4e5f6",
                     },
                   },
+                  generating: {
+                    summary: "Feedback generation in progress",
+                    value: {
+                      sessionId: "ags_a1b2c3d4e5f6g7h8i9j0",
+                      feedbackStatus: "generating",
+                      feedbackReport: null,
+                      requestId: "req_a1b2c3d4e5f6",
+                    },
+                  },
+                  error: {
+                    summary: "Generation failed; retry by ending the session again",
+                    value: {
+                      sessionId: "ags_a1b2c3d4e5f6g7h8i9j0",
+                      feedbackStatus: "error",
+                      feedbackReport: null,
+                      error: "provider_failed",
+                      requestId: "req_a1b2c3d4e5f6",
+                    },
+                  },
+                  expired: {
+                    summary: "Job expired; retry by ending the session again",
+                    value: {
+                      sessionId: "ags_a1b2c3d4e5f6g7h8i9j0",
+                      feedbackStatus: "expired",
+                      feedbackReport: null,
+                      error: "feedback_deadline_exceeded",
+                      requestId: "req_a1b2c3d4e5f6",
+                    },
+                  },
                 },
               },
             },
@@ -1509,9 +1543,9 @@ curl https://your-host/api/v1/agent/sessions/ags_xxx/feedback \\
 
 **Scopes required:** \`sessions:end\`
 
-This operation is idempotent: ending an already-ended session returns the stored result without error.
+This operation is idempotent for active or completed feedback jobs. If an already-ended session has feedback status \`error\` or \`expired\`, calling it again durably queues one retry.
 
-The endpoint returns immediately with \`feedbackStatus: "pending"\`. Feedback generation runs in the background (typically 10–30 seconds). Poll \`GET /sessions/:id/feedback\` to retrieve the report when ready, or subscribe to the \`feedback.completed\` webhook event.
+The endpoint returns after durable registration with \`feedbackStatus: "queued"\`. Feedback generation runs in the background. Poll \`GET /sessions/:id/feedback\` to retrieve the report when ready, or subscribe to the \`feedback.completed\` webhook event.
 
 **Example curl:**
 \`\`\`bash
@@ -1560,7 +1594,7 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
                   sessionId: "ags_a1b2c3d4e5f6g7h8i9j0",
                   status: "ended",
                   endedAt: "2026-05-22T09:15:00.000Z",
-                  feedbackStatus: "pending",
+                  feedbackStatus: "queued",
                   requestId: "req_a1b2c3d4e5f6",
                 },
               },

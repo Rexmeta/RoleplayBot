@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback, ConversationMessage } from "@shared/schema";
 import { authFetchRaw } from "@/lib/authFetch";
+import { feedbackQueryKey, useFeedbackQuery, isFeedbackPending } from "@/lib/feedbackQuery";
 import { PersonaSwitchCard, type PersonaSwitchEvent } from "./chat/PersonaSwitchCard";
 import {
   toTenPoint,
@@ -122,9 +123,6 @@ const FEEDBACK_STAGES = [
   { key: 'stage3', labelKey: 'report.progress.stage3', defaultLabel: '보고서 작성 중...', icon: '📝', durationMs: Infinity },
 ];
 
-const feedbackGenStartKey = (conversationId: string) => `feedback_gen_start_${conversationId}`;
-const FEEDBACK_GEN_MAX_AGE_MS = 10 * 60 * 1000;
-
 function computeInitialStage(elapsed: number): { stageIndex: number; stageStartOffset: number } {
   let cumulative = 0;
   for (let i = 0; i < FEEDBACK_STAGES.length - 1; i++) {
@@ -140,17 +138,7 @@ function computeInitialStage(elapsed: number): { stageIndex: number; stageStartO
 function FeedbackProgressIndicator({ conversationId }: { conversationId: string }) {
   const { t } = useTranslation();
 
-  const [startTime] = useState(() => {
-    try {
-      const stored = localStorage.getItem(feedbackGenStartKey(conversationId));
-      if (stored) {
-        const ts = parseInt(stored, 10);
-        if (Date.now() - ts < FEEDBACK_GEN_MAX_AGE_MS) return ts;
-        localStorage.removeItem(feedbackGenStartKey(conversationId));
-      }
-    } catch {}
-    return Date.now();
-  });
+  const [startTime] = useState(() => Date.now());
 
   const [initialStage] = useState(() => {
     const elapsed = Date.now() - startTime;
@@ -370,41 +358,31 @@ export default function PersonalDevelopmentReport({
     }
   }, [showSimulationTab, simulationHasData]);
 
-  const { data: feedbackData, isLoading, error, refetch } = useQuery<any>({
-    queryKey: ["/api/conversations", conversationId, "feedback"],
-    enabled: !!conversationId,
-    retry: false,
-    staleTime: Infinity,
-    gcTime: Infinity,
-    refetchInterval: (query) => {
-      const d = query.state.data;
-      return d && (d as any).status === 'generating' ? 3000 : false;
-    },
-    queryFn: async () => {
-      const response = await authFetchRaw(`/api/conversations/${conversationId}/feedback`);
-      if (response.status === 404) throw new Error("FEEDBACK_NOT_FOUND");
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
-    }
-  });
+  const feedbackQuery = useFeedbackQuery<Feedback>(conversationId);
+  const feedbackData = feedbackQuery.data;
+  const isLoading = feedbackQuery.isLoading;
+  const error: any = feedbackQuery.error;
+  const refetch: any = feedbackQuery.refetch;
 
-  const feedback: Feedback | null = feedbackData && !(feedbackData as any).status ? feedbackData as Feedback : null;
-  const isFeedbackGenerating = !!(feedbackData && (feedbackData as any).status === 'generating');
-  const isFeedbackError = !!(feedbackData && (feedbackData as any).status === 'error');
-  const feedbackErrorMessage: string = isFeedbackError ? ((feedbackData as any).message || '알 수 없는 오류') : '';
+  const feedback: Feedback | null = feedbackData?.status === "completed"
+    ? ((feedbackData.feedback || feedbackData) as Feedback)
+    : null;
+  const isFeedbackGenerating = isFeedbackPending(feedbackData);
+  const isFeedbackError = feedbackData?.status === "error" || feedbackData?.status === "expired" || !!error;
+  const feedbackErrorMessage: string = isFeedbackError
+    ? (feedbackData?.message || feedbackData?.error || (error as Error)?.message || '피드백 작업이 만료되었거나 사라졌습니다.')
+    : '';
 
   const prevGeneratingRef = useRef(false);
   useEffect(() => {
-    if (prevGeneratingRef.current && !isFeedbackGenerating && feedback) {
+    if (prevGeneratingRef.current && !isFeedbackGenerating) {
       onFeedbackGeneratingChange?.(false);
-      try { localStorage.removeItem(feedbackGenStartKey(conversationId)); } catch {}
     }
     prevGeneratingRef.current = isFeedbackGenerating;
   }, [isFeedbackGenerating, feedback, onFeedbackGeneratingChange, conversationId]);
 
   useEffect(() => {
     if (isFeedbackError) {
-      try { localStorage.removeItem(feedbackGenStartKey(conversationId)); } catch {}
     }
   }, [isFeedbackError, conversationId]);
 
@@ -421,7 +399,7 @@ export default function PersonalDevelopmentReport({
   const showStrategyTab = !!(feedback as any)?.detailedFeedback?.sequenceAnalysis && sectionEnabledEarly('strategy');
 
   useEffect(() => {
-    if (!isLoading && (feedback || error?.message === "FEEDBACK_NOT_FOUND" || isFeedbackError)) {
+    if (!isLoading && (feedback || feedbackData?.status === "expired" || isFeedbackError)) {
       onReady?.();
     }
   }, [feedback, isLoading, error, isFeedbackError, onReady]);
@@ -499,41 +477,39 @@ export default function PersonalDevelopmentReport({
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(["/api/conversations", conversationId, "feedback"], data);
-      if (!data?.status) {
+      queryClient.setQueryData(feedbackQueryKey(conversationId), data?.status ? data : { ...data, status: "completed", feedback: data });
+      if (!data?.status || data?.status === "completed") {
         onFeedbackGeneratingChange?.(false);
-        try { localStorage.removeItem(feedbackGenStartKey(conversationId)); } catch {}
       }
+      if (data?.status === "queued" || data?.status === "generating") onFeedbackGeneratingChange?.(true);
     },
     onError: (err) => {
       onFeedbackGeneratingChange?.(false);
-      try { localStorage.removeItem(feedbackGenStartKey(conversationId)); } catch {}
+      queryClient.setQueryData(feedbackQueryKey(conversationId), { status: "error", message: (err as Error).message });
       toast({ title: "오류", description: `피드백을 생성할 수 없습니다: ${(err as Error).message}`, variant: "destructive" });
     }
   });
 
   const handleGenerateFeedback = () => {
-    try { localStorage.setItem(feedbackGenStartKey(conversationId), String(Date.now())); } catch {}
     setHasRequestedFeedback(true);
     onFeedbackGeneratingChange?.(true);
     generateFeedbackMutation.mutate(undefined);
   };
 
   const handleRegenerateFeedback = () => {
-    try { localStorage.setItem(feedbackGenStartKey(conversationId), String(Date.now())); } catch {}
     onFeedbackGeneratingChange?.(true);
     generateFeedbackMutation.mutate({ force: true });
   };
 
   useEffect(() => {
-    if (autoGenerateFeedback && !isLoading && !feedback && !isFeedbackGenerating && !hasRequestedFeedback && !generateFeedbackMutation.isPending && error?.message === "FEEDBACK_NOT_FOUND") {
-      try { localStorage.setItem(feedbackGenStartKey(conversationId), String(Date.now())); } catch {}
+    if (autoGenerateFeedback && !isLoading && !feedback && !isFeedbackGenerating && !hasRequestedFeedback && !generateFeedbackMutation.isPending &&
+      (feedbackData?.status === "expired" || error?.message === "FEEDBACK_NOT_FOUND")) {
       setHasRequestedFeedback(true);
       onFeedbackGeneratingChange?.(true);
       generateFeedbackMutation.mutate(undefined);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoGenerateFeedback, isLoading, feedback, isFeedbackGenerating, hasRequestedFeedback, error?.message, generateFeedbackMutation.isPending]);
+  }, [autoGenerateFeedback, isLoading, feedback, isFeedbackGenerating, hasRequestedFeedback, feedbackData?.status, error?.message, generateFeedbackMutation.isPending]);
 
   const getTranslatedDimensionName = (key: string | undefined, fallbackName: string) =>
     t(`evaluationDimensions.${key}.name`, { defaultValue: '' }) || fallbackName;
@@ -636,7 +612,7 @@ export default function PersonalDevelopmentReport({
     );
   }
 
-  if (!feedback && !isLoading && !hasRequestedFeedback && error?.message === "FEEDBACK_NOT_FOUND") {
+  if (!feedback && !isLoading && !hasRequestedFeedback && (feedbackData?.status === "expired" || error?.message === "FEEDBACK_NOT_FOUND")) {
     return (
       <div className="text-center py-16" data-testid="feedback-not-found">
         <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">

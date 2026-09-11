@@ -41,7 +41,7 @@ import {
 } from "../services/simulation/simulationEngine";
 import { createDefaultSimulationState } from "../services/simulation/simulationTypes";
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
-import { generateAndSaveFeedback } from "./routerHelpers";
+import { enqueueFeedbackJob, getFeedbackJobStatus } from "../services/feedbackGenerationService";
 
 const router = Router();
 
@@ -1275,67 +1275,58 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
       return;
     }
 
+    let retryingFailedFeedback = false;
     if (session.status === "ended") {
-      const responseBody = { sessionId, status: "ended", requestId };
+      const durableStatus = session.personaRunId
+        ? await getFeedbackJobStatus(session.personaRunId)
+        : { status: null, error: null };
+      retryingFailedFeedback = durableStatus.status === "error" || durableStatus.status === "expired";
+      if (retryingFailedFeedback) {
+        console.info("[agentApi] Retrying failed feedback from idempotent session end", {
+          sessionId,
+          feedbackStatus: durableStatus.status,
+        });
+      } else {
+      const responseBody = {
+        sessionId,
+        status: "ended",
+        ...(durableStatus.status ? { feedbackStatus: durableStatus.status } : {}),
+        requestId,
+      };
       if (idempotencyKeyHeader) {
         await saveIdempotency(idempotencyKeyHeader, agentKey.id, bodyHash, 200, responseBody);
       }
       res.json(responseBody);
       return;
+      }
     }
 
-    const endedAt = new Date();
+    const endedAt = session.endedAt ?? new Date();
     const existingMeta = (session.metadata as Record<string, any>) ?? {};
 
-    // If there is a persona run, mark feedbackStatus as "pending" synchronously
+    // If there is a persona run, mirror the durable queued status in session metadata
     // so GET /sessions/:id/feedback can distinguish "job queued" from "no feedback"
     const metaUpdate = session.personaRunId
-      ? { ...existingMeta, feedbackStatus: "pending" }
+      ? { ...existingMeta, feedbackStatus: "queued" }
       : existingMeta;
 
-    await db
-      .update(agentSessions)
-      .set({ status: "ended", endedAt, metadata: metaUpdate })
-      .where(eq(agentSessions.id, sessionId));
-
-    // Audit log
-    await db.insert(auditLogs).values({
-      actorUserId: null,
-      organizationId: orgId,
-      action: "agent_session.ended",
-      targetType: "agent_session",
-      targetId: sessionId,
-      metadata: { agentKeyId: agentKey.id },
-    }).catch(() => {});
-
-    // Return immediately — feedback generation and webhook delivery happen in the background.
-    // Only include feedbackStatus when a generation job was actually queued (personaRunId exists).
+    let feedbackStatusForResponse: string | undefined;
     const responseBody: Record<string, any> = {
       sessionId,
       status: "ended",
       endedAt: endedAt.toISOString(),
-      ...(session.personaRunId ? { feedbackStatus: "pending" } : {}),
+      ...(session.personaRunId ? { feedbackStatus: "queued" } : {}),
       requestId,
     };
 
-    if (idempotencyKeyHeader) {
-      await saveIdempotency(idempotencyKeyHeader, agentKey.id, bodyHash, 200, responseBody);
-    }
-
-    res.json(responseBody);
-
-    // Fire session.ended immediately after response (fire-and-forget)
-    dispatchWebhook(agentKey.id, "session.ended", { sessionId, endedAt: endedAt.toISOString() }).catch(() => {});
-
-    // ── Background: generate feedback + fire feedback.completed ───────────
+    // Prepare and durably enqueue before acknowledging end. AI generation itself
+    // remains asynchronous after enqueue.
     if (session.personaRunId) {
-      setImmediate(async () => {
-        try {
           const personaRunId = session.personaRunId;
           const allScenarios = await fileManager.getAllScenarios();
           const scenario = allScenarios.find((s: any) => s.id === session.scenarioId);
 
-          if (scenario) {
+           if (scenario) {
             const scenarioPersona = scenario.personas?.find((p: any) => p.id === session.personaId);
             const mbtiType = scenarioPersona?.mbti ?? scenarioPersona?.personaRef?.replace(".json", "");
             const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
@@ -1361,42 +1352,55 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
             }));
 
             const language = (session.language as "ko" | "en" | "ja" | "zh") ?? "ko";
-            const feedbackReport = await generateAndSaveFeedback(
-              personaRunId,
-              { messages: conversationMessages },
-              scenario,
-              personaContext,
-              language
-            );
-
-            if (feedbackReport) {
-              // Re-read latest session metadata before writing to avoid clobbering concurrent updates
-              const freshSessionRow = await db
-                .select({ metadata: agentSessions.metadata })
-                .from(agentSessions)
-                .where(eq(agentSessions.id, sessionId))
-                .limit(1)
-                .then((r: any[]) => r[0] ?? null)
-                .catch(() => null);
-              const latestMeta = ((freshSessionRow?.metadata as Record<string, any>) ?? {});
-              await db
-                .update(agentSessions)
-                .set({ metadata: { ...latestMeta, feedbackReport, feedbackStatus: "completed" } })
-                .where(eq(agentSessions.id, sessionId))
-                .catch((e) => console.warn("[agentApi] Failed to persist feedbackReport to session metadata:", e));
-
-              dispatchWebhook(agentKey.id, "feedback.completed", { sessionId, feedbackReport }).catch(() => {});
-            }
+             const job = await enqueueFeedbackJob({
+               conversationId: personaRunId,
+               conversation: { messages: conversationMessages },
+               scenario,
+               persona: personaContext,
+               language,
+               completionContext: {
+                 kind: "agent",
+                 sessionId,
+                 agentKeyId: agentKey.id,
+               },
+             });
+             feedbackStatusForResponse = job.status;
+           } else {
+             throw new Error("scenario_not_found_for_feedback");
           }
-        } catch (err) {
-          console.warn("[agentApi] Failed to generate feedback report (non-fatal):", err);
-        }
-      });
+    }
+
+    // Only acknowledge and persist the Agent session end after the durable
+    // feedback registration succeeds. A failed enqueue leaves the session
+    // retryable instead of creating an ended session with no feedback job.
+    if (!retryingFailedFeedback) {
+      await db
+        .update(agentSessions)
+        .set({ status: "ended", endedAt, metadata: metaUpdate })
+        .where(eq(agentSessions.id, sessionId));
+
+      await db.insert(auditLogs).values({
+        actorUserId: null,
+        organizationId: orgId,
+        action: "agent_session.ended",
+        targetType: "agent_session",
+        targetId: sessionId,
+        metadata: { agentKeyId: agentKey.id },
+      }).catch(() => {});
+    }
+
+     if (feedbackStatusForResponse) responseBody.feedbackStatus = feedbackStatusForResponse;
+    if (idempotencyKeyHeader) await saveIdempotency(idempotencyKeyHeader, agentKey.id, bodyHash, 200, responseBody);
+    res.json(responseBody);
+    if (!retryingFailedFeedback) {
+      dispatchWebhook(agentKey.id, "session.ended", { sessionId, endedAt: endedAt.toISOString() }).catch(() => {});
     }
     // ─────────────────────────────────────────────────────────────────────────
   } catch (err) {
     console.error("[agentApi] POST /sessions/:id/end error:", err);
-    agentError(res, 500, "internal_error", "Failed to end session.");
+    if (!res.headersSent) {
+      agentError(res, 500, "internal_error", "Failed to end session.");
+    }
   }
 });
 
@@ -1424,13 +1428,23 @@ router.get("/sessions/:id/feedback", requireScope("sessions:read"), async (req: 
       return;
     }
 
-    const feedbackStatus = sessionMeta.feedbackStatus as string;
+    let feedbackStatus = sessionMeta.feedbackStatus as string;
+    let feedbackError: string | null = sessionMeta.feedbackError ?? null;
+    if (session.personaRunId) {
+      const job = await getFeedbackJobStatus(session.personaRunId);
+      if (job.status) feedbackStatus = job.status;
+      feedbackError = job.error ?? feedbackError;
+    }
     const feedbackReport = sessionMeta.feedbackReport ?? null;
+    const persistedFeedback = feedbackStatus === "completed" && session.personaRunId
+      ? await storage.getFeedbackByConversationId(session.personaRunId).catch(() => null)
+      : null;
 
     res.json({
       sessionId,
       feedbackStatus,
-      feedbackReport,
+      feedbackReport: feedbackReport ?? persistedFeedback?.detailedFeedback ?? persistedFeedback ?? null,
+      ...(feedbackStatus === "error" || feedbackStatus === "expired" ? { error: feedbackError } : {}),
       requestId,
     });
   } catch (err) {

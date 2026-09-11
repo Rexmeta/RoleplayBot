@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { storage } from '../../server/storage';
+import { enqueueFeedbackJob, resetFeedbackJob } from '../../server/services/feedbackGenerationService';
 
 // ─── Captured upsert calls + simulated DB state ───────────────────────────────
 // db.insert().values() pushes the values object here for inspection AND writes
@@ -69,10 +70,16 @@ vi.mock('../../server/storage', () => ({
     getPersonaRun: vi.fn().mockResolvedValue({
       id: 'prun-1',
       scenarioRunId: 'srun-1',
+      personaId: 'persona-1',
     }),
     getScenarioRun: vi.fn().mockResolvedValue({
       id: 'srun-1',
       userId: 'user-1',
+      scenarioId: 'scenario-1',
+      scenarioSnapshot: {
+        id: 'scenario-1',
+        personas: [{ id: 'persona-1', name: 'Test Persona' }],
+      },
       status: 'completed',   // 'completed' so checkAndCompleteScenario returns early
     }),
     updatePersonaRun: vi.fn().mockResolvedValue({}),
@@ -91,7 +98,14 @@ vi.mock('../../server/storage', () => ({
     }),
     getFeedbackByConversationId: vi.fn().mockResolvedValue(null),
     addStrategyChoice: vi.fn().mockResolvedValue({}),
+    getUser: vi.fn().mockResolvedValue({ preferredLanguage: 'ko' }),
   },
+}));
+
+vi.mock('../../server/services/feedbackGenerationService', () => ({
+  enqueueFeedbackJob: vi.fn().mockResolvedValue({ status: 'queued' }),
+  getFeedbackJobStatus: vi.fn().mockResolvedValue({ status: 'queued' }),
+  resetFeedbackJob: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('../../server/services/fileManager', () => ({
@@ -172,6 +186,113 @@ describe('GET /api/conversations/:id', () => {
 describe('POST /api/conversations/:id/realtime-messages', () => {
   beforeEach(() => {
     capturedInserts.clear();
+    vi.mocked(enqueueFeedbackJob).mockClear();
+    vi.mocked(storage.getPersonaRun).mockResolvedValue({
+      id: 'prun-1',
+      scenarioRunId: 'srun-1',
+      personaId: 'persona-1',
+    } as any);
+    vi.mocked(storage.getScenarioRun).mockResolvedValue({
+      id: 'srun-1',
+      userId: 'user-1',
+      scenarioId: 'scenario-1',
+      scenarioSnapshot: {
+        id: 'scenario-1',
+        personas: [{ id: 'persona-1', name: 'Test Persona' }],
+      },
+      status: 'completed',
+    } as any);
+  });
+
+  it('queues final feedback for a free-chat run from its persona snapshot', async () => {
+    vi.mocked(storage.getPersonaRun).mockResolvedValue({
+      id: 'prun-1',
+      scenarioRunId: 'srun-1',
+      personaId: 'mbti-1',
+      personaSnapshot: { id: 'mbti-1', mbti: 'ENTJ', communicationStyle: 'direct' },
+      difficulty: 4,
+    } as any);
+    vi.mocked(storage.getScenarioRun).mockResolvedValue({
+      id: 'srun-1',
+      userId: 'user-1',
+      scenarioId: '__free_chat__',
+      status: 'active',
+      difficulty: 4,
+    } as any);
+
+    const res = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{ sender: 'user', message: 'hello' }], isFinal: true });
+
+    expect(res.status).toBe(200);
+    expect(enqueueFeedbackJob).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: 'prun-1',
+      scenario: expect.objectContaining({ id: '__free_chat__' }),
+      persona: expect.objectContaining({ id: 'mbti-1' }),
+    }));
+  });
+
+  it('queues final feedback for a user-persona run from its persisted snapshot', async () => {
+    vi.mocked(storage.getPersonaRun).mockResolvedValue({
+      id: 'prun-1',
+      scenarioRunId: 'srun-1',
+      personaId: 'custom-1',
+      personaName: 'Custom Persona',
+      personaSnapshot: {
+        id: 'custom-1',
+        name: 'Custom Persona',
+        personality: { traits: ['calm'] },
+      },
+      difficulty: 3,
+    } as any);
+    vi.mocked(storage.getScenarioRun).mockResolvedValue({
+      id: 'srun-1',
+      userId: 'user-1',
+      scenarioId: '__user_persona__:custom-1',
+      status: 'active',
+      difficulty: 3,
+    } as any);
+
+    const res = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{ sender: 'user', message: 'hello' }], isFinal: true });
+
+    expect(res.status).toBe(200);
+    expect(enqueueFeedbackJob).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: 'prun-1',
+      scenario: expect.objectContaining({
+        id: '__user_persona__:custom-1',
+        personas: [expect.objectContaining({ id: 'custom-1', name: 'Custom Persona' })],
+      }),
+      persona: expect.objectContaining({ id: 'custom-1', name: 'Custom Persona' }),
+    }));
+  });
+
+  it('queues final feedback for an MBTI synthetic run from its persona snapshot', async () => {
+    vi.mocked(storage.getPersonaRun).mockResolvedValue({
+      id: 'prun-1',
+      scenarioRunId: 'srun-1',
+      personaId: 'mbti-2',
+      personaSnapshot: { id: 'mbti-2', mbti: 'INFP', communicationStyle: 'empathetic' },
+      difficulty: 2,
+    } as any);
+    vi.mocked(storage.getScenarioRun).mockResolvedValue({
+      id: 'srun-1',
+      userId: 'user-1',
+      scenarioId: '__mbti_persona__:mbti-2',
+      status: 'active',
+      difficulty: 2,
+    } as any);
+
+    const res = await request(app)
+      .post('/api/conversations/prun-1/realtime-messages')
+      .send({ messages: [{ sender: 'user', message: 'hello' }], isFinal: true });
+
+    expect(res.status).toBe(200);
+    expect(enqueueFeedbackJob).toHaveBeenCalledWith(expect.objectContaining({
+      scenario: expect.objectContaining({ id: '__mbti_persona__:mbti-2' }),
+      persona: expect.objectContaining({ id: 'mbti-2' }),
+    }));
   });
 
   it('assigns turnIndex = array index for each message (normal alternating conversation)', async () => {
@@ -408,6 +529,7 @@ describe('POST /api/conversations/:id/realtime-messages', () => {
 describe('voice session replay — no duplicate conversation rows', () => {
   beforeEach(() => {
     capturedInserts.clear();
+    vi.mocked(storage.deleteChatMessagesByPersonaRun).mockClear();
   });
 
   it('sending the same payload twice leaves exactly N rows, not 2N', async () => {
@@ -692,6 +814,7 @@ describe('DELETE /api/conversations/:id/messages — cross-user ownership enforc
 
   beforeEach(() => {
     capturedInserts.clear();
+    vi.mocked(storage.deleteChatMessagesByPersonaRun).mockClear();
     vi.mocked(storage.getPersonaRun).mockResolvedValue({
       id: 'prun-1',
       scenarioRunId: 'srun-1',
@@ -701,6 +824,26 @@ describe('DELETE /api/conversations/:id/messages — cross-user ownership enforc
       userId: 'user-1',
       status: 'active',
     } as any);
+  });
+
+  it('invalidates the feedback generation before deleting reset messages', async () => {
+    vi.mocked(storage.getPersonaRun).mockResolvedValueOnce({
+      id: 'prun-1',
+      scenarioRunId: 'srun-1',
+      feedbackStatus: 'generating',
+      feedbackJobToken: 'generation-to-cancel',
+    } as any);
+    vi.mocked(resetFeedbackJob).mockResolvedValueOnce(true);
+
+    const res = await request(app).delete('/api/conversations/prun-1/messages');
+
+    expect(res.status).toBe(200);
+    expect(resetFeedbackJob).toHaveBeenCalledWith('prun-1', {
+      status: 'generating',
+      token: 'generation-to-cancel',
+    });
+    expect(vi.mocked(resetFeedbackJob).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(storage.deleteChatMessagesByPersonaRun).mock.invocationCallOrder.at(-1)!);
   });
 
   it('returns 403 when a regular user tries to reset another user\'s conversation', async () => {

@@ -19,19 +19,10 @@ import {
   checkAndCompleteScenario,
   buildFreeChatPersona,
   buildFreeChatScenario,
-  generateAndSaveFeedback,
   asyncHandler,
   createHttpError
 } from "./routerHelpers";
-import {
-  markGenerating,
-  isGenerating,
-  isGeneratingWithDbFallback,
-  unmarkGenerating,
-  markGenerationError,
-  getGenerationError,
-  clearGenerationError,
-} from "../services/feedbackGenerationTracker";
+import { enqueueFeedbackJob, getFeedbackJobStatus, resetFeedbackJob } from "../services/feedbackGenerationService";
 import { normalizeProfileName, parseJoinModeSpeakerSegments } from "../services/conversationContextBuilder";
 import { filterThinkingText } from "../services/voice/textFilter";
 import { createDefaultSimulationState, TurnScore } from "../services/simulation/simulationTypes";
@@ -1139,6 +1130,26 @@ ${userNameLine}
       }
 
       const streamIsCompleted = metaParsed.complete === true;
+      if (streamIsCompleted) {
+        if (!scenarioObjRef || !persona) {
+          throw createHttpError(500, "Cannot queue feedback without the completed run snapshot");
+        }
+        const conversationForFeedback = {
+          messages: [
+            ...existingMessages.map(m => ({ sender: m.sender, message: m.message, timestamp: m.createdAt?.toISOString() ?? new Date().toISOString() })),
+            { sender: 'user' as const, message, timestamp: new Date().toISOString() },
+            { sender: 'ai' as const, message: streamCleanContent, timestamp: new Date().toISOString() },
+          ],
+        };
+        await enqueueFeedbackJob({
+          conversationId: personaRunId,
+          conversation: conversationForFeedback,
+          scenario: scenarioObjRef,
+          persona,
+          language: userLanguage,
+          evaluationHarnessSnapshot: (scenarioRun as any).evaluationHarnessSnapshot,
+        });
+      }
       const streamUpdatedPersonaRun = await storage.updatePersonaRun(personaRunId, {
         turnCount: newTurnCount,
         status: streamIsCompleted ? 'completed' : 'active',
@@ -1159,13 +1170,6 @@ ${userNameLine}
             stateVersionBefore: null, stateVersionAfter: finalSimState.version,
             includeInReport: false,
           }).catch(e => console.warn('[streaming] Failed to log session_end event:', e));
-        }
-        if (scenarioObjRef && persona) {
-          const _convForFeedback = { messages: [...existingMessages.map(m => ({ sender: m.sender, message: m.message, timestamp: m.createdAt?.toISOString() ?? new Date().toISOString() })), { sender: 'user' as const, message, timestamp: new Date().toISOString() }] };
-          setImmediate(() => {
-            generateAndSaveFeedback(personaRunId, _convForFeedback, scenarioObjRef, persona, userLanguage, (scenarioRun as any).evaluationHarnessSnapshot)
-              .catch(e => console.warn('[streaming] Auto-feedback generation failed:', e));
-          });
         }
       }
 
@@ -1216,6 +1220,34 @@ ${userNameLine}
       let streamIsTerminated = false;
       if (streamTerminationReason && !streamIsCompleted && personaRun!.status !== 'completed') {
         streamIsTerminated = true;
+        if (!scenarioObjRef || !persona) {
+          throw createHttpError(500, "Cannot queue feedback without the terminated run snapshot");
+        }
+        const terminationConversation = {
+          messages: [
+            ...existingMessages.map(m => ({
+              sender: m.sender,
+              message: m.message,
+              timestamp: m.createdAt?.toISOString() ?? new Date().toISOString(),
+            })),
+            { sender: 'user' as const, message, timestamp: new Date().toISOString() },
+            {
+              sender: 'ai' as const,
+              message: streamAiMessageContent,
+              timestamp: new Date().toISOString(),
+              emotion: streamEmotion,
+              emotionReason: streamEmotionReason,
+            },
+          ],
+        };
+        await enqueueFeedbackJob({
+          conversationId: personaRunId,
+          conversation: terminationConversation,
+          scenario: scenarioObjRef,
+          persona,
+          language: userLanguage,
+          evaluationHarnessSnapshot: (scenarioRun as any).evaluationHarnessSnapshot,
+        });
         await storage.updatePersonaRun(personaRunId, { status: 'completed', completedAt: new Date(), terminationReason: streamTerminationReason as string });
         await checkAndCompleteScenario(personaRun!.scenarioRunId);
         if (streamSimulationState) {
@@ -1357,6 +1389,26 @@ ${userNameLine}
       }
     }
 
+    if (isCompleted) {
+      if (!scenarioObjRef || !persona) {
+        throw createHttpError(500, "Cannot queue feedback without the completed run snapshot");
+      }
+      const conversationForFeedback = {
+        messages: [
+          ...existingMessages,
+          { sender: 'user', message, timestamp: new Date().toISOString() },
+          { sender: 'ai', message: aiResult.content, timestamp: new Date().toISOString() },
+        ],
+      };
+      await enqueueFeedbackJob({
+        conversationId: personaRunId,
+        conversation: conversationForFeedback as any,
+        scenario: scenarioObjRef,
+        persona,
+        language: userLanguage,
+        evaluationHarnessSnapshot: (scenarioRun as any).evaluationHarnessSnapshot,
+      });
+    }
     const updatedPersonaRun = await storage.updatePersonaRun(personaRunId, {
       turnCount: newTurnCount,
       status: isCompleted ? "completed" : "active",
@@ -1377,14 +1429,6 @@ ${userNameLine}
           stateVersionBefore: null, stateVersionAfter: finalSimState.version,
           includeInReport: false,
         }).catch(e => console.warn('[conversations] Failed to log session_end event:', e));
-      }
-      // Auto-generate feedback server-side so it is ready before the client navigates to results
-      if (scenarioObjRef && persona) {
-        const _convForFeedback = { messages: [...existingMessages, { sender: 'user', message, timestamp: new Date().toISOString() }] };
-        setImmediate(() => {
-          generateAndSaveFeedback(personaRunId, _convForFeedback as any, scenarioObjRef, persona, userLanguage, (scenarioRun as any).evaluationHarnessSnapshot)
-            .catch(e => console.warn('[conversations] Auto-feedback generation failed:', e));
-        });
       }
     }
 
@@ -1460,6 +1504,30 @@ ${userNameLine}
     let isTerminated = false;
     if (terminationReason && !isCompleted && personaRun!.status !== 'completed') {
       isTerminated = true;
+      if (!scenarioObjRef || !persona) {
+        throw createHttpError(500, "Cannot queue feedback without the terminated run snapshot");
+      }
+      const terminationConversation = {
+        messages: [
+          ...existingMessages,
+          { sender: 'user' as const, message, timestamp: new Date().toISOString() },
+          {
+            sender: 'ai' as const,
+            message: aiMessageContent,
+            timestamp: new Date().toISOString(),
+            emotion: aiResult.emotion,
+            emotionReason: aiResult.emotionReason,
+          },
+        ],
+      };
+      await enqueueFeedbackJob({
+        conversationId: personaRunId,
+        conversation: terminationConversation,
+        scenario: scenarioObjRef,
+        persona,
+        language: userLanguage,
+        evaluationHarnessSnapshot: (scenarioRun as any).evaluationHarnessSnapshot,
+      });
       await storage.updatePersonaRun(personaRunId, {
         status: 'completed',
         completedAt: new Date(),
@@ -1652,6 +1720,65 @@ ${userNameLine}
       if (messages.length > 0) {
         completionUpdate.turnCount = turnCount;
       }
+      const scenarioRun = await storage.getScenarioRun(personaRun!.scenarioRunId);
+      let scenarioObj: any = null;
+      let persona: any = null;
+      const syntheticId = scenarioRun?.scenarioId || "";
+      if (scenarioRun && (
+        syntheticId === "__free_chat__" ||
+        syntheticId.startsWith("__mbti_persona__:") ||
+        syntheticId.startsWith("__user_persona__:")
+      )) {
+        const snapshot = (personaRun!.personaSnapshot as any) || {};
+        persona = syntheticId.startsWith("__user_persona__:")
+          ? {
+              ...snapshot,
+              id: snapshot.id || personaRun!.personaId,
+              name: snapshot.name || personaRun!.personaName || "Persona",
+              role: snapshot.role || "대화 상대",
+              personality: snapshot.personality || snapshot.rawPersonality || {},
+            }
+          : buildFreeChatPersona(snapshot);
+        scenarioObj = {
+          ...buildFreeChatScenario(snapshot, personaRun!.difficulty || scenarioRun.difficulty || 4),
+          id: syntheticId,
+          ...(syntheticId.startsWith("__user_persona__:")
+            ? { title: `${persona.name}와의 대화` }
+            : {}),
+          personas: [persona],
+        };
+      } else {
+        const liveScenario = scenarioRun && !(scenarioRun as any).scenarioSnapshot
+          ? (await fileManager.getAllScenarios()).find((scenario: any) => scenario.id === scenarioRun.scenarioId)
+          : null;
+        scenarioObj = scenarioRun ? resolveRuntimeScenario(scenarioRun as any, liveScenario) : null;
+        persona = scenarioObj
+          ? findRuntimePersona(scenarioObj, personaRun!.personaId) || scenarioObj.personas?.[0]
+          : null;
+      }
+      if (!scenarioRun || !scenarioObj || !persona) {
+        throw createHttpError(500, "Cannot queue feedback without the completed run snapshot");
+      }
+      const persistedMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
+      const user = await storage.getUser(userId);
+      await enqueueFeedbackJob({
+        conversationId: personaRunId,
+        conversation: {
+          messages: persistedMessages.map((msg: any) => ({
+            sender: msg.sender,
+            message: msg.message,
+            timestamp: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : msg.createdAt,
+            emotion: msg.emotion || undefined,
+            emotionReason: msg.emotionReason || undefined,
+            voiceTurnId: msg.voiceTurnId ?? undefined,
+            voiceTranscriptFinal: msg.voiceTranscriptFinal,
+          })),
+        },
+        scenario: scenarioObj,
+        persona,
+        language: (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko',
+        evaluationHarnessSnapshot: (scenarioRun as any).evaluationHarnessSnapshot,
+      });
       await storage.updatePersonaRun(personaRunId, completionUpdate);
       await checkAndCompleteScenario(personaRun!.scenarioRunId);
     } else {
@@ -1672,7 +1799,15 @@ ${userNameLine}
     const userId = req.user?.id;
     const personaRunId = req.params.id;
 
-    await verifyPersonaRunOwnership(personaRunId, userId);
+    const { personaRun } = await verifyPersonaRunOwnership(personaRunId, userId);
+
+    const reset = await resetFeedbackJob(personaRunId, {
+      status: personaRun!.feedbackStatus,
+      token: personaRun!.feedbackJobToken,
+    });
+    if (!reset) {
+      throw createHttpError(409, "Feedback state changed while resetting; retry the reset");
+    }
 
     await storage.deleteChatMessagesByPersonaRun(personaRunId);
 
@@ -1682,11 +1817,6 @@ ${userNameLine}
       completedAt: null,
       score: null
     });
-
-    const feedback = await storage.getFeedbackByConversationId(personaRunId);
-    if (feedback) {
-      await storage.deleteFeedback(feedback.id);
-    }
 
     res.json({ success: true, personaRun: updatedPersonaRun });
   }));
@@ -1825,19 +1955,23 @@ ${userNameLine}
     if (force) {
       const existingFeedback = await storage.getFeedbackByConversationId(personaRunId);
       if (existingFeedback) {
-        await storage.deleteFeedback(existingFeedback.id);
         console.log(`피드백 삭제 (재생성): ${personaRunId}`);
       }
-      clearGenerationError(personaRunId);
+      // Reset the durable state before enqueueing. This is intentionally done
+      // after deleting the report so force regeneration cannot short-circuit on
+      // the old completed state; job tokens fence any late previous worker.
+      const reset = await resetFeedbackJob(personaRunId, {
+        status: personaRun.feedbackStatus ?? null,
+        token: personaRun.feedbackJobToken ?? null,
+      });
+      if (!reset) {
+        throw createHttpError(409, "A newer feedback job already owns this conversation");
+      }
     } else {
       const existingFeedback = await storage.getFeedbackByConversationId(personaRunId);
       if (existingFeedback) {
-        return res.json(existingFeedback);
+        return res.json({ ...existingFeedback, status: "completed" });
       }
-    }
-
-    if (isGenerating(personaRunId)) {
-      return res.status(202).json({ status: "generating" });
     }
 
     const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
@@ -1871,15 +2005,8 @@ ${userNameLine}
     const user = await storage.getUser(userId);
     const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
 
-    markGenerating(personaRunId);
-    generateAndSaveFeedback(personaRunId, conversation, scenarioObj, persona, userLanguage, (scenarioRun as any).evaluationHarnessSnapshot)
-      .then(() => unmarkGenerating(personaRunId))
-      .catch((err: any) => {
-        console.error(`[feedback] Background generation failed for ${personaRunId}:`, err);
-        markGenerationError(personaRunId, err?.message || 'Unknown error');
-      });
-
-    res.status(202).json({ status: "generating" });
+    const job = await enqueueFeedbackJob({ conversationId: personaRunId, conversation, scenario: scenarioObj, persona, language: userLanguage, evaluationHarnessSnapshot: (scenarioRun as any).evaluationHarnessSnapshot });
+    res.status(202).json({ status: job.status });
   }));
 
   router.get("/:id/feedback", isAuthenticated, asyncHandler(async (req: any, res) => {
@@ -1901,16 +2028,12 @@ ${userNameLine}
 
     const feedback = await storage.getFeedbackByConversationId(personaRunId);
     if (!feedback) {
-      if (await isGeneratingWithDbFallback(personaRunId)) {
-        return res.json({ status: "generating" });
-      }
-      if (getGenerationError(personaRunId)) {
-        return res.json({ status: "error", message: "피드백 생성 중 오류가 발생했습니다. 다시 시도해 주세요." });
-      }
+      const job = await getFeedbackJobStatus(personaRunId);
+      if (job.status) return res.json({ status: job.status, error: job.error ?? undefined });
       throw createHttpError(404, "Feedback not found");
     }
 
-    res.json(feedback);
+    res.json({ ...feedback, status: "completed" });
   }));
 
   return router;

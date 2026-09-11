@@ -1,38 +1,33 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, X, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
-const FEEDBACK_KEY_PREFIX = "feedback_gen_start_";
-const POLL_INTERVAL_MS = 1500;
-
-function getInProgressIds(): string[] {
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(FEEDBACK_KEY_PREFIX)) {
-        keys.push(k.slice(FEEDBACK_KEY_PREFIX.length));
-      }
-    }
-    return keys;
-  } catch {
-    return [];
-  }
-}
+import { useQuery, useQueries } from "@tanstack/react-query";
+import { authFetchRaw } from "@/lib/authFetch";
+import { feedbackQueryKey, isFeedbackPending } from "@/lib/feedbackQuery";
 
 export function FeedbackGeneratingBanner() {
   const { t } = useTranslation();
   const [, navigate] = useLocation();
-  const [inProgressIds, setInProgressIds] = useState<string[]>(() => getInProgressIds());
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setInProgressIds(getInProgressIds());
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, []);
+  const { data: conversations = [] } = useQuery<any[]>({ queryKey: ["/api/conversations"] });
+  const feedbackQueries = useQueries({
+    queries: conversations.map(conversation => ({
+      queryKey: feedbackQueryKey(conversation.id),
+      enabled: !!conversation.id,
+      retry: false,
+      refetchInterval: (query: any) => isFeedbackPending(query.state.data as any) ? 3000 : false,
+      queryFn: async () => {
+        const response = await authFetchRaw(`/api/conversations/${conversation.id}/feedback`);
+        if (!response.ok) return { status: "expired" };
+        const value = await response.json();
+        return value?.status ? value : { status: "completed" };
+      },
+    })),
+  });
+  const inProgressIds = conversations
+    .filter((conversation, index) => isFeedbackPending(feedbackQueries[index]?.data as any))
+    .map(conversation => conversation.id);
 
   const visible = inProgressIds.filter(id => !dismissed.has(id));
 

@@ -1062,6 +1062,18 @@ export async function runMigrations(): Promise<void> {
         { table: 'persona_runs', column: 'termination_reason', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='termination_reason') THEN ALTER TABLE "persona_runs" ADD COLUMN "termination_reason" text; END IF; END $$;` },
         { table: 'persona_runs', column: 'feedback_status', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_status') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_status" varchar; END IF; END $$;` },
         { table: 'persona_runs', column: 'feedback_job_started_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_started_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_started_at" timestamp; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_queued_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_queued_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_queued_at" timestamp; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_completed_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_completed_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_completed_at" timestamp; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_error', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_error') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_error" text; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_expires_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_expires_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_expires_at" timestamp; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_job_token', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_token') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_token" varchar; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_worker_token', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_worker_token') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_worker_token" varchar; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_job_payload', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_job_payload') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_job_payload" jsonb; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_postprocess_status', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_postprocess_status') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_postprocess_status" varchar; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_postprocess_started_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_postprocess_started_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_postprocess_started_at" timestamp; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_postprocess_token', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_postprocess_token') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_postprocess_token" varchar; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_postprocess_attempts', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_postprocess_attempts') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_postprocess_attempts" integer NOT NULL DEFAULT 0; END IF; END $$;` },
+        { table: 'persona_runs', column: 'feedback_postprocess_next_retry_at', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='persona_runs' AND column_name='feedback_postprocess_next_retry_at') THEN ALTER TABLE "persona_runs" ADD COLUMN "feedback_postprocess_next_retry_at" timestamp; END IF; END $$;` },
         { table: 'scenarios', column: 'use_video_avatar', sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scenarios' AND column_name='use_video_avatar') THEN ALTER TABLE "scenarios" ADD COLUMN "use_video_avatar" boolean NOT NULL DEFAULT false; END IF; END $$;` },
         { table: 'scenarios', column: 'organization_id', sql: `ALTER TABLE "scenarios" ADD COLUMN IF NOT EXISTS "organization_id" varchar;` },
         { table: 'scenarios', column: 'contentx_package_id', sql: `ALTER TABLE "scenarios" ADD COLUMN IF NOT EXISTS "contentx_package_id" varchar;` },
@@ -1077,6 +1089,14 @@ export async function runMigrations(): Promise<void> {
         } catch (err) {
           console.warn(`⚠️ Failed to ensure ${patch.table}.${patch.column}:`, err);
         }
+      }
+      try {
+        await client.query(`UPDATE "persona_runs" SET "feedback_status" = 'expired', "feedback_error" = 'legacy_generating_job_missing_deadline' WHERE "feedback_status" = 'generating' AND "feedback_expires_at" IS NULL`);
+        await client.query(`DELETE FROM "feedbacks" a USING "feedbacks" b WHERE a."persona_run_id" IS NOT NULL AND a."persona_run_id" = b."persona_run_id" AND (a."created_at", a."id") > (b."created_at", b."id")`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS "idx_feedbacks_persona_run_id_unique" ON "feedbacks" ("persona_run_id")`);
+      } catch (err) {
+        console.error('❌ Failed to ensure unique feedback persona_run index:', err);
+        throw err;
       }
       console.log('✅ Critical column patches verified');
 
@@ -1595,6 +1615,13 @@ export async function runMigrations(): Promise<void> {
           );
           CREATE INDEX IF NOT EXISTS "idx_agent_webhook_deliveries_webhook" ON "agent_webhook_deliveries"("webhook_id");
           CREATE INDEX IF NOT EXISTS "idx_agent_webhook_deliveries_retry" ON "agent_webhook_deliveries"("next_retry_at");
+          DELETE FROM "agent_webhook_deliveries" a USING "agent_webhook_deliveries" b
+          WHERE a."webhook_id" = b."webhook_id"
+            AND a."delivery_id" = b."delivery_id"
+            AND a."attempt" = b."attempt"
+            AND (a."created_at", a."id") > (b."created_at", b."id");
+          CREATE UNIQUE INDEX IF NOT EXISTS "idx_agent_webhook_deliveries_claim"
+            ON "agent_webhook_deliveries" ("webhook_id", "delivery_id", "attempt");
 
           -- Add latency_ms column if not yet present (idempotent)
           DO $$ BEGIN

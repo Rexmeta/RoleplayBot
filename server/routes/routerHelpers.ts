@@ -256,11 +256,16 @@ export async function generateAndSaveFeedback(
   persona: any,
   userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko',
   evaluationHarnessSnapshot?: Record<string, any> | null,
+  assertActive?: () => Promise<boolean>,
+  persistFeedback?: (payload: any, existing?: boolean) => Promise<any>,
 ) {
+  const assertJobActive = async () => {
+    if (assertActive && !(await assertActive())) throw new Error('feedback_job_cancelled');
+  };
   const existingFeedback = await storage.getFeedbackByConversationId(conversationId);
   if (existingFeedback) {
     console.log(`피드백이 이미 존재함: ${conversationId}`);
-    return existingFeedback;
+    return persistFeedback ? persistFeedback(existingFeedback, true) : existingFeedback;
   }
 
   console.log(`피드백 생성 중: ${conversationId}`);
@@ -429,7 +434,8 @@ export async function generateAndSaveFeedback(
   // 평가 불가(insufficientConversation) 상태이면 점수 재계산 우회 — 상태 중심으로 저장
   if (feedbackData.insufficientConversation) {
     console.log(`⚠️ insufficientConversation=true — 점수 재계산 우회, 상태 중심 저장`);
-    const feedback = await storage.createFeedback({
+    await assertJobActive();
+    const payload = {
       personaRunId: conversationId,
       overallScore: null,
       confidence: feedbackData.confidence ?? null,
@@ -442,7 +448,8 @@ export async function generateAndSaveFeedback(
       modelSnapshot,
       criteriaSetVersion: evaluationCriteria?.version ?? null,
       scoreAdjustments: feedbackData.scoreAdjustments ?? null,
-    });
+    };
+    const feedback = persistFeedback ? await persistFeedback(payload) : await storage.createFeedback(payload);
     return feedback;
   }
 
@@ -636,17 +643,16 @@ export async function generateAndSaveFeedback(
           segments.push({ personaIndex: prevIdx, turnStart: sortedLog[sortedLog.length - 1].turn + 1, turnEnd: maxTurn });
         }
 
-        const segmentFeedbacks: any[] = [];
-        for (const seg of segments) {
+        const segmentFeedbacks = (await Promise.all(segments.map(async (seg) => {
           const segMsgs = dbMessages.filter((m: any) => {
             const ti = m.turnIndex ?? 0;
             return ti >= seg.turnStart && ti <= seg.turnEnd;
           });
           const segUserMsgs = segMsgs.filter((m: any) => m.sender === 'user');
-          if (segUserMsgs.length < scenarioMinValidTurns) continue;
+          if (segUserMsgs.length < scenarioMinValidTurns) return null;
 
           const segPersona = scenarioPersonas[seg.personaIndex];
-          if (!segPersona) continue;
+          if (!segPersona) return null;
 
           const segConvMessages = segMsgs.map((m: any) => ({
             sender: m.sender,
@@ -661,7 +667,7 @@ export async function generateAndSaveFeedback(
               { messages: segConvMessages }, evaluationCriteria, userLanguage
             );
             const segDurationMs = Date.now() - segStartMs;
-            segmentFeedbacks.push({
+            const result = {
               personaIndex: seg.personaIndex,
               personaName: segPersona.name,
               turnStart: seg.turnStart,
@@ -673,7 +679,7 @@ export async function generateAndSaveFeedback(
                 improvements: segFeedback.improvements ?? [],
                 nextSteps: segFeedback.nextSteps ?? [],
               },
-            });
+            };
             trackUsage({
               feature: 'feedback',
               model: feedbackModelName,
@@ -691,10 +697,12 @@ export async function generateAndSaveFeedback(
                 segmentUserMessages: segUserMsgs.length,
               },
             }).catch(() => {});
+            return result;
           } catch (segErr) {
             console.warn(`[generateAndSaveFeedback] Segment ${seg.personaIndex} feedback failed:`, segErr);
+            return null;
           }
-        }
+        }))).filter((item): item is NonNullable<typeof item> => item !== null);
 
         if (segmentFeedbacks.length > 0) {
           feedbackData.personaSegmentFeedbacks = segmentFeedbacks;
@@ -799,7 +807,8 @@ export async function generateAndSaveFeedback(
     console.warn('[generateAndSaveFeedback] metricSnapshot extraction failed:', e);
   }
 
-  const feedback = await storage.createFeedback({
+  await assertJobActive();
+  const payload = {
     personaRunId: conversationId,
     overallScore: savedOverallScore,
     confidence: finalConfidence,
@@ -813,34 +822,21 @@ export async function generateAndSaveFeedback(
     criteriaSetVersion: evaluationCriteria?.version ?? null,
     scoreAdjustments: feedbackData.scoreAdjustments ?? null,
     metricSnapshot,
-  });
-
-  // insufficient_data 판정 시 PersonaRun score를 업데이트하지 않음 (무점수 상태 유지)
-  if (!isInsufficientByConfidence) {
-    try {
-      const personaRun = await storage.getPersonaRun(conversationId);
-      if (personaRun) {
-        await storage.updatePersonaRun(conversationId, {
-          score: verifiedOverallScore
-        });
-        console.log(`✅ PersonaRun ${conversationId} score 업데이트: ${verifiedOverallScore}`);
-      }
-    } catch (error) {
-      console.warn(`PersonaRun score 업데이트 실패: ${error}`);
-    }
-  }
+  };
+  const feedback = persistFeedback ? await persistFeedback(payload) : await storage.createFeedback(payload);
 
   console.log(`피드백 자동 생성 완료: ${conversationId}`);
-
-  performStrategicAnalysis(conversationId, conversation, scenarioObj, userLanguage)
-    .catch(error => {
-      console.error("전략 분석 오류 (무시):", error);
-    });
 
   return feedback;
 }
 
-export async function performStrategicAnalysis(conversationId: string, conversation: any, scenarioObj: any, userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko') {
+export async function performStrategicAnalysis(
+  conversationId: string,
+  conversation: any,
+  scenarioObj: any,
+  userLanguage: 'ko' | 'en' | 'ja' | 'zh' = 'ko',
+  persistAnalysis?: (analysis: any) => Promise<any>,
+) {
   try {
     const strategyChoices = await storage.getStrategyChoices(conversationId);
     if (!strategyChoices || strategyChoices.length === 0) {
@@ -869,7 +865,7 @@ export async function performStrategicAnalysis(conversationId: string, conversat
       userLanguage
     );
 
-    await storage.saveSequenceAnalysis(conversationId, {
+    const analysis = {
       strategicScore: reflectionData.strategicScore,
       strategicRationale: reflectionData.strategicRationale,
       sequenceEffectiveness: reflectionData.sequenceEffectiveness,
@@ -877,9 +873,12 @@ export async function performStrategicAnalysis(conversationId: string, conversat
       strategicInsights: reflectionData.strategicInsights,
       strengths: reflectionData.strengths,
       improvements: reflectionData.improvements,
-    });
+    };
+    if (persistAnalysis) await persistAnalysis(analysis);
+    else await storage.saveSequenceAnalysis(conversationId, analysis);
   } catch (error) {
     console.error("전략 분석 실패:", error);
+    if (persistAnalysis) throw error;
   }
 }
 

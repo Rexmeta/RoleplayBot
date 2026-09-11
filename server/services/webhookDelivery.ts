@@ -21,7 +21,7 @@ import {
 } from "crypto";
 import { db } from "../storage";
 import { agentWebhooks, agentWebhookDeliveries } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNotNull, lte } from "drizzle-orm";
 
 export type WebhookEventType = "session.ended" | "session.expired" | "feedback.completed" | "agent_key.low_token_rate";
 
@@ -165,8 +165,9 @@ async function deliverWithRetry(
   event: WebhookEventType,
   payload: Record<string, any>,
   deliveryId: string,
-  attempt: number = 1
-): Promise<void> {
+  attempt: number = 1,
+  scheduleRetries: boolean = true,
+): Promise<boolean> {
   const rawBody = JSON.stringify(payload);
 
   // Decrypt stored ciphertext to get plaintext secret for HMAC signing
@@ -175,7 +176,7 @@ async function deliverWithRetry(
     plaintextSecret = decryptWebhookSecret(webhook.secretKey);
   } catch (err) {
     console.error(`[webhookDelivery] Cannot decrypt secret for webhook ${webhook.id} — skipping`, err);
-    return;
+    return false;
   }
   const signature = signPayload(rawBody, plaintextSecret);
 
@@ -187,13 +188,77 @@ async function deliverWithRetry(
 
   await logDelivery(webhook.id, deliveryId, event, payload, statusCode || null, latencyMs, attempt, ok, nextRetryAt);
 
-  if (!ok && hasMoreAttempts) {
+  if (!ok && hasMoreAttempts && scheduleRetries) {
     const delay = RETRY_DELAYS_MS[attempt - 1] ?? 30_000;
     setTimeout(() => {
       deliverWithRetry(webhook, event, payload, deliveryId, attempt + 1).catch((err) => {
         console.warn(`[webhookDelivery] Retry ${attempt + 1} error for ${webhook.id}:`, err);
       });
     }, delay);
+  }
+  return ok;
+}
+
+const DETERMINISTIC_CLAIM_LEASE_MS = 15_000;
+const DETERMINISTIC_RETRY_MS = 30_000;
+
+async function deliverDeterministic(
+  webhook: { id: string; url: string; secretKey: string },
+  event: WebhookEventType,
+  payload: Record<string, any>,
+  deliveryId: string,
+): Promise<boolean> {
+  while (true) {
+    const [succeeded] = await db.select({ id: agentWebhookDeliveries.id })
+      .from(agentWebhookDeliveries)
+      .where(and(
+        eq(agentWebhookDeliveries.webhookId, webhook.id),
+        eq(agentWebhookDeliveries.deliveryId, deliveryId),
+        isNotNull(agentWebhookDeliveries.succeededAt),
+      )).limit(1);
+    if (succeeded) return true;
+
+    const leaseToken = randomUUID();
+    const leaseExpiresAt = new Date(Date.now() + DETERMINISTIC_CLAIM_LEASE_MS);
+    const [inserted] = await db.insert(agentWebhookDeliveries).values({
+      webhookId: webhook.id,
+      deliveryId,
+      event,
+      payload,
+      attempt: 0,
+      nextRetryAt: leaseExpiresAt,
+    }).onConflictDoNothing({
+      target: [
+        agentWebhookDeliveries.webhookId,
+        agentWebhookDeliveries.deliveryId,
+        agentWebhookDeliveries.attempt,
+      ],
+    }).returning({ id: agentWebhookDeliveries.id });
+
+    let claimId = inserted?.id;
+    if (!claimId) {
+      const [reclaimed] = await db.update(agentWebhookDeliveries).set({
+        payload: { ...payload, leaseToken },
+        nextRetryAt: leaseExpiresAt,
+      }).where(and(
+        eq(agentWebhookDeliveries.webhookId, webhook.id),
+        eq(agentWebhookDeliveries.deliveryId, deliveryId),
+        eq(agentWebhookDeliveries.attempt, 0),
+        lte(agentWebhookDeliveries.nextRetryAt, new Date()),
+      )).returning({ id: agentWebhookDeliveries.id });
+      claimId = reclaimed?.id;
+    }
+    if (!claimId) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      continue;
+    }
+
+    const ok = await deliverWithRetry(webhook, event, payload, deliveryId, 1, false);
+    await db.update(agentWebhookDeliveries).set({
+      succeededAt: ok ? new Date() : null,
+      nextRetryAt: ok ? null : new Date(Date.now() + DETERMINISTIC_RETRY_MS),
+    }).where(eq(agentWebhookDeliveries.id, claimId));
+    return ok;
   }
 }
 
@@ -279,8 +344,9 @@ export async function fireTestWebhook(
 export async function dispatchWebhook(
   agentKeyId: string,
   event: WebhookEventType,
-  data: WebhookEventData
-): Promise<void> {
+  data: WebhookEventData,
+  options?: { deliveryId?: string },
+): Promise<boolean> {
   let webhooks: { id: string; url: string; secretKey: string; events: string[] }[];
 
   try {
@@ -295,13 +361,13 @@ export async function dispatchWebhook(
       .where(and(eq(agentWebhooks.agentKeyId, agentKeyId), eq(agentWebhooks.isActive, true)));
   } catch (err) {
     console.warn("[webhookDelivery] Failed to fetch webhooks:", err);
-    return;
+    return false;
   }
 
   const matching = webhooks.filter((w) => w.events.includes(event));
-  if (matching.length === 0) return;
+  if (matching.length === 0) return true;
 
-  const deliveryId = `wdl_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+  const deliveryId = options?.deliveryId ?? `wdl_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
   const payload = {
     event,
     deliveryId,
@@ -310,8 +376,13 @@ export async function dispatchWebhook(
   };
 
   for (const webhook of matching) {
-    deliverWithRetry(webhook, event, payload, deliveryId).catch((err) => {
-      console.warn(`[webhookDelivery] Fire error for webhook ${webhook.id}:`, err);
-    });
+    if (options?.deliveryId) {
+      if (!(await deliverDeterministic(webhook, event, payload, deliveryId))) return false;
+    } else {
+      deliverWithRetry(webhook, event, payload, deliveryId).catch((err) => {
+        console.warn(`[webhookDelivery] Fire error for webhook ${webhook.id}:`, err);
+      });
+    }
   }
+  return true;
 }

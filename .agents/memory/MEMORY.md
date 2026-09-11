@@ -19,3 +19,4 @@
 - [Voice transcript finality](voice-transcript-finality.md) — 바지인·재연결·종료 flush는 provisional; provider completion만 immutable final로 승격
 - [Realtime voice turn finalization](realtime-voice-turn-finalization.md) — 로컬 VAD가 무음 전송을 끊으면 짧은 tail 뒤 명시적 EOT 필수; 재보정은 발화 epoch가 바뀌면 폐기
 - [Published runtime snapshots](published-runtime-snapshots.md) — 실행 중 scenario/persona/harness/rubric은 run에 바인딩된 snapshot만 사용; imported rubric 누락 시 live fallback 금지
+- [Durable feedback jobs](durable-feedback-jobs.md) — 완료 응답 전에 DB 작업 등록; claim과 publish를 token-fence하고 리포트 저장+completed 전환은 한 트랜잭션
