@@ -58,10 +58,6 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     try {
       setIsLoading(true);
       await login(data.email, data.password, data.rememberMe);
-      toast({
-        title: t('auth.loginSuccess'),
-        description: t('auth.welcomeBack'),
-      });
     } catch (error: any) {
       console.error("Login error:", error);
       toast({
@@ -80,10 +76,6 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       const result = await guestLogin();
       
       if (result.success) {
-        toast({
-          title: t('auth.guestLoginSuccess'),
-          description: t('auth.guestWelcome'),
-        });
         setLocation('/');
       } else if (result.demoCompleted) {
         toast({
