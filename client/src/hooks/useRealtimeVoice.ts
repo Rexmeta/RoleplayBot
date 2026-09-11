@@ -14,7 +14,7 @@ const VAD_ENTRY_MIN = 0.06;
 const RECALIBRATION_SILENCE_INTERVAL_MS = 30_000;
 const RECALIBRATION_COOLDOWN_MS = 10_000;
 const BARGE_IN_PREROLL_MS = 350;
-const PROVIDER_VAD_TRAILING_SILENCE_MS = 800;
+const PROVIDER_VAD_TRAILING_SILENCE_MS = 650;
 
 const VAD_SENSITIVITY_KEY = 'vad_sensitivity';
 // 0 = auto (noise-floor only), 1-5 = manual levels; default is now auto.
@@ -248,6 +248,8 @@ export function useRealtimeVoice({
   const statusRef = useRef<RealtimeVoiceStatus>('disconnected');
   const userSpeechSeqRef = useRef(0);
   const activeSpeechSeqRef = useRef(0);
+  const lastCommittedSpeechSeqRef = useRef(0);
+  const voiceActivityEpochRef = useRef(0);
   const captureGenerationRef = useRef(1);
   const bargeInPrerollRef = useRef<Array<{ audio: string; samples: number; diagnostics: Record<string, number> }>>([]);
   const bargeInPrerollSamplesRef = useRef(0);
@@ -652,6 +654,14 @@ export function useRealtimeVoice({
                   break;
                 }
                 if (metadata.final && metadata.turnId) finalizedUserTurnIdsRef.current.add(metadata.turnId);
+                if (metadata.final && activeSpeechSeqRef.current > 0) {
+                  lastCommittedSpeechSeqRef.current = activeSpeechSeqRef.current;
+                  activeSpeechSeqRef.current = 0;
+                  if (voiceTailTimerRef.current) {
+                    clearTimeout(voiceTailTimerRef.current);
+                    voiceTailTimerRef.current = null;
+                  }
+                }
                 if (onUserTranscriptionRef.current) {
                   onUserTranscriptionRef.current(data.transcript, metadata);
                 }
@@ -728,6 +738,11 @@ export function useRealtimeVoice({
                 if (isInterruptedRef.current) {
                   console.log(`🔇 Dropping in-flight audio after barge-in (turnSeq ${data.turnSeq})`);
                   break;
+                }
+                if (voiceTailTimerRef.current) {
+                  clearTimeout(voiceTailTimerRef.current);
+                  voiceTailTimerRef.current = null;
+                  activeSpeechSeqRef.current = 0;
                 }
                 if (!aiSpeakingCallbackFiredRef.current) {
                   aiSpeakingCallbackFiredRef.current = true;
@@ -1142,6 +1157,14 @@ export function useRealtimeVoice({
   const recalibrateNoiseFloor = useCallback(async () => {
     const stream = micStreamRef.current;
     if (!stream) return;
+    if (
+      activeSpeechSeqRef.current !== 0 ||
+      voiceActivityStartRef.current !== null ||
+      isActuallyPlayingRef.current
+    ) {
+      console.log('🎙️ Noise floor re-calibration skipped (voice or playback active)');
+      return;
+    }
 
     const now = Date.now();
     if (now - lastRecalibrationRef.current < RECALIBRATION_COOLDOWN_MS) {
@@ -1149,12 +1172,26 @@ export function useRealtimeVoice({
       return;
     }
 
+    const activityEpochAtStart = voiceActivityEpochRef.current;
+    const captureGenerationAtStart = captureGenerationRef.current;
     console.log('🎙️ Starting background noise floor re-measurement...');
     let noiseFloor: number;
     try {
       noiseFloor = await measureNoiseFloor(stream);
     } catch (err) {
       console.warn('⚠️ Noise floor re-measurement failed:', err);
+      return;
+    }
+
+    if (
+      micStreamRef.current !== stream ||
+      captureGenerationRef.current !== captureGenerationAtStart ||
+      voiceActivityEpochRef.current !== activityEpochAtStart ||
+      activeSpeechSeqRef.current !== 0 ||
+      voiceActivityStartRef.current !== null ||
+      isActuallyPlayingRef.current
+    ) {
+      console.log('🎙️ Discarding noise floor measurement contaminated by voice, playback, or capture change');
       return;
     }
 
@@ -1306,6 +1343,7 @@ export function useRealtimeVoice({
           flushPreroll(speechSeq);
         },
         onVoiceStart: (duringPlayback) => {
+          voiceActivityEpochRef.current++;
           if (duringPlayback) return;
           if (voiceTailTimerRef.current) {
             clearTimeout(voiceTailTimerRef.current);
@@ -1325,7 +1363,22 @@ export function useRealtimeVoice({
         },
         onVoiceEnd: () => {
           if (voiceTailTimerRef.current) clearTimeout(voiceTailTimerRef.current);
+          const endingSpeechSeq = activeSpeechSeqRef.current;
           voiceTailTimerRef.current = setTimeout(() => {
+            if (
+              endingSpeechSeq > 0 &&
+              activeSpeechSeqRef.current === endingSpeechSeq &&
+              lastCommittedSpeechSeqRef.current !== endingSpeechSeq &&
+              wsRef.current?.readyState === WebSocket.OPEN
+            ) {
+              lastCommittedSpeechSeqRef.current = endingSpeechSeq;
+              wsRef.current.send(JSON.stringify({
+                type: 'input_audio_buffer.commit',
+                speechSeq: endingSpeechSeq,
+                captureGeneration: captureGenerationRef.current,
+              }));
+              console.log(`[voice-latency] committed user turn after ${PROVIDER_VAD_TRAILING_SILENCE_MS}ms silence (speechSeq=${endingSpeechSeq})`);
+            }
             activeSpeechSeqRef.current = 0;
             voiceTailTimerRef.current = null;
           }, PROVIDER_VAD_TRAILING_SILENCE_MS);
@@ -1393,6 +1446,8 @@ export function useRealtimeVoice({
       recalibrationTimerRef.current = setInterval(() => {
         if (!isRecordingRef.current) return;
         if (voiceActivityStartRef.current !== null) return;
+        if (activeSpeechSeqRef.current !== 0) return;
+        if (isActuallyPlayingRef.current) return;
         console.log('🎙️ Periodic noise floor re-calibration (30s silence interval)');
         recalibrateNoiseFloor();
       }, RECALIBRATION_SILENCE_INTERVAL_MS);

@@ -163,13 +163,15 @@ export function handleClientMessage(
         break;
       }
       const audioLength = message.audio ? message.audio.length : 0;
-      console.log('[voice-audio]', JSON.stringify({
-        captureGeneration: message.captureGeneration,
-        speechSeq: message.speechSeq,
-        base64Length: audioLength,
-        preRoll: message.preRoll === true,
-        ...(message.diagnostics ?? {}),
-      }));
+      if (message.preRoll === true || (message.diagnostics?.clippedSamples ?? 0) > 0) {
+        console.log('[voice-audio]', JSON.stringify({
+          captureGeneration: message.captureGeneration,
+          speechSeq: message.speechSeq,
+          base64Length: audioLength,
+          preRoll: message.preRoll === true,
+          ...(message.diagnostics ?? {}),
+        }));
+      }
       // Fix 3: Conditional suppress-flag clearing on user audio arrival.
       // If suppressedTurnStarted=true, Gemini is actively streaming audio for an
       // unsolicited turn — do NOT clear the flag yet; wait for that turn's turnComplete.
@@ -188,7 +190,7 @@ export function handleClientMessage(
     }
 
     case 'input_audio_buffer.commit':
-      console.log('📤 User stopped recording, sending END_OF_TURN event');
+      console.log('[voice-latency] User turn commit received; forwarding END_OF_TURN');
       // Fix 1: Record when we send END_OF_TURN via the audio commit path so that a
       // subsequent response.create (which also sends END_OF_TURN) can be suppressed
       // within the dedup window and prevent OpenAI from receiving a double response.create.
