@@ -1235,6 +1235,71 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       expect(session.pendingGeminiProvisionalTranscript).toBeNull();
     });
 
+    it('drops delayed audio from an older capture generation or speech sequence', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession,
+        currentClientCaptureGeneration: 3,
+        currentClientSpeechSeq: 8,
+      });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, {
+        type: 'input_audio_buffer.append',
+        audio: 'stale',
+        captureGeneration: 2,
+        speechSeq: 8,
+      }, sessions, sendToClient);
+      handleClientMessage(session.id, {
+        type: 'input_audio_buffer.append',
+        audio: 'wrong-turn',
+        captureGeneration: 3,
+        speechSeq: 7,
+      }, sessions, sendToClient);
+
+      expect(geminiSession.sendRealtimeInput).not.toHaveBeenCalled();
+      expect(session.pendingMessages).toHaveLength(0);
+    });
+
+    it('does not let a stale speech-start event replace the current speech sequence', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession,
+        currentClientCaptureGeneration: 4,
+        currentClientSpeechSeq: 12,
+      });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, {
+        type: 'client.user_speech.started',
+        captureGeneration: 3,
+        speechSeq: 99,
+      }, sessions, sendToClient);
+
+      expect(session.currentClientCaptureGeneration).toBe(4);
+      expect(session.currentClientSpeechSeq).toBe(12);
+    });
+
+    it('accepts matching pre-roll audio for the current physical utterance', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        geminiSession,
+        currentClientCaptureGeneration: 3,
+        currentClientSpeechSeq: 8,
+      });
+      const sessions = new Map([[session.id, session]]);
+
+      handleClientMessage(session.id, {
+        type: 'input_audio_buffer.append',
+        audio: 'preroll',
+        captureGeneration: 3,
+        speechSeq: 8,
+        preRoll: true,
+      }, sessions, sendToClient);
+
+      expect(geminiSession.sendRealtimeInput).toHaveBeenCalledOnce();
+    });
+
     it('duplicate cancel does not increment turnSeq', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({ geminiSession, isInterrupted: true, turnSeq: 5 });

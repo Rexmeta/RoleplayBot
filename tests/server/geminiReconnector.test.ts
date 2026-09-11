@@ -199,6 +199,28 @@ describe('handleGeminiClose', () => {
       );
     });
 
+    it('preserves a buffered partial transcript as provisional before reset', async () => {
+      session.userTranscriptBuffer = '부분 발화 원문';
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage,
+      );
+      await vi.runAllTimersAsync();
+
+      expect(sendToClient).toHaveBeenCalledWith(session, expect.objectContaining({
+        type: 'user.transcription',
+        transcript: '부분 발화 원문',
+        final: false,
+        source: 'gemini.reconnect_flush',
+      }));
+      expect(session.userTranscriptBuffer).toBe('');
+    });
+
     it('resets reconnectAttempts to 0 after successful reconnect', async () => {
       handleGeminiClose(
         { code: 1006, reason: 'Abnormal closure' },
@@ -308,6 +330,31 @@ describe('handleGeminiClose', () => {
   });
 
   describe('max reconnect attempts exceeded', () => {
+    it('preserves a buffered partial exactly once before all retries fail', async () => {
+      session.userTranscriptBuffer = '재연결 실패 전 부분 발화';
+      connectToGemini.mockRejectedValue(new Error('Connection failed'));
+
+      handleGeminiClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToGemini,
+        trackSessionUsage,
+      );
+      await vi.runAllTimersAsync();
+
+      const flushes = sendToClient.mock.calls.filter(([, message]) =>
+        message.type === 'user.transcription' &&
+        message.source === 'gemini.reconnect_flush'
+      );
+      expect(flushes).toHaveLength(1);
+      expect(flushes[0][1]).toMatchObject({
+        transcript: '재연결 실패 전 부분 발화',
+        final: false,
+      });
+    });
+
     it('sends irrecoverable error and cleans up after 5 failures', async () => {
       session.reconnectAttempts = 0;
       connectToGemini.mockRejectedValue(new Error('Connection failed'));

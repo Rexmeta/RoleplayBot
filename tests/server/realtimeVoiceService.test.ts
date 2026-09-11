@@ -865,6 +865,40 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       expect(newGeminiSession.sendRealtimeInput).not.toHaveBeenCalled();
     });
 
+    it('does not replay raw microphone audio into a new provider generation', async () => {
+      session.pendingMessages = [{
+        index: 1,
+        payload: {
+          type: 'realtimeInput',
+          data: { audio: { data: 'old-audio', mimeType: 'audio/pcm;rate=16000' } },
+        },
+      }];
+      session.geminiSession = { sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() };
+
+      await (service as any).proactiveReconnect(session);
+
+      expect(newGeminiSession.sendRealtimeInput).not.toHaveBeenCalled();
+    });
+
+    it('advances capture generation before awaiting the replacement provider', async () => {
+      session.currentClientCaptureGeneration = 5;
+      session.currentClientSpeechSeq = 9;
+      session.geminiSession = { sendClientContent: vi.fn(), sendRealtimeInput: vi.fn(), close: vi.fn() };
+      let generationSeenDuringConnect: number | undefined;
+      mockLiveConnect.mockImplementation(async () => {
+        generationSeenDuringConnect = session.currentClientCaptureGeneration;
+        return newGeminiSession;
+      });
+
+      await (service as any).proactiveReconnect(session);
+
+      expect(generationSeenDuringConnect).toBe(6);
+      expect(session.currentClientSpeechSeq).toBeNull();
+      expect(session.clientWs.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: 'session.reconnected', captureGeneration: 6 }),
+      );
+    });
+
     it('preserves non-greeting pending messages while filtering greeting + EOT on proactiveReconnect', async () => {
       const greetingPayload = { turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }], turnComplete: true };
       const eotPayload = { event: 'END_OF_TURN' };

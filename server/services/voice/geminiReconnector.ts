@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { RealtimeSession } from './types';
 import { buildReconnectSystemInstructions } from './systemPromptBuilder';
+import { finalizeUserTranscript } from './transcriptionIntegrity';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
 type ConnectToGemini = (session: RealtimeSession, systemInstructions: string, gender: 'male' | 'female') => Promise<void>;
@@ -69,6 +70,13 @@ export function handleGeminiClose(
 
   if (canReconnect) {
     const sessionId = session.id;
+    if (session.userTranscriptBuffer.trim()) {
+      finalizeUserTranscript(session, session.userTranscriptBuffer, sendToClient, {
+        provider: 'gemini',
+        source: 'gemini.reconnect_flush',
+        final: false,
+      });
+    }
 
     const attemptReconnect = (attemptNumber: number) => {
       const currentSession = sessions.get(sessionId);
@@ -85,6 +93,11 @@ export function handleGeminiClose(
 
       currentSession.isReconnecting = true;
       currentSession.reconnectAttempts = attemptNumber;
+      if (attemptNumber === 1) {
+        currentSession.currentClientCaptureGeneration =
+          (currentSession.currentClientCaptureGeneration ?? 0) + 1;
+        currentSession.currentClientSpeechSeq = null;
+      }
       console.log(`🔄 자동 재연결 시도 ${attemptNumber}/${MAX_RECONNECT_ATTEMPTS}...`);
 
       sendToClient(currentSession, {
@@ -117,8 +130,14 @@ export function handleGeminiClose(
             sess.currentTranscript = '';
             sess.usingReconnectInstructions = true;
             sess.userSpeechStarted = false;
+            sess.userTranscriptBuffer = '';
+            sess.activeUserTranscriptTurnId = null;
+            sess.activeUserTranscriptProviderEventId = null;
             console.log(`✅ Gemini 재연결 성공!`);
-            sendToClient(sess, { type: 'session.reconnected' });
+            sendToClient(sess, {
+              type: 'session.reconnected',
+              captureGeneration: sess.currentClientCaptureGeneration,
+            });
 
             if (sess.geminiSession) {
               if (sess.pendingMessages.length > 0) {
@@ -131,10 +150,13 @@ export function handleGeminiClose(
                 const isEndOfTurnInput = (msg: any) =>
                   msg.payload.type === 'realtimeInput' &&
                   msg.payload.data?.event === 'END_OF_TURN';
+                  const isRawAudio = (msg: any) =>
+                    msg.payload.type === 'realtimeInput' && !!msg.payload.data?.audio;
 
                 const filtered: typeof sess.pendingMessages = [];
                 let skipNextEot = false;
                 for (const msg of sess.pendingMessages) {
+                    if (isRawAudio(msg)) continue;
                   if (skipNextEot) {
                     skipNextEot = false;
                     if (isEndOfTurnInput(msg)) continue;

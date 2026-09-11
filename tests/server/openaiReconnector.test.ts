@@ -308,6 +308,28 @@ describe('handleOpenAIClose', () => {
       );
     });
 
+    it('preserves a buffered partial transcript as provisional before reset', async () => {
+      session.userTranscriptBuffer = 'partial provider text';
+
+      handleOpenAIClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToOpenAI,
+        trackSessionUsage,
+      );
+      await vi.runAllTimersAsync();
+
+      expect(sendToClient).toHaveBeenCalledWith(session, expect.objectContaining({
+        type: 'user.transcription',
+        transcript: 'partial provider text',
+        final: false,
+        source: 'openai.reconnect_flush',
+      }));
+      expect(session.userTranscriptBuffer).toBe('');
+    });
+
     it('resets reconnectAttempts and isReconnecting after successful reconnect', async () => {
       handleOpenAIClose(
         { code: 1006, reason: 'Abnormal closure' },
@@ -416,6 +438,33 @@ describe('handleOpenAIClose', () => {
         session,
         expect.objectContaining({ type: 'session.reconnected' })
       );
+    });
+  });
+
+  describe('reconnect exhaustion transcript preservation', () => {
+    it('preserves a buffered partial exactly once before all retries fail', async () => {
+      session.userTranscriptBuffer = 'partial before reconnect failure';
+      connectToOpenAI.mockRejectedValue(new Error('Connection failed'));
+
+      handleOpenAIClose(
+        { code: 1006, reason: 'Abnormal closure' },
+        session,
+        sessions,
+        sendToClient,
+        connectToOpenAI,
+        trackSessionUsage,
+      );
+      await vi.runAllTimersAsync();
+
+      const flushes = sendToClient.mock.calls.filter(([, message]) =>
+        message.type === 'user.transcription' &&
+        message.source === 'openai.reconnect_flush'
+      );
+      expect(flushes).toHaveLength(1);
+      expect(flushes[0][1]).toMatchObject({
+        transcript: 'partial before reconnect failure',
+        final: false,
+      });
     });
   });
 
@@ -763,7 +812,7 @@ describe('handleOpenAIClose', () => {
       expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledWith(realPayload);
     });
 
-    it('filters standalone END_OF_TURN messages (not just greeting-paired) from replay to prevent duplicate responses', async () => {
+    it('filters raw audio and standalone END_OF_TURN messages from replay', async () => {
       // Simulates: user finished speaking (input_audio_buffer.commit sent
       // END_OF_TURN), OpenAI may have already started/finished generating a
       // response, then the connection dropped before reconnect. On reconnect,
@@ -794,9 +843,9 @@ describe('handleOpenAIClose', () => {
 
       await vi.runAllTimersAsync();
 
-      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledWith(audioChunkPayload);
+      expect(mockGeminiSession.sendRealtimeInput).not.toHaveBeenCalledWith(audioChunkPayload);
       expect(mockGeminiSession.sendRealtimeInput).not.toHaveBeenCalledWith(eotPayload);
-      expect(mockGeminiSession.sendRealtimeInput).toHaveBeenCalledTimes(1);
+      expect(mockGeminiSession.sendRealtimeInput).not.toHaveBeenCalled();
     });
 
     it('resets lastAudioCommitSentAt and lastClientContentSentAt on successful reconnect', async () => {

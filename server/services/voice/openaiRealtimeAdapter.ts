@@ -70,7 +70,8 @@ function resample16kTo24k(inputBase64: string): string {
 
 export function createMessageHandler(
   session: RealtimeSession,
-  sendToClient: SendToClient
+  sendToClient: SendToClient,
+  providerGeneration?: number,
 ) {
   let aiTranscriptBuffer = '';
   let sessionReadySent = false;
@@ -79,6 +80,13 @@ export function createMessageHandler(
   let latestUserAffect: import('./emotionAnalyzer').UserAffectState = { ...NEUTRAL_USER_AFFECT };
 
   return function handleMessage(msg: any): void {
+    if (
+      providerGeneration != null &&
+      session.providerConnectionGeneration !== providerGeneration
+    ) {
+      console.log(`[voice-provider-drop] stale OpenAI event generation=${providerGeneration}`);
+      return;
+    }
     session.lastActivityTime = Date.now();
 
     switch (msg.type) {
@@ -411,6 +419,8 @@ export function connectOpenAIRealtime(
   onClose: (event: { code: number; reason: string }) => void
 ): Promise<OpenAIRealtimeSessionAdapter> {
   return new Promise((resolve, reject) => {
+    const providerGeneration = (session.providerConnectionGeneration ?? 0) + 1;
+    session.providerConnectionGeneration = providerGeneration;
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
       return reject(new Error('OPENAI_API_KEY is not set'));
@@ -437,7 +447,7 @@ export function connectOpenAIRealtime(
       }
     }, 15000);
 
-    const handleMessage = createMessageHandler(session, sendToClient);
+    const handleMessage = createMessageHandler(session, sendToClient, providerGeneration);
 
     function sendToOpenAI(message: any): void {
       if (ws.readyState === WebSocket.OPEN) {

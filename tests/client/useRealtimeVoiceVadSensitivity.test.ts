@@ -5,6 +5,7 @@ import { renderHook, act } from '@testing-library/react';
 const VAD_SENSITIVITY_KEY = 'vad_sensitivity';
 // 0 = 자동(권장) — 노이즈 플로어 측정 기반. 1-5 = 수동 레벨.
 const VAD_SENSITIVITY_DEFAULT = 0;
+const { mockResetVAD } = vi.hoisted(() => ({ mockResetVAD: vi.fn() }));
 
 vi.mock('../../client/src/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
@@ -67,6 +68,7 @@ vi.mock('../../client/src/hooks/useVoiceActivityDetection', () => ({
     userAudioAmplitude: 0,
     setupVAD: vi.fn(),
     updateThresholds: vi.fn(),
+    resetVAD: mockResetVAD,
   }),
 }));
 
@@ -79,6 +81,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 class MockWebSocket {
+  static instances: MockWebSocket[] = [];
   static OPEN = 1;
   static CLOSING = 2;
   static CLOSED = 3;
@@ -89,6 +92,9 @@ class MockWebSocket {
   onerror: ((e: any) => void) | null = null;
   send = vi.fn();
   close = vi.fn();
+  constructor() {
+    MockWebSocket.instances.push(this);
+  }
 }
 (globalThis as any).WebSocket = MockWebSocket;
 (globalThis as any).WebSocket.OPEN = 1;
@@ -110,6 +116,8 @@ function buildProps(overrides: Record<string, unknown> = {}) {
 describe('useRealtimeVoice — VAD sensitivity localStorage persistence', () => {
   beforeEach(() => {
     localStorage.clear();
+    MockWebSocket.instances = [];
+    mockResetVAD.mockClear();
   });
 
   afterEach(() => {
@@ -234,6 +242,21 @@ describe('useRealtimeVoice — VAD sensitivity localStorage persistence', () => 
 
     const second = renderHook(() => useRealtimeVoice(buildProps()));
     expect(second.result.current.vadSensitivity).toBe(1);
+  });
+
+  it('invalidates the active capture lifetime immediately when the client WebSocket closes', async () => {
+    localStorage.setItem('authToken', 'test-token');
+    const { result } = renderHook(() => useRealtimeVoice(buildProps()));
+
+    await result.current.connect();
+    const socket = MockWebSocket.instances.at(-1)!;
+
+    await act(async () => {
+      socket.onclose?.({ code: 1006, reason: 'network lost' });
+    });
+
+    expect(mockResetVAD).toHaveBeenCalledOnce();
+    expect(result.current.isRecording).toBe(false);
   });
 
   it('an auto-mode (0) choice survives remount', () => {

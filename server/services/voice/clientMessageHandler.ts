@@ -98,7 +98,39 @@ export function handleClientMessage(
 
   switch (message.type) {
     case 'client.user_speech.started': {
-      if (Number.isInteger(message.speechSeq) && message.speechSeq > 0) {
+      if (
+        session.currentClientCaptureGeneration != null &&
+        (
+          !Number.isInteger(message.captureGeneration) ||
+          message.captureGeneration < session.currentClientCaptureGeneration
+        )
+      ) {
+        console.log('[voice-speech-drop]', JSON.stringify({
+          reason: 'stale-generation',
+          captureGeneration: message.captureGeneration ?? null,
+          speechSeq: message.speechSeq ?? null,
+        }));
+        break;
+      }
+      if (
+        Number.isInteger(message.captureGeneration) &&
+        message.captureGeneration >= (session.currentClientCaptureGeneration ?? 0)
+      ) {
+        if (message.captureGeneration > (session.currentClientCaptureGeneration ?? 0)) {
+          session.userTranscriptBuffer = '';
+          session.activeUserTranscriptTurnId = null;
+          session.activeUserTranscriptProviderEventId = null;
+        }
+        session.currentClientCaptureGeneration = message.captureGeneration;
+      }
+      if (
+        Number.isInteger(message.speechSeq) &&
+        message.speechSeq > 0 &&
+        (
+          session.currentClientSpeechSeq == null ||
+          message.speechSeq >= session.currentClientSpeechSeq
+        )
+      ) {
         session.currentClientSpeechSeq = message.speechSeq;
         if (
           session.pendingGeminiProvisionalSpeechSeq != null &&
@@ -115,8 +147,29 @@ export function handleClientMessage(
     }
 
     case 'input_audio_buffer.append': {
+      const hasBoundaryMetadata =
+        Number.isInteger(message.captureGeneration) && Number.isInteger(message.speechSeq);
+      const boundaryTrackingActive = session.currentClientCaptureGeneration != null;
+      if (boundaryTrackingActive && (
+        !hasBoundaryMetadata ||
+        message.captureGeneration !== session.currentClientCaptureGeneration ||
+        message.speechSeq !== session.currentClientSpeechSeq
+      )) {
+        console.log('[voice-audio-drop]', JSON.stringify({
+          reason: 'stale-boundary',
+          captureGeneration: message.captureGeneration ?? null,
+          speechSeq: message.speechSeq ?? null,
+        }));
+        break;
+      }
       const audioLength = message.audio ? message.audio.length : 0;
-      console.log(`🎤 Received audio chunk: ${audioLength} bytes (base64)`);
+      console.log('[voice-audio]', JSON.stringify({
+        captureGeneration: message.captureGeneration,
+        speechSeq: message.speechSeq,
+        base64Length: audioLength,
+        preRoll: message.preRoll === true,
+        ...(message.diagnostics ?? {}),
+      }));
       // Fix 3: Conditional suppress-flag clearing on user audio arrival.
       // If suppressedTurnStarted=true, Gemini is actively streaming audio for an
       // unsolicited turn — do NOT clear the flag yet; wait for that turn's turnComplete.

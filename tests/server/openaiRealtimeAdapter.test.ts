@@ -103,6 +103,21 @@ describe('createMessageHandler — barge-in state machine', () => {
     vi.clearAllMocks();
   });
 
+  it('ignores a late final emitted by an older provider connection', () => {
+    session.providerConnectionGeneration = 2;
+    const staleHandler = createMessageHandler(session, sendToClient, 1);
+
+    staleHandler({
+      type: 'conversation.item.input_audio_transcription.completed',
+      transcript: '이전 연결의 늦은 전사',
+      item_id: 'old-item',
+    });
+
+    expect(sendToClient).not.toHaveBeenCalled();
+    expect(session.recentMessages).toEqual([]);
+    expect(session.userTurnsCompleted).toBe(0);
+  });
+
   // ─── response.audio.delta suppression ────────────────────────────────────────
 
   describe('response.audio.delta', () => {

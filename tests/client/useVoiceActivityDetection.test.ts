@@ -90,6 +90,34 @@ describe('useVoiceActivityDetection', () => {
     });
   });
 
+  it('re-arms voice start detection after a reconnect reset during sustained speech', () => {
+    const { result } = renderHook(() => useVoiceActivityDetection());
+    const ctx = buildMockAudioContext();
+    const onVoiceStart = vi.fn();
+
+    act(() => {
+      result.current.setupVAD({
+        audioContext: ctx as unknown as AudioContext,
+        source: buildMockMediaStreamSource() as unknown as MediaStreamAudioSourceNode,
+        isActuallyPlayingRef: { current: false },
+        wsRef: { current: makeWs() as any },
+        isRecordingRef: { current: true },
+        expectedTurnSeqRef: { current: 0 },
+        stopPlayback: vi.fn(),
+        onVoiceStart,
+      });
+      ctx._processor.onaudioprocess?.({
+        inputBuffer: { getChannelData: () => buildVoiceBuffer(0.1) },
+      });
+      result.current.resetVAD();
+      ctx._processor.onaudioprocess?.({
+        inputBuffer: { getChannelData: () => buildVoiceBuffer(0.1) },
+      });
+    });
+
+    expect(onVoiceStart).toHaveBeenCalledTimes(2);
+  });
+
   describe('setupVAD', () => {
     it('creates a ScriptProcessorNode and stores it in vadProcessorRef', () => {
       const { result } = renderHook(() => useVoiceActivityDetection());

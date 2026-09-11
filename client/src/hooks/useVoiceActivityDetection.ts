@@ -18,7 +18,8 @@ interface SetupVADParams {
   exitThreshold?: number;
   onNoiseDrift?: () => void;
   onBargeIn?: () => void;
-  onVoiceStart?: () => void;
+  onVoiceStart?: (duringPlayback: boolean) => void;
+  onVoiceEnd?: () => void;
 }
 
 interface UseVADReturn {
@@ -28,6 +29,7 @@ interface UseVADReturn {
   userAudioAmplitude: number;
   setupVAD: (params: SetupVADParams) => void;
   updateThresholds: (entry: number, exit: number) => void;
+  resetVAD: () => void;
 }
 
 export function useVoiceActivityDetection(): UseVADReturn {
@@ -52,6 +54,15 @@ export function useVoiceActivityDetection(): UseVADReturn {
     console.log(`🎙️ VAD thresholds updated — entry=${entry.toFixed(5)}, exit=${exit.toFixed(5)}`);
   }, []);
 
+  const resetVAD = useCallback(() => {
+    isVoiceActiveRef.current = false;
+    voiceActivityStartRef.current = null;
+    bargeInTriggeredRef.current = false;
+    highRmsStartRef.current = null;
+    noiseDriftFiredRef.current = false;
+    setUserAudioAmplitude(0);
+  }, []);
+
   const setupVAD = useCallback(({
     audioContext,
     source,
@@ -65,6 +76,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
     onNoiseDrift,
     onBargeIn,
     onVoiceStart,
+    onVoiceEnd,
   }: SetupVADParams) => {
     entryThresholdRef.current = entryThreshold ?? DEFAULT_ENTRY_THRESHOLD;
     exitThresholdRef.current = exitThreshold ?? DEFAULT_EXIT_THRESHOLD;
@@ -109,7 +121,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
 
         if (voiceActivityStartRef.current === null) {
           voiceActivityStartRef.current = Date.now();
-          onVoiceStart?.();
+           onVoiceStart?.(isPlaybackRunning);
         }
 
         const voiceDuration = Date.now() - voiceActivityStartRef.current;
@@ -151,6 +163,7 @@ export function useVoiceActivityDetection(): UseVADReturn {
       } else {
         if (isVoiceActiveRef.current) {
           isVoiceActiveRef.current = false;
+          onVoiceEnd?.();
         }
         if (bargeInTriggeredRef.current) {
           console.log('🔇 User stopped speaking - ready for new AI response');
@@ -175,5 +188,6 @@ export function useVoiceActivityDetection(): UseVADReturn {
     userAudioAmplitude,
     setupVAD,
     updateThresholds,
+    resetVAD,
   };
 }

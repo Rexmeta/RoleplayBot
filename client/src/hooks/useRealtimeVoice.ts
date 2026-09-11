@@ -5,6 +5,7 @@ import { useAudioPlayback, type AgcConfig } from './useAudioPlayback';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
 import { useAudioInputDevices, buildMicrophoneConstraints, type AudioInputDeviceOption, type AudioInputStatus } from './useAudioInputDevices';
 import { setIOSRealtimeAudioSessionActive } from '@/lib/iosAudioSession';
+import { pcm16ToBase64, StreamingPcm16Resampler, trimPcmPreroll } from '@/lib/streamingPcmResampler';
 
 const NOISE_FLOOR_DURATION_MS = 1500;
 const VAD_ENTRY_MULTIPLIER = 3.0;
@@ -12,6 +13,8 @@ const VAD_EXIT_RATIO = 0.6;
 const VAD_ENTRY_MIN = 0.06;
 const RECALIBRATION_SILENCE_INTERVAL_MS = 30_000;
 const RECALIBRATION_COOLDOWN_MS = 10_000;
+const BARGE_IN_PREROLL_MS = 350;
+const PROVIDER_VAD_TRAILING_SILENCE_MS = 800;
 
 const VAD_SENSITIVITY_KEY = 'vad_sensitivity';
 // 0 = auto (noise-floor only), 1-5 = manual levels; default is now auto.
@@ -244,6 +247,11 @@ export function useRealtimeVoice({
 
   const statusRef = useRef<RealtimeVoiceStatus>('disconnected');
   const userSpeechSeqRef = useRef(0);
+  const activeSpeechSeqRef = useRef(0);
+  const captureGenerationRef = useRef(1);
+  const bargeInPrerollRef = useRef<Array<{ audio: string; samples: number; diagnostics: Record<string, number> }>>([]);
+  const bargeInPrerollSamplesRef = useRef(0);
+  const voiceTailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hasConversationStartedRef = useRef<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -274,6 +282,7 @@ export function useRealtimeVoice({
   const conversationPhaseRef = useRef<ConversationPhase>('idle');
   const connectRef = useRef<((previousMessages?: PreviousMessage[]) => Promise<void>) | null>(null);
   const wasRecordingBeforeReconnectRef = useRef<boolean>(false);
+  const recordingRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectInProgressRef = useRef<boolean>(false);
   const skipReconnectGreetingRef = useRef<boolean>(false);
   const noiseFloorRef = useRef<number | null>(null);
@@ -357,6 +366,7 @@ export function useRealtimeVoice({
     userAudioAmplitude,
     setupVAD,
     updateThresholds,
+    resetVAD,
   } = useVoiceActivityDetection();
 
   // Ref to hold the current inputDevices list so the onBluetoothAutoSelected
@@ -495,6 +505,12 @@ export function useRealtimeVoice({
     if (autoReconnectTimerRef.current) {
       clearTimeout(autoReconnectTimerRef.current);
       autoReconnectTimerRef.current = null;
+    }
+    wasRecordingBeforeReconnectRef.current = false;
+    reconnectInProgressRef.current = false;
+    if (recordingRestartTimerRef.current) {
+      clearTimeout(recordingRestartTimerRef.current);
+      recordingRestartTimerRef.current = null;
     }
     if (heartbeatTimerRef.current) {
       clearInterval(heartbeatTimerRef.current);
@@ -798,6 +814,17 @@ export function useRealtimeVoice({
               break;
 
             case 'session.reconnected':
+              if (voiceTailTimerRef.current) {
+                clearTimeout(voiceTailTimerRef.current);
+                voiceTailTimerRef.current = null;
+              }
+              captureGenerationRef.current = Number.isInteger(data.captureGeneration)
+                ? data.captureGeneration
+                : captureGenerationRef.current + 1;
+              activeSpeechSeqRef.current = 0;
+              bargeInPrerollRef.current = [];
+              bargeInPrerollSamplesRef.current = 0;
+              resetVAD();
               setError(null);
               setSessionWarning(null);
               skipReconnectGreetingRef.current = true;
@@ -914,6 +941,44 @@ export function useRealtimeVoice({
       ws.onclose = (event) => {
         if (wsRef.current !== ws) return;
         wsRef.current = null;
+        // Invalidate the old capture graph synchronously. Otherwise its audio
+        // callback can resume against the replacement WebSocket before
+        // startRecording has established a new physical utterance boundary.
+        if (isRecordingRef.current) {
+          wasRecordingBeforeReconnectRef.current = true;
+        }
+        isRecordingRef.current = false;
+        captureGenerationRef.current++;
+        activeSpeechSeqRef.current = 0;
+        bargeInPrerollRef.current = [];
+        bargeInPrerollSamplesRef.current = 0;
+        if (voiceTailTimerRef.current) {
+          clearTimeout(voiceTailTimerRef.current);
+          voiceTailTimerRef.current = null;
+        }
+        if (recordingRestartTimerRef.current) {
+          clearTimeout(recordingRestartTimerRef.current);
+          recordingRestartTimerRef.current = null;
+        }
+        resetVAD();
+        if (audioProcessorRef.current) {
+          audioProcessorRef.current.onaudioprocess = null;
+          try { audioProcessorRef.current.disconnect(); } catch {}
+          audioProcessorRef.current = null;
+        }
+        if (vadProcessorRef.current) {
+          vadProcessorRef.current.onaudioprocess = null;
+          try { vadProcessorRef.current.disconnect(); } catch {}
+          vadProcessorRef.current = null;
+        }
+        if (micSourceRef.current) {
+          try { micSourceRef.current.disconnect(); } catch {}
+          micSourceRef.current = null;
+        }
+        if (micStreamRef.current) {
+          micStreamRef.current.getTracks().forEach(track => track.stop());
+          micStreamRef.current = null;
+        }
         console.log('🔌 WebSocket closed:', event.code, event.reason);
         if (heartbeatTimerRef.current) {
           clearInterval(heartbeatTimerRef.current);
@@ -979,7 +1044,7 @@ export function useRealtimeVoice({
       setGreetingFailed(false);
       if (onErrorRef.current) onErrorRef.current(err instanceof Error ? err.message : 'Connection failed');
     }
-  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef, initializePlaybackContext, resumePlayback]);
+  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef, initializePlaybackContext, resumePlayback, resetVAD]);
 
   useEffect(() => {
     connectRef.current = connect;
@@ -988,19 +1053,29 @@ export function useRealtimeVoice({
   const startRecordingRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (status === 'reconnecting') {
-      wasRecordingBeforeReconnectRef.current = isRecordingRef.current;
+      if (recordingRestartTimerRef.current) {
+        clearTimeout(recordingRestartTimerRef.current);
+        recordingRestartTimerRef.current = null;
+      }
+      wasRecordingBeforeReconnectRef.current =
+        wasRecordingBeforeReconnectRef.current || isRecordingRef.current;
       reconnectInProgressRef.current = true;
     } else if (status === 'connected' && reconnectInProgressRef.current) {
       reconnectInProgressRef.current = false;
       if (wasRecordingBeforeReconnectRef.current) {
-        wasRecordingBeforeReconnectRef.current = false;
-        setTimeout(() => {
+        if (recordingRestartTimerRef.current) clearTimeout(recordingRestartTimerRef.current);
+        recordingRestartTimerRef.current = setTimeout(() => {
+          recordingRestartTimerRef.current = null;
           if (startRecordingRef.current) startRecordingRef.current();
         }, 300);
       }
     } else if (status === 'disconnected' || status === 'error') {
       reconnectInProgressRef.current = false;
       wasRecordingBeforeReconnectRef.current = false;
+      if (recordingRestartTimerRef.current) {
+        clearTimeout(recordingRestartTimerRef.current);
+        recordingRestartTimerRef.current = null;
+      }
     }
   }, [status]);
 
@@ -1095,6 +1170,16 @@ export function useRealtimeVoice({
       console.warn('Cannot start recording: not connected');
       return;
     }
+    const captureGenerationAtStart = captureGenerationRef.current;
+    const socketAtStart = wsRef.current;
+    const isStaleCapture = () =>
+      captureGenerationRef.current !== captureGenerationAtStart ||
+      wsRef.current !== socketAtStart ||
+      socketAtStart.readyState !== WebSocket.OPEN;
+    const discardStaleStream = (stream: MediaStream) => {
+      stream.getTracks().forEach(track => track.stop());
+      console.log('[voice-capture-drop] stale recording setup discarded');
+    };
 
     if (isAISpeaking && !bargeInTriggeredRef.current) {
       console.log('🎤 User starting to speak - interrupting AI (barge-in)');
@@ -1120,7 +1205,12 @@ export function useRealtimeVoice({
         stream = await navigator.mediaDevices.getUserMedia({
           audio: buildMicrophoneConstraints(preferredMicId),
         });
+        if (isStaleCapture()) {
+          discardStaleStream(stream);
+          return;
+        }
       } catch (err) {
+        if (isStaleCapture()) return;
         if (!preferredMicId) throw err;
         // The saved mic is gone or busy — fall back to the default microphone
         // explicitly and tell the user instead of failing the whole recording.
@@ -1128,6 +1218,10 @@ export function useRealtimeVoice({
         stream = await navigator.mediaDevices.getUserMedia({
           audio: buildMicrophoneConstraints(''),
         });
+        if (isStaleCapture()) {
+          discardStaleStream(stream);
+          return;
+        }
         persistInputSelection('', '선택한 마이크를 사용할 수 없어 기본 마이크로 전환했습니다.');
       }
 
@@ -1141,7 +1235,15 @@ export function useRealtimeVoice({
       } else {
         try {
           noiseFloor = await measureNoiseFloor(stream);
+          if (isStaleCapture()) {
+            discardStaleStream(stream);
+            return;
+          }
         } catch (err) {
+          if (isStaleCapture()) {
+            discardStaleStream(stream);
+            return;
+          }
           console.warn('⚠️ Noise floor measurement error, using default threshold:', err);
           noiseFloor = 0;
         }
@@ -1156,8 +1258,28 @@ export function useRealtimeVoice({
       }
 
       const audioContext = captureContextRef.current;
+      if (isStaleCapture()) {
+        discardStaleStream(stream);
+        return;
+      }
       const source = audioContext.createMediaStreamSource(stream);
       micSourceRef.current = source;
+      const flushPreroll = (speechSeq: number) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          for (const chunk of bargeInPrerollRef.current) {
+            wsRef.current.send(JSON.stringify({
+              type: 'input_audio_buffer.append',
+              audio: chunk.audio,
+              speechSeq,
+              captureGeneration: captureGenerationRef.current,
+              diagnostics: chunk.diagnostics,
+              preRoll: true,
+            }));
+          }
+        }
+        bargeInPrerollRef.current = [];
+        bargeInPrerollSamplesRef.current = 0;
+      };
 
       setupVAD({
         audioContext,
@@ -1170,54 +1292,89 @@ export function useRealtimeVoice({
         entryThreshold,
         exitThreshold,
         onNoiseDrift: recalibrateNoiseFloor,
-        onBargeIn: () => setIsBargeInActive(true),
-        onVoiceStart: () => {
+        onBargeIn: () => {
+          setIsBargeInActive(true);
           const speechSeq = ++userSpeechSeqRef.current;
+          activeSpeechSeqRef.current = speechSeq;
           if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
               type: 'client.user_speech.started',
               speechSeq,
+              captureGeneration: captureGenerationRef.current,
             }));
           }
+          flushPreroll(speechSeq);
+        },
+        onVoiceStart: (duringPlayback) => {
+          if (duringPlayback) return;
+          if (voiceTailTimerRef.current) {
+            clearTimeout(voiceTailTimerRef.current);
+            voiceTailTimerRef.current = null;
+          }
+          if (activeSpeechSeqRef.current !== 0) return;
+          const speechSeq = ++userSpeechSeqRef.current;
+          activeSpeechSeqRef.current = speechSeq;
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+              type: 'client.user_speech.started',
+              speechSeq,
+              captureGeneration: captureGenerationRef.current,
+            }));
+          }
+          flushPreroll(speechSeq);
+        },
+        onVoiceEnd: () => {
+          if (voiceTailTimerRef.current) clearTimeout(voiceTailTimerRef.current);
+          voiceTailTimerRef.current = setTimeout(() => {
+            activeSpeechSeqRef.current = 0;
+            voiceTailTimerRef.current = null;
+          }, PROVIDER_VAD_TRAILING_SILENCE_MS);
         },
       });
 
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
       audioProcessorRef.current = processor;
+      const resampler = new StreamingPcm16Resampler(audioContext.sampleRate);
 
       processor.onaudioprocess = (e) => {
         if (!isRecordingRef.current) return;
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-        // Suppress mic audio while AI is playing and barge-in hasn't fired yet.
-        // Without this, the speaker audio leaks into the microphone (echo) and
-        // Gemini transcribes it as random foreign languages.
-        if (isActuallyPlayingRef.current && !bargeInTriggeredRef.current) return;
-
         const inputData = e.inputBuffer.getChannelData(0);
-        const targetSampleRate = 16000;
-        const sourceSampleRate = audioContext.sampleRate;
-        const ratio = sourceSampleRate / targetSampleRate;
-        const targetLength = Math.floor(inputData.length / ratio);
-        const resampledData = new Float32Array(targetLength);
+        const { pcm16, diagnostics } = resampler.process(inputData);
+        if (pcm16.length === 0) return;
+        const audio = pcm16ToBase64(pcm16);
+        const diagnosticSummary = {
+          sourceSampleRate: diagnostics.sourceSampleRate,
+          inputSamples: diagnostics.inputSamples,
+          outputSamples: diagnostics.outputSamples,
+          peakPpm: Math.round(diagnostics.peak * 1_000_000),
+          rmsPpm: Math.round(diagnostics.rms * 1_000_000),
+          clippedSamples: diagnostics.clippedSamples,
+          silentSamples: diagnostics.silentSamples,
+        };
 
-        for (let i = 0; i < targetLength; i++) {
-          resampledData[i] = inputData[Math.floor(i * ratio)];
+        if (
+          activeSpeechSeqRef.current === 0 ||
+          (isActuallyPlayingRef.current && !bargeInTriggeredRef.current)
+        ) {
+          bargeInPrerollRef.current.push({ audio, samples: pcm16.length, diagnostics: diagnosticSummary });
+          bargeInPrerollSamplesRef.current += pcm16.length;
+          const minimumSamples = Math.round(16_000 * BARGE_IN_PREROLL_MS / 1000);
+          bargeInPrerollSamplesRef.current = trimPcmPreroll(
+            bargeInPrerollRef.current,
+            bargeInPrerollSamplesRef.current,
+            minimumSamples,
+          );
+          return;
         }
 
-        const pcm16 = new Int16Array(resampledData.length);
-        for (let i = 0; i < resampledData.length; i++) {
-          const s = Math.max(-1, Math.min(1, resampledData[i]));
-          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-        }
-
-        const uint8Array = new Uint8Array(pcm16.buffer);
-        let binaryString = '';
-        for (let i = 0; i < uint8Array.length; i++) {
-          binaryString += String.fromCharCode(uint8Array[i]);
-        }
-        const base64 = btoa(binaryString);
-
-        wsRef.current.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: base64 }));
+        wsRef.current.send(JSON.stringify({
+          type: 'input_audio_buffer.append',
+          audio,
+          speechSeq: activeSpeechSeqRef.current,
+          captureGeneration: captureGenerationRef.current,
+          diagnostics: diagnosticSummary,
+        }));
       };
 
       source.connect(processor);
@@ -1228,6 +1385,7 @@ export function useRealtimeVoice({
 
       setIsRecording(true);
       isRecordingRef.current = true;
+      wasRecordingBeforeReconnectRef.current = false;
       console.log('🎤 Recording started (PCM16 16kHz for Gemini)');
 
       if (recalibrationTimerRef.current) clearInterval(recalibrationTimerRef.current);
@@ -1247,6 +1405,11 @@ export function useRealtimeVoice({
 
   const stopRecording = useCallback(() => {
     console.log('🎤 Stopping recording...');
+    wasRecordingBeforeReconnectRef.current = false;
+    if (recordingRestartTimerRef.current) {
+      clearTimeout(recordingRestartTimerRef.current);
+      recordingRestartTimerRef.current = null;
+    }
 
     if (recalibrationTimerRef.current) {
       clearInterval(recalibrationTimerRef.current);
@@ -1260,6 +1423,11 @@ export function useRealtimeVoice({
 
     voiceActivityStartRef.current = null;
     bargeInTriggeredRef.current = false;
+    if (voiceTailTimerRef.current) {
+      clearTimeout(voiceTailTimerRef.current);
+      voiceTailTimerRef.current = null;
+    }
+    activeSpeechSeqRef.current = 0;
 
     if (playbackContextRef.current && playbackContextRef.current.state === 'suspended') {
       resumePlayback();

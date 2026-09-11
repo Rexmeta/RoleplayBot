@@ -106,4 +106,8 @@ export interface RealtimeSession {
   pendingGeminiProvisionalTranscript?: string | null;
   currentClientSpeechSeq?: number | null;
   pendingGeminiProvisionalSpeechSeq?: number | null;
+  /** Monotonic client capture lifetime; rejects delayed audio from an older connection. */
+  currentClientCaptureGeneration?: number;
+  /** Monotonic provider socket lifetime; stale callbacks must not mutate the session. */
+  providerConnectionGeneration?: number;
 }

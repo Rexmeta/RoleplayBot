@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { RealtimeSession } from './types';
 import { buildReconnectSystemInstructions } from './systemPromptBuilder';
+import { finalizeUserTranscript } from './transcriptionIntegrity';
 
 type SendToClient = (session: RealtimeSession, message: any) => void;
 type ConnectToOpenAI = (session: RealtimeSession) => Promise<void>;
@@ -63,6 +64,13 @@ export function handleOpenAIClose(
 
   if (canReconnect) {
     const sessionId = session.id;
+    if (session.userTranscriptBuffer.trim()) {
+      finalizeUserTranscript(session, session.userTranscriptBuffer, sendToClient, {
+        provider: 'openai',
+        source: 'openai.reconnect_flush',
+        final: false,
+      });
+    }
 
     const attemptReconnect = (attemptNumber: number) => {
       const currentSession = sessions.get(sessionId);
@@ -79,6 +87,11 @@ export function handleOpenAIClose(
 
       currentSession.isReconnecting = true;
       currentSession.reconnectAttempts = attemptNumber;
+      if (attemptNumber === 1) {
+        currentSession.currentClientCaptureGeneration =
+          (currentSession.currentClientCaptureGeneration ?? 0) + 1;
+        currentSession.currentClientSpeechSeq = null;
+      }
       console.log(`🔄 [OpenAI Reconnector] Attempt ${attemptNumber}/${MAX_RECONNECT_ATTEMPTS}...`);
 
       sendToClient(currentSession, {
@@ -109,13 +122,19 @@ export function handleOpenAIClose(
             sess.cancelledTurnSeq = -1;
             sess.currentTranscript = '';
             sess.userSpeechStarted = false;
+            sess.userTranscriptBuffer = '';
+            sess.activeUserTranscriptTurnId = null;
+            sess.activeUserTranscriptProviderEventId = null;
             // The dedup window guard (Fix 1) is keyed off a timestamp from the previous
             // connection. Reset it so a stale value cannot suppress a legitimate
             // response.create on the new connection.
             sess.lastAudioCommitSentAt = 0;
             sess.lastClientContentSentAt = 0;
             console.log('✅ [OpenAI Reconnector] Reconnected!');
-            sendToClient(sess, { type: 'session.reconnected' });
+            sendToClient(sess, {
+              type: 'session.reconnected',
+              captureGeneration: sess.currentClientCaptureGeneration,
+            });
 
             if (!sess.geminiSession) return;
 
@@ -130,10 +149,13 @@ export function handleOpenAIClose(
               const isEndOfTurnInput = (msg: any) =>
                 msg.payload.type === 'realtimeInput' &&
                 msg.payload.data?.event === 'END_OF_TURN';
+              const isRawAudio = (msg: any) =>
+                msg.payload.type === 'realtimeInput' && !!msg.payload.data?.audio;
 
               const filtered: typeof sess.pendingMessages = [];
               let skipNextEot = false;
               for (const msg of sess.pendingMessages) {
+                if (isRawAudio(msg)) continue;
                 if (skipNextEot) {
                   skipNextEot = false;
                   if (isEndOfTurnInput(msg)) continue;

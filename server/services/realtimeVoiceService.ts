@@ -678,6 +678,8 @@ export class RealtimeVoiceService {
       }, 15_000);
 
       const realtimeModel = session.realtimeModel || await this.getRealtimeModel();
+      const providerGeneration = (session.providerConnectionGeneration ?? 0) + 1;
+      session.providerConnectionGeneration = providerGeneration;
       console.log(`🔌 Connecting to Gemini Live API for session: ${session.id} using model: ${realtimeModel} (${geminiLiveApiVersion(realtimeModel)})`);
 
       const geminiSession = await this.genAILiveBeta.live.connect({
@@ -689,6 +691,10 @@ export class RealtimeVoiceService {
             this.sendToClient(session, { type: 'session.configured' });
           },
           onmessage: (message: any) => {
+            if (session.providerConnectionGeneration !== providerGeneration) {
+              console.log(`[voice-provider-drop] stale Gemini event generation=${providerGeneration}`);
+              return;
+            }
             handleGeminiMessage(session, message, this.sendToClient.bind(this), this.genAI, this.proactiveReconnect.bind(this));
           },
           onerror: (error: any) => {
@@ -696,6 +702,10 @@ export class RealtimeVoiceService {
             this.sendToClient(session, { type: 'error', error: 'Gemini connection error' });
           },
           onclose: (event: any) => {
+            if (session.providerConnectionGeneration !== providerGeneration) {
+              console.log(`[voice-provider-drop] stale Gemini close generation=${providerGeneration}`);
+              return;
+            }
             handleGeminiClose(
               event, session, this.sessions,
               this.sendToClient.bind(this),
@@ -788,6 +798,9 @@ export class RealtimeVoiceService {
     const connectFn = isOpenAIRealtimeModel(session.realtimeModel)
       ? () => this.connectToOpenAI(session, reconnectInstructions, session.voiceGender)
       : () => this.connectToGemini(session, reconnectInstructions, session.voiceGender);
+    session.currentClientCaptureGeneration =
+      (session.currentClientCaptureGeneration ?? 0) + 1;
+    session.currentClientSpeechSeq = null;
     return connectFn()
       .then(() => {
         const currentSession = this.sessions.get(sessionId);
@@ -822,7 +835,10 @@ export class RealtimeVoiceService {
         currentSession.userTranscriptBuffer = '';
         currentSession.usingReconnectInstructions = true;
         console.log(`✅ proactiveReconnect 성공: 새 Gemini 세션 활성화`);
-        this.sendToClient(currentSession, { type: 'session.reconnected' });
+        this.sendToClient(currentSession, {
+          type: 'session.reconnected',
+          captureGeneration: currentSession.currentClientCaptureGeneration,
+        });
 
         if (currentSession.geminiSession) {
           if (currentSession.pendingMessages.length > 0) {
@@ -834,9 +850,12 @@ export class RealtimeVoiceService {
             const isEndOfTurnInput = (msg: any) =>
               msg.payload.type === 'realtimeInput' &&
               msg.payload.data?.event === 'END_OF_TURN';
+            const isRawAudio = (msg: any) =>
+              msg.payload.type === 'realtimeInput' && !!msg.payload.data?.audio;
             const filteredPending: typeof currentSession.pendingMessages = [];
             let skipNextEot = false;
             for (const msg of currentSession.pendingMessages) {
+              if (isRawAudio(msg)) continue;
               if (skipNextEot) {
                 skipNextEot = false;
                 if (isEndOfTurnInput(msg)) continue;
