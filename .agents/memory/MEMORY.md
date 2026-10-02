@@ -10,6 +10,7 @@
 - [Veo image-to-video constraints](veo-image-to-video.md) — referenceImages/personGeneration 둘 다 Gemini API 미지원; 사람 얼굴 이미지는 RAI 필터에 자주 차단; silent fallback 금지
 - [Scenario persona media](scenario-persona-media.md) — 시나리오 persona는 DB 왕복에서 image/videos를 잃음; MBTI persona 레코드가 아바타 미디어의 source of truth, 읽기 시 enrich 필수
 - [Fixed panel + visualViewport](fixed-panel-visual-viewport.md) — `top: vv.offsetTop` on a `position:fixed` 요소는 오프셋 이중 계산; 아바타 위 검은 띠의 진짜 원인, 키보드 열릴 때만 적용
+- [Mobile voice overlay bounds](mobile-voice-overlay-bounds.md) — Safe-area clearance alone does not account for Safari browser chrome; voice overlays must share visible-viewport bounds.
 - [Android Chrome 출력 열거 미지원](android-chrome-audio-output.md) — setSinkId는 지원해도 audiooutput 열거는 미제공; 빈 출력 목록 ≠ 권한 미허용, 다른 기기 라벨 존재 여부로 판별
 - [GitHub sync via connector API](github-sync-via-connector.md) — local git has no origin credentials; sync GitHub through connector proxyFetch, recreate objects blobs→trees→commits, throttle to <10 RPS
 - [Device auto-selection tri-state](device-auto-selection-state.md) — 자동 선택된 기기 ID를 사용자 선택과 같은 슬롯에 저장하면 자동 선택이 영구 고착됨; user/auto 플래그를 분리 저장

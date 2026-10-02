@@ -1188,6 +1188,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       onClose={() => setIsTranscriptPanelOpen(false)} messages={localMessages}
                       pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
                       pendingUserText={pendingUserText} personaName={activePersona.name}
+                      viewportHeight={viewportHeight} viewportOffsetTop={viewportOffsetTop}
                       personaSwitchEvents={personaSwitchEvents}
                       joinedPersonas={scenario.personas?.map((p: ScenarioPersona) => ({ name: p.name, image: p.image }))} />
                   )}

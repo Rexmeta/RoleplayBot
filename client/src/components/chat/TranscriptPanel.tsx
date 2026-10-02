@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { ChevronRight, MessageCircle, X, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ConversationMessage } from "@shared/schema";
@@ -22,6 +22,8 @@ interface TranscriptPanelProps {
   personaName: string;
   personaSwitchEvents?: PersonaSwitchEvent[];
   joinedPersonas?: JoinedPersona[];
+  viewportHeight?: number | null;
+  viewportOffsetTop?: number;
 }
 
 export function TranscriptPanel({
@@ -35,6 +37,8 @@ export function TranscriptPanel({
   personaName,
   personaSwitchEvents = [],
   joinedPersonas = [],
+  viewportHeight,
+  viewportOffsetTop = 0,
 }: TranscriptPanelProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -67,7 +71,7 @@ export function TranscriptPanel({
   };
 
   const renderMessages = () => (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
+    <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
       {messages.filter(m => m.sender === 'user' || m.sender === 'ai').map((msg, index) => (
         <div key={index}>
           {msg.sender === 'ai' && (() => {
@@ -147,7 +151,7 @@ export function TranscriptPanel({
   );
 
   const renderHeader = () => (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50">
+    <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-200/50">
       <span className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
         <MessageCircle className="w-3.5 h-3.5 text-purple-500" />
         대화 내역
@@ -162,17 +166,25 @@ export function TranscriptPanel({
   );
 
   return (
-    <>
+    <div
+      className="pointer-events-none fixed inset-x-0 top-[var(--transcript-viewport-top)] h-[calc(var(--transcript-viewport-height,100dvh)-env(safe-area-inset-bottom,0px))] sm:absolute sm:inset-0 sm:h-auto z-30"
+      style={{
+        // Share the voice overlay's visible height instead of Safari's larger
+        // layout viewport. Keep both the toggle and body above the home indicator.
+        '--transcript-viewport-height': viewportHeight ? `${viewportHeight}px` : undefined,
+        '--transcript-viewport-top': `${viewportOffsetTop}px`,
+      } as CSSProperties}
+    >
       {isOpen && (
         <div
-          className="fixed inset-0 z-[28] bg-black/40 backdrop-blur-sm sm:hidden"
+          className="pointer-events-auto fixed inset-0 z-[28] bg-black/40 backdrop-blur-sm sm:hidden"
           onClick={onClose}
         />
       )}
 
       <button
         onClick={onToggle}
-        className="pointer-events-auto fixed sm:absolute top-1/2 -translate-y-1/2 z-30 w-11 h-11 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 active:bg-white hover:bg-white"
+        className="pointer-events-auto absolute top-1/2 -translate-y-1/2 z-30 w-11 h-11 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-l-xl shadow-lg border border-white/30 text-slate-600 hover:text-slate-800 active:bg-white hover:bg-white"
         style={{
           right: isOpen ? panelWidth : '0',
           transition: 'right 300ms cubic-bezier(0.4, 0, 0.2, 1)',
@@ -184,7 +196,7 @@ export function TranscriptPanel({
       </button>
 
       <div
-        className={`pointer-events-auto fixed sm:absolute top-0 right-0 bottom-0 z-30 bg-white/95 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col ${
+        className={`pointer-events-auto absolute top-0 right-0 bottom-0 z-30 bg-white/95 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col ${
           isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
         }`}
         style={{
@@ -195,6 +207,6 @@ export function TranscriptPanel({
         {renderHeader()}
         {renderMessages()}
       </div>
-    </>
+    </div>
   );
 }
