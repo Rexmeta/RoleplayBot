@@ -3,14 +3,30 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   isIOSWebKitAudioPlatform,
   setIOSRealtimeAudioSessionActive,
+  beginIOSMicrophonePermissionSession,
 } from '../../client/src/lib/iosAudioSession';
 
 afterEach(() => {
+  setIOSRealtimeAudioSessionActive(false);
   vi.restoreAllMocks();
   delete (navigator as any).audioSession;
 });
 
 describe('iOS realtime audio session', () => {
+  it('a temporary microphone request cannot release a newer active call profile', () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('iPhone');
+    const audioSession = { type: 'auto' };
+    Object.defineProperty(navigator, 'audioSession', { configurable: true, value: audioSession });
+    const release = beginIOSMicrophonePermissionSession();
+    expect(audioSession.type).toBe('play-and-record');
+    setIOSRealtimeAudioSessionActive(false);
+    setIOSRealtimeAudioSessionActive(true);
+    release();
+    release(); // Idempotent cleanup.
+    expect(audioSession.type).toBe('play-and-record');
+    setIOSRealtimeAudioSessionActive(false);
+    expect(audioSession.type).toBe('auto');
+  });
   it('keeps the iPhone audio route in play-and-record until the conversation ends', () => {
     vi.spyOn(navigator, 'userAgent', 'get')
       .mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15');

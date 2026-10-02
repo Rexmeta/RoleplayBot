@@ -1,4 +1,17 @@
 {
+  "microphone": {
+    "requesting": "正在检查麦克风权限...",
+    "allowPrompt": "请在浏览器的麦克风提示中选择“允许”。录音仍然仅在按下录音按钮时开始。",
+    "retry": "重试麦克风",
+    "denied": "麦克风访问被拒绝或阻止。允许访问后请重试。",
+    "safariSettings": "在iPhone Safari地址栏的页面菜单 → 网站设置 → 麦克风中检查“允许”。",
+    "browserSettings": "检查当前浏览器的网站麦克风权限及iPhone设置中该浏览器的麦克风权限，或在Safari中打开此页面。",
+    "notFound": "没有可用的麦克风。请检查麦克风或耳机连接后重试。",
+    "busy": "无法使用麦克风。请关闭使用麦克风的其他应用或通话后重试。",
+    "secureContext": "请通过安全的HTTPS连接打开页面以使用麦克风。",
+    "unsupported": "此浏览器无法使用麦克风。请使用支持的浏览器或iPhone Safari。",
+    "failed": "麦克风准备失败。请检查连接和浏览器麦克风权限后重试。"
+  },
   "guest": {
     "demoBanner": "🎯 演示体验模式",
     "demoBannerDesc": "您正在进行一次免费体验。注册后可使用所有功能。",

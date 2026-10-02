@@ -25,14 +25,35 @@ export function isIOSWebKitAudioPlatform(): boolean {
  * Older Safari versions do not expose navigator.audioSession; they continue to
  * use their automatic routing without failing the voice session.
  */
+let realtimeActive = false;
+let permissionRequests = 0;
+
 export function setIOSRealtimeAudioSessionActive(active: boolean): boolean {
+  realtimeActive = active;
+  return applyIOSAudioSession();
+}
+
+/** Temporary probes cannot restore auto while a newer conversation is active. */
+export function beginIOSMicrophonePermissionSession(): () => void {
+  permissionRequests++;
+  applyIOSAudioSession();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    permissionRequests--;
+    applyIOSAudioSession();
+  };
+}
+
+function applyIOSAudioSession(): boolean {
   if (!isIOSWebKitAudioPlatform()) return false;
 
   const audioSession = (navigator as NavigatorWithAudioSession).audioSession;
   if (!audioSession) return false;
 
   try {
-    audioSession.type = active ? 'play-and-record' : 'auto';
+    audioSession.type = realtimeActive || permissionRequests > 0 ? 'play-and-record' : 'auto';
     return true;
   } catch (error) {
     console.warn('Could not update the iOS audio session type:', error);

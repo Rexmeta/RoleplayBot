@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { requestMicrophonePermission } from '@/lib/microphonePermission';
 import {
   isIOSWebKitAudioPlatform,
   setIOSRealtimeAudioSessionActive,
@@ -351,8 +352,7 @@ export function useAudioPlayback(
       return false;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
+      await requestMicrophonePermission();
     } catch {
       reportOutputError(t('audioOutput.permissionDenied'));
       return false;

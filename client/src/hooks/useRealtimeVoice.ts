@@ -4,7 +4,8 @@ import { useToast } from './use-toast';
 import { useAudioPlayback, type AgcConfig } from './useAudioPlayback';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
 import { useAudioInputDevices, buildMicrophoneConstraints, type AudioInputDeviceOption, type AudioInputStatus } from './useAudioInputDevices';
-import { setIOSRealtimeAudioSessionActive } from '@/lib/iosAudioSession';
+import { isIOSWebKitAudioPlatform, setIOSRealtimeAudioSessionActive } from '@/lib/iosAudioSession';
+import { acquireMicrophone, microphoneErrorKey } from '@/lib/microphonePermission';
 import { pcm16ToBase64, StreamingPcm16Resampler, trimPcmPreroll } from '@/lib/streamingPcmResampler';
 
 const NOISE_FLOOR_DURATION_MS = 1500;
@@ -158,6 +159,8 @@ interface UseRealtimeVoiceReturn {
   inputStatus: AudioInputStatus;
   inputMessage: string | null;
   inputNeedsPermission: boolean;
+  inputPermissionPending: boolean;
+  microphoneError: string | null;
   setVadSensitivity: (level: number) => void;
   selectOutputDevice: (deviceId: string) => Promise<boolean>;
   refreshOutputDevices: () => Promise<void>;
@@ -251,6 +254,7 @@ export function useRealtimeVoice({
   const lastCommittedSpeechSeqRef = useRef(0);
   const voiceActivityEpochRef = useRef(0);
   const captureGenerationRef = useRef(1);
+  const captureSetupRef = useRef<number | null>(null);
   const bargeInPrerollRef = useRef<Array<{ audio: string; samples: number; diagnostics: Record<string, number> }>>([]);
   const bargeInPrerollSamplesRef = useRef(0);
   const voiceTailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -282,7 +286,7 @@ export function useRealtimeVoice({
   const accumulatedMessagesRef = useRef<PreviousMessage[]>([]);
   const finalizedUserTurnIdsRef = useRef<Set<string>>(new Set());
   const conversationPhaseRef = useRef<ConversationPhase>('idle');
-  const connectRef = useRef<((previousMessages?: PreviousMessage[]) => Promise<void>) | null>(null);
+  const connectRef = useRef<((previousMessages?: PreviousMessage[], prepareMicrophone?: boolean) => Promise<void>) | null>(null);
   const wasRecordingBeforeReconnectRef = useRef<boolean>(false);
   const recordingRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectInProgressRef = useRef<boolean>(false);
@@ -388,6 +392,11 @@ export function useRealtimeVoice({
     reportInputError,
     refreshInputDevices,
     requestInputDevicePermission,
+    cancelInputPermissionRequest,
+    markInputPermissionGranted,
+    reportMicrophoneError,
+    inputPermissionPending,
+    microphoneError,
   } = useAudioInputDevices({
     onSelectedDeviceLost: () => {
       // The saved mic disappeared (e.g. Bluetooth turned off). If we're live,
@@ -468,6 +477,11 @@ export function useRealtimeVoice({
     // Invalidate token requests and socket callbacks from any earlier attempt
     // before closing resources. Safari may deliver close asynchronously.
     connectionAttemptRef.current += 1;
+    captureGenerationRef.current++;
+    captureSetupRef.current = null;
+    isRecordingRef.current = false;
+    statusRef.current = 'disconnected';
+    cancelInputPermissionRequest();
     stopCurrentPlayback();
 
     if (textSyncIntervalRef.current) {
@@ -504,6 +518,10 @@ export function useRealtimeVoice({
       rawMicStreamRef.current.getTracks().forEach(track => track.stop());
       rawMicStreamRef.current = null;
     }
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    }
     if (autoReconnectTimerRef.current) {
       clearTimeout(autoReconnectTimerRef.current);
       autoReconnectTimerRef.current = null;
@@ -536,11 +554,11 @@ export function useRealtimeVoice({
     setIsReconnecting(false);
     setIsBargeInActive(false);
     setIOSRealtimeAudioSessionActive(false);
-  }, [stopCurrentPlayback, stopAmplitudeAnalysis, analyserNodeRef, gainNodeRef, playbackContextRef, setIsAISpeaking]);
+  }, [stopCurrentPlayback, stopAmplitudeAnalysis, analyserNodeRef, gainNodeRef, playbackContextRef, setIsAISpeaking, cancelInputPermissionRequest]);
 
   const previousMessagesRef = useRef<PreviousMessage[] | undefined>(undefined);
 
-  const connect = useCallback(async (previousMessages?: PreviousMessage[]) => {
+  const connect = useCallback(async (previousMessages?: PreviousMessage[], prepareMicrophone = true) => {
     if (statusRef.current === 'connecting' || statusRef.current === 'connected') {
       console.log(`⚠️ connect() called while status is already '${statusRef.current}' — ignoring duplicate`);
       return;
@@ -561,6 +579,19 @@ export function useRealtimeVoice({
       // Must be set before either AudioContext or getUserMedia is created on
       // iPhone, otherwise WebKit may bind playback to the handset speaker.
       setIOSRealtimeAudioSessionActive(true);
+      // iOS warm-up must not leave permission preparation until after the
+      // greeting. No Permissions API gate: successful capture is authoritative.
+      if (isIOSWebKitAudioPlatform() && prepareMicrophone) {
+        const granted = await requestInputDevicePermission();
+        if (connectionAttempt !== connectionAttemptRef.current) return;
+        if (!granted) {
+          setIOSRealtimeAudioSessionActive(false);
+          statusRef.current = 'disconnected';
+          setStatus('disconnected');
+          return;
+        }
+        void refreshOutputDevices();
+      }
       if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
         await initializePlaybackContext();
         if (connectionAttempt !== connectionAttemptRef.current) return;
@@ -1038,7 +1069,7 @@ export function useRealtimeVoice({
             const combined: PreviousMessage[] = [...base, ...accumulated];
 
             if (connectRef.current) {
-              connectRef.current(combined.length > 0 ? combined : undefined);
+              connectRef.current(combined.length > 0 ? combined : undefined, false);
             }
           }, backoffDelay);
           return;
@@ -1059,7 +1090,7 @@ export function useRealtimeVoice({
       setGreetingFailed(false);
       if (onErrorRef.current) onErrorRef.current(err instanceof Error ? err.message : 'Connection failed');
     }
-  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef, initializePlaybackContext, resumePlayback, resetVAD]);
+  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef, initializePlaybackContext, resumePlayback, resetVAD, requestInputDevicePermission, refreshOutputDevices]);
 
   useEffect(() => {
     connectRef.current = connect;
@@ -1203,11 +1234,13 @@ export function useRealtimeVoice({
   }, [updateThresholds]);
 
   const startRecording = useCallback(async () => {
+    if (captureSetupRef.current !== null || isRecordingRef.current) return;
     if (status !== 'connected' || !wsRef.current) {
       console.warn('Cannot start recording: not connected');
       return;
     }
     const captureGenerationAtStart = captureGenerationRef.current;
+    captureSetupRef.current = captureGenerationAtStart;
     const socketAtStart = wsRef.current;
     const isStaleCapture = () =>
       captureGenerationRef.current !== captureGenerationAtStart ||
@@ -1239,22 +1272,22 @@ export function useRealtimeVoice({
       let stream: MediaStream;
       const preferredMicId = selectedInputDeviceIdRef.current;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream = await acquireMicrophone({
           audio: buildMicrophoneConstraints(preferredMicId),
-        });
+        }, () => !isStaleCapture());
         if (isStaleCapture()) {
           discardStaleStream(stream);
           return;
         }
       } catch (err) {
         if (isStaleCapture()) return;
-        if (!preferredMicId) throw err;
+        if (!preferredMicId || microphoneErrorKey(err) === 'denied' || microphoneErrorKey(err) === 'secureContext') throw err;
         // The saved mic is gone or busy — fall back to the default microphone
         // explicitly and tell the user instead of failing the whole recording.
         console.warn('🎙️ Saved microphone unavailable, falling back to default:', err);
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream = await acquireMicrophone({
           audio: buildMicrophoneConstraints(''),
-        });
+        }, () => !isStaleCapture());
         if (isStaleCapture()) {
           discardStaleStream(stream);
           return;
@@ -1263,6 +1296,8 @@ export function useRealtimeVoice({
       }
 
       micStreamRef.current = stream;
+      setError(null);
+      void markInputPermissionGranted();
       console.log('🎙️ Created single mic stream for Gemini + VAD');
 
       let noiseFloor: number;
@@ -1452,13 +1487,21 @@ export function useRealtimeVoice({
         recalibrateNoiseFloor();
       }, RECALIBRATION_SILENCE_INTERVAL_MS);
     } catch (err) {
+      if (isStaleCapture()) return;
+      micStreamRef.current?.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
       console.error('Error starting recording:', err);
-      setError('Microphone access denied');
-      if (onErrorRef.current) onErrorRef.current('Microphone access denied');
+      const message = reportMicrophoneError(err);
+      setError(message);
+      if (onErrorRef.current) onErrorRef.current(message);
+    } finally {
+      if (captureSetupRef.current === captureGenerationAtStart) captureSetupRef.current = null;
     }
-  }, [status, isAISpeaking, stopCurrentPlayback, stopPlayback, setupVAD, playbackContextRef, bargeInTriggeredRef, recalibrateNoiseFloor, voiceActivityStartRef]);
+  }, [status, isAISpeaking, stopCurrentPlayback, stopPlayback, setupVAD, playbackContextRef, bargeInTriggeredRef, recalibrateNoiseFloor, voiceActivityStartRef, markInputPermissionGranted, reportMicrophoneError]);
 
   const stopRecording = useCallback(() => {
+    captureGenerationRef.current++;
+    captureSetupRef.current = null;
     console.log('🎤 Stopping recording...');
     wasRecordingBeforeReconnectRef.current = false;
     if (recordingRestartTimerRef.current) {
@@ -1526,13 +1569,19 @@ export function useRealtimeVoice({
   const swapMicrophoneStream = useCallback(async (deviceId: string): Promise<boolean> => {
     const audioContext = captureContextRef.current;
     if (!audioContext || !isRecordingRef.current) return false;
+    const generation = captureGenerationRef.current;
+    const isCurrent = () => captureGenerationRef.current === generation && isRecordingRef.current && captureContextRef.current === audioContext;
 
     let newStream: MediaStream;
     try {
       setIOSRealtimeAudioSessionActive(true);
-      newStream = await navigator.mediaDevices.getUserMedia({
+      newStream = await acquireMicrophone({
         audio: buildMicrophoneConstraints(deviceId),
-      });
+      }, isCurrent);
+      if (!isCurrent()) {
+        newStream.getTracks().forEach(track => track.stop());
+        return false;
+      }
     } catch (err) {
       console.warn('🎙️ Microphone swap failed:', err);
       reportInputError('선택한 마이크로 전환하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도하세요.');
@@ -1609,7 +1658,7 @@ export function useRealtimeVoice({
   }, [startRecording]);
 
   useEffect(() => {
-    if (enabled) connect();
+    if (enabled && !isIOSWebKitAudioPlatform()) connect();
     return () => { disconnect(); };
   }, [enabled, connect, disconnect]);
 
@@ -1652,6 +1701,8 @@ export function useRealtimeVoice({
     inputStatus,
     inputMessage,
     inputNeedsPermission,
+    inputPermissionPending,
+    microphoneError,
     setVadSensitivity,
     // The UI selection path is user-explicit: it must never be overridden by
     // auto-Bluetooth selection afterwards.

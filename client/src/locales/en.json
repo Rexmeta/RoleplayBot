@@ -1,4 +1,17 @@
 {
+  "microphone": {
+    "requesting": "Checking microphone permission...",
+    "allowPrompt": "Choose Allow in the browser microphone prompt. Recording still starts only when you press the recording button.",
+    "retry": "Retry microphone",
+    "denied": "Microphone access was denied or blocked. Allow access, then retry.",
+    "safariSettings": "In iPhone Safari, open the address bar page menu → Website Settings → Microphone and check Allow.",
+    "browserSettings": "Check this browser's site microphone permission and its microphone permission in iPhone Settings, or open this page in Safari.",
+    "notFound": "No microphone is available. Check your microphone or headset connection, then retry.",
+    "busy": "The microphone is unavailable. Close other apps or calls using it, then retry.",
+    "secureContext": "Open this page over a secure HTTPS connection to use the microphone.",
+    "unsupported": "This browser cannot use the microphone. Open a supported browser or iPhone Safari.",
+    "failed": "Microphone preparation failed. Check the connection and browser microphone permission, then retry."
+  },
   "guest": {
     "demoBanner": "🎯 Demo Mode",
     "demoBannerDesc": "You are on a free trial. Sign up to access all features.",

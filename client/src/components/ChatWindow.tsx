@@ -39,6 +39,7 @@ import type { VideoAvatarRenderer } from "@/lib/avatar/VideoAvatarRenderer";
 import { ChatInputBar } from "@/components/chat/ChatInputBar";
 import { useAvatarStateMachine } from "@/hooks/useAvatarStateMachine";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
+import { isIOSWebKitAudioPlatform } from "@/lib/iosAudioSession";
 
 const MAX_TURNS = 999;
 const SOFT_CLOSE_THRESHOLD = 0.8;
@@ -412,7 +413,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // Status is intentionally omitted from deps — connect() has its own idempotency guard and will
   // ignore duplicate calls when already connecting/connected, preventing extra sessions on GoAway.
   useEffect(() => {
-    if (earlyConnect && inputMode === 'realtime-voice') {
+    if (earlyConnect && inputMode === 'realtime-voice' && !isIOSWebKitAudioPlatform()) {
       realtimeVoice.connect();
     }
   }, [earlyConnect, inputMode]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -529,6 +530,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       pendingVoiceModeSwitch.current = true;
       setShowVoiceModeConfirmDialog(true);
     } else {
+      if (next === 'text' && inputMode === 'realtime-voice') realtimeVoice.disconnect();
       setInputMode(next);
     }
   }, [initialInputMode]);
@@ -895,6 +897,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     inputStatus: realtimeVoice.inputStatus,
     inputMessage: realtimeVoice.inputMessage,
     inputNeedsPermission: realtimeVoice.inputNeedsPermission,
+    inputPermissionPending: realtimeVoice.inputPermissionPending,
+    microphoneError: realtimeVoice.microphoneError,
+    onCancelVoiceStart: realtimeVoice.disconnect,
     onInputDeviceChange: realtimeVoice.selectInputDevice,
     onRefreshInputDevices: realtimeVoice.refreshInputDevices,
     onRequestInputPermission: realtimeVoice.requestInputDevicePermission,
@@ -1605,6 +1610,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                   setShowVoiceModeConfirmDialog(false);
                   pendingVoiceModeSwitch.current = false;
                   setInputMode('realtime-voice');
+                  if (isIOSWebKitAudioPlatform()) realtimeVoice.connect(previousMessages.length ? previousMessages : undefined);
                 }}
               >
                 {t('chat.voiceModeConfirmAction', { defaultValue: '음성 모드로 전환' })}

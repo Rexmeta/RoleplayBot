@@ -168,7 +168,7 @@ describe('useAudioInputDevices', () => {
   });
 
   it('surfaces a retryable error when the permission request is denied', async () => {
-    (navigator.mediaDevices as any).getUserMedia = vi.fn(async () => { throw new Error('denied'); });
+    (navigator.mediaDevices as any).getUserMedia = vi.fn(async () => { throw new DOMException('denied', 'NotAllowedError'); });
     const { result } = renderHook(() => useAudioInputDevices());
     await act(async () => {});
     let granted = true;

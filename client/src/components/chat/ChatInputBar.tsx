@@ -58,6 +58,9 @@ interface ChatInputBarProps {
     inputStatus?: 'supported' | 'unsupported' | 'error';
     inputMessage?: string | null;
     inputNeedsPermission?: boolean;
+    inputPermissionPending?: boolean;
+    microphoneError?: string | null;
+    onCancelVoiceStart?: () => void;
     onInputDeviceChange?: (deviceId: string) => Promise<boolean>;
     onRefreshInputDevices?: () => Promise<void>;
     onRequestInputPermission?: () => Promise<boolean>;
@@ -117,7 +120,18 @@ export function ChatInputBar({
 
     return (
       <>
-        {rv.status === 'disconnected' && (
+        {rv.microphoneError && (
+          <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-testid="microphone-start-error">
+            <p>{rv.microphoneError}</p>
+            <Button
+              variant="outline" size="sm" className="mt-2"
+              disabled={rv.inputPermissionPending}
+              onClick={() => rv.status === 'connected' ? rv.onStartRecording() : rv.onConnect(rv.previousMessages)}
+              data-testid="button-retry-microphone"
+            >{t('microphone.retry')}</Button>
+          </div>
+        )}
+        {rv.status === 'disconnected' && !rv.microphoneError && (
           <div className="text-center space-y-4 py-4">
             {rv.conversationPhase === 'interrupted' ? (
               <>
@@ -155,11 +169,14 @@ export function ChatInputBar({
               <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></div>
             </div>
             <span className="text-slate-700 font-medium text-sm">
-              {rv.status === 'reconnecting' ? t('chat.reconnectingVoice') : t('chat.connectingVoice')}
+              {rv.inputPermissionPending ? t('microphone.requesting') : rv.status === 'reconnecting' ? t('chat.reconnectingVoice') : t('chat.connectingVoice')}
             </span>
             <span className="text-slate-400 text-xs">
-              {rv.status === 'reconnecting' ? t('chat.reconnectingVoiceHint') : t('chat.connectingVoiceHint')}
+              {rv.inputPermissionPending ? t('microphone.allowPrompt') : rv.status === 'reconnecting' ? t('chat.reconnectingVoiceHint') : t('chat.connectingVoiceHint')}
             </span>
+            {rv.onCancelVoiceStart && (
+              <Button variant="ghost" size="sm" onClick={rv.onCancelVoiceStart} data-testid="button-cancel-voice-start">{t('common.cancel')}</Button>
+            )}
           </div>
         )}
 
@@ -412,6 +429,7 @@ export function ChatInputBar({
                             {rv.inputNeedsPermission && rv.onRequestInputPermission && (
                               <button
                                 onClick={() => rv.onRequestInputPermission!()}
+                                 disabled={rv.inputPermissionPending}
                                 className="mt-1 w-full rounded-lg border border-dashed border-purple-200 px-2.5 py-2 text-left text-[11px] font-medium text-purple-700 hover:bg-purple-50"
                                 data-testid="button-load-input-devices"
                               >

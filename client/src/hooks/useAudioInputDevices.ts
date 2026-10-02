@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isIOSWebKitAudioPlatform } from '@/lib/iosAudioSession';
+import { requestMicrophonePermission, microphoneErrorKey, microphoneSettingsKey } from '@/lib/microphonePermission';
 
 const INPUT_DEVICE_KEY = 'realtime_voice_input_device_id';
 // Tracks whether the user explicitly picked a device so that auto-selection on
@@ -106,6 +107,11 @@ export interface UseAudioInputDevicesReturn {
   reportInputError: (message: string) => void;
   refreshInputDevices: () => Promise<void>;
   requestInputDevicePermission: () => Promise<boolean>;
+  cancelInputPermissionRequest: () => void;
+  markInputPermissionGranted: () => Promise<void>;
+  reportMicrophoneError: (error: unknown) => string;
+  inputPermissionPending: boolean;
+  microphoneError: string | null;
 }
 
 export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): UseAudioInputDevicesReturn {
@@ -117,6 +123,13 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
   const [inputMessage, setInputMessage] = useState<string | null>(null);
   const [inputNeedsPermission, setInputNeedsPermission] = useState(false);
   const [inputAutoSelected, setInputAutoSelected] = useState(false);
+  const [inputPermissionPending, setInputPermissionPending] = useState(false);
+  const [microphoneError, setMicrophoneError] = useState<string | null>(null);
+  const permissionGrantedRef = useRef(false);
+  const permissionErrorRef = useRef<string | null>(null);
+  const permissionEpochRef = useRef(0);
+  const enumerationRef = useRef(0);
+  const mountedRef = useRef(true);
 
   const selectedInputDeviceIdRef = useRef('');
   // True once the user explicitly picked a device; suppresses auto-bluetooth selection.
@@ -161,6 +174,7 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
   }, [persistInputSelection]);
 
   const refreshInputDevices = useCallback(async () => {
+    const enumeration = ++enumerationRef.current;
     if (!navigator.mediaDevices?.enumerateDevices || !navigator.mediaDevices?.getUserMedia) {
       setInputStatus('unsupported');
       setInputDevices([]);
@@ -171,11 +185,17 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
     try {
       const inputs = (await navigator.mediaDevices.enumerateDevices())
         .filter(device => device.kind === 'audioinput');
+      if (!mountedRef.current || enumeration !== enumerationRef.current) return;
       const described = inputs.map((device, index) => describeInputDevice(device, index, t));
       const normalized = described.some(device => device.deviceId === 'default' || device.deviceId === '')
         ? described
         : [{ deviceId: '', label: t('audioInput.defaultMic'), kind: 'default' as const }, ...described];
       setInputDevices(normalized);
+      if (permissionErrorRef.current) {
+        setInputStatus('error');
+        setInputMessage(permissionErrorRef.current);
+        return;
+      }
 
       const labelsHidden = inputs.length === 0 || inputs.every(device => !(device.label || '').trim());
       const exposesIndividualInputs = inputs.some(device =>
@@ -197,13 +217,14 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
 
       if (labelsHidden) {
         // Permission-gated list: the saved device is not proven gone, keep it.
-        setInputNeedsPermission(true);
-        setInputStatus('supported');
-        setInputMessage(t('audioInput.permissionNeeded'));
+        setInputNeedsPermission(!permissionGrantedRef.current);
+        setInputStatus(permissionErrorRef.current ? 'error' : 'supported');
+        setInputMessage(permissionErrorRef.current ?? (permissionGrantedRef.current ? null : t('audioInput.permissionNeeded')));
         return;
       }
 
       setInputNeedsPermission(false);
+      if (!permissionErrorRef.current) setInputMessage(null);
 
       // Auto-select Bluetooth when the user never explicitly chose a device and
       // either (a) nothing is selected yet, or (b) the current selection was
@@ -240,27 +261,56 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
         setInputStatus('supported');
       }
     } catch {
-      reportInputError(t('audioInput.enumError'));
+      if (mountedRef.current && enumeration === enumerationRef.current) reportInputError(t('audioInput.enumError'));
     }
   }, [persistInputSelection, reportInputError, t]);
 
-  const requestInputDevicePermission = useCallback(async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      reportInputError(t('audioInput.listUnsupported'));
-      return false;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-    } catch {
-      reportInputError(t('audioInput.permissionDenied'));
-      return false;
-    }
+  const markInputPermissionGranted = useCallback(async () => {
+    permissionGrantedRef.current = true;
+    permissionErrorRef.current = null;
+    setMicrophoneError(null);
+    setInputNeedsPermission(false);
+    setInputStatus('supported');
+    setInputMessage(null);
     await refreshInputDevices();
-    return true;
-  }, [refreshInputDevices, reportInputError, t]);
+  }, [refreshInputDevices]);
+
+  const reportMicrophoneError = useCallback((error: unknown) => {
+    const key = microphoneErrorKey(error);
+    const message = t(`microphone.${key}`) + (key === 'denied' ? ` ${t(`microphone.${microphoneSettingsKey()}`)}` : '');
+    permissionGrantedRef.current = false;
+    permissionErrorRef.current = message;
+    setMicrophoneError(message);
+    setInputNeedsPermission(key === 'denied');
+    reportInputError(message);
+    return message;
+  }, [reportInputError, t]);
+
+  const cancelInputPermissionRequest = useCallback(() => {
+    permissionEpochRef.current++;
+    enumerationRef.current++;
+    setInputPermissionPending(false);
+  }, []);
+
+  const requestInputDevicePermission = useCallback(async () => {
+    const epoch = permissionEpochRef.current;
+    setInputPermissionPending(true);
+    setMicrophoneError(null);
+    try {
+      await requestMicrophonePermission();
+      if (!mountedRef.current || epoch !== permissionEpochRef.current) return false;
+      await markInputPermissionGranted();
+      return mountedRef.current && epoch === permissionEpochRef.current;
+    } catch (error) {
+      if (mountedRef.current && epoch === permissionEpochRef.current) reportMicrophoneError(error);
+      return false;
+    } finally {
+      if (mountedRef.current && epoch === permissionEpochRef.current) setInputPermissionPending(false);
+    }
+  }, [markInputPermissionGranted, reportMicrophoneError]);
 
   useEffect(() => {
+    mountedRef.current = true;
     try {
       const saved = localStorage.getItem(INPUT_DEVICE_KEY) || '';
       selectedInputDeviceIdRef.current = saved;
@@ -274,6 +324,9 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
     const onDeviceChange = () => { refreshInputDevices(); };
     navigator.mediaDevices?.addEventListener?.('devicechange', onDeviceChange);
     return () => {
+      mountedRef.current = false;
+      permissionEpochRef.current++;
+      enumerationRef.current++;
       navigator.mediaDevices?.removeEventListener?.('devicechange', onDeviceChange);
     };
   }, [refreshInputDevices]);
@@ -291,5 +344,10 @@ export function useAudioInputDevices(options?: UseAudioInputDevicesOptions): Use
     reportInputError,
     refreshInputDevices,
     requestInputDevicePermission,
+    cancelInputPermissionRequest,
+    markInputPermissionGranted,
+    reportMicrophoneError,
+    inputPermissionPending,
+    microphoneError,
   };
 }
