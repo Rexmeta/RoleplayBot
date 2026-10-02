@@ -1,0 +1,494 @@
+{
+  "scope": "real application-service code; in-process fake sockets/provider/storage; not HTTP/DB/OS/network capacity",
+  "measuredAt": "2026-10-02T08:27:39.032Z",
+  "rows": [
+    {
+      "kind": "steps",
+      "count": 10,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 1040.844924,
+      "requestedHoldMs": 1000,
+      "successfulConnections": 10,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 400,
+        "p50": 5.409913999999844,
+        "p95": 6.4577180000001135,
+        "max": 8.830241000000115
+      },
+      "connectionMs": {
+        "samples": 10,
+        "p50": 1.9765729999999166,
+        "p95": 2.1205139999999574,
+        "max": 2.1205139999999574
+      },
+      "recoveryMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakCreating": 10,
+      "peakRegistered": 10,
+      "peakProvider": 10,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 400,
+      "outputFrames": 400,
+      "lostFrames": 0,
+      "cpuUserMs": 110.978,
+      "cpuSystemMs": 19.781,
+      "cpuOneCorePercent": 12.563721354914204,
+      "injectedProviderDisconnects": 0,
+      "memoryBefore": {
+        "rss": 110694400,
+        "heapTotal": 59838464,
+        "heapUsed": 36838104,
+        "external": 2476604,
+        "arrayBuffers": 17628
+      },
+      "memoryAfter": {
+        "rss": 118980608,
+        "heapTotal": 65605632,
+        "heapUsed": 35685336,
+        "external": 2476644,
+        "arrayBuffers": 17323
+      },
+      "peakRss": 118980608,
+      "peakHeap": 38844840,
+      "eventLoopP50Ms": 10.215423,
+      "eventLoopP95Ms": 10.846207,
+      "errors": {}
+    },
+    {
+      "kind": "steps",
+      "count": 30,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 1033.984642,
+      "requestedHoldMs": 1000,
+      "successfulConnections": 30,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 1200,
+        "p50": 5.544703000000027,
+        "p95": 6.110770999999659,
+        "max": 6.579850999999962
+      },
+      "connectionMs": {
+        "samples": 30,
+        "p50": 1.0847320000002583,
+        "p95": 1.1208670000000893,
+        "max": 1.159483000000364
+      },
+      "recoveryMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakCreating": 30,
+      "peakRegistered": 30,
+      "peakProvider": 30,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 1200,
+      "outputFrames": 1200,
+      "lostFrames": 0,
+      "cpuUserMs": 60.121,
+      "cpuSystemMs": 20.347,
+      "cpuOneCorePercent": 7.7831272618492475,
+      "injectedProviderDisconnects": 0,
+      "memoryBefore": {
+        "rss": 119111680,
+        "heapTotal": 65605632,
+        "heapUsed": 35719128,
+        "external": 2476644,
+        "arrayBuffers": 17323
+      },
+      "memoryAfter": {
+        "rss": 118255616,
+        "heapTotal": 65605632,
+        "heapUsed": 32127000,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "peakRss": 119898112,
+      "peakHeap": 43323168,
+      "eventLoopP50Ms": 10.215423,
+      "eventLoopP95Ms": 10.608639,
+      "errors": {}
+    },
+    {
+      "kind": "steps",
+      "count": 50,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 1042.0892380000005,
+      "requestedHoldMs": 1000,
+      "successfulConnections": 50,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 2000,
+        "p50": 5.5888199999999415,
+        "p95": 7.015150000000176,
+        "max": 10.517045999999937
+      },
+      "connectionMs": {
+        "samples": 50,
+        "p50": 2.2300099999997656,
+        "p95": 2.2796039999998357,
+        "max": 2.3155879999999343
+      },
+      "recoveryMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakCreating": 50,
+      "peakRegistered": 50,
+      "peakProvider": 50,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 2000,
+      "outputFrames": 2000,
+      "lostFrames": 0,
+      "cpuUserMs": 125.625,
+      "cpuSystemMs": 11.26,
+      "cpuOneCorePercent": 13.137012107159999,
+      "injectedProviderDisconnects": 0,
+      "memoryBefore": {
+        "rss": 118386688,
+        "heapTotal": 65605632,
+        "heapUsed": 32159576,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "memoryAfter": {
+        "rss": 119324672,
+        "heapTotal": 65867776,
+        "heapUsed": 44587632,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "peakRss": 124600320,
+      "peakHeap": 44206000,
+      "eventLoopP50Ms": 10.199039,
+      "eventLoopP95Ms": 10.813439,
+      "errors": {}
+    },
+    {
+      "kind": "steps",
+      "count": 70,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 1036.1884410000002,
+      "requestedHoldMs": 1000,
+      "successfulConnections": 70,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 2800,
+        "p50": 5.714729000000261,
+        "p95": 6.5019619999993665,
+        "max": 7.75873700000011
+      },
+      "connectionMs": {
+        "samples": 70,
+        "p50": 2.576151999999638,
+        "p95": 2.6527659999992466,
+        "max": 2.686160999999629
+      },
+      "recoveryMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakCreating": 70,
+      "peakRegistered": 70,
+      "peakProvider": 70,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 2800,
+      "outputFrames": 2800,
+      "lostFrames": 0,
+      "cpuUserMs": 64.386,
+      "cpuSystemMs": 11.369,
+      "cpuOneCorePercent": 7.311713752854936,
+      "injectedProviderDisconnects": 0,
+      "memoryBefore": {
+        "rss": 119455744,
+        "heapTotal": 65867776,
+        "heapUsed": 44617904,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "memoryAfter": {
+        "rss": 120635392,
+        "heapTotal": 67702784,
+        "heapUsed": 41900600,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "peakRss": 120635392,
+      "peakHeap": 45291472,
+      "eventLoopP50Ms": 10.207231,
+      "eventLoopP95Ms": 10.559487,
+      "errors": {}
+    },
+    {
+      "kind": "steps",
+      "count": 100,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 1036.5950359999997,
+      "requestedHoldMs": 1000,
+      "successfulConnections": 100,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 4000,
+        "p50": 5.8608580000000075,
+        "p95": 6.526672999999391,
+        "max": 8.060563000000002
+      },
+      "connectionMs": {
+        "samples": 100,
+        "p50": 2.6710599999996703,
+        "p95": 2.74067500000001,
+        "max": 2.7770030000001498
+      },
+      "recoveryMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakCreating": 100,
+      "peakRegistered": 100,
+      "peakProvider": 100,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 4000,
+      "outputFrames": 4000,
+      "lostFrames": 0,
+      "cpuUserMs": 76.862,
+      "cpuSystemMs": 9.938,
+      "cpuOneCorePercent": 8.37467416137612,
+      "injectedProviderDisconnects": 0,
+      "memoryBefore": {
+        "rss": 120766464,
+        "heapTotal": 67702784,
+        "heapUsed": 41931016,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "memoryAfter": {
+        "rss": 122339328,
+        "heapTotal": 68489216,
+        "heapUsed": 34427144,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "peakRss": 122339328,
+      "peakHeap": 46737744,
+      "eventLoopP50Ms": 10.231807,
+      "eventLoopP95Ms": 10.665983,
+      "errors": {}
+    },
+    {
+      "kind": "burst",
+      "count": 70,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 1038.9866440000005,
+      "requestedHoldMs": 1000,
+      "successfulConnections": 70,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 2800,
+        "p50": 5.631460000000516,
+        "p95": 6.157497999999578,
+        "max": 6.553457999999409
+      },
+      "connectionMs": {
+        "samples": 70,
+        "p50": 2.0127250000005006,
+        "p95": 2.066888999999719,
+        "max": 2.0986720000000787
+      },
+      "recoveryMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakCreating": 70,
+      "peakRegistered": 70,
+      "peakProvider": 70,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 2800,
+      "outputFrames": 2800,
+      "lostFrames": 0,
+      "cpuUserMs": 83.46,
+      "cpuSystemMs": 8.738,
+      "cpuOneCorePercent": 8.894383434660687,
+      "injectedProviderDisconnects": 0,
+      "memoryBefore": {
+        "rss": 122470400,
+        "heapTotal": 68489216,
+        "heapUsed": 34489640,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "memoryAfter": {
+        "rss": 124153856,
+        "heapTotal": 70062080,
+        "heapUsed": 45686224,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "peakRss": 125353984,
+      "peakHeap": 47800792,
+      "eventLoopP50Ms": 10.248191,
+      "eventLoopP95Ms": 10.584063,
+      "errors": {}
+    },
+    {
+      "kind": "reconnect",
+      "count": 70,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 2133.4320119999993,
+      "requestedHoldMs": 1000,
+      "successfulConnections": 70,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 2730,
+        "p50": 5.794823999998698,
+        "p95": 19.479428000000553,
+        "max": 32.21066100000098
+      },
+      "connectionMs": {
+        "samples": 70,
+        "p50": 3.186402000000271,
+        "p95": 3.2457979999999225,
+        "max": 3.2863729999999123
+      },
+      "recoveryMs": {
+        "samples": 70,
+        "p50": 1000.8102989999998,
+        "p95": 1001.0728259999996,
+        "max": 1001.104260000001
+      },
+      "peakCreating": 70,
+      "peakRegistered": 70,
+      "peakProvider": 70,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 2730,
+      "outputFrames": 2730,
+      "lostFrames": 0,
+      "cpuUserMs": 132.819,
+      "cpuSystemMs": 33.3,
+      "cpuOneCorePercent": 7.787675630968784,
+      "injectedProviderDisconnects": 70,
+      "memoryBefore": {
+        "rss": 124284928,
+        "heapTotal": 70062080,
+        "heapUsed": 45715968,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "memoryAfter": {
+        "rss": 125464576,
+        "heapTotal": 70848512,
+        "heapUsed": 44955024,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "peakRss": 125464576,
+      "peakHeap": 49025312,
+      "eventLoopP50Ms": 10.215423,
+      "eventLoopP95Ms": 10.641407,
+      "errors": {}
+    },
+    {
+      "kind": "soak",
+      "count": 70,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 1043.2065789999997,
+      "requestedHoldMs": 1000,
+      "successfulConnections": 70,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 2800,
+        "p50": 5.733088000000862,
+        "p95": 6.481483999999909,
+        "max": 7.06556400000045
+      },
+      "connectionMs": {
+        "samples": 70,
+        "p50": 3.9120619999994233,
+        "p95": 4.050924999999552,
+        "max": 4.130529000000024
+      },
+      "recoveryMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakCreating": 70,
+      "peakRegistered": 70,
+      "peakProvider": 70,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 2800,
+      "outputFrames": 2800,
+      "lostFrames": 0,
+      "cpuUserMs": 79.616,
+      "cpuSystemMs": 10.574,
+      "cpuOneCorePercent": 8.647432552250518,
+      "injectedProviderDisconnects": 0,
+      "memoryBefore": {
+        "rss": 125595648,
+        "heapTotal": 70848512,
+        "heapUsed": 44985160,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "memoryAfter": {
+        "rss": 127692800,
+        "heapTotal": 72159232,
+        "heapUsed": 44118768,
+        "external": 2476339,
+        "arrayBuffers": 17323
+      },
+      "peakRss": 127692800,
+      "peakHeap": 50165224,
+      "eventLoopP50Ms": 10.264575,
+      "eventLoopP95Ms": 10.772479,
+      "errors": {}
+    }
+  ]
+}

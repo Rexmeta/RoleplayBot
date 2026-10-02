@@ -1,15 +1,10 @@
 ---
-name: Gemini Live valid models
-description: Correct model IDs for @google/genai SDK Live API bidiGenerateContent, confirmed via SDK source
+name: Gemini Live 모델 검증
+description: 오래된 모델명 메모와 SDK 버전 추론을 실제 provider 증거보다 우선하지 않는 원칙
 ---
 
-## Rule
-Use `gemini-3.1-flash-live-preview` with API version `v1beta`.
+지원 모델은 현재 provider 문서와 실제 handshake 결과로 확인한다. 오래된 메모의 모델명이나 SDK 버전만으로 지원 여부를 단정하지 않는다. 실제 설정에서 선택한 모델과 실제 연결 성공 여부도 구분한다.
 
-**Why:** `gemini-3.1-flash-live-preview` is the current supported Google AI model for `bidiGenerateContent` on `v1beta`. All previous Gemini Live names, including `gemini-live-2.5-flash-preview` and `gemini-live-2.5-flash-native-audio`, fail. v1alpha is never used per product requirement.
+**Why:** 기존 메모의 인덱스와 본문이 서로 다른 세대의 모델명을 가리켰다. 운영 설정 로그가 더 최신 모델을 선택하고 있어 과거 이름을 그대로 적용하면 잘못된 장애 진단이나 설정 변경을 유도한다.
 
-**How to apply:**
-- `DEFAULT_REALTIME_MODEL` in `server/services/realtimeVoiceService.ts` → `'gemini-3.1-flash-live-preview'`
-- `geminiLiveApiVersion()` always returns `'v1beta'` — v1alpha is excluded entirely
-- `server/migrate.ts` migration uses `NOT IN ('gemini-3.1-flash-live-preview', 'gpt-4o-realtime-preview', 'gpt-4o-mini-realtime-preview')` to auto-correct any stale DB values
-- `shared/realtimeModels.ts` REALTIME_MODELS shows this model + OpenAI options
+**How to apply:** 모델 변경 또는 접속 오류 조사 시 현재 소스의 선택 정책, 해당 revision의 선택 로그, provider 응답을 대조한다. 단일 세션의 선택 로그를 모든 참가자의 모델이나 API 지원 보장으로 일반화하지 않는다.

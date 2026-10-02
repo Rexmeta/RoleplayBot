@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useRef } from 'react';
 import { useAudioPlayback } from '../../client/src/hooks/useAudioPlayback';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 // Provide a minimal react-i18next mock that resolves real Korean translations
 // so message assertions remain meaningful across i18n refactors.
@@ -158,6 +159,61 @@ function renderAudioPlayback() {
   const { result } = renderHook(() => useAudioPlayback(isInterruptedRef as any));
   return { result, isInterruptedRef };
 }
+
+describe('incident diagnostic synthetic PCM (no physical speaker claims)', () => {
+  it('records gain, RMS, peak and clipping across quiet/loud/silence/reset/device boundaries', async () => {
+    const { result, isInterruptedRef } = renderAudioPlayback();
+    const rows: any[] = [];
+    function signal(amplitude: number) {
+      const pcm = Int16Array.from({ length: 480 }, (_, i) =>
+        Math.round(amplitude * 32767 * Math.sin(2 * Math.PI * i / 48)));
+      return { base64: Buffer.from(pcm.buffer).toString('base64'),
+        samples: Array.from(pcm, n => n / 32768) };
+    }
+    function stats(samples: number[]) {
+      return { rms: Math.sqrt(samples.reduce((sum, n) => sum + n * n, 0) / samples.length),
+        peak: Math.max(...samples.map(Math.abs)), clipped: samples.filter(n => Math.abs(n) >= 1).length };
+    }
+    async function play(label: string, amplitude: number, frames = 1) {
+      const input = signal(amplitude);
+      for (let i = 0; i < frames; i++) {
+        await act(async () => { await result.current.playAudioDelta(input.base64); });
+        // Simulate completion so this AGC experiment is not a source-queue soak.
+        for (const source of [...result.current.scheduledSourcesRef.current]) source.onended?.(new Event('ended') as any);
+      }
+      const output = Array.from(mockContext._lastBuffer!._channelData);
+      rows.push({ label, frames, input: stats(input.samples), preCompressor: stats(output),
+        observedGain: input.samples[1] ? output[1] / input.samples[1] : null,
+        pcmAfterAgc: output, physicalRouteVerified: false });
+      return rows.at(-1);
+    }
+    await play('quiet-start', .02);
+    const quiet = await play('quiet-steady', .02, 400);
+    expect(quiet.observedGain).toBeCloseTo(4, 3);
+    const jump = await play('loud-after-quiet', .8);
+    expect(jump.preCompressor.clipped).toBeGreaterThan(0);
+    await play('long-silence', 0, 100);
+    await play('loud-after-silence', .8);
+    act(() => result.current.stopPlayback()); // real hook reset used by barge-in
+    isInterruptedRef.current = false; // real voice hook releases this at the next response boundary
+    const reset = await play('loud-after-barge-in-reset', .8);
+    expect(reset.observedGain).toBeLessThan(jump.observedGain);
+    act(() => result.current.stopPlayback()); // same playback-reset boundary on reconnect
+    isInterruptedRef.current = false;
+    await play('loud-after-reconnect-reset', .8);
+    mockContext.setSinkId = vi.fn(async () => {});
+    await act(async () => { await result.current.selectOutputDevice('synthetic-bt'); });
+    await play('loud-after-mocked-output-change', .8);
+    if (process.env.VOICE_DIAGNOSTIC_WRITE === '1') {
+      mkdirSync('docs/diagnostics/results', { recursive: true });
+      writeFileSync('docs/diagnostics/results/pcm-agc.json', JSON.stringify({
+        scope: 'real playback hook PCM; mocked AudioContext; compressor not rendered here; OS/device unverified',
+        settings: { targetRms: .15, minGain: .5, maxGain: 4, attackCoeff: .05, releaseCoeff: .015 },
+        rows,
+      }, null, 2));
+    }
+  });
+});
 
 describe('useAudioPlayback', () => {
   describe('audio output device management', () => {

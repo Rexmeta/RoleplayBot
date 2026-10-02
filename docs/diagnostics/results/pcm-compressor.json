@@ -1,0 +1,165 @@
+{
+  "scope": "Chromium WebAudio offline, independent checkpoint renders; not OS/device listening",
+  "rows": [
+    {
+      "label": "quiet-start",
+      "input": {
+        "rms": 0.01414274235630792,
+        "peak": 0.019989013671875,
+        "clipped": 0
+      },
+      "preCompressor": {
+        "rms": 0.014337528155556957,
+        "peak": 0.020264320075511932,
+        "clipped": 0
+      },
+      "observedGain": 1.0137728314067043,
+      "postCompressor": {
+        "rms": 0.014210842394769153,
+        "peak": 0.020547401160001755,
+        "clipped": 0
+      },
+      "physicalRouteVerified": false
+    },
+    {
+      "label": "quiet-steady",
+      "input": {
+        "rms": 0.01414274235630792,
+        "peak": 0.019989013671875,
+        "clipped": 0
+      },
+      "preCompressor": {
+        "rms": 0.05657096942523168,
+        "peak": 0.0799560546875,
+        "clipped": 0
+      },
+      "observedGain": 4,
+      "postCompressor": {
+        "rms": 0.05607111152027642,
+        "peak": 0.08107299357652664,
+        "clipped": 0
+      },
+      "physicalRouteVerified": false
+    },
+    {
+      "label": "loud-after-quiet",
+      "input": {
+        "rms": 0.5656702091999662,
+        "peak": 0.79998779296875,
+        "clipped": 0
+      },
+      "preCompressor": {
+        "rms": 0.921290515102641,
+        "peak": 1,
+        "clipped": 380
+      },
+      "observedGain": 3.5697089261579484,
+      "postCompressor": {
+        "rms": 0.892631253830328,
+        "peak": 0.9931531548500061,
+        "clipped": 0
+      },
+      "physicalRouteVerified": false
+    },
+    {
+      "label": "long-silence",
+      "input": {
+        "rms": 0,
+        "peak": 0,
+        "clipped": 0
+      },
+      "preCompressor": {
+        "rms": 0,
+        "peak": 0,
+        "clipped": 0
+      },
+      "observedGain": null,
+      "postCompressor": {
+        "rms": 0,
+        "peak": 0,
+        "clipped": 0
+      },
+      "physicalRouteVerified": false
+    },
+    {
+      "label": "loud-after-silence",
+      "input": {
+        "rms": 0.5656702091999662,
+        "peak": 0.79998779296875,
+        "clipped": 0
+      },
+      "preCompressor": {
+        "rms": 0.8654194913832005,
+        "peak": 1,
+        "clipped": 300
+      },
+      "observedGain": 2.1993254812609586,
+      "postCompressor": {
+        "rms": 0.8387474174067262,
+        "peak": 0.9932662844657898,
+        "clipped": 0
+      },
+      "physicalRouteVerified": false
+    },
+    {
+      "label": "loud-after-barge-in-reset",
+      "input": {
+        "rms": 0.5656702091999662,
+        "peak": 0.79998779296875,
+        "clipped": 0
+      },
+      "preCompressor": {
+        "rms": 0.4968309419181436,
+        "peak": 0.7026332020759583,
+        "clipped": 0
+      },
+      "observedGain": 0.8783049591795733,
+      "postCompressor": {
+        "rms": 0.48781953230160396,
+        "peak": 0.7063296437263489,
+        "clipped": 0
+      },
+      "physicalRouteVerified": false
+    },
+    {
+      "label": "loud-after-reconnect-reset",
+      "input": {
+        "rms": 0.5656702091999662,
+        "peak": 0.79998779296875,
+        "clipped": 0
+      },
+      "preCompressor": {
+        "rms": 0.4968309419181436,
+        "peak": 0.7026332020759583,
+        "clipped": 0
+      },
+      "observedGain": 0.8783049591795733,
+      "postCompressor": {
+        "rms": 0.48781953230160396,
+        "peak": 0.7063296437263489,
+        "clipped": 0
+      },
+      "physicalRouteVerified": false
+    },
+    {
+      "label": "loud-after-mocked-output-change",
+      "input": {
+        "rms": 0.5656702091999662,
+        "peak": 0.79998779296875,
+        "clipped": 0
+      },
+      "preCompressor": {
+        "rms": 0.44534451506040595,
+        "peak": 0.6298195719718933,
+        "clipped": 0
+      },
+      "observedGain": 0.7872865232091978,
+      "postCompressor": {
+        "rms": 0.43836979998116893,
+        "peak": 0.6346765756607056,
+        "clipped": 0
+      },
+      "physicalRouteVerified": false
+    }
+  ]
+}

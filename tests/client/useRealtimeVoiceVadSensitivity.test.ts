@@ -16,8 +16,8 @@ vi.mock('../../client/src/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-vi.mock('../../client/src/hooks/useAudioInputDevices', () => ({
-  useAudioInputDevices: () => ({
+vi.mock('../../client/src/hooks/useAudioInputDevices', () => {
+  const value = {
     inputDevices: [],
     selectedInputDeviceId: '',
     inputStatus: 'idle',
@@ -34,12 +34,13 @@ vi.mock('../../client/src/hooks/useAudioInputDevices', () => ({
     reportMicrophoneError: vi.fn(),
     inputPermissionPending: false,
     microphoneError: null,
-  }),
-  buildMicrophoneConstraints: vi.fn((id: string) => ({ audio: id ? { deviceId: { exact: id } } : true })),
-}));
+  };
+  return { useAudioInputDevices: () => value,
+    buildMicrophoneConstraints: vi.fn((id: string) => ({ audio: id ? { deviceId: { exact: id } } : true })) };
+});
 
-vi.mock('../../client/src/hooks/useAudioPlayback', () => ({
-  useAudioPlayback: () => ({
+vi.mock('../../client/src/hooks/useAudioPlayback', () => {
+  const value = {
     playbackContextRef: { current: null },
     scheduledSourcesRef: { current: [] },
     nextPlayTimeRef: { current: 0 },
@@ -67,11 +68,12 @@ vi.mock('../../client/src/hooks/useAudioPlayback', () => ({
     refreshOutputDevices: mockRefreshOutputs,
     initializePlaybackContext: vi.fn(async () => null),
     resumePlayback: vi.fn(async () => true),
-  }),
-}));
+  };
+  return { useAudioPlayback: () => value };
+});
 
-vi.mock('../../client/src/hooks/useVoiceActivityDetection', () => ({
-  useVoiceActivityDetection: () => ({
+vi.mock('../../client/src/hooks/useVoiceActivityDetection', () => {
+  const value = {
     vadProcessorRef: { current: null },
     voiceActivityStartRef: { current: null },
     bargeInTriggeredRef: { current: false },
@@ -79,16 +81,18 @@ vi.mock('../../client/src/hooks/useVoiceActivityDetection', () => ({
     setupVAD: vi.fn(),
     updateThresholds: vi.fn(),
     resetVAD: mockResetVAD,
-  }),
-}));
+  };
+  return { useVoiceActivityDetection: () => value };
+});
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: undefined, isLoading: false }),
 }));
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'en' } }),
-}));
+vi.mock('react-i18next', () => {
+  const value = { t: (k: string) => k, i18n: { language: 'en' } };
+  return { useTranslation: () => value };
+});
 
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
@@ -267,6 +271,43 @@ describe('useRealtimeVoice — VAD sensitivity localStorage persistence', () => 
 
     expect(mockResetVAD).toHaveBeenCalledOnce();
     expect(result.current.isRecording).toBe(false);
+  });
+
+  it('diagnostic: retries after recoverable:false plus a normal server close once conversation started', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('authToken', 'synthetic-not-a-token');
+    const hook = renderHook(() => useRealtimeVoice(buildProps()));
+    try {
+      await act(async () => { await hook.result.current.connect(); });
+      const socket = MockWebSocket.instances.at(-1)!;
+      socket.readyState = 1;
+      await act(async () => {
+        socket.onopen?.();
+        socket.onmessage?.({ data: JSON.stringify({ type: 'ai.transcription.done', text: 'synthetic' }) });
+        socket.onmessage?.({ data: JSON.stringify({ type: 'error', error: 'synthetic terminal', recoverable: false }) });
+        socket.onclose?.({ code: 1000, reason: 'Gemini fatal error' });
+      });
+      expect(hook.result.current.status).toBe('reconnecting');
+      const count = MockWebSocket.instances.length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(1499); });
+      expect(MockWebSocket.instances.length).toBe(count);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(MockWebSocket.instances.length).toBe(count + 1);
+      // onopen resets the retry count even before provider is configured.
+      const replacement = MockWebSocket.instances.at(-1)!;
+      await act(async () => {
+        replacement.onopen?.();
+        replacement.onmessage?.({ data: JSON.stringify({ type: 'session.ready' }) });
+      });
+      await act(async () => {
+        replacement.onclose?.({ code: 1000, reason: 'Gemini fatal error' });
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+      expect(MockWebSocket.instances.length).toBe(count + 2);
+    } finally {
+      hook.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it('an auto-mode (0) choice survives remount', () => {

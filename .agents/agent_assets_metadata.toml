@@ -127,3 +127,17 @@ type = "image"
 title = "neutral_converted.jpg"
 description = "personas/cp/male/neutral.webp → JPEG quality 92 변환 결과 (101,954 bytes)"
 logical_id = "f4e1548d-425d-4cf9-8ed3-a5678de564b4"
+
+[[outputs]]
+id = "ujUAd5x9fq5Ds_FN9fo9W"
+uri = "file://docs/diagnostics/concurrent-roleplay-incident.ko.html"
+type = "html"
+title = "동시 롤플레이 장애 분석 보고서"
+description = "확인된 사실·재현된 결함·미확인 가설, 모의 부하와 PCM 측정, 운영 완화책 및 승인 후 검증 절차를 구분한 한국어 보고서입니다."
+logical_id = "bed08691-9db9-45ac-bf76-2747eb5f0bdd"
+content_hash = "sha256:01be512508d504b10ea5ff22e0c28ac15b48fae6a601a81c1b1517db5bbfae9f"
+size = 36610
+mtime_ms = 1790938921548
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:543bcf34-dde8-497f-8837-398b7f6da8ad/bed08691-9db9-45ac-bf76-2747eb5f0bdd/77dc79ff-aeff-4ea3-8ccb-3e88055ea4f6"
+storage_version_token = "1790938951198145"
+content_type = "text/html"

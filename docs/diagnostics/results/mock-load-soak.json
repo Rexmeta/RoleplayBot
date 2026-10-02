@@ -1,0 +1,67 @@
+{
+  "scope": "real application-service code; in-process fake sockets/provider/storage; not HTTP/DB/OS/network capacity",
+  "measuredAt": "2026-10-02T08:28:50.174Z",
+  "rows": [
+    {
+      "kind": "soak",
+      "count": 70,
+      "provider": "MOCK — no real provider capacity claim",
+      "durationMs": 65055.2986,
+      "requestedHoldMs": 65000,
+      "successfulConnections": 70,
+      "connectionSuccessRate": 1,
+      "unexpectedTerminations": 0,
+      "unexpectedTerminationRate": 0,
+      "responseMs": {
+        "samples": 180180,
+        "p50": 5.65408899999602,
+        "p95": 6.229939999999942,
+        "max": 26.90383699999802
+      },
+      "connectionMs": {
+        "samples": 70,
+        "p50": 2.8193249999999352,
+        "p95": 3.0360719999998764,
+        "max": 3.072757000000138
+      },
+      "recoveryMs": {
+        "samples": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "peakCreating": 70,
+      "peakRegistered": 70,
+      "peakProvider": 70,
+      "creatingAfter": 0,
+      "activeAfter": 0,
+      "providerAfter": 0,
+      "inputFrames": 180180,
+      "outputFrames": 180180,
+      "lostFrames": 0,
+      "cpuUserMs": 3374.376,
+      "cpuSystemMs": 833.843,
+      "cpuOneCorePercent": 6.468727825883199,
+      "injectedProviderDisconnects": 0,
+      "memoryBefore": {
+        "rss": 109707264,
+        "heapTotal": 59314176,
+        "heapUsed": 37148336,
+        "external": 2476604,
+        "arrayBuffers": 17628
+      },
+      "memoryAfter": {
+        "rss": 164175872,
+        "heapTotal": 107868160,
+        "heapUsed": 85018976,
+        "external": 2476384,
+        "arrayBuffers": 17368
+      },
+      "peakRss": 152772608,
+      "peakHeap": 77816112,
+      "eventLoopP50Ms": 10.207231,
+      "eventLoopP95Ms": 10.600447,
+      "errors": {}
+    }
+  ]
+}

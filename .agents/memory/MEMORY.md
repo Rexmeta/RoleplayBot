@@ -1,4 +1,4 @@
-- [Gemini Live valid models](gemini-live-models.md) — v1beta 및 현행 provider 계약을 확인; 오래된 SDK 버전만으로 모델 지원 여부를 추정하지 않는다.
+- [Gemini Live 모델 검증](gemini-live-models.md) — v1beta·현행 provider 계약·실제 handshake를 확인; 오래된 SDK 버전이나 모델명 메모로 지원 여부를 단정하지 않는다.
 - [Veo model names](veo-model-names.md) — 올바른 순서: `veo-3.1-lite-generate-preview` (lite-generate, not generate-lite); generateAudio는 SDK v1.15+에서 config에 넣으면 즉시 에러
 - [Veo image-to-video constraints](veo-image-to-video.md) — referenceImages/personGeneration 둘 다 Gemini API 미지원; 사람 얼굴 이미지는 RAI 필터에 자주 차단; silent fallback 금지
 - [Veo clip container & letterbox](veo-clip-container-and-letterbox.md) — Veo는 항상 MP4/H.264 반환 + 종종 검은 여백을 프레임에 구움; 저장 전 ffprobe/cropdetect로 정규화, `.webm`로 위장하면 Chrome이 재생 거부
@@ -22,3 +22,4 @@
 - [Published runtime snapshots](published-runtime-snapshots.md) — 실행 중 scenario/persona/harness/rubric은 run에 바인딩된 snapshot만 사용; imported rubric 누락 시 live fallback 금지
 - [Durable feedback jobs](durable-feedback-jobs.md) — 완료 응답 전에 DB 작업 등록; claim과 publish를 token-fence하고 리포트 저장+completed 전환은 한 트랜잭션
 - [한국어 인식 검증](korean-recognition-contract.md) — 설정 객체가 아닌 실제 SDK 직렬화를 검증; 독립 STT도 짧은 한국어를 오인식하므로 검증 전 정확성 개선을 주장하지 않는다.
+- [동시 음성 장애 증거](voice-incident-evidence.md) — 저장소 배포 정의·최근 로그·모의 부하를 행사 실행 환경이나 실제 provider 수용량과 혼동하지 않는다.

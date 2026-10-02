@@ -4,6 +4,15 @@
 
 ## 스크립트 목록
 
+### 비운영 음성 장애 검증
+
+`node scripts/diagnostics/voice-load.mjs --scenario all --duration-ms 1000`은 실 API·운영 URL·DB에 연결하지 않고 실제 음성 서비스 코드의 모의 부하와 PCM 경계를 검사합니다. 실제 provider 처리량이나 안전 동시 인원으로 해석하지 마세요.
+
+`node scripts/diagnostics/render-compressor.mjs`는 Chromium을 사용해 합성 PCM의 후단 압축 출력을 렌더링합니다(마이크/스피커 사용 없음).
+
+조사 보고서·긴 유지 시험·승인 후 staging 절차: `docs/diagnostics/concurrent-roleplay-incident.ko.md`.
+HTML 보고서는 `node scripts/diagnostics/export-report.mjs`로 재생성합니다.
+
 ### 1. `deploy-build.sh` - 배포 빌드 스크립트
 Replit 배포 시 자동으로 실행되는 빌드 스크립트입니다.
 

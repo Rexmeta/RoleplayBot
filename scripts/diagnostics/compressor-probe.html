@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><title>합성 PCM 압축 출력 검증</title>
+<style>body{font:16px system-ui;max-width:1000px;margin:40px auto;padding:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f4f6;padding:20px}button{padding:10px}</style>
+<h1>합성 PCM 압축 출력 검증</h1>
+<p>실제 재생 훅이 만든 AGC 후 PCM을 브라우저 OfflineAudioContext로 압축합니다.
+마이크·스피커·네트워크를 사용하지 않습니다. OS 경로, Bluetooth 음량, 체감 음량은 미검증입니다.
+각 체크포인트는 독립된 압축기 컨텍스트로 측정하므로 압축기의 경계 간 잔류 상태는 재현하지 않습니다.</p>
+<pre id="result">측정 중</pre>
+<button id="download" disabled>측정 JSON 저장</button>
+<script id="signals" type="application/json">__SYNTHETIC_PCM__</script>
+<script>
+async function probe() {
+  const source = JSON.parse(document.getElementById('signals').textContent);
+  const rows = [];
+  const stats = a => ({ rms: Math.sqrt(a.reduce((s,n)=>s+n*n,0)/a.length),
+    peak: Math.max(...a.map(Math.abs)), clipped: a.filter(n=>Math.abs(n)>=1).length });
+  for (const row of source.rows) {
+    // Repeat 20-ms checkpoint for 1 second to include compressor attack/release settling.
+    const context = new OfflineAudioContext(1, 24000, 24000);
+    const buffer = context.createBuffer(1, 24000, 24000);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<data.length;i++) data[i]=row.pcmAfterAgc[i%row.pcmAfterAgc.length];
+    const node = context.createBufferSource(); node.buffer=buffer;
+    const compressor = context.createDynamicsCompressor();
+    Object.entries({threshold:-10,knee:40,ratio:4,attack:.008,release:.1}).forEach(([k,v])=>compressor[k].value=v);
+    const gain = context.createGain(); gain.gain.value=1;
+    node.connect(compressor); compressor.connect(gain); gain.connect(context.destination); node.start();
+    const rendered = await context.startRendering();
+    rows.push({label:row.label,input:row.input,preCompressor:row.preCompressor,
+      observedGain:row.observedGain,postCompressor:stats(Array.from(rendered.getChannelData(0))),
+      physicalRouteVerified:false});
+  }
+  const output = {scope:'Chromium WebAudio offline, independent checkpoint renders; not OS/device listening',rows};
+  document.getElementById('result').textContent=JSON.stringify(output,null,2);
+  const button = document.getElementById('download'); button.disabled=false;
+  button.onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(output,null,2)],{type:'application/json'}));a.download='pcm-compressor.json';a.click();URL.revokeObjectURL(a.href)};
+  document.body.dataset.complete='true';
+}
+probe().catch(error=>{document.getElementById('result').textContent='실패: '+error.message;document.body.dataset.complete='false'});
+</script></html>
