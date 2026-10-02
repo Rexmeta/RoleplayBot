@@ -1,0 +1,183 @@
+{
+  "scope": "real playback hook; synthetic 24kHz PCM; mocked AudioContext clock and ended callbacks; not acoustic measurements",
+  "results": [
+    {
+      "name": "continuous-200",
+      "totalGapMs": 0,
+      "rows": [
+        {
+          "arrivalMs": 0,
+          "durationMs": 200,
+          "startMs": 0,
+          "endMs": 200,
+          "gapMs": 0,
+          "bufferedMs": 0
+        },
+        {
+          "arrivalMs": 200,
+          "durationMs": 200,
+          "startMs": 200,
+          "endMs": 400,
+          "gapMs": 0,
+          "bufferedMs": 0
+        },
+        {
+          "arrivalMs": 400,
+          "durationMs": 200,
+          "startMs": 400,
+          "endMs": 600,
+          "gapMs": 0,
+          "bufferedMs": 0
+        }
+      ]
+    },
+    {
+      "name": "burst-200",
+      "totalGapMs": 0,
+      "rows": [
+        {
+          "arrivalMs": 0,
+          "durationMs": 200,
+          "startMs": 0,
+          "endMs": 200,
+          "gapMs": 0,
+          "bufferedMs": 0
+        },
+        {
+          "arrivalMs": 0,
+          "durationMs": 200,
+          "startMs": 200,
+          "endMs": 400,
+          "gapMs": 0,
+          "bufferedMs": 200
+        },
+        {
+          "arrivalMs": 0,
+          "durationMs": 200,
+          "startMs": 400,
+          "endMs": 600,
+          "gapMs": 0,
+          "bufferedMs": 400
+        }
+      ]
+    },
+    {
+      "name": "delayed-200",
+      "totalGapMs": 664,
+      "rows": [
+        {
+          "arrivalMs": 0,
+          "durationMs": 200,
+          "startMs": 0,
+          "endMs": 200,
+          "gapMs": 0,
+          "bufferedMs": 0
+        },
+        {
+          "arrivalMs": 864,
+          "durationMs": 200,
+          "startMs": 864,
+          "endMs": 1064,
+          "gapMs": 664,
+          "bufferedMs": 0
+        }
+      ]
+    },
+    {
+      "name": "delayed-400",
+      "totalGapMs": 464,
+      "rows": [
+        {
+          "arrivalMs": 0,
+          "durationMs": 400,
+          "startMs": 0,
+          "endMs": 400,
+          "gapMs": 0,
+          "bufferedMs": 0
+        },
+        {
+          "arrivalMs": 864,
+          "durationMs": 200,
+          "startMs": 864,
+          "endMs": 1064,
+          "gapMs": 464,
+          "bufferedMs": 0
+        }
+      ]
+    },
+    {
+      "name": "delayed-20",
+      "totalGapMs": 80,
+      "rows": [
+        {
+          "arrivalMs": 0,
+          "durationMs": 20,
+          "startMs": 0,
+          "endMs": 20,
+          "gapMs": 0,
+          "bufferedMs": 0
+        },
+        {
+          "arrivalMs": 100,
+          "durationMs": 20,
+          "startMs": 100,
+          "endMs": 120,
+          "gapMs": 80,
+          "bufferedMs": 0
+        }
+      ]
+    },
+    {
+      "name": "burst-before-delay",
+      "totalGapMs": 0,
+      "rows": [
+        {
+          "arrivalMs": 0,
+          "durationMs": 400,
+          "startMs": 0,
+          "endMs": 400,
+          "gapMs": 0,
+          "bufferedMs": 0
+        },
+        {
+          "arrivalMs": 0,
+          "durationMs": 400,
+          "startMs": 400,
+          "endMs": 800,
+          "gapMs": 0,
+          "bufferedMs": 400
+        },
+        {
+          "arrivalMs": 500,
+          "durationMs": 20,
+          "startMs": 800,
+          "endMs": 820,
+          "gapMs": 0,
+          "bufferedMs": 300
+        }
+      ]
+    },
+    {
+      "name": "short-tail",
+      "totalGapMs": 0,
+      "rows": [
+        {
+          "arrivalMs": 0,
+          "durationMs": 200,
+          "startMs": 0,
+          "endMs": 200,
+          "gapMs": 0,
+          "bufferedMs": 0
+        },
+        {
+          "arrivalMs": 180,
+          "durationMs": 20,
+          "startMs": 200,
+          "endMs": 220,
+          "gapMs": 0,
+          "bufferedMs": 20
+        }
+      ]
+    }
+  ]
+}

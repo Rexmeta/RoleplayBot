@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { requestMicrophonePermission } from '@/lib/microphonePermission';
+import type { VoiceOutputTrace, OutputTraceFields } from '@shared/voiceOutputDiagnostic';
 import {
   isIOSWebKitAudioPlatform,
   setIOSRealtimeAudioSessionActive,
@@ -110,7 +111,7 @@ interface UseAudioPlaybackReturn {
   requestOutputDevicePermission: () => Promise<boolean>;
   setIsAISpeaking: React.Dispatch<React.SetStateAction<boolean>>;
   stopPlayback: () => void;
-  playAudioDelta: (base64: string) => Promise<void>;
+  playAudioDelta: (base64: string, metadata?: OutputTraceFields) => Promise<void>;
   startAmplitudeAnalysis: () => void;
   stopAmplitudeAnalysis: () => void;
   selectOutputDevice: (deviceId: string) => Promise<boolean>;
@@ -124,7 +125,8 @@ interface UseAudioPlaybackReturn {
 
 export function useAudioPlayback(
   isInterruptedRef: React.MutableRefObject<boolean>,
-  agcConfig?: Partial<AgcConfig>
+  agcConfig?: Partial<AgcConfig>,
+  diagnosticRef?: React.MutableRefObject<VoiceOutputTrace | undefined>
 ): UseAudioPlaybackReturn {
   const { t } = useTranslation();
 
@@ -473,6 +475,11 @@ export function useAudioPlayback(
   }, []);
 
   const stopPlayback = useCallback(() => {
+    diagnosticRef?.current?.record('stop', {
+      pendingSources: scheduledSourcesRef.current.length,
+      contextTimeMs: (playbackContextRef.current?.currentTime ?? 0) * 1000,
+      reason: 1, // local stop; caller records VAD/disconnect separately
+    });
     console.log('🔇 Stopping current AI audio playback (barge-in)');
 
     isInterruptedRef.current = true;
@@ -503,22 +510,34 @@ export function useAudioPlayback(
     agcRmsRef.current = agcConfigRef.current.targetRms;
     setIsAISpeaking(false);
     isAISpeakingRef.current = false;
-  }, [isInterruptedRef]);
+  }, [isInterruptedRef, diagnosticRef]);
 
-  const scheduleAudioDelta = useCallback(async (base64Audio: string) => {
+  const scheduleAudioDelta = useCallback(async (base64Audio: string, trace?: VoiceOutputTrace, metadata?: OutputTraceFields, queuedAt = 0) => {
+    const processingAt = trace?.active ? performance.now() : 0;
+    const queueWaitMs = processingAt - queuedAt;
     if (isInterruptedRef.current) {
+      trace?.record('drop', { ...metadata, reason: 2, queueWaitMs });
       console.log('🔇 Ignoring audio chunk (barge-in active)');
       return;
     }
 
     try {
       const audioContext = await initializePlaybackContext();
-      if (!audioContext || isInterruptedRef.current) return;
+      if (!audioContext || isInterruptedRef.current) {
+        trace?.record('drop', { ...metadata, reason: 3, queueWaitMs });
+        return;
+      }
 
       if (audioContext.state === 'suspended') {
         console.log('🔊 Resuming suspended AudioContext for playback');
-        if (!await resumePlayback()) return;
-        if (isInterruptedRef.current) return;
+        if (!await resumePlayback()) {
+          trace?.record('error', { ...metadata, reason: 4 });
+          return;
+        }
+        if (isInterruptedRef.current) {
+          trace?.record('drop', { ...metadata, reason: 3 });
+          return;
+        }
       }
 
       if (!isActuallyPlayingRef.current) {
@@ -606,6 +625,9 @@ export function useAudioPlayback(
       scheduledSourcesRef.current.push(source);
 
       source.onended = () => {
+        trace?.record('ended', { ...metadata, contextTimeMs: audioContext.currentTime * 1000,
+          endMs: (startTime + audioBuffer.duration) * 1000,
+          interrupted: Number(isInterruptedRef.current) });
         const index = scheduledSourcesRef.current.indexOf(source);
         if (index > -1) {
           scheduledSourcesRef.current.splice(index, 1);
@@ -613,19 +635,31 @@ export function useAudioPlayback(
       };
 
       const chunkDuration = audioBuffer.duration;
+      trace?.record('schedule', { ...metadata, base64Length: base64Audio.length,
+        durationMs: chunkDuration * 1000, queueWaitMs, processingMs: performance.now() - processingAt,
+        contextTimeMs: currentTime * 1000, startMs: startTime * 1000,
+        endMs: (startTime + chunkDuration) * 1000,
+        bufferedMs: Math.max(0, nextPlayTimeRef.current - currentTime) * 1000,
+        gapMs: nextPlayTimeRef.current > 0 ? Math.max(0, currentTime - nextPlayTimeRef.current) * 1000 : 0,
+        pendingSources: scheduledSourcesRef.current.length,
+        contextState: audioContext.state === 'running' ? 1 : audioContext.state === 'suspended' ? 2 : 3,
+        outputSelected: Number(!!selectedOutputDeviceIdRef.current) });
       nextPlayTimeRef.current = startTime + chunkDuration;
 
     } catch (err) {
+      trace?.record('error', { ...metadata, reason: 5 });
       console.error('Error playing audio delta:', err);
     }
   }, [initializePlaybackContext, isInterruptedRef, resumePlayback, startAmplitudeAnalysis]);
 
-  const playAudioDelta = useCallback((base64Audio: string) => {
-    const scheduled = playbackQueueRef.current.then(() => scheduleAudioDelta(base64Audio));
+  const playAudioDelta = useCallback((base64Audio: string, metadata?: OutputTraceFields) => {
+    const trace = diagnosticRef?.current?.active ? diagnosticRef.current : undefined;
+    const queuedAt = trace ? performance.now() : 0;
+    const scheduled = playbackQueueRef.current.then(() => scheduleAudioDelta(base64Audio, trace, metadata, queuedAt));
     // Keep the queue usable after one malformed chunk or a recoverable browser failure.
     playbackQueueRef.current = scheduled.catch(() => {});
     return scheduled;
-  }, [scheduleAudioDelta]);
+  }, [scheduleAudioDelta, diagnosticRef]);
 
   return {
     playbackContextRef,

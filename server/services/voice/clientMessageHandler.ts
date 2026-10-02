@@ -5,6 +5,7 @@ import { filterThinkingText } from './textFilter';
 import { storage } from '../../storage';
 import { finalizeUserTranscript, realtimeVoiceProvider } from './transcriptionIntegrity';
 import { beginRecognitionCapture, appendRecognitionAudio, finishRecognitionCapture } from './utteranceCapture';
+import { enableOutputDiagnostic } from './outputDiagnostic';
 
 function pushPending(session: RealtimeSession, msg: PendingOutgoingMessage): void {
   session.pendingMessages.push(msg);
@@ -254,6 +255,7 @@ export function handleClientMessage(
       break;
 
     case 'client.ready': {
+      if (message.outputDiagnostic === true) enableOutputDiagnostic(session);
       const clientReadyTime = Date.now();
       console.log(`⏱️ [TIMING] client.ready 수신: ${new Date(clientReadyTime).toISOString()}`);
 

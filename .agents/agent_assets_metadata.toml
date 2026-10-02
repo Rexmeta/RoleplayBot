@@ -141,3 +141,17 @@ mtime_ms = 1790938921548
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:543bcf34-dde8-497f-8837-398b7f6da8ad/bed08691-9db9-45ac-bf76-2747eb5f0bdd/77dc79ff-aeff-4ea3-8ccb-3e88055ea4f6"
 storage_version_token = "1790938951198145"
 content_type = "text/html"
+
+[[outputs]]
+id = "N5ei6BqiRfBv8bdwaf0Fz"
+uri = "file://docs/diagnostics/persona-audio-dropout.ko.md"
+type = "text"
+title = "페르소나 음성 끊김 원인 검증 보고서 — 최종본"
+description = "최신 로그의 공백 추정 정정, 네 가지 출력 경계 재현, 개인정보 없는 세션 한정 진단, 기기 검증 절차와 수정 우선순위."
+logical_id = "090a6ebb-24a8-4bf8-aff9-8244ad02eb5a"
+content_hash = "sha256:794aa466d7d8fc098242a7b816d5361940dafb0777f13119790ab5567e6e120f"
+size = 21926
+mtime_ms = 1790949410370
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:543bcf34-dde8-497f-8837-398b7f6da8ad/090a6ebb-24a8-4bf8-aff9-8244ad02eb5a/9ce47bab-0602-478e-95f6-b063d0e75af6"
+storage_version_token = "1790949422595449"
+content_type = "text/markdown"

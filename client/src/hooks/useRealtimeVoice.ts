@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from './use-toast';
 import { useAudioPlayback, type AgcConfig } from './useAudioPlayback';
+import { takeVoiceOutputTrace } from '@/lib/voiceOutputDiagnostic';
+import type { VoiceOutputTrace } from '@shared/voiceOutputDiagnostic';
 import { useVoiceActivityDetection } from './useVoiceActivityDetection';
 import { useAudioInputDevices, buildMicrophoneConstraints, type AudioInputDeviceOption, type AudioInputStatus } from './useAudioInputDevices';
 import { isIOSWebKitAudioPlatform, setIOSRealtimeAudioSessionActive } from '@/lib/iosAudioSession';
@@ -270,6 +272,8 @@ export function useRealtimeVoice({
   const rawMicStreamRef = useRef<MediaStream | null>(null);
   const isRecordingRef = useRef<boolean>(false);
   const isInterruptedRef = useRef<boolean>(false);
+  const outputTraceRef = useRef<VoiceOutputTrace | undefined>(undefined);
+  const outputArrivalRef = useRef<number | undefined>(undefined);
   const expectedTurnSeqRef = useRef<number>(0);
   const serverVoiceDetectedTimeRef = useRef<number | null>(null);
   const aiMessageBufferRef = useRef<string>('');
@@ -340,6 +344,7 @@ export function useRealtimeVoice({
   const {
     playbackContextRef,
     scheduledSourcesRef,
+    nextPlayTimeRef,
     isAISpeaking,
     isAISpeakingRef,
     isActuallyPlayingRef,
@@ -363,7 +368,7 @@ export function useRealtimeVoice({
     requestOutputDevicePermission,
     initializePlaybackContext,
     resumePlayback,
-  } = useAudioPlayback(isInterruptedRef, agcConfig);
+  } = useAudioPlayback(isInterruptedRef, agcConfig, outputTraceRef);
 
   const {
     vadProcessorRef,
@@ -474,6 +479,8 @@ export function useRealtimeVoice({
   }, []);
 
   const disconnect = useCallback(() => {
+    outputTraceRef.current?.record('disconnect', { reason: 6 });
+    outputTraceRef.current?.stop();
     // Invalidate token requests and socket callbacks from any earlier attempt
     // before closing resources. Safari may deliver close asynchronously.
     connectionAttemptRef.current += 1;
@@ -614,6 +621,9 @@ export function useRealtimeVoice({
       if (connectionAttempt !== connectionAttemptRef.current) return;
       const url = getWebSocketUrl(token);
       const ws = new WebSocket(url);
+      outputTraceRef.current?.stop();
+      outputTraceRef.current = takeVoiceOutputTrace();
+      outputArrivalRef.current = undefined;
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -631,6 +641,7 @@ export function useRealtimeVoice({
         setTimeout(() => {
           if (wsRef.current === ws && ws.readyState === WebSocket.OPEN) {
             const readyMessage: any = { type: 'client.ready' };
+            if (outputTraceRef.current?.active) readyMessage.outputDiagnostic = true;
             if (isVoiceReconnect) {
               readyMessage.previousMessages = previousMessagesRef.current;
               readyMessage.isResuming = true;
@@ -664,6 +675,9 @@ export function useRealtimeVoice({
         try {
           const data = JSON.parse(event.data);
           switch (data.type) {
+            case 'output.diagnostic':
+              outputTraceRef.current?.record('provider-frame', data.diagnostic);
+              break;
             case 'pong':
               break;
             case 'session.created':
@@ -757,7 +771,17 @@ export function useRealtimeVoice({
 
             case 'audio.delta':
               if (data.delta) {
+                if (outputTraceRef.current?.active) {
+                  const now = performance.now();
+                  outputTraceRef.current.record('receive', { ...data.diagnostic,
+                    turnSeq: data.turnSeq,
+                    base64Length: data.delta.length, expectedTurnSeq: expectedTurnSeqRef.current,
+                    interrupted: Number(isInterruptedRef.current),
+                    arrivalGapMs: outputArrivalRef.current === undefined ? 0 : now - outputArrivalRef.current });
+                  outputArrivalRef.current = now;
+                }
                 if (data.turnSeq !== undefined && data.turnSeq < expectedTurnSeqRef.current) {
+                  outputTraceRef.current?.record('drop', { ...data.diagnostic, turnSeq: data.turnSeq, reason: 7 });
                   console.log(`🔇 Ignoring old audio (turnSeq ${data.turnSeq} < expected ${expectedTurnSeqRef.current})`);
                   break;
                 }
@@ -767,6 +791,7 @@ export function useRealtimeVoice({
                 // Only response.ready (or session connect) should clear isInterruptedRef so
                 // that old audio arriving before response.ready is reliably suppressed.
                 if (isInterruptedRef.current) {
+                  outputTraceRef.current?.record('drop', { ...data.diagnostic, turnSeq: data.turnSeq, reason: 2 });
                   console.log(`🔇 Dropping in-flight audio after barge-in (turnSeq ${data.turnSeq})`);
                   break;
                 }
@@ -781,7 +806,8 @@ export function useRealtimeVoice({
                 }
                 setIsAISpeaking(true);
                 isAISpeakingRef.current = true;
-                playAudioDelta(data.delta).catch(() => {});
+                playAudioDelta(data.delta, outputTraceRef.current?.active
+                  ? { ...data.diagnostic, turnSeq: data.turnSeq } : undefined).catch(() => {});
               }
               break;
 
@@ -818,6 +844,11 @@ export function useRealtimeVoice({
               break;
 
             case 'response.done':
+              outputTraceRef.current?.record('provider-done', { ...data.diagnostic,
+                pendingSources: scheduledSourcesRef.current.length,
+                actuallyPlaying: Number(isActuallyPlayingRef.current),
+                contextTimeMs: (playbackContextRef.current?.currentTime ?? 0) * 1000,
+                bufferedMs: Math.max(0, nextPlayTimeRef.current - (playbackContextRef.current?.currentTime ?? 0)) * 1000 });
               setIsAISpeaking(false);
               isAISpeakingRef.current = false;
               isActuallyPlayingRef.current = false;
@@ -829,11 +860,14 @@ export function useRealtimeVoice({
               break;
 
             case 'response.interrupted':
+              outputTraceRef.current?.record('stop', { reason: 9, expectedTurnSeq: expectedTurnSeqRef.current,
+                pendingSources: scheduledSourcesRef.current.length });
               setIsAISpeaking(false);
               isAISpeakingRef.current = false;
               break;
 
             case 'response.ready':
+              outputTraceRef.current?.record('ready', { ...data.diagnostic, turnSeq: data.turnSeq });
               isInterruptedRef.current = false;
               bargeInTriggeredRef.current = false;
               setIsBargeInActive(false);
@@ -986,6 +1020,8 @@ export function useRealtimeVoice({
 
       ws.onclose = (event) => {
         if (wsRef.current !== ws) return;
+        outputTraceRef.current?.record('disconnect', { reason: 8 });
+        outputTraceRef.current?.stop();
         wsRef.current = null;
         // Invalidate the old capture graph synchronously. Otherwise its audio
         // callback can resume against the replacement WebSocket before
@@ -1365,6 +1401,9 @@ export function useRealtimeVoice({
         exitThreshold,
         onNoiseDrift: recalibrateNoiseFloor,
         onBargeIn: () => {
+          outputTraceRef.current?.record('vad-cancel', { reason: 10,
+            expectedTurnSeq: expectedTurnSeqRef.current,
+            pendingSources: scheduledSourcesRef.current.length });
           setIsBargeInActive(true);
           const speechSeq = ++userSpeechSeqRef.current;
           activeSpeechSeqRef.current = speechSeq;

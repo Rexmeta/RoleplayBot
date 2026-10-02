@@ -4,6 +4,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useRef } from 'react';
 import { useAudioPlayback } from '../../client/src/hooks/useAudioPlayback';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { VoiceOutputTrace } from '../../shared/voiceOutputDiagnostic';
 
 // Provide a minimal react-i18next mock that resolves real Korean translations
 // so message assertions remain meaningful across i18n refactors.
@@ -161,6 +162,78 @@ function renderAudioPlayback() {
 }
 
 describe('incident diagnostic synthetic PCM (no physical speaker claims)', () => {
+  it('characterizes continuous, burst, delayed and tail scheduling with the real hook', async () => {
+    const scenarios = [
+      { name: 'continuous-200', arrivals: [0, 200, 400], durations: [200, 200, 200], gap: 0 },
+      { name: 'burst-200', arrivals: [0, 0, 0], durations: [200, 200, 200], gap: 0 },
+      { name: 'delayed-200', arrivals: [0, 864], durations: [200, 200], gap: 664 },
+      { name: 'delayed-400', arrivals: [0, 864], durations: [400, 200], gap: 464 },
+      { name: 'delayed-20', arrivals: [0, 100], durations: [20, 20], gap: 80 },
+      { name: 'burst-before-delay', arrivals: [0, 0, 500], durations: [400, 400, 20], gap: 0 },
+      { name: 'short-tail', arrivals: [0, 180], durations: [200, 20], gap: 0 },
+    ];
+    const results = [];
+    for (const scenario of scenarios) {
+      mockContext = buildMockAudioContext();
+      const trace = new VoiceOutputTrace();
+      const hook = renderHook(() => useAudioPlayback({ current: false }, undefined, { current: trace }));
+      let previousEnd = 0;
+      let totalGap = 0;
+      const rows = [];
+      for (let i = 0; i < scenario.arrivals.length; i++) {
+        mockContext.currentTime = scenario.arrivals[i] / 1000;
+        // Dispatch modeled completion callbacks; no real speakers/OS involved.
+        for (const source of [...hook.result.current.scheduledSourcesRef.current]) {
+          const start = (source.start as any).mock.calls[0][0];
+          if (start + source.buffer!.duration <= mockContext.currentTime) source.onended?.(new Event('ended'));
+        }
+        const pcm = Int16Array.from({ length: scenario.durations[i] * 24 }, (_, n) => Math.round(1000 * Math.sin(n / 8)));
+        await act(async () => { await hook.result.current.playAudioDelta(Buffer.from(pcm.buffer).toString('base64'), { chunkSeq: i + 1, turnSeq: 1 }); });
+        const source = hook.result.current.scheduledSourcesRef.current.at(-1)!;
+        const startMs = (source.start as any).mock.calls[0][0] * 1000;
+        const gapMs = i ? Math.max(0, startMs - previousEnd) : 0;
+        totalGap += gapMs;
+        previousEnd = startMs + source.buffer!.duration * 1000;
+        rows.push({ arrivalMs: scenario.arrivals[i], durationMs: scenario.durations[i],
+          startMs, endMs: previousEnd, gapMs, bufferedMs: startMs - scenario.arrivals[i] });
+      }
+      expect(totalGap).toBeCloseTo(scenario.gap, 6);
+      expect(trace.snapshot().rows.filter(row => row.event === 'schedule')).toHaveLength(scenario.arrivals.length);
+      results.push({ name: scenario.name, totalGapMs: totalGap, rows });
+      hook.unmount();
+    }
+    if (process.env.VOICE_OUTPUT_DIAGNOSTIC_WRITE === '1') {
+      mkdirSync('docs/diagnostics/results', { recursive: true });
+      writeFileSync('docs/diagnostics/results/output-timing.json', JSON.stringify({
+        scope: 'real playback hook; synthetic 24kHz PCM; mocked AudioContext clock and ended callbacks; not acoustic measurements',
+        results,
+      }, null, 2));
+    }
+  });
+
+  it('measures serialized scheduler wait without delaying or reordering playback', async () => {
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+    localStorage.setItem('realtime_voice_output_device_id', 'synthetic-output');
+    let release!: () => void;
+    mockContext.setSinkId = vi.fn(() => new Promise<void>(resolve => { release = resolve; }));
+    const trace = new VoiceOutputTrace(() => now);
+    const hook = renderHook(() => useAudioPlayback({ current: false }, undefined, { current: trace }));
+    const pcm = Buffer.alloc(9600).toString('base64');
+    try {
+      const first = hook.result.current.playAudioDelta(pcm, { chunkSeq: 1 });
+      const second = hook.result.current.playAudioDelta(pcm, { chunkSeq: 2 });
+      await act(async () => { await Promise.resolve(); });
+      now = 75;
+      await act(async () => { release(); await Promise.all([first, second]); });
+      const rows = trace.snapshot().rows.filter(row => row.event === 'schedule');
+      expect(rows.map(row => row.chunkSeq)).toEqual([1, 2]);
+      expect(rows[0].processingMs).toBe(75);
+      expect(rows[1].queueWaitMs).toBe(75);
+      expect(rows[1].startMs).toBeCloseTo(200);
+    } finally { hook.unmount(); clock.mockRestore(); }
+  });
+
   it('records gain, RMS, peak and clipping across quiet/loud/silence/reset/device boundaries', async () => {
     const { result, isInterruptedRef } = renderAudioPlayback();
     const rows: any[] = [];

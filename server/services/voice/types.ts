@@ -110,6 +110,7 @@ export interface RealtimeSession {
   currentClientCaptureGeneration?: number;
   /** Monotonic provider socket lifetime; stale callbacks must not mutate the session. */
   providerConnectionGeneration?: number;
+  outputDiagnostic?: { startedAt: number; emitted: number; frameSeq: number; chunkSeq: number };
   recognitionCapture?: {
     turnId: string;
     generation: number;

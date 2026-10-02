@@ -12,9 +12,13 @@ vi.mock('../../server/storage', () => ({
     getUser: vi.fn(async () => ({ name: 'synthetic' })),
     getSystemSetting: vi.fn(async () => null),
     getPersonaRun: vi.fn(async () => null),
+    updatePersonaRun: vi.fn(async () => undefined),
     getChatMessagesByPersonaRun: vi.fn(async () => []),
   },
-  db: { select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }) },
+  // Recognition evidence preload orders rows; the lifecycle fixture has no utterances.
+  db: { select: () => ({ from: () => ({ where: () => ({
+    limit: async () => [], orderBy: async () => [],
+  }) }) }) },
 }));
 vi.mock('../../server/services/fileManager', () => ({
   fileManager: { getAllScenarios: mocks.scenarios, getPersonaByMBTI: vi.fn(async () => null) },

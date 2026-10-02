@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { observeOutputFrame } from './outputDiagnostic';
 import { RealtimeSession } from './types';
 import { filterThinkingText, isThinkingText, stripSimulationToolCallText, collapseDoubledTranscript } from './textFilter';
 import { analyzeEmotion, analyzeUserEmotion, NEUTRAL_USER_AFFECT } from './emotionAnalyzer';
@@ -141,6 +142,7 @@ export function handleGeminiMessage(
   genAI: GoogleGenAI | null,
   proactiveReconnect: ProactiveReconnect
 ): void {
+  sendToClient = observeOutputFrame(session, message, sendToClient);
   session.lastActivityTime = Date.now();
 
   if (message.goAway) {
