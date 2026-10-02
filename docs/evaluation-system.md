@@ -1,3 +1,7 @@
+# 음성 근거의 적격성
+
+한국어 실시간 음성의 평가에는 서버 소유 canonical revision만 사용한다. 미확인·미완료·변경된 전사는 감점 대신 평가 확정 보류로 표시하며 이전 보고서는 자동 교정하지 않는다. [상태 및 동시성 계약](./korean-voice-recognition.md)을 참조한다.
+
 # Evaluation System Reference
 
 ## Overview

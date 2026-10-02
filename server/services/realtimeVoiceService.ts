@@ -1,4 +1,7 @@
 import WebSocket from 'ws';
+import { finishRecognitionCapture } from './voice/utteranceCapture';
+import { listRecognitionEvidence } from './voice/recognitionEvidence';
+import { recognitionResolved } from './voice/recognitionPolicy';
 import { fileManager } from './fileManager';
 import { GoogleGenAI, Modality, ActivityHandling } from '@google/genai';
 import { storage } from '../storage';
@@ -61,10 +64,25 @@ async function preloadRecentMessages(
 ): Promise<Array<{ role: 'user' | 'ai'; text: string }>> {
   try {
     const dbMessages = await storage.getChatMessagesByPersonaRun(conversationId);
-    const last30 = dbMessages.slice(-30);
+    const evidence = await listRecognitionEvidence(conversationId);
+    const run = await storage.getPersonaRun(conversationId);
+    const requiresRecognition = run?.voiceRecognitionRequired === true || evidence.length > 0;
+    const evidenceById = new Map(evidence.map(e => [e.id, e]));
+    let trustAiContext = !evidence.some(e => !recognitionResolved(e));
+    const last30 = dbMessages.filter(m => {
+      if (!requiresRecognition) return true;
+      if (m.sender === 'user') {
+        const e = m.voiceTurnId ? evidenceById.get(m.voiceTurnId) : undefined;
+        if (!m.voiceTurnId) { trustAiContext = true; return true; }
+        trustAiContext = !!e && recognitionResolved(e) &&
+          e.providerText?.replace(/\s/g, '') === e.canonicalText?.replace(/\s/g, '');
+        return !!e && recognitionResolved(e);
+      }
+      return trustAiContext;
+    }).slice(-30);
     const messages = last30.map(m => ({
       role: (m.sender === 'ai' ? 'ai' : 'user') as 'user' | 'ai',
-      text: m.message.slice(0, 300),
+      text: (requiresRecognition && m.voiceTurnId ? evidenceById.get(m.voiceTurnId)?.canonicalText ?? m.message : m.message).slice(0, 300),
     }));
     if (messages.length > 0) {
       console.log(`📚 ${label}Preloaded ${messages.length} messages from DB for session context`);
@@ -408,6 +426,11 @@ export class RealtimeVoiceService {
     console.log('='.repeat(80) + '\n');
 
     const realtimeModel = await this.getRealtimeModel();
+    if (userLanguage === 'ko') {
+      await storage.updatePersonaRun(conversationId, { voiceRecognitionRequired: true });
+    }
+    const recognitionCounterSeed = userLanguage === 'ko'
+      ? (await listRecognitionEvidence(conversationId)).length : 0;
     const gender: 'male' | 'female' = (activeInitialPersona.gender === 'female') ? 'female' : (scenarioPersona.gender === 'female' ? 'female' : 'male');
     console.log(`👤 페르소나 성별 설정: ${scenarioPersona.name} → ${gender} (시나리오 정의값: ${scenarioPersona.gender})`);
 
@@ -432,6 +455,8 @@ export class RealtimeVoiceService {
       voiceGender: gender, recentMessages: preloadedMessages,
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
+      voiceRecognitionRequired: userLanguage === 'ko',
+      userTranscriptTurnCounter: recognitionCounterSeed,
       pendingMessages: [], outgoingMessageIndex: 0,
       hasReceivedFirstTranscriptDelta: false, greetingResponseCount: 0, userTurnsCompleted: 0,
       userSpeechStarted: false,
@@ -541,6 +566,9 @@ export class RealtimeVoiceService {
     const realtimeModel = await this.getRealtimeModel();
 
     const preloadedMessagesUserPersona = await preloadRecentMessages(conversationId, sessionId, '[UserPersona] ');
+    if (userLanguage === 'ko') await storage.updatePersonaRun(conversationId, { voiceRecognitionRequired: true });
+    const recognitionCounterSeed = userLanguage === 'ko'
+      ? (await listRecognitionEvidence(conversationId)).length : 0;
 
     const session: RealtimeSession = {
       id: sessionId, personaRunId: conversationId, scenarioId, personaId,
@@ -557,6 +585,8 @@ export class RealtimeVoiceService {
       systemInstructions, voiceGender: gender, recentMessages: preloadedMessagesUserPersona,
       selectedVoice: null, goAwayWarningTime: null, pendingClientReady: null,
       userLanguage,
+      voiceRecognitionRequired: userLanguage === 'ko',
+      userTranscriptTurnCounter: recognitionCounterSeed,
       pendingMessages: [], outgoingMessageIndex: 0,
       hasReceivedFirstTranscriptDelta: false, greetingResponseCount: 0, userTurnsCompleted: 0,
       userSpeechStarted: false,
@@ -639,8 +669,8 @@ export class RealtimeVoiceService {
       const config: any = {
         responseModalities: [Modality.AUDIO],
         systemInstruction: effectiveInstructions,
-        inputAudioTranscription: { languageCode: langCode },
-        outputAudioTranscription: { languageCode: langCode },
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName } },
         },
@@ -717,7 +747,17 @@ export class RealtimeVoiceService {
         config: config,
       });
 
-      session.geminiSession = geminiSession;
+      // The installed SDK ignores an `event` property. Translate the legacy
+      // app adapter contract to the documented wire-level stream end field.
+      const sendRealtimeInput = geminiSession.sendRealtimeInput.bind(geminiSession);
+      session.geminiSession = new Proxy(geminiSession, {
+        get(target, property) {
+          if (property === 'sendRealtimeInput') return (data: any) =>
+            sendRealtimeInput(data.event === 'END_OF_TURN' ? { audioStreamEnd: true } : data);
+          const value = Reflect.get(target, property);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
       session.usingReconnectInstructions = options?.isResume === true;
 
       if (session.pendingClientReady) {
@@ -743,6 +783,19 @@ export class RealtimeVoiceService {
 
   handleClientMessage(sessionId: string, message: any): void {
     processClientMessage(sessionId, message, this.sessions, this.sendToClient.bind(this), this.proactiveReconnect.bind(this));
+  }
+
+  async refreshRecognitionHistory(runId: string): Promise<void> {
+    const active = Array.from(this.sessions.values()).filter(s => s.personaRunId === runId && s.voiceRecognitionRequired);
+    if (!active.length) return;
+    const tickets = active.map(s => {
+      s.recognitionContextEpoch = (s.recognitionContextEpoch ?? 0) + 1;
+      return s.recognitionContextEpoch;
+    });
+    const messages = await preloadRecentMessages(runId, active[0].id);
+    active.forEach((session, i) => {
+      if (session.recognitionContextEpoch === tickets[i]) session.recentMessages = messages;
+    });
   }
 
   private injectReconnectContext(session: RealtimeSession): void {
@@ -908,6 +961,7 @@ export class RealtimeVoiceService {
 
   closeSession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
+    if (session) finishRecognitionCapture(session, this.sendToClient.bind(this), 'session_closed_before_commit');
     if (session) {
       console.log(`🔚 Closing realtime voice session: ${sessionId}`);
 

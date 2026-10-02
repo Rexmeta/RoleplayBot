@@ -259,11 +259,24 @@ export async function generateAndSaveFeedback(
   assertActive?: () => Promise<boolean>,
   persistFeedback?: (payload: any, existing?: boolean) => Promise<any>,
 ) {
+  const { prepareRecognitionConversation } = await import('../services/voice/recognitionEvidence');
+  const preparedRecognition = await prepareRecognitionConversation(conversationId, conversation);
+  conversation = preparedRecognition.conversation;
+  const recognitionEvidence = await import('../services/voice/recognitionEvidence')
+    .then(m => m.listRecognitionEvidence(conversationId));
+  const canonicalRevisions = new Map(recognitionEvidence.map(e => [e.id, e.revision]));
   const assertJobActive = async () => {
     if (assertActive && !(await assertActive())) throw new Error('feedback_job_cancelled');
   };
   const existingFeedback = await storage.getFeedbackByConversationId(conversationId);
   if (existingFeedback) {
+    if ((existingFeedback.evaluationPromptSnapshot as any)?.recognitionRevision &&
+      (existingFeedback.evaluationPromptSnapshot as any).recognitionRevision !== preparedRecognition.revision) {
+      throw new Error('voice_transcript_revision_changed');
+    }
+    if ((existingFeedback as any).reportStatus === 'recognition_pending') {
+      throw new Error('voice_transcript_revision_changed');
+    }
     console.log(`피드백이 이미 존재함: ${conversationId}`);
     return persistFeedback ? persistFeedback(existingFeedback, true) : existingFeedback;
   }
@@ -277,6 +290,9 @@ export async function generateAndSaveFeedback(
   try {
     const simEvents = await storage.getSimulationEventsByPersonaRun(conversationId);
     for (const ev of simEvents) {
+      if (recognitionEvidence.length &&
+        (!canonicalRevisions.has(ev.turnId ?? '') ||
+          (ev.result as any)?.recognitionRevision !== canonicalRevisions.get(ev.turnId ?? ''))) continue;
       if (ev.eventType === 'auto_evaluation' && ev.includeInReport) {
         const r = ev.result as any;
         if (r?.turnScore) simTurnScores.push({ turnIndex: ev.turnIndex, turnScore: r.turnScore });

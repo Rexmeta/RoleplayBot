@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { RealtimeSession } from './types';
+import { recordProviderEvidence } from './recognitionEvidence';
 
 export const SUPPORTED_VOICE_LANGUAGES = ['ko', 'en', 'ja', 'zh'] as const;
 export type SupportedVoiceLanguage = typeof SUPPORTED_VOICE_LANGUAGES[number];
@@ -48,7 +49,8 @@ export function recordVoiceSessionConfiguration(
     provider,
     session: sessionFingerprint(session),
     language: session.userLanguage,
-    providerLanguageCode,
+    providerLanguageCode: provider === 'openai' ? providerLanguageCode : null,
+    explicitTranscriptionLanguageSupported: provider === 'openai',
     model: session.realtimeModel,
     reconnect: session.isReconnecting || session.usingReconnectInstructions,
   }));
@@ -190,6 +192,14 @@ export function finalizeUserTranscript(
     providerEventId,
   });
 
+  if (session.userLanguage === 'ko' && session.recognitionTurnIds?.has(turnId)) {
+    // Keep provider text immutable and separate from the canonical candidate.
+    const registration = session.recognitionRegistrations?.get(turnId) ?? Promise.resolve();
+    void registration.then(() => recordProviderEvidence(turnId, transcript, isFinal))
+      .then(evidence => sendToClient(session, { type: 'voice.recognition', evidence }))
+      .catch(() => sendToClient(session, { type: 'voice.recognition.error', reason: 'evidence_storage_failed' }));
+  }
+
   if (options.emitToClient !== false) {
     sendToClient(session, {
       type: 'user.transcription',
@@ -216,7 +226,7 @@ export function finalizeUserTranscript(
       session.finalizedUserTranscriptTurnIds.splice(0, session.finalizedUserTranscriptTurnIds.length - 100);
     }
     if (providerEventId) finalizedProviderEvents[providerEventId] = turnId;
-    session.recentMessages.push({ role: 'user', text: transcript.slice(0, 300) });
+    if (!session.voiceRecognitionRequired) session.recentMessages.push({ role: 'user', text: transcript.slice(0, 300) });
     if (session.recentMessages.length > 30) session.recentMessages.shift();
     session.userTurnsCompleted++;
     if (options.provider === 'gemini' && session.pendingGeminiProvisionalTurnId === turnId) {

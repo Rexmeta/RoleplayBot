@@ -110,4 +110,19 @@ export interface RealtimeSession {
   currentClientCaptureGeneration?: number;
   /** Monotonic provider socket lifetime; stale callbacks must not mutate the session. */
   providerConnectionGeneration?: number;
+  recognitionCapture?: {
+    turnId: string;
+    generation: number;
+    speechSeq: number;
+    chunks: Buffer[];
+    bytes: number;
+    registered: Promise<void>;
+    timer: ReturnType<typeof setTimeout>;
+    failed?: string;
+  };
+  recognitionTurnIds?: Set<string>;
+  recognitionRegistrations?: Map<string, Promise<void>>;
+  voiceRecognitionRequired?: boolean;
+  recognitionBoundary?: { generation: number; speechSeq: number };
+  recognitionContextEpoch?: number;
 }

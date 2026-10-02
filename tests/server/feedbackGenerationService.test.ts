@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock('../../server/services/voice/recognitionEvidence', () => ({
+  prepareRecognitionConversation: vi.fn(async (_id, conversation) => ({
+    conversation,
+    revision: (await import('../../server/services/voice/recognitionPolicy')).recognitionRevision([]),
+  })),
+  listRecognitionEvidence: vi.fn().mockResolvedValue([]),
+}));
+
 type JobRow = {
   status: string | null;
   queuedAt: Date | null;
@@ -217,6 +225,7 @@ const mocks = vi.hoisted(() => {
     })),
   })),
   };
+  db.execute = vi.fn().mockResolvedValue(undefined);
   db.transaction = vi.fn(async (callback: (tx: any) => Promise<any>) => callback(db));
   db.delete = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
   db.insert = vi.fn(() => ({

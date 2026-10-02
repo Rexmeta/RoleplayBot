@@ -41,7 +41,7 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL (Neon serverless).
 - **Schema modules**:
   - `users.ts` — `companies`, `organizations`, `categories`, `users`, `operator_assignments`, `user_bookmarks`
-  - `conversations.ts` — `conversations`, `persona_runs`, `simulation_events`, `chat_messages`
+  - `conversations.ts` — `conversations`, `persona_runs`, `simulation_events`, `chat_messages`, `voice_utterances`
   - `scenarios.ts` — `scenarios`, `scenario_versions`, `scenario_runs`, `scenario_overrides`
   - `personas.ts` — `mbti_personas`, `user_personas`, `user_persona_likes`, `persona_user_scenes`
   - `feedback.ts` — `feedbacks`, `evaluation_criteria_sets`, `evaluation_dimensions`, `few_shot_examples`, `criteria_set_few_shot_examples`

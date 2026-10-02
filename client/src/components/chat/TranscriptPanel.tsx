@@ -5,6 +5,7 @@ import type { ConversationMessage } from "@shared/schema";
 import type { PersonaSwitchEvent } from "./PersonaSwitchCard";
 import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
 import { toMediaUrl } from "@/lib/mediaUrl";
+import { RecognitionReview, useRecognitionEvidence } from './RecognitionReview';
 
 interface JoinedPersona {
   name: string;
@@ -24,6 +25,7 @@ interface TranscriptPanelProps {
   joinedPersonas?: JoinedPersona[];
   viewportHeight?: number | null;
   viewportOffsetTop?: number;
+  recognitionRunId?: string;
 }
 
 export function TranscriptPanel({
@@ -39,11 +41,14 @@ export function TranscriptPanel({
   joinedPersonas = [],
   viewportHeight,
   viewportOffsetTop = 0,
+  recognitionRunId,
 }: TranscriptPanelProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const panelWidth = 'min(85vw, 300px)';
+  const evidence = useRecognitionEvidence(recognitionRunId ?? '');
+  const canonical = new Map(evidence.data?.map(e => [e.id, e]));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -72,6 +77,7 @@ export function TranscriptPanel({
 
   const renderMessages = () => (
     <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+      {recognitionRunId && <RecognitionReview runId={recognitionRunId} />}
       {messages.filter(m => m.sender === 'user' || m.sender === 'ai').map((msg, index) => (
         <div key={index}>
           {msg.sender === 'ai' && (() => {
@@ -104,7 +110,14 @@ export function TranscriptPanel({
           {msg.sender === 'user' && (
           <div className="text-xs rounded-lg px-3 py-2 bg-blue-50 text-blue-800 ml-4">
             <div className="font-semibold mb-0.5 opacity-60 text-[10px]">{t('chat.me')}</div>
-            <div className="leading-relaxed">{msg.message}</div>
+            <div className="leading-relaxed">
+              {(() => {
+                const e = msg.voiceTurnId ? canonical.get(msg.voiceTurnId) : undefined;
+                if (!e) return msg.message;
+                if (e.status === 'confirmed' || e.status === 'verified') return e.canonicalText;
+                return <><span className="font-semibold">인식 확인 필요 · Live 원문</span><br />{msg.message}</>;
+              })()}
+            </div>
           </div>
           )}
           {personaSwitchEvents

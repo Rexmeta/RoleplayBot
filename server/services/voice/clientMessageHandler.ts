@@ -4,6 +4,7 @@ import { RealtimeSession, PendingOutgoingMessage, MAX_PENDING_MESSAGES } from '.
 import { filterThinkingText } from './textFilter';
 import { storage } from '../../storage';
 import { finalizeUserTranscript, realtimeVoiceProvider } from './transcriptionIntegrity';
+import { beginRecognitionCapture, appendRecognitionAudio, finishRecognitionCapture } from './utteranceCapture';
 
 function pushPending(session: RealtimeSession, msg: PendingOutgoingMessage): void {
   session.pendingMessages.push(msg);
@@ -143,6 +144,7 @@ export function handleClientMessage(
           session.pendingGeminiProvisionalSpeechSeq = null;
         }
       }
+      beginRecognitionCapture(session, sendToClient);
       break;
     }
 
@@ -163,6 +165,7 @@ export function handleClientMessage(
         break;
       }
       const audioLength = message.audio ? message.audio.length : 0;
+      appendRecognitionAudio(session, message.audio);
       if (message.preRoll === true || (message.diagnostics?.clippedSamples ?? 0) > 0) {
         console.log('[voice-audio]', JSON.stringify({
           captureGeneration: message.captureGeneration,
@@ -190,6 +193,11 @@ export function handleClientMessage(
     }
 
     case 'input_audio_buffer.commit':
+      if (session.recognitionCapture && (
+        message.captureGeneration !== session.recognitionCapture.generation ||
+        message.speechSeq !== session.recognitionCapture.speechSeq
+      )) break;
+      finishRecognitionCapture(session, sendToClient);
       console.log('[voice-latency] User turn commit received; forwarding END_OF_TURN');
       // Fix 1: Record when we send END_OF_TURN via the audio commit path so that a
       // subsequent response.create (which also sends END_OF_TURN) can be suppressed
@@ -257,7 +265,10 @@ export function handleClientMessage(
 
       const hasExistingConversation = message.hasExistingConversation === true;
       const isResuming = message.isResuming === true;
-      const clientPreviousMessages = message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
+      // Korean voice recognition context is server-owned. A stale page snapshot
+      // cannot reintroduce an unresolved provider transcript on reconnect.
+      const clientPreviousMessages = session.voiceRecognitionRequired ? undefined :
+        message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
       const previousMessages: Array<{ role: 'user' | 'ai'; content: string }> | undefined =
         (clientPreviousMessages && clientPreviousMessages.length > 0)
           ? clientPreviousMessages
@@ -405,7 +416,7 @@ export function handleClientMessage(
       if (session.currentTranscript.trim()) {
         const partialTranscript = filterThinkingText(session.currentTranscript, session.userLanguage);
         if (partialTranscript) {
-          console.log(`📝 Saving partial AI transcript before barge-in: "${partialTranscript.substring(0, 50)}..."`);
+          console.log(`📝 Saving partial AI transcript before barge-in (length=${partialTranscript.length})`);
           sendToClient(session, {
             type: 'ai.transcription.done',
             text: partialTranscript + '...',

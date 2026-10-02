@@ -4,6 +4,8 @@ import { and, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { generateAndSaveFeedback, performStrategicAnalysis } from "../routes/routerHelpers";
 import { randomUUID } from "crypto";
 import { dispatchWebhook } from "./webhookDelivery";
+import { listRecognitionEvidence, prepareRecognitionConversation } from './voice/recognitionEvidence';
+import { recognitionResolved, recognitionRevision, RecognitionPendingError } from './voice/recognitionPolicy';
 
 export type FeedbackJobStatus = "queued" | "generating" | "completed" | "error" | "expired";
 export const FEEDBACK_QUEUE_DEADLINE_MS = 30_000;
@@ -116,6 +118,8 @@ async function runFeedbackJob(
   if (!claim) return;
   const { generationToken: token, workerToken } = claim;
   try {
+    const prepared = await prepareRecognitionConversation(input.conversationId, input.conversation);
+    input = { ...input, conversation: prepared.conversation };
     const prepStarted = Date.now();
     console.info("[feedbackTiming]", { conversationId: input.conversationId, stage: "data_prep", durationMs: 0 });
     console.info("[feedbackTiming]", { conversationId: input.conversationId, stage: "provider_start", durationMs: Date.now() - prepStarted });
@@ -134,6 +138,14 @@ async function runFeedbackJob(
             row.workerToken === workerToken;
         },
         async (payload: any, existingFeedback = false) => db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.conversationId}))`);
+          const evidence = await listRecognitionEvidence(input.conversationId, tx);
+          if (evidence.some((e: any) => !recognitionResolved(e)) ||
+            recognitionRevision(evidence) !== prepared.revision) throw new RecognitionPendingError();
+          payload = {
+            ...payload,
+            evaluationPromptSnapshot: { ...payload.evaluationPromptSnapshot, recognitionRevision: prepared.revision },
+          };
           const [claimed] = await tx.update(personaRuns).set({ feedbackStatus: "generating" })
             .where(and(
               eq(personaRuns.id, input.conversationId),
@@ -149,6 +161,10 @@ async function runFeedbackJob(
           if (!saved) {
             const [existing] = await tx.select().from(feedbacks).where(eq(feedbacks.personaRunId, input.conversationId)).limit(1);
             if (!existing) throw new Error("feedback_insert_conflict_without_existing_row");
+             if (evidence.length &&
+               (existing.evaluationPromptSnapshot as any)?.recognitionRevision !== prepared.revision) {
+               throw new RecognitionPendingError();
+             }
             const completed = await tx.update(personaRuns).set({
               feedbackStatus: "completed",
               feedbackCompletedAt: new Date(),
@@ -270,11 +286,23 @@ async function runStrategicPostProcessing(
   });
   if (!claimed) return;
   try {
+    const prepared = await prepareRecognitionConversation(input.conversationId, input.conversation);
+    input = { ...input, conversation: prepared.conversation };
+    const assertCurrent = async (connection: any = db) => {
+      const evidence = await listRecognitionEvidence(input.conversationId, connection);
+      if (evidence.some(e => !recognitionResolved(e)) || recognitionRevision(evidence) !== prepared.revision) {
+        throw new RecognitionPendingError();
+      }
+    };
     if (input.completionContext?.kind === "agent") {
       const report = feedbackReport ?? await db.select().from(feedbacks)
         .where(eq(feedbacks.personaRunId, input.conversationId)).limit(1)
         .then((rows: any[]) => rows[0] ?? null);
       if (!report) throw new Error("agent_feedback_report_missing");
+      const reportEvidence = await listRecognitionEvidence(input.conversationId);
+      if (reportEvidence.length && report.evaluationPromptSnapshot?.recognitionRevision !== prepared.revision) {
+        throw new RecognitionPendingError();
+      }
       const [session] = await db.select({ metadata: agentSessions.metadata })
         .from(agentSessions)
         .where(eq(agentSessions.id, input.completionContext.sessionId))
@@ -289,14 +317,18 @@ async function runStrategicPostProcessing(
           eq(personaRuns.feedbackPostprocessToken, postprocessToken),
         )).limit(1);
       if (!stillOwned) throw new Error("feedback_job_cancelled");
-      await db.update(agentSessions).set({
+      await db.transaction(async tx => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.conversationId}))`);
+        await assertCurrent(tx);
+        await tx.update(agentSessions).set({
         metadata: {
           ...metadata,
           feedbackReport: report,
           feedbackStatus: "completed",
           feedbackGenerationToken: token,
         },
-      }).where(eq(agentSessions.id, input.completionContext.sessionId));
+        }).where(eq(agentSessions.id, (input.completionContext as any).sessionId));
+      });
       const delivered = await dispatchWebhook(
         input.completionContext.agentKeyId,
         "feedback.completed",
@@ -311,6 +343,8 @@ async function runStrategicPostProcessing(
       input.scenario,
       input.language ?? "ko",
       async (analysis) => db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.conversationId}))`);
+        await assertCurrent(tx);
         const [owned] = await tx.update(personaRuns).set({ feedbackStatus: "completed" })
           .where(and(
             eq(personaRuns.id, input.conversationId),

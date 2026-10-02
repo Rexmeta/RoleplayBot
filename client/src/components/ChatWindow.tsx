@@ -1185,7 +1185,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
                   {inputMode === 'realtime-voice' && (
                     <TranscriptPanel isOpen={isTranscriptPanelOpen} onToggle={() => setIsTranscriptPanelOpen(v => !v)}
-                      onClose={() => setIsTranscriptPanelOpen(false)} messages={localMessages}
+                      onClose={() => setIsTranscriptPanelOpen(false)} messages={localMessages} recognitionRunId={conversationId}
                       pendingAiMessage={pendingAiMessage} pendingUserMessage={pendingUserMessage}
                       pendingUserText={pendingUserText} personaName={activePersona.name}
                       viewportHeight={viewportHeight} viewportOffsetTop={viewportOffsetTop}

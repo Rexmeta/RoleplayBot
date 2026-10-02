@@ -37,6 +37,16 @@ export interface EvaluationResult {
 }
 
 export async function evaluateUserResponse(input: EvaluationInput): Promise<EvaluationResult> {
+  if (input.turnId.startsWith('voice-user:')) {
+    const { listRecognitionEvidence } = await import('../../voice/recognitionEvidence');
+    const { recognitionResolved, RecognitionPendingError } = await import('../../voice/recognitionPolicy');
+    const evidence = (await listRecognitionEvidence(input.personaRunId)).find(e => e.id === input.turnId);
+    const run = await storage.getPersonaRun(input.personaRunId);
+    if (run?.voiceRecognitionRequired || evidence) {
+      if (!evidence || !recognitionResolved(evidence)) throw new RecognitionPendingError();
+      input = { ...input, userText: evidence.canonicalText! };
+    }
+  }
   const { personaRunId, turnId, turnIndex, userText, simulationState, evaluationMode } = input;
 
   if (userText.trim().length < 10) {

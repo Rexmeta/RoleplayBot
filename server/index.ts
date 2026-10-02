@@ -444,9 +444,8 @@ async function initializeApp() {
         if (path.startsWith("/objects")) {
           logLine += ` key=${req.query?.key || '(none)'}`;
         }
-        if (capturedJsonResponse) {
-          logLine += ` :: ${sanitizeLogData(capturedJsonResponse)}`;
-        }
+        // Response bodies can contain voice transcripts and report quotations.
+        // Operational logs retain route/status/timing, never conversation content.
         if (logLine.length > 120) {
           logLine = logLine.slice(0, 119) + "\u2026";
         }

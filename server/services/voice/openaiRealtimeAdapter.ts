@@ -298,7 +298,7 @@ export function createMessageHandler(
           providerEventId,
         });
 
-        if (finalized.emitted) {
+        if (finalized.emitted && !session.voiceRecognitionRequired) {
           // Fire user affect analysis in parallel (result stored for the next ai.transcription.done)
           const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
           if (geminiApiKey) {

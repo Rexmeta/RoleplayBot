@@ -811,7 +811,7 @@ ${conversationHistory}
         console.log(`✓ Optimized feedback attempt ${attempt + 1} completed in ${totalTime}ms`);
 
         const responseText = this.extractResponseText(response);
-        console.log(`📝 Feedback response attempt ${attempt + 1} (first 500 chars):`, responseText.substring(0, 500));
+        console.log(`📝 Feedback response attempt ${attempt + 1} (length=${responseText.length})`);
         
         const tokens = extractGeminiTokens(response);
         trackUsage({

@@ -28,6 +28,7 @@ import { DevelopmentPlan } from "./report/DevelopmentPlan";
 import { StrategyPanel } from "./report/StrategyPanel";
 import { RubricSnapshotPanel } from "./report/RubricSnapshotPanel";
 import SimulationReplayPanel from "./report/SimulationReplayPanel";
+import { RecognitionReview } from './chat/RecognitionReview';
 
 function ConversationHistoryPanel({
   messages,
@@ -590,6 +591,16 @@ export default function PersonalDevelopmentReport({
   };
 
   // --- Loading / error states ---
+  if (isFeedbackError && /voice_(recognition_confirmation_required|transcript_revision_changed)/.test(feedbackErrorMessage)) {
+    return (
+      <div className="p-6" role="status" data-testid="feedback-recognition-hold">
+        <h2 className="text-xl font-semibold">인식 확인 필요 — 평가 확정 보류</h2>
+        <p className="mt-3">전사가 확인되지 않았거나 변경되었습니다. 이는 외국어 사용·이해 부족·대화량 부족에 대한 감점이 아닙니다.</p>
+        <RecognitionReview runId={conversationId} />
+        <Button onClick={handleRegenerateFeedback}>확인한 기록으로 재평가</Button>
+      </div>
+    );
+  }
   if (isLoading || generateFeedbackMutation.isPending || isFeedbackGenerating || (hasRequestedFeedback && !feedback && !isFeedbackError)) {
     return <FeedbackProgressIndicator conversationId={conversationId} />;
   }
@@ -656,6 +667,18 @@ export default function PersonalDevelopmentReport({
 
   const reportStatus = feedback.reportStatus ?? feedback.detailedFeedback?.reportStatus;
   const confidence = feedback.confidence ?? feedback.detailedFeedback?.confidence;
+
+  if (reportStatus === 'recognition_pending' || (feedback.detailedFeedback as any)?.recognitionPending) {
+    return (
+      <div className="p-6" role="status">
+        <h2 className="text-xl font-semibold">인식 확인 필요 — 평가 확정 보류</h2>
+        <p className="mt-3">음성 전사가 확인되지 않았거나 변경되었습니다. 대화 기록에서 발화를 확인한 뒤 재평가해 주세요.</p>
+        <p className="mt-2">이는 외국어 사용, 이해 부족 또는 대화량 부족에 대한 감점이 아닙니다. 점수와 합격 여부는 확정하지 않습니다.</p>
+        <RecognitionReview runId={conversationId} />
+        <Button onClick={handleRegenerateFeedback}>확인한 기록으로 재평가</Button>
+      </div>
+    );
+  }
 
   // insufficient_data 상태: 점수/평가 화면 전체를 대체
   const isInsufficient =

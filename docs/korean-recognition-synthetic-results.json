@@ -1,0 +1,562 @@
+{
+  "date": "2026-10-02T08:24:07.363Z",
+  "fixtures": "synthetic OpenAI TTS, in-memory only",
+  "liveModel": "gemini-3.1-flash-live-preview",
+  "sttModel": "gpt-4o-mini-transcribe",
+  "sttLanguage": "ko",
+  "confirmationRequestRate": 0,
+  "limitations": [
+    "No real microphone, Bluetooth, noise or human accent validation.",
+    "Synthetic echo/quiet and resampling are not hardware tests.",
+    "Foreign-only flag is a diagnostic for these annotated fixtures, never an eligibility policy.",
+    "Missing/duplicate logical capture tests are separate from acoustic accuracy. Costs are estimates; actual Gemini charge is not measured."
+  ],
+  "rows": [
+    {
+      "id": "short",
+      "reference": "네.",
+      "synthetic": true,
+      "inputRate": 44100,
+      "audioMs": 700,
+      "elapsedMs": 4246,
+      "live": {
+        "status": "completed",
+        "text": "네.",
+        "completions": 1,
+        "usage": {
+          "promptTokenCount": 199,
+          "responseTokenCount": 67,
+          "totalTokenCount": 266,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 141
+            },
+            {
+              "modality": "AUDIO",
+              "tokenCount": 33
+            }
+          ],
+          "responseTokensDetails": [
+            {
+              "modality": "AUDIO",
+              "tokenCount": 67
+            }
+          ]
+        },
+        "latencyMs": 4245,
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "stt": {
+        "status": "completed",
+        "text": "네.",
+        "latencyMs": 480,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 11,
+          "input_tokens": 7,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 7
+          },
+          "output_tokens": 4
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "fullStt": {
+        "status": "completed",
+        "text": "네.",
+        "latencyMs": 421,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 11,
+          "input_tokens": 7,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 7
+          },
+          "output_tokens": 4
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "whisper": {
+        "status": "completed",
+        "text": "네",
+        "latencyMs": 371,
+        "usage": {
+          "type": "duration",
+          "seconds": 1
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "estimatedSttUsd": 0.000035
+    },
+    {
+      "id": "normal",
+      "reference": "다음 회의에서 일정과 예산을 다시 확인하겠습니다.",
+      "synthetic": true,
+      "inputRate": 48000,
+      "audioMs": 4000,
+      "elapsedMs": 8633,
+      "live": {
+        "status": "completed",
+        "text": "다음 회의에서 일정과 예산을 다시 확인하겠습니다.",
+        "completions": 1,
+        "usage": {
+          "promptTokenCount": 277,
+          "responseTokenCount": 98,
+          "totalTokenCount": 375,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 151
+            },
+            {
+              "modality": "AUDIO",
+              "tokenCount": 101
+            }
+          ],
+          "responseTokensDetails": [
+            {
+              "modality": "AUDIO",
+              "tokenCount": 98
+            }
+          ]
+        },
+        "latencyMs": 8633,
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "stt": {
+        "status": "completed",
+        "text": "다음 회의에서 일정과 예산을 다시 확인하겠습니다.",
+        "latencyMs": 1294,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 57,
+          "input_tokens": 40,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 40
+          },
+          "output_tokens": 17
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "fullStt": {
+        "status": "completed",
+        "text": "다음 회의에서 일정과 예산을 다시 확인하겠습니다.",
+        "latencyMs": 709,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 57,
+          "input_tokens": 40,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 40
+          },
+          "output_tokens": 17
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "whisper": {
+        "status": "completed",
+        "text": "다음 회의에서 일정과 예산을 다시 확인하겠습니다.",
+        "latencyMs": 729,
+        "usage": {
+          "type": "duration",
+          "seconds": 4
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "estimatedSttUsd": 0.0002
+    },
+    {
+      "id": "numbers",
+      "reference": "삼십오 개를 다음 주 수요일까지 보내 주세요.",
+      "synthetic": true,
+      "inputRate": 44100,
+      "audioMs": 3950,
+      "elapsedMs": 12501,
+      "live": {
+        "status": "completed",
+        "text": "삼십오 개를 다음 주 수요일까지 보내주세요.",
+        "completions": 1,
+        "usage": {
+          "promptTokenCount": 277,
+          "responseTokenCount": 195,
+          "totalTokenCount": 472,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 153
+            },
+            {
+              "modality": "AUDIO",
+              "tokenCount": 99
+            }
+          ],
+          "responseTokensDetails": [
+            {
+              "modality": "AUDIO",
+              "tokenCount": 195
+            }
+          ]
+        },
+        "latencyMs": 12501,
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "stt": {
+        "status": "completed",
+        "text": "삼십오 개를 다음 주 수요일까지 보내주세요.",
+        "latencyMs": 620,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 54,
+          "input_tokens": 39,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 39
+          },
+          "output_tokens": 15
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "fullStt": {
+        "status": "completed",
+        "text": "서른다섯 개를 다음 주 수요일까지 보내주세요.",
+        "latencyMs": 957,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 56,
+          "input_tokens": 39,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 39
+          },
+          "output_tokens": 17
+        },
+        "characterErrorRate": 0.2222222222222222,
+        "omitted": false,
+        "exactMatch": false,
+        "foreignOnly": false
+      },
+      "whisper": {
+        "status": "completed",
+        "text": "35개를 다음 주 수요일까지 보내주세요.",
+        "latencyMs": 1153,
+        "usage": {
+          "type": "duration",
+          "seconds": 4
+        },
+        "characterErrorRate": 0.16666666666666666,
+        "omitted": false,
+        "exactMatch": false,
+        "foreignOnly": false
+      },
+      "estimatedSttUsd": 0.00019750000000000003
+    },
+    {
+      "id": "mixed",
+      "reference": "CRM과 API 연결은 테스트 제품으로 확인했어요.",
+      "synthetic": true,
+      "inputRate": 48000,
+      "audioMs": 4550,
+      "elapsedMs": 11584,
+      "live": {
+        "status": "completed",
+        "text": "CRM과 API 연결은 테스트 제품으로 확인했어요.",
+        "completions": 1,
+        "usage": {
+          "promptTokenCount": 291,
+          "responseTokenCount": 157,
+          "totalTokenCount": 448,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 150
+            },
+            {
+              "modality": "AUDIO",
+              "tokenCount": 116
+            }
+          ],
+          "responseTokensDetails": [
+            {
+              "modality": "AUDIO",
+              "tokenCount": 157
+            }
+          ]
+        },
+        "latencyMs": 11583,
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "stt": {
+        "status": "completed",
+        "text": "CRM과 API 연결은 테스트 제품으로 확인했어요.",
+        "latencyMs": 613,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 60,
+          "input_tokens": 45,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 45
+          },
+          "output_tokens": 15
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "fullStt": {
+        "status": "completed",
+        "text": "CRM과 API 연결은 테스트 제품으로 확인했어요.",
+        "latencyMs": 808,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 59,
+          "input_tokens": 45,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 45
+          },
+          "output_tokens": 14
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "whisper": {
+        "status": "completed",
+        "text": "CRM과 API 연결은 테스트 제품으로 확인했어요.",
+        "latencyMs": 2054,
+        "usage": {
+          "type": "duration",
+          "seconds": 5
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "estimatedSttUsd": 0.0002275
+    },
+    {
+      "id": "quiet",
+      "reference": "네, 알겠습니다.",
+      "synthetic": true,
+      "inputRate": 48000,
+      "audioMs": 1650,
+      "elapsedMs": 5688,
+      "live": {
+        "status": "completed",
+        "text": "네, 알겠습니다.",
+        "completions": 1,
+        "usage": {
+          "promptTokenCount": 212,
+          "responseTokenCount": 80,
+          "totalTokenCount": 292,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 144
+            },
+            {
+              "modality": "AUDIO",
+              "tokenCount": 43
+            }
+          ],
+          "responseTokensDetails": [
+            {
+              "modality": "AUDIO",
+              "tokenCount": 80
+            }
+          ]
+        },
+        "latencyMs": 5687,
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "stt": {
+        "status": "completed",
+        "text": "네, 알겠습니다.",
+        "latencyMs": 495,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 23,
+          "input_tokens": 16,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 16
+          },
+          "output_tokens": 7
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "fullStt": {
+        "status": "completed",
+        "text": "네, 알겠습니다.",
+        "latencyMs": 1877,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 23,
+          "input_tokens": 16,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 16
+          },
+          "output_tokens": 7
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "whisper": {
+        "status": "completed",
+        "text": "네, 알겠습니다.",
+        "latencyMs": 804,
+        "usage": {
+          "type": "duration",
+          "seconds": 2
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "estimatedSttUsd": 0.0000825
+    },
+    {
+      "id": "echo",
+      "reference": "먼저 담당자에게 확인해 보겠습니다.",
+      "synthetic": true,
+      "inputRate": 44100,
+      "audioMs": 3030,
+      "elapsedMs": 8429,
+      "live": {
+        "status": "completed",
+        "text": "먼저 담당자에게 확인해보겠습니다.",
+        "completions": 1,
+        "usage": {
+          "promptTokenCount": 251,
+          "responseTokenCount": 113,
+          "totalTokenCount": 364,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 148
+            },
+            {
+              "modality": "AUDIO",
+              "tokenCount": 78
+            }
+          ],
+          "responseTokensDetails": [
+            {
+              "modality": "AUDIO",
+              "tokenCount": 113
+            }
+          ]
+        },
+        "latencyMs": 8429,
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "stt": {
+        "status": "completed",
+        "text": "먼저 담당자에게 확인해 보겠습니다.",
+        "latencyMs": 561,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 42,
+          "input_tokens": 30,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 30
+          },
+          "output_tokens": 12
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "fullStt": {
+        "status": "completed",
+        "text": "먼저 담당자에게 확인해 보겠습니다.",
+        "latencyMs": 560,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 42,
+          "input_tokens": 30,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 30
+          },
+          "output_tokens": 12
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "whisper": {
+        "status": "completed",
+        "text": "먼저 담당자에게 확인해 보겠습니다.",
+        "latencyMs": 1368,
+        "usage": {
+          "type": "duration",
+          "seconds": 4
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "estimatedSttUsd": 0.0001515
+    }
+  ]
+}

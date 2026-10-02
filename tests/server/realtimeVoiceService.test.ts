@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockGetChatMessagesByPersonaRun = vi.fn();
 const mockGetUser = vi.fn();
+const mockGetPersonaRun = vi.fn();
+const mockListRecognitionEvidence = vi.fn();
 const mockGetSystemSetting = vi.fn();
 const mockGetUserPersonaById = vi.fn();
 const mockUpsertVoiceTranscript = vi.fn();
@@ -10,15 +12,21 @@ vi.mock('../../server/storage', () => ({
   storage: {
     getChatMessagesByPersonaRun: mockGetChatMessagesByPersonaRun,
     getUser: mockGetUser,
+    getPersonaRun: mockGetPersonaRun,
     getSystemSetting: mockGetSystemSetting,
     getUserPersonaById: mockGetUserPersonaById,
     upsertVoiceTranscript: mockUpsertVoiceTranscript,
+    updatePersonaRun: vi.fn().mockResolvedValue({}),
   },
   db: {
     select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([])) })) })) })),
   },
   pool: undefined,
   checkDatabaseConnection: vi.fn(),
+}));
+
+vi.mock('../../server/services/voice/recognitionEvidence', () => ({
+  listRecognitionEvidence: mockListRecognitionEvidence,
 }));
 
 const mockGetAllScenarios = vi.fn();
@@ -108,6 +116,8 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
     process.env.GOOGLE_API_KEY = 'test-api-key';
 
     mockGetUser.mockResolvedValue({ name: '테스터' });
+    mockGetPersonaRun.mockResolvedValue({ voiceRecognitionRequired: false });
+    mockListRecognitionEvidence.mockResolvedValue([]);
     mockGetPersonaByMBTI.mockResolvedValue(null);
     mockGetSystemSetting.mockResolvedValue(null);
     mockGetAllScenarios.mockResolvedValue([makeScenario()]);
@@ -133,6 +143,43 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
   });
 
   describe('createSession (scenario persona)', () => {
+    it.each(['en', 'ja', 'zh', 'ko'] as const)('preserves %s/legacy voice and AI context when verification is not required', async language => {
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([
+        { sender: 'user', message: 'Original voice transcript', voiceTurnId: 'voice-user:legacy:1' },
+        { sender: 'ai', message: 'Original AI reply' },
+      ]);
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID,
+        { readyState: 1, send: vi.fn() } as any, undefined, language);
+      expect((service as any).sessions.get(SESSION_ID).recentMessages).toEqual([
+        { role: 'user', text: 'Original voice transcript' }, { role: 'ai', text: 'Original AI reply' },
+      ]);
+    });
+    it('excludes unresolved voice and derived AI context from a recognition-required run', async () => {
+      mockGetPersonaRun.mockResolvedValue({ voiceRecognitionRequired: true });
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([
+        { sender: 'user', message: 'Hola', voiceTurnId: 'voice-user:pending:1' },
+        { sender: 'ai', message: 'Response based on unconfirmed speech' },
+      ]);
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID,
+        { readyState: 1, send: vi.fn() } as any);
+      expect((service as any).sessions.get(SESSION_ID).recentMessages).toEqual([]);
+    });
+    it('uses approved canonical text but not an AI response to different Live text', async () => {
+      mockGetPersonaRun.mockResolvedValue({ voiceRecognitionRequired: true });
+      mockListRecognitionEvidence.mockResolvedValue([{
+        id: 'voice-user:confirmed:1', status: 'confirmed',
+        providerText: 'Hola', canonicalText: '다음 주까지 확인하겠습니다.',
+      }]);
+      mockGetChatMessagesByPersonaRun.mockResolvedValue([
+        { sender: 'user', message: 'Hola', voiceTurnId: 'voice-user:confirmed:1' },
+        { sender: 'ai', message: 'Response to Hola' },
+      ]);
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID,
+        { readyState: 1, send: vi.fn() } as any);
+      expect((service as any).sessions.get(SESSION_ID).recentMessages).toEqual([
+        { role: 'user', text: '다음 주까지 확인하겠습니다.' },
+      ]);
+    });
     it('populates session.recentMessages when DB has messages', async () => {
       const dbMessages = makeDbMessages(5);
       mockGetChatMessagesByPersonaRun.mockResolvedValue(dbMessages);
@@ -297,7 +344,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       expect(mockGeminiSession.sendClientContent).not.toHaveBeenCalled();
     });
 
-    it('passes the selected language to both Gemini input and output transcription', async () => {
+    it('does not claim Gemini supports an explicit transcription language', async () => {
       const fakeWs = { readyState: 1, send: vi.fn() };
       await service.createSession(
         SESSION_ID,
@@ -311,8 +358,8 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       );
 
       const connectOptions = mockLiveConnect.mock.calls[0][0];
-      expect(connectOptions.config.inputAudioTranscription).toEqual({ languageCode: 'ja-JP' });
-      expect(connectOptions.config.outputAudioTranscription).toEqual({ languageCode: 'ja-JP' });
+      expect(connectOptions.config.inputAudioTranscription).toEqual({});
+      expect(connectOptions.config.outputAudioTranscription).toEqual({});
       expect((service as any).sessions.get(SESSION_ID).userLanguage).toBe('ja');
     });
   });
@@ -967,7 +1014,7 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
       await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID, fakeWs as any);
 
       const session = (service as any).sessions.get(SESSION_ID);
-      const geminiSession = session.geminiSession;
+      const geminiSession = await mockLiveConnect.mock.results.at(-1)!.value;
       geminiSession.sendClientContent.mockClear();
 
       service.handleClientMessage(SESSION_ID, {
@@ -1047,11 +1094,11 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
 
       // After proactiveReconnect, usingReconnectInstructions should be true
       expect(session.usingReconnectInstructions).toBe(true);
-      const secondGeminiSession = session.geminiSession;
+      const secondGeminiSession = await mockLiveConnect.mock.results.at(-1)!.value;
       expect(secondGeminiSession).not.toBeNull();
 
       // Reset close call tracking on second session
-      secondGeminiSession.close.mockClear();
+      vi.clearAllMocks();
       secondGeminiSession.sendClientContent.mockClear();
 
       // Now send another isResuming client.ready — should take fast path (context-only)

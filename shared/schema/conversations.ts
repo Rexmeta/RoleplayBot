@@ -71,6 +71,7 @@ export const personaRuns = pgTable("persona_runs", {
   feedbackJobToken: varchar("feedback_job_token"),
   feedbackWorkerToken: varchar("feedback_worker_token"),
   feedbackJobPayload: jsonb("feedback_job_payload"),
+  voiceRecognitionRequired: boolean("voice_recognition_required").notNull().default(false),
   feedbackPostprocessStatus: varchar("feedback_postprocess_status"),
   feedbackPostprocessStartedAt: timestamp("feedback_postprocess_started_at"),
   feedbackPostprocessToken: varchar("feedback_postprocess_token"),
@@ -123,6 +124,27 @@ export const chatMessages = pgTable("chat_messages", {
   index("idx_chat_messages_persona_run_id").on(table.personaRunId),
   uniqueIndex("idx_chat_messages_upsert_key").on(table.personaRunId, table.turnIndex, table.sender),
   uniqueIndex("idx_chat_messages_voice_turn_id").on(table.personaRunId, table.voiceTurnId),
+]);
+
+/** Server-owned evidence. Provider finality is not recognition verification. */
+export const voiceUtterances = pgTable("voice_utterances", {
+  id: varchar("id").primaryKey(),
+  personaRunId: varchar("persona_run_id").notNull().references(() => personaRuns.id, { onDelete: 'cascade' }),
+  language: varchar("language").notNull(),
+  provider: varchar("provider").notNull(),
+  providerText: text("provider_text"),
+  providerFinal: boolean("provider_final").notNull().default(false),
+  candidateText: text("candidate_text"),
+  canonicalText: text("canonical_text"),
+  source: varchar("source"),
+  status: varchar("status").notNull().default("processing"),
+  reason: varchar("reason"),
+  revision: integer("revision").notNull().default(0),
+  captureGeneration: integer("capture_generation").notNull(),
+  speechSeq: integer("speech_seq").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => [
+  index("idx_voice_utterances_run").on(table.personaRunId),
 ]);
 
 export const insertSimulationEventSchema = createInsertSchema(simulationEvents).omit({

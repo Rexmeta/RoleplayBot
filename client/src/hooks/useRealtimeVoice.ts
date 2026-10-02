@@ -685,7 +685,7 @@ export function useRealtimeVoice({
                   break;
                 }
                 if (metadata.final && metadata.turnId) finalizedUserTurnIdsRef.current.add(metadata.turnId);
-                if (metadata.final && activeSpeechSeqRef.current > 0) {
+                if (metadata.final && metadata.language !== 'ko' && activeSpeechSeqRef.current > 0) {
                   lastCommittedSpeechSeqRef.current = activeSpeechSeqRef.current;
                   activeSpeechSeqRef.current = 0;
                   if (voiceTailTimerRef.current) {
@@ -696,7 +696,7 @@ export function useRealtimeVoice({
                 if (onUserTranscriptionRef.current) {
                   onUserTranscriptionRef.current(data.transcript, metadata);
                 }
-                if (metadata.final) {
+                if (metadata.final && metadata.language !== 'ko') {
                   accumulatedMessagesRef.current.push({ role: 'user', content: data.transcript });
                   if (accumulatedMessagesRef.current.length > 30) accumulatedMessagesRef.current.shift();
                   try { sessionStorage.setItem(sessionStorageKeyRef.current, JSON.stringify(accumulatedMessagesRef.current)); } catch {}
@@ -1556,7 +1556,11 @@ export function useRealtimeVoice({
         rawMicStreamRef.current = null;
       }
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+        wsRef.current.send(JSON.stringify({
+          type: 'input_audio_buffer.commit',
+          speechSeq: activeSpeechSeqRef.current,
+          captureGeneration: captureGenerationRef.current,
+        }));
         wsRef.current.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio', 'text'] } }));
       }
     }, 100);

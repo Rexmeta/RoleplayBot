@@ -273,7 +273,7 @@ export function handleGeminiMessage(
                 stateAfter: stateAfterTool,
                 stateVersionBefore: stateBeforeTool?.version ?? null,
                 stateVersionAfter: stateAfterTool.version,
-                includeInReport: true,
+                includeInReport: !session.voiceRecognitionRequired,
               });
             } catch (e) {
               console.warn('[geminiMessageHandler] Failed to persist tool call state/event:', e);
@@ -643,7 +643,7 @@ export function handleGeminiMessage(
 
       for (const part of parts) {
         if (part.text) {
-          console.log(`🤖 AI transcript (raw): ${part.text.substring(0, 100)}...`);
+          console.log(`🤖 AI transcript received (length=${part.text.length})`);
           // Only accumulate modelTurn text to currentTranscript when
           // outputTranscription is NOT the authoritative source for this turn.
           // Two dedup gates:
@@ -728,13 +728,13 @@ export function handleGeminiMessage(
     // silently dropped from the conversation history.
     if (serverContent.outputTranscription) {
       const transcript = serverContent.outputTranscription.text || '';
-      console.log(`🤖 AI transcript delta (raw): ${transcript}`);
+      console.log(`🤖 AI transcript delta received (length=${transcript.length})`);
 
       if (session.suppressAIUntilUserSpeaks) {
         // Fix 3: Mark that the suppressed AI turn is producing transcript/audio,
         // so input_audio_buffer.append knows not to clear the suppress flag early.
         if (transcript.length > 0) session.suppressedTurnStarted = true;
-        console.log(`🔇 Suppressing outputTranscription (awaiting user speech after context injection): "${transcript.substring(0, 80)}"`);
+        console.log(`🔇 Suppressing outputTranscription (awaiting user speech after context injection, length=${transcript.length})`);
         // Still accumulate so turnComplete can clear it cleanly, but do NOT forward to client
         session.currentTranscript += stripSimulationToolCallText(transcript);
       } else {
@@ -934,7 +934,7 @@ export function handleGeminiMessage(
 
         // Evaluation always runs for valid finalized turns; toolCallsThisTurn===0
         // only gates buildRuleFallbackPatch (not the evaluation call itself)
-        if (!isPersonaXSession && !alreadyEvaluated) {
+        if (!isPersonaXSession && !alreadyEvaluated && !session.voiceRecognitionRequired) {
           session.lastEvaluatedUserTurnId = currentTurnId;  // Mark evaluated by turnId (primary gate)
           session.lastFinalizedUserTranscriptHash = transcriptHash;  // Secondary hash guard
           session.lastEvaluatedUserTurnIndex = session.userTurnsCompleted;
@@ -1047,7 +1047,7 @@ export function handleGeminiMessage(
                   stateAfter: newState,
                   stateVersionBefore: stateBefore.version,
                   stateVersionAfter: newState.version,
-                  includeInReport: true,
+                  includeInReport: !session.voiceRecognitionRequired,
                 }).catch(e => console.warn('[geminiMessageHandler] Failed to log eval event:', e));
 
                 sendToClient(session, {
@@ -1104,7 +1104,7 @@ export function handleGeminiMessage(
         // turnComplete:false context injection). Discard its transcript and clear the flag.
         // Safety fallback: also clears the flag when suppressedTurnStarted=false (Gemini
         // completed a turn without ever sending audio — e.g. a silent context ACK).
-        console.log(`🔇 [turnComplete] Discarding suppressed AI turn (awaiting user speech, suppressedTurnStarted=${session.suppressedTurnStarted}) — transcript: "${session.currentTranscript.substring(0, 80)}"`);
+        console.log(`🔇 [turnComplete] Discarding suppressed AI turn (awaiting user speech, suppressedTurnStarted=${session.suppressedTurnStarted}, length=${session.currentTranscript.length})`);
         session.currentTranscript = '';
         session.suppressAIUntilUserSpeaks = false;
         session.suppressedTurnStarted = false;
@@ -1124,7 +1124,7 @@ export function handleGeminiMessage(
         const filteredTranscript = collapseDoubledTranscript(
           filterThinkingText(session.currentTranscript, session.userLanguage, { strictMode: session.turnSeq <= 1 })
         );
-        console.log(`📝 Filtered transcript (${session.userLanguage}): "${filteredTranscript.substring(0, 100)}..."`);
+        console.log(`📝 Filtered transcript (${session.userLanguage}, length=${filteredTranscript.length})`);
 
         // Detect persona switch announcement: the AI told the user it will connect
         // them to another persona and is awaiting the user's confirmation.

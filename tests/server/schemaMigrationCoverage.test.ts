@@ -265,7 +265,13 @@ describe("Schema-migration coverage", () => {
       }
 
       // Collect migration coverage
-      const migrateContent = readFileSync(MIGRATE_FILE, "utf8");
+      // Managed PostgreSQL is migrated by Publish; numbered SQL is also an
+      // executable migration contract for an externally managed database.
+      // Do not require every new table to be created during server startup.
+      const sqlMigrations = readdirSync(join(ROOT, 'migrations'))
+        .filter(name => name.endsWith('.sql'))
+        .map(name => readFileSync(join(ROOT, 'migrations', name), 'utf8')).join('\n');
+      const migrateContent = readFileSync(MIGRATE_FILE, "utf8") + '\n' + sqlMigrations;
       const coverage = extractMigrationCoverage(migrateContent);
 
       // Find gaps

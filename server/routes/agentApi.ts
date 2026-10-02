@@ -1435,7 +1435,8 @@ router.get("/sessions/:id/feedback", requireScope("sessions:read"), async (req: 
       if (job.status) feedbackStatus = job.status;
       feedbackError = job.error ?? feedbackError;
     }
-    const feedbackReport = sessionMeta.feedbackReport ?? null;
+    // Never prefer a cached metadata report over the current transcript revision.
+    const feedbackReport = session.personaRunId ? null : sessionMeta.feedbackReport ?? null;
     const persistedFeedback = feedbackStatus === "completed" && session.personaRunId
       ? await storage.getFeedbackByConversationId(session.personaRunId).catch(() => null)
       : null;

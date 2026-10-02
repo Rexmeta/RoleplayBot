@@ -1,0 +1,198 @@
+{
+  "date": "2026-10-02T08:38:29.567Z",
+  "fixtures": "synthetic OpenAI TTS, in-memory only",
+  "liveModel": "gemini-3.1-flash-live-preview",
+  "sttModel": "gpt-4o-mini-transcribe",
+  "sttLanguage": "ko",
+  "confirmationRequestRate": 0.5,
+  "limitations": [
+    "No real microphone, Bluetooth, noise or human accent validation.",
+    "Synthetic echo/quiet and resampling are not hardware tests.",
+    "Foreign-only flag is a diagnostic for these annotated fixtures, never an eligibility policy.",
+    "Missing/duplicate logical capture tests are separate from acoustic accuracy. Costs are estimates; actual Gemini charge is not measured."
+  ],
+  "rows": [
+    {
+      "id": "names",
+      "reference": "테스트 담당자의 이름은 김민준입니다.",
+      "synthetic": true,
+      "inputRate": 48000,
+      "audioMs": 4350,
+      "elapsedMs": 11531,
+      "live": {
+        "status": "completed",
+        "text": "test 담당자의 이름은 김민준입니다.",
+        "completions": 1,
+        "usage": {
+          "promptTokenCount": 266,
+          "responseTokenCount": 164,
+          "totalTokenCount": 430,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 149
+            },
+            {
+              "modality": "AUDIO",
+              "tokenCount": 92
+            }
+          ],
+          "responseTokensDetails": [
+            {
+              "modality": "AUDIO",
+              "tokenCount": 164
+            }
+          ]
+        },
+        "latencyMs": 11530,
+        "characterErrorRate": 0.25,
+        "omitted": false,
+        "exactMatch": false,
+        "foreignOnly": false
+      },
+      "stt": {
+        "status": "completed",
+        "text": "테스트 담당자의 이름은 김민준입니다.",
+        "latencyMs": 911,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 56,
+          "input_tokens": 43,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 43
+          },
+          "output_tokens": 13
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "fullStt": {
+        "status": "completed",
+        "text": "테스트 담당자의 이름은 김민준입니다.",
+        "latencyMs": 961,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 56,
+          "input_tokens": 43,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 43
+          },
+          "output_tokens": 13
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "whisper": {
+        "status": "completed",
+        "text": "테스트 담당자의 이름은 김민준입니다.",
+        "latencyMs": 1608,
+        "usage": {
+          "type": "duration",
+          "seconds": 5
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "estimatedSttUsd": 0.0002175
+    },
+    {
+      "id": "noise",
+      "reference": "회의실에서 일정과 예산을 확인하겠습니다.",
+      "synthetic": true,
+      "inputRate": 44100,
+      "audioMs": 3750,
+      "elapsedMs": 7730,
+      "live": {
+        "status": "completed",
+        "text": "회의실에서 일정과 예산을 확인하겠습니다.",
+        "completions": 1,
+        "usage": {
+          "promptTokenCount": 269,
+          "responseTokenCount": 82,
+          "totalTokenCount": 351,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 149
+            },
+            {
+              "modality": "AUDIO",
+              "tokenCount": 95
+            }
+          ],
+          "responseTokensDetails": [
+            {
+              "modality": "AUDIO",
+              "tokenCount": 82
+            }
+          ]
+        },
+        "latencyMs": 7730,
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "stt": {
+        "status": "completed",
+        "text": "회의실에서 일정과 예산을 확인하겠습니다.",
+        "latencyMs": 896,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 51,
+          "input_tokens": 37,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 37
+          },
+          "output_tokens": 14
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "fullStt": {
+        "status": "completed",
+        "text": "회의실에서 일정과 예산을 확인하겠습니다.",
+        "latencyMs": 548,
+        "usage": {
+          "type": "tokens",
+          "total_tokens": 51,
+          "input_tokens": 37,
+          "input_token_details": {
+            "text_tokens": 0,
+            "audio_tokens": 37
+          },
+          "output_tokens": 14
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "whisper": {
+        "status": "completed",
+        "text": "회의실에서 일정과 예산을 확인하겠습니다.",
+        "latencyMs": 2587,
+        "usage": {
+          "type": "duration",
+          "seconds": 4
+        },
+        "characterErrorRate": 0,
+        "omitted": false,
+        "exactMatch": true,
+        "foreignOnly": false
+      },
+      "estimatedSttUsd": 0.0001875
+    }
+  ]
+}

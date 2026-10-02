@@ -70,9 +70,14 @@ export function ConversationsMixin<TBase extends Constructor>(Base: TBase) {
 
     async getFeedbackByConversationId(conversationId: string): Promise<Feedback | undefined> {
       const [feedbackByPersonaRun] = await db.select().from(feedbacks).where(eq(feedbacks.personaRunId, conversationId));
-      if (feedbackByPersonaRun) return feedbackByPersonaRun;
+      if (feedbackByPersonaRun) {
+        const { guardRecognitionReport } = await import('../services/voice/recognitionEvidence');
+        return guardRecognitionReport(feedbackByPersonaRun);
+      }
       const [feedbackByConversation] = await db.select().from(feedbacks).where(eq(feedbacks.conversationId, conversationId));
-      return feedbackByConversation;
+      if (!feedbackByConversation) return undefined;
+      const { guardRecognitionReport } = await import('../services/voice/recognitionEvidence');
+      return guardRecognitionReport(feedbackByConversation);
     }
 
     async deleteFeedback(id: string): Promise<void> {
@@ -80,7 +85,9 @@ export function ConversationsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getAllFeedbacks(): Promise<Feedback[]> {
-      return await db.select().from(feedbacks);
+      const reports = await db.select().from(feedbacks);
+      const { guardRecognitionReport } = await import('../services/voice/recognitionEvidence');
+      return Promise.all(reports.map(guardRecognitionReport));
     }
 
     async getUserFeedbacks(userId: string): Promise<Feedback[]> {
@@ -108,7 +115,8 @@ export function ConversationsMixin<TBase extends Constructor>(Base: TBase) {
       const unique = Array.from(new Map(allFeedbacks.map(f => [f.id, f])).values())
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       console.log(`✅ UserFeedbacks for ${userId}: ${unique.length} feedbacks from ${newStructureFeedbacks.length} new + ${legacyFeedbacks.length} legacy`);
-      return unique;
+      const { guardRecognitionReport } = await import('../services/voice/recognitionEvidence');
+      return Promise.all(unique.map(guardRecognitionReport));
     }
 
     async addPersonaSelection(conversationId: string, selection: PersonaSelection): Promise<Conversation> {

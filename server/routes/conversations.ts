@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { listRecognitionEvidence, confirmRecognition } from '../services/voice/recognitionEvidence';
 import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { generateAIResponse, generateStreamingAIResponse } from "../services/aiServiceFactory";
@@ -111,6 +112,24 @@ function detectPersonaSwitchAnnouncement(
 
 export default function createConversationsRouter(isAuthenticated: any) {
   const router = Router();
+
+  router.get("/:id/voice-recognition", isAuthenticated, asyncHandler(async (req: any, res) => {
+    await verifyPersonaRunOwnership(req.params.id, req.user.id);
+    res.json(await listRecognitionEvidence(req.params.id));
+  }));
+
+  router.post("/:id/voice-recognition/:turnId/confirm", isAuthenticated, asyncHandler(async (req: any, res) => {
+    await verifyPersonaRunOwnership(req.params.id, req.user.id);
+    if (!Number.isInteger(req.body.revision) || typeof req.body.text !== 'string') {
+      throw createHttpError(400, 'revision and text are required');
+    }
+    try {
+      res.json(await confirmRecognition(req.params.id, req.params.turnId, req.body.revision, req.body.text));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'confirmation_failed';
+      throw createHttpError(code === 'voice_revision_conflict' ? 409 : 400, code);
+    }
+  }));
 
   router.post("/", isAuthenticated, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;

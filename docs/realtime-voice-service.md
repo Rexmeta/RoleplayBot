@@ -1,3 +1,7 @@
+# 한국어 전사의 독립 검증 및 평가 계약
+
+Live provider-final은 인식 정확성의 보증이 아니다. 한국어 발화의 원문과 독립 STT/사용자 확인 canonical 근거, 실패 정책, 실제 API 비교 및 rollout 기준은 [한국어 음성 인식](./korean-voice-recognition.md)을 참조한다.
+
 # 실시간 음성 서비스 (Realtime Voice Service)
 
 > **소스**: `server/services/realtimeVoiceService.ts`  
