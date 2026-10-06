@@ -29,7 +29,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, existsSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 
 const ROOT = process.cwd();
@@ -237,48 +237,72 @@ function extractMigrationCoverage(content: string): Map<string, Set<string>> {
   return coverage;
 }
 
+function extractAllSchemaColumns(): Map<string, string[]> {
+  const allSchemaColumns = new Map<string, string[]>();
+  const schemaFiles = readdirSync(SCHEMA_DIR).filter(
+    (f) => f.endsWith(".ts") && f !== "types.ts"
+  );
+
+  for (const file of schemaFiles) {
+    const content = readFileSync(join(SCHEMA_DIR, file), "utf8");
+    const fileColumns = extractSchemaColumns(content);
+
+    for (const [table, columns] of fileColumns) {
+      const merged = allSchemaColumns.get(table) ?? [];
+      for (const column of columns) {
+        if (!merged.includes(column)) merged.push(column);
+      }
+      allSchemaColumns.set(table, merged);
+    }
+  }
+
+  return allSchemaColumns;
+}
+
+function mergeMigrationCoverage(
+  ...sources: Map<string, Set<string>>[]
+): Map<string, Set<string>> {
+  const merged = new Map<string, Set<string>>();
+  for (const source of sources) {
+    for (const [table, columns] of source) {
+      const target = merged.get(table) ?? new Set<string>();
+      for (const column of columns) target.add(column);
+      merged.set(table, target);
+    }
+  }
+  return merged;
+}
+
+const allSchemaColumns = extractAllSchemaColumns();
+const startupCoverage = extractMigrationCoverage(
+  readFileSync(MIGRATE_FILE, "utf8")
+);
+
+// Numbered SQL files are a separate migration channel (for Publish and
+// externally managed databases). Keep that coverage separate from startup
+// coverage so a numbered migration cannot mask a missing startup patch.
+const sqlMigrations = readdirSync(join(ROOT, "migrations"))
+  .filter((name) => name.endsWith(".sql"))
+  .map((name) => readFileSync(join(ROOT, "migrations", name), "utf8"))
+  .join("\n");
+const numberedMigrationCoverage = extractMigrationCoverage(sqlMigrations);
+const combinedCoverage = mergeMigrationCoverage(
+  startupCoverage,
+  numberedMigrationCoverage
+);
+
 // ---------------------------------------------------------------------------
 // Test
 // ---------------------------------------------------------------------------
 describe("Schema-migration coverage", () => {
   it(
-    "every Drizzle schema column is covered by a CREATE TABLE or ADD COLUMN in migrate.ts",
+    "every Drizzle schema column has coverage in startup or numbered SQL migrations",
     () => {
-      // Collect all schema columns
-      const allSchemaColumns = new Map<string, string[]>();
-      const schemaFiles = readdirSync(SCHEMA_DIR).filter(
-        (f) => f.endsWith(".ts") && f !== "types.ts"
-      );
-
-      for (const file of schemaFiles) {
-        const content = readFileSync(join(SCHEMA_DIR, file), "utf8");
-        const fileCols = extractSchemaColumns(content);
-
-        for (const [table, cols] of fileCols) {
-          const existing = allSchemaColumns.get(table) ?? [];
-          const merged = [...existing];
-          for (const c of cols) {
-            if (!merged.includes(c)) merged.push(c);
-          }
-          allSchemaColumns.set(table, merged);
-        }
-      }
-
-      // Collect migration coverage
-      // Managed PostgreSQL is migrated by Publish; numbered SQL is also an
-      // executable migration contract for an externally managed database.
-      // Do not require every new table to be created during server startup.
-      const sqlMigrations = readdirSync(join(ROOT, 'migrations'))
-        .filter(name => name.endsWith('.sql'))
-        .map(name => readFileSync(join(ROOT, 'migrations', name), 'utf8')).join('\n');
-      const migrateContent = readFileSync(MIGRATE_FILE, "utf8") + '\n' + sqlMigrations;
-      const coverage = extractMigrationCoverage(migrateContent);
-
       // Find gaps
       const gaps: string[] = [];
 
       for (const [table, cols] of allSchemaColumns) {
-        const covered = coverage.get(table);
+        const covered = combinedCoverage.get(table);
 
         for (const col of cols) {
           const key = `${table}.${col}`;
@@ -293,24 +317,31 @@ describe("Schema-migration coverage", () => {
       if (gaps.length > 0) {
         const lines = [
           "",
-          `Found ${gaps.length} Drizzle schema column(s) with no migration coverage in server/migrate.ts:`,
+          `Found ${gaps.length} Drizzle schema column(s) with no coverage in startup or numbered SQL migrations:`,
           "",
           ...gaps.map((g) => `  ✗ ${g}`),
           "",
-          "For each gap, either:",
-          "  1. Add an entry to criticalColumnPatches in server/migrate.ts:",
-          "       { table: '<table>', column: '<column>', sql: `DO $$ BEGIN",
-          "           IF NOT EXISTS (SELECT 1 FROM information_schema.columns",
-          "             WHERE table_name='<table>' AND column_name='<column>')",
-          "           THEN ALTER TABLE \"<table>\" ADD COLUMN \"<column>\" <type>;",
-          "           END IF; END $$;` }",
-          "  2. OR add ALTER TABLE … ADD COLUMN IF NOT EXISTS to runMigrations().",
-          "  3. OR add \"<table>.<column>\" to ACKNOWLEDGED_GAPS in this test (with reason).",
+          "Add a startup patch in server/migrate.ts or a numbered SQL migration.",
           "",
         ].join("\n");
 
         expect.fail(lines);
       }
+    }
+  );
+
+  it(
+    "startup migration covers every persona_runs column used by full-row reads",
+    () => {
+      const missingStartupColumns = (allSchemaColumns.get("persona_runs") ?? [])
+        .filter((column) => !startupCoverage.get("persona_runs")?.has(column));
+
+      expect(
+        missingStartupColumns,
+        `persona_runs columns missing from server/migrate.ts startup coverage:\n${missingStartupColumns
+          .map((column) => `  ✗ persona_runs.${column}`)
+          .join("\n")}`
+      ).toEqual([]);
     }
   );
 });
