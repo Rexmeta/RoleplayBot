@@ -274,8 +274,9 @@ function mergeMigrationCoverage(
 }
 
 const allSchemaColumns = extractAllSchemaColumns();
+const startupMigrationContent = readFileSync(MIGRATE_FILE, "utf8");
 const startupCoverage = extractMigrationCoverage(
-  readFileSync(MIGRATE_FILE, "utf8")
+  startupMigrationContent
 );
 
 // Numbered SQL files are a separate migration channel (for Publish and
@@ -340,6 +341,26 @@ describe("Schema-migration coverage", () => {
         missingStartupColumns,
         `persona_runs columns missing from server/migrate.ts startup coverage:\n${missingStartupColumns
           .map((column) => `  ✗ persona_runs.${column}`)
+          .join("\n")}`
+      ).toEqual([]);
+    }
+  );
+
+  it(
+    "startup migration creates voice_utterances and covers its Drizzle columns",
+    () => {
+      expect(startupMigrationContent).toMatch(
+        /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+"?voice_utterances"?\s*\(/i
+      );
+
+      const missingStartupColumns = (
+        allSchemaColumns.get("voice_utterances") ?? []
+      ).filter((column) => !startupCoverage.get("voice_utterances")?.has(column));
+
+      expect(
+        missingStartupColumns,
+        `voice_utterances columns missing from server/migrate.ts startup coverage:\n${missingStartupColumns
+          .map((column) => `  ✗ voice_utterances.${column}`)
           .join("\n")}`
       ).toEqual([]);
     }

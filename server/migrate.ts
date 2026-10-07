@@ -1310,6 +1310,31 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to create simulation_events table:', err);
       }
 
+      // Voice recognition evidence is read as soon as a realtime session
+      // connects. Keep this table in the startup migration path as well as the
+      // numbered SQL migration so existing development databases are usable.
+      await queryWithTimeout(client, 'Voice recognition evidence table created/verified', `
+        CREATE TABLE IF NOT EXISTS "voice_utterances" (
+          "id" varchar PRIMARY KEY,
+          "persona_run_id" varchar NOT NULL REFERENCES "persona_runs"("id") ON DELETE CASCADE,
+          "language" varchar NOT NULL,
+          "provider" varchar NOT NULL,
+          "provider_text" text,
+          "provider_final" boolean NOT NULL DEFAULT false,
+          "candidate_text" text,
+          "canonical_text" text,
+          "source" varchar,
+          "status" varchar NOT NULL DEFAULT 'processing',
+          "reason" varchar,
+          "revision" integer NOT NULL DEFAULT 0,
+          "capture_generation" integer NOT NULL,
+          "speech_seq" integer NOT NULL,
+          "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS "idx_voice_utterances_run"
+          ON "voice_utterances"("persona_run_id");
+      `);
+
       // ─── Agent API Tables (Phase 1A) ──────────────────────────────────────
       await queryWithTimeout(client, 'Agent API tables created/verified', `
         -- agent_api_keys
