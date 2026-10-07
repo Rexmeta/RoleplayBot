@@ -23,3 +23,4 @@
 - [Durable feedback jobs](durable-feedback-jobs.md) — 완료 응답 전에 DB 작업 등록; claim과 publish를 token-fence하고 리포트 저장+completed 전환은 한 트랜잭션
 - [한국어 인식 검증](korean-recognition-contract.md) — 설정 객체가 아닌 실제 SDK 직렬화를 검증; 독립 STT도 짧은 한국어를 오인식하므로 검증 전 정확성 개선을 주장하지 않는다.
 - [동시 음성 장애 증거](voice-incident-evidence.md) — 저장소 배포 정의·최근 로그·모의 부하를 행사 실행 환경이나 실제 provider 수용량과 혼동하지 않는다.
+- [Startup vs numbered migrations](startup-vs-numbered-migrations.md) — 번호 SQL 존재만으로 개발 DB가 갱신되지 않는다; 런타임 즉시 조회 스키마는 startup 경로도 보장한다.
