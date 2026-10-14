@@ -85,6 +85,10 @@ export function handleClientMessage(
   }
 
   session.lastActivityTime = Date.now();
+  if (message.type === "ledger.command" && session.ledgerAdapter) {
+    session.ledgerAdapter.clientCommand(message.command);
+    return;
+  }
 
   if (!session.geminiSession) {
     if (message.type === 'client.ready') {
@@ -269,7 +273,7 @@ export function handleClientMessage(
       const isResuming = message.isResuming === true;
       // Korean voice recognition context is server-owned. A stale page snapshot
       // cannot reintroduce an unresolved provider transcript on reconnect.
-      const clientPreviousMessages = session.voiceRecognitionRequired ? undefined :
+      const clientPreviousMessages = session.voiceRecognitionRequired || session.ledgerAdapter ? undefined :
         message.previousMessages as Array<{ role: 'user' | 'ai'; content: string }> | undefined;
       const previousMessages: Array<{ role: 'user' | 'ai'; content: string }> | undefined =
         (clientPreviousMessages && clientPreviousMessages.length > 0)

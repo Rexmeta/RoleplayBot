@@ -162,6 +162,8 @@ export function createMessageHandler(
         const fullTranscript = collapseDoubledTranscript(
           stripInternalActionMarkers(aiTranscriptBuffer).trim()
         );
+        const ledgerAi = session.ledgerAdapter && fullTranscript
+          ? session.ledgerAdapter.completeAi("openai", fullTranscript) : null;
         aiTranscriptBuffer = '';
         session.currentTranscript = '';
         const wasInterrupted = session.isInterrupted;
@@ -201,6 +203,7 @@ export function createMessageHandler(
                 sendToClient(session, {
                   type: 'ai.transcription.done',
                   text: fullTranscript,
+                  ...(ledgerAi ? { utteranceId: ledgerAi.id } : {}),
                   emotion,
                   emotionReason,
                   userAffect: capturedUserAffect,
@@ -212,6 +215,7 @@ export function createMessageHandler(
                 sendToClient(session, {
                   type: 'ai.transcription.done',
                   text: fullTranscript,
+                  ...(ledgerAi ? { utteranceId: ledgerAi.id } : {}),
                   emotion: '중립',
                   emotionReason: '',
                   userAffect: capturedUserAffect,
@@ -298,7 +302,7 @@ export function createMessageHandler(
           providerEventId,
         });
 
-        if (finalized.emitted && !session.voiceRecognitionRequired) {
+        if (finalized.emitted && !session.voiceRecognitionRequired && !session.ledgerAdapter) {
           // Fire user affect analysis in parallel (result stored for the next ai.transcription.done)
           const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
           if (geminiApiKey) {

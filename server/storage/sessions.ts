@@ -1,6 +1,8 @@
 import { type ScenarioRun, type InsertScenarioRun, type PersonaRun, type InsertPersonaRun, type ChatMessage, type InsertChatMessage, type SimulationEvent, type InsertSimulationEvent, scenarioRuns, personaRuns, chatMessages, simulationEvents, userPersonas } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, desc, inArray, and, isNotNull, ne, sql, gte, like, notLike } from "drizzle-orm";
+import { hasLedgerProtocol, ledgerChatMessages } from "../services/conversationLedger/transcript";
+import { LedgerError } from "../services/conversationLedger/policy";
 
 export type ScenarioRunWithPersonaRuns = ScenarioRun & { personaRuns: PersonaRun[] };
 export type EmotionStat = { emotion: string; count: number };
@@ -146,6 +148,7 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async createChatMessage(insertMessage: InsertChatMessage): Promise<ChatMessage> {
+      if (await hasLedgerProtocol(insertMessage.personaRunId)) throw new LedgerError("ledger_writer_required");
       const [message] = await db.insert(chatMessages).values(insertMessage).returning();
       return message;
     }
@@ -153,6 +156,7 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     async upsertVoiceTranscript(
       insertMessage: InsertChatMessage & { voiceTurnId: string; voiceTranscriptFinal: boolean },
     ): Promise<ChatMessage> {
+      if (await hasLedgerProtocol(insertMessage.personaRunId)) throw new LedgerError("ledger_writer_required");
       return db.transaction(async tx => {
         // Serialize all voice-transcript identity decisions for one conversation.
         // This covers page-hide beacons racing the server's orphan-close flush.
@@ -225,10 +229,12 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async getChatMessagesByPersonaRun(personaRunId: string): Promise<ChatMessage[]> {
+      if (await hasLedgerProtocol(personaRunId)) return ledgerChatMessages(personaRunId);
       return await db.select().from(chatMessages).where(eq(chatMessages.personaRunId, personaRunId)).orderBy(sql`turn_index ASC NULLS LAST`, asc(chatMessages.createdAt));
     }
 
     async deleteChatMessagesByPersonaRun(personaRunId: string): Promise<void> {
+      if (await hasLedgerProtocol(personaRunId)) throw new LedgerError("ledger_history_immutable");
       await db.delete(chatMessages).where(eq(chatMessages.personaRunId, personaRunId));
     }
 

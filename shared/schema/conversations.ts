@@ -72,6 +72,7 @@ export const personaRuns = pgTable("persona_runs", {
   feedbackWorkerToken: varchar("feedback_worker_token"),
   feedbackJobPayload: jsonb("feedback_job_payload"),
   voiceRecognitionRequired: boolean("voice_recognition_required").notNull().default(false),
+  transcriptProtocol: varchar("transcript_protocol").notNull().default("legacy"),
   feedbackPostprocessStatus: varchar("feedback_postprocess_status"),
   feedbackPostprocessStartedAt: timestamp("feedback_postprocess_started_at"),
   feedbackPostprocessToken: varchar("feedback_postprocess_token"),

@@ -1,5 +1,7 @@
 export type ConversationMessage = {
   id?: number;
+  utteranceId?: string;
+  ledger?: import("./conversationLedger").LedgerUtterance;
   sender: "user" | "ai";
   message: string;
   timestamp: string;

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { RealtimeSession } from './types';
 import { recordProviderEvidence } from './recognitionEvidence';
 
@@ -86,7 +86,8 @@ export function ensureUserTranscriptTurn(session: RealtimeSession): string {
   if (session.activeUserTranscriptTurnId) return session.activeUserTranscriptTurnId;
   const next = (session.userTranscriptTurnCounter ?? 0) + 1;
   session.userTranscriptTurnCounter = next;
-  session.activeUserTranscriptTurnId = `voice-user:${sessionFingerprint(session)}:${next}`;
+  session.activeUserTranscriptTurnId = session.ledgerAdapter
+    ? randomUUID() : `voice-user:${sessionFingerprint(session)}:${next}`;
   return session.activeUserTranscriptTurnId;
 }
 
@@ -192,7 +193,15 @@ export function finalizeUserTranscript(
     providerEventId,
   });
 
-  if (session.userLanguage === 'ko' && session.recognitionTurnIds?.has(turnId)) {
+  if (session.ledgerAdapter) {
+    const adapter = session.ledgerAdapter;
+    void adapter.provider(turnId, transcript, isFinal, providerEventId).then(() => {
+      sendToClient(session, {
+        type: "user.transcription", transcript, turnId, provider: options.provider,
+        source: options.source, language: session.userLanguage, final: isFinal,
+      });
+    }).catch(() => sendToClient(session, { type: "ledger.error", reason: "provider_record_not_acknowledged" }));
+  } else if (session.userLanguage === 'ko' && session.recognitionTurnIds?.has(turnId)) {
     // Keep provider text immutable and separate from the canonical candidate.
     const registration = session.recognitionRegistrations?.get(turnId) ?? Promise.resolve();
     void registration.then(() => recordProviderEvidence(turnId, transcript, isFinal))
@@ -200,7 +209,7 @@ export function finalizeUserTranscript(
       .catch(() => sendToClient(session, { type: 'voice.recognition.error', reason: 'evidence_storage_failed' }));
   }
 
-  if (options.emitToClient !== false) {
+  if (!session.ledgerAdapter && options.emitToClient !== false) {
     sendToClient(session, {
       type: 'user.transcription',
       transcript,

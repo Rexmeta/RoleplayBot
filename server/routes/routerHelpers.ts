@@ -269,7 +269,8 @@ export async function generateAndSaveFeedback(
     if (assertActive && !(await assertActive())) throw new Error('feedback_job_cancelled');
   };
   const existingFeedback = await storage.getFeedbackByConversationId(conversationId);
-  if (existingFeedback) {
+  if (existingFeedback && (!preparedRecognition.transcriptSnapshot ||
+      (existingFeedback.evaluationPromptSnapshot as any)?.transcriptSnapshot?.hash === preparedRecognition.transcriptSnapshot.hash)) {
     if ((existingFeedback.evaluationPromptSnapshot as any)?.recognitionRevision &&
       (existingFeedback.evaluationPromptSnapshot as any).recognitionRevision !== preparedRecognition.revision) {
       throw new Error('voice_transcript_revision_changed');

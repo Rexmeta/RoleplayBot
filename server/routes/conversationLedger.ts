@@ -2,10 +2,20 @@ import { Router } from "express";
 import { asyncHandler, createHttpError, verifyPersonaRunOwnership } from "./routerHelpers";
 import { applyLedgerCommand, readLedgerProjection, readLedgerSnapshot } from "../services/conversationLedger/service";
 import { LedgerError } from "../services/conversationLedger/policy";
+import { drainLedgerVoice } from "../services/conversationLedger/voiceAdapter";
+import { db } from "../storage/db";
+import { conversationLedgerReports } from "../../shared/schema/conversationLedger";
+import { eq, desc } from "drizzle-orm";
 
 /** No enrollment endpoint: live/legacy traffic cannot opt itself into an unfinished rollout. */
 export function createConversationLedgerRouter(isAuthenticated: any) {
   const router = Router({ mergeParams: true });
+  router.get("/reports", isAuthenticated, asyncHandler(async (req: any, res) => {
+    await verifyPersonaRunOwnership(req.params.id, req.user.id, req.user.role);
+    res.json(await db.select().from(conversationLedgerReports)
+      .where(eq(conversationLedgerReports.personaRunId, req.params.id))
+      .orderBy(desc(conversationLedgerReports.createdAt)).limit(100));
+  }));
   const handle = async (operation: () => Promise<unknown>) => {
     try { return await operation(); }
     catch (error) {
@@ -27,6 +37,7 @@ export function createConversationLedgerRouter(isAuthenticated: any) {
   router.post("/commands", isAuthenticated, asyncHandler(async (req: any, res) => {
     // Operators/admins may read, but may not write to another user's ledger.
     await verifyPersonaRunOwnership(req.params.id, req.user.id);
+    if (req.body?.payload?.kind === "session.close") await drainLedgerVoice(req.params.id);
     const ack = await handle(() => applyLedgerCommand(req.params.id, req.body, "client"));
     res.json({ type: "ledger.ack", ack }); // applyLedgerCommand has already committed.
   }));

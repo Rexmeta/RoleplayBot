@@ -37,6 +37,7 @@ export function transitionUtterance(current: LedgerUtterance, event: LedgerPaylo
       }
       row.providerState = "final"; row.providerText = event.text;
       row.providerEventId = event.providerEventId ?? row.providerEventId;
+      if (event.metadata) row.metadata = event.metadata;
       if (row.recognitionState === "not_required") row.canonicalText = event.text;
       break;
     case "provider.interrupted":

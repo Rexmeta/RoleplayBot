@@ -45,6 +45,10 @@ export const conversationLedgerUtterances = pgTable("conversation_ledger_utteran
   candidateText: text("candidate_text"),
   canonicalText: text("canonical_text"),
   reason: text("reason"),
+  metadata: jsonb("metadata").notNull().default({}).$type<{
+    emotion?: string; emotionReason?: string; userAffect?: Record<string, unknown>;
+  }>(),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, table => [
   primaryKey({ columns: [table.personaRunId, table.id] }),
   uniqueIndex("ledger_utterance_sequence").on(table.personaRunId, table.sequence),
@@ -76,4 +80,11 @@ export const conversationLedgerSnapshots = pgTable("conversation_ledger_snapshot
 }, table => [uniqueIndex("ledger_snapshot_revision").on(table.personaRunId, table.revision)]);
 
 export type LedgerRun = typeof conversationLedgerRuns.$inferSelect;
+export const conversationLedgerReports = pgTable("conversation_ledger_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  personaRunId: varchar("persona_run_id").notNull().references(() => personaRuns.id, { onDelete: "cascade" }),
+  snapshotId: varchar("snapshot_id").notNull().references(() => conversationLedgerSnapshots.id, { onDelete: "cascade" }),
+  payload: jsonb("payload").notNull().$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => [uniqueIndex("ledger_report_snapshot").on(table.personaRunId, table.snapshotId)]);
 export type LedgerUtterance = typeof conversationLedgerUtterances.$inferSelect;

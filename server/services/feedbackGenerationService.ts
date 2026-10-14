@@ -6,6 +6,9 @@ import { randomUUID } from "crypto";
 import { dispatchWebhook } from "./webhookDelivery";
 import { listRecognitionEvidence, prepareRecognitionConversation } from './voice/recognitionEvidence';
 import { recognitionResolved, recognitionRevision, RecognitionPendingError } from './voice/recognitionPolicy';
+import { readLedgerFeedbackInput } from "./conversationLedger/feedbackBinding";
+import { assertCurrentLedgerSnapshot } from "./conversationLedger/service";
+import { conversationLedgerReports } from "../../shared/schema/conversationLedger";
 
 export type FeedbackJobStatus = "queued" | "generating" | "completed" | "error" | "expired";
 export const FEEDBACK_QUEUE_DEADLINE_MS = 30_000;
@@ -18,6 +21,7 @@ const FEEDBACK_POSTPROCESS_RETRY_DELAYS_MS = [30_000, 5 * 60_000, 30 * 60_000] a
 const FEEDBACK_WORKER_LEASE_MS = 135_000;
 
 export interface FeedbackJobInput {
+  transcriptSnapshot?: { id: string; revision: number; hash: string };
   conversationId: string;
   conversation: any;
   scenario: any;
@@ -53,6 +57,8 @@ function timed<T>(promise: Promise<T>, timeoutMs: number, label: string): Promis
 
 /** Queue once, then execute only after an atomic DB claim. */
 export async function enqueueFeedbackJob(input: FeedbackJobInput): Promise<{ status: FeedbackJobStatus }> {
+  const bound = await readLedgerFeedbackInput(input.conversationId, db);
+  if (bound) input = { ...input, ...bound };
   const now = new Date();
   const expires = new Date(now.getTime() + FEEDBACK_OVERALL_DEADLINE_MS);
   const generationToken = randomUUID();
@@ -140,11 +146,19 @@ async function runFeedbackJob(
         async (payload: any, existingFeedback = false) => db.transaction(async (tx) => {
           await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.conversationId}))`);
           const evidence = await listRecognitionEvidence(input.conversationId, tx);
-          if (evidence.some((e: any) => !recognitionResolved(e)) ||
+          if (input.transcriptSnapshot) {
+            await assertCurrentLedgerSnapshot(tx, input.conversationId, input.transcriptSnapshot.id, input.transcriptSnapshot.hash);
+            if (existingFeedback &&
+                payload.evaluationPromptSnapshot?.transcriptSnapshot?.hash !== input.transcriptSnapshot.hash) {
+              throw new RecognitionPendingError();
+            }
+          } else if (evidence.some((e: any) => !recognitionResolved(e)) ||
             recognitionRevision(evidence) !== prepared.revision) throw new RecognitionPendingError();
           payload = {
             ...payload,
-            evaluationPromptSnapshot: { ...payload.evaluationPromptSnapshot, recognitionRevision: prepared.revision },
+            evaluationPromptSnapshot: { ...payload.evaluationPromptSnapshot, recognitionRevision: prepared.revision,
+              ...(input.transcriptSnapshot ? { transcriptSnapshot: input.transcriptSnapshot,
+                utteranceIds: input.conversation.messages.map((message: any) => message.utteranceId) } : {}) },
           };
           const [claimed] = await tx.update(personaRuns).set({ feedbackStatus: "generating" })
             .where(and(
@@ -155,9 +169,21 @@ async function runFeedbackJob(
             ))
             .returning({ id: personaRuns.id });
           if (!claimed) throw new Error("feedback_job_cancelled");
-          const [saved] = existingFeedback
-            ? [null]
-            : await tx.insert(feedbacks).values(payload).onConflictDoNothing({ target: feedbacks.personaRunId }).returning();
+          let saved: any = null;
+          if (!existingFeedback) {
+            const insertion = tx.insert(feedbacks).values(payload);
+            if (input.transcriptSnapshot) {
+              const { id: _id, ...updates } = payload;
+              [saved] = await insertion.onConflictDoUpdate({
+                target: feedbacks.personaRunId, set: updates,
+              }).returning();
+              await tx.insert(conversationLedgerReports).values({
+                personaRunId: input.conversationId, snapshotId: input.transcriptSnapshot.id, payload: saved,
+              }).onConflictDoNothing();
+            } else {
+              [saved] = await insertion.onConflictDoNothing({ target: feedbacks.personaRunId }).returning();
+            }
+          }
           if (!saved) {
             const [existing] = await tx.select().from(feedbacks).where(eq(feedbacks.personaRunId, input.conversationId)).limit(1);
             if (!existing) throw new Error("feedback_insert_conflict_without_existing_row");

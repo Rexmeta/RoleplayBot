@@ -26,6 +26,7 @@ import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import { useAvatarRenderer } from "@/hooks/chat/useAvatarRenderer";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
+import { useConversationLedger } from "@/hooks/chat/useConversationLedger";
 import { useChatSession } from "@/hooks/chat/useChatSession";
 import { MessageList } from "@/components/chat/MessageList";
 import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
@@ -176,6 +177,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const personaSwitchBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePersona, setActivePersona] = useState<ScenarioPersona>(persona);
   const [personaSwitchAnnounced, setPersonaSwitchAnnounced] = useState(false);
+  const conversationLedger = useConversationLedger(conversationId);
 
   const handlePersonaSwitched = useCallback((info: { fromIndex: number; toIndex: number; newPersonaName?: string; reason: string; transitionLine: string; turnIndex?: number; fromPersonaName?: string }) => {
     const fromPersonaName = info.fromPersonaName
@@ -223,7 +225,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     isStreamingActive, addUserMessage, addRealtimeUserMessage,
     messagesEndRef, sendMessageMutation, hasPendingLocalRef } = useChatMessages({
     conversationId,
-    serverMessages: initialMessages,
+    serverMessages: conversationLedger.enabled ? conversationLedger.messages : initialMessages,
+    ledgerEnabled: conversationLedger.enabled,
+    ledgerGeneration: conversationLedger.generation,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
     onPersonaSwitched: handlePersonaSwitched,
   });
@@ -264,6 +268,10 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
       isAISpeakingForBargeInRef.current = false;
       if (emotion) {
         setEmotion(emotion);
+      }
+      if (conversationLedger.enabled) {
+        conversationLedger.refetch();
+        return;
       }
       // Mark pending before mutating local state so the sync effect (which
       // fires after the subsequent flushRealtimeMessages resolves) cannot
@@ -477,6 +485,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     showAlmostDoneDialog, handleAlmostDoneKeepGoing, handleAlmostDoneConfirmExit,
     handleGoToFeedback, handleFeedbackRequest, handleEndRealtimeConversation, confirmEndConversation, handleResetConversation, flushRealtimeMessages,
     messageSaveError, retrySave } = useChatSession({
+    ledgerEnabled: conversationLedger.enabled,
+    ledgerGeneration: conversationLedger.generation,
     conversationId, localMessages, localMessagesRef, pendingUserText, pendingUserTextRef,
     pendingUserVoiceTurnId, pendingUserVoiceTurnIdRef, hasPendingLocalRef,
     isPersonaMode, isNearingEnd, currentTurn, targetTurns,
@@ -536,6 +546,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   }, [initialInputMode]);
 
   useEffect(() => {
+    if (conversationLedger.enabled) return;
     if (!conversation?.messages) return;
     setLocalMessages(prev => {
       const incoming = [...conversation.messages].sort((a, b) => {
@@ -633,6 +644,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   // localMessagesRef and pendingUserTextRef come from useChatMessages (updated
   // synchronously on every state change) — no need to re-declare them here.
   const conversationIdRef = useRef(conversationId);
+  const ledgerEnabledRef = useRef(conversationLedger.enabled);
+  ledgerEnabledRef.current = conversationLedger.enabled;
   const isGoingToFeedbackRef = useRef(false);
 
   useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
@@ -640,6 +653,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   useEffect(() => {
     const handlePageHide = () => {
+      if (ledgerEnabledRef.current) return;
       // 정상 종료(피드백 페이지 이동) 중이면 이미 저장 진행 중 → 중복 저장 방지
       if (isGoingToFeedbackRef.current) return;
 

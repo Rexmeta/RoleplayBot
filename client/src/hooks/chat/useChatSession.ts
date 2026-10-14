@@ -1,4 +1,4 @@
-import { useState, useRef, type MutableRefObject } from "react";
+import { useState, useRef, useEffect, type MutableRefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
@@ -6,6 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { ConversationMessage } from "@shared/schema";
 
 interface UseChatSessionOptions {
+  ledgerEnabled?: boolean;
+  ledgerGeneration?: number;
   conversationId: string;
   localMessages: ConversationMessage[];
   localMessagesRef?: MutableRefObject<ConversationMessage[]>;
@@ -30,6 +32,7 @@ interface UseChatSessionOptions {
 }
 
 export function useChatSession({
+  ledgerEnabled = false, ledgerGeneration = 0,
   conversationId,
   localMessages,
   localMessagesRef,
@@ -60,10 +63,48 @@ export function useChatSession({
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const closeEnvelope = useRef<{ runId: string; command: any } | null>(null);
+  const ledgerState = useRef({ ledgerEnabled, ledgerGeneration, conversationId });
+  ledgerState.current = { ledgerEnabled, ledgerGeneration, conversationId };
+  const closeCommand = (reason: string) => {
+    const state = ledgerState.current;
+    if (closeEnvelope.current?.runId !== state.conversationId) {
+      closeEnvelope.current = { runId: state.conversationId, command: {
+        eventId: crypto.randomUUID(), generation: state.ledgerGeneration,
+        payload: { kind: "session.close", reason },
+      } };
+    }
+    return closeEnvelope.current!.command;
+  };
+  const closeLedger = async (reason: string) => {
+    await apiRequest("POST", `/api/conversations/${conversationId}/ledger/commands`, closeCommand(reason));
+    await queryClient.invalidateQueries({ queryKey: ["/api/conversations", conversationId] });
+    await queryClient.invalidateQueries({ queryKey: ["/api/scenario-runs"] });
+  };
+  useEffect(() => {
+    const pagehide = () => {
+      const state = ledgerState.current;
+      if (!state.ledgerEnabled) return;
+      const token = localStorage.getItem("authToken");
+      void fetch(`/api/conversations/${encodeURIComponent(state.conversationId)}/ledger/commands`, {
+        method: "POST", credentials: "include", keepalive: true,
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(closeCommand("page_exit")),
+      }).catch(() => {}); // No response is not an ACK; reconnect reads the persisted projection.
+    };
+    window.addEventListener("pagehide", pagehide);
+    return () => window.removeEventListener("pagehide", pagehide);
+  }, []);
 
   const handleGoToFeedback = async () => {
     setIsGoingToFeedback(true);
     onConversationEnding?.();
+    if (ledgerEnabled) {
+      disconnectVoice();
+      try { await closeLedger("user_end"); onChatComplete(); }
+      catch { setMessageSaveError(true); setIsGoingToFeedback(false); }
+      return;
+    }
 
     // Send a final save so the persona run is marked 'completed' and the
     // server-side turn count is updated.  This also invalides the cached
@@ -93,6 +134,7 @@ export function useChatSession({
   // updated synchronously on every change, avoiding React batching races at
   // session end where the state value might not yet reflect the latest text.
   const buildSavePayload = (msgs: ConversationMessage[], pendingText: string) => {
+    if (ledgerEnabled) return [];
     const messages = msgs.map(msg => ({
       sender: msg.sender,
       message: msg.message,
@@ -153,6 +195,11 @@ export function useChatSession({
   };
 
   const handleEndRealtimeConversation = () => {
+    if (ledgerEnabled && isPersonaMode) {
+      disconnectVoice();
+      void closeLedger("user_end").then(onExit).catch(() => setMessageSaveError(true));
+      return;
+    }
     if (isPersonaMode) {
       disconnectVoice();
       // Use localMessagesRef.current (always up-to-date) to include any message
@@ -180,6 +227,12 @@ export function useChatSession({
     setMessageSaveError(false);
     setIsSessionEnding(true);
     disconnectVoice();
+    if (ledgerEnabled) {
+      try { await closeLedger("user_end"); onChatComplete(); }
+      catch { setMessageSaveError(true); setIsGoingToFeedback(false); }
+      finally { setIsSessionEnding(false); }
+      return;
+    }
 
     await new Promise(resolve => setTimeout(resolve, 1800));
     setIsSessionEnding(false);

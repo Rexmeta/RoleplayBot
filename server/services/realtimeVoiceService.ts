@@ -46,6 +46,8 @@ import {
 // 'gemini-3.1-flash-live-preview' is the current supported model for v1beta bidiGenerateContent.
 // All previous names ('gemini-live-2.5-flash-preview', 'gemini-live-2.5-flash-native-audio', etc.) fail.
 const DEFAULT_REALTIME_MODEL = 'gemini-3.1-flash-live-preview';
+import { usesLedger, ledgerContextWindow, ledgerRuntimeBinding } from "./conversationLedger/transcript";
+import { attachVoiceLedger } from "./conversationLedger/voiceAdapter";
 
 // All Gemini Live models use v1beta. v1alpha is never used.
 export const VALID_GEMINI_REALTIME_MODELS = [
@@ -62,6 +64,8 @@ async function preloadRecentMessages(
   sessionId: string,
   label = ''
 ): Promise<Array<{ role: 'user' | 'ai'; text: string }>> {
+  const ledgerRun = await storage.getPersonaRun(conversationId);
+  if (usesLedger(ledgerRun)) return ledgerContextWindow(conversationId);
   try {
     const dbMessages = await storage.getChatMessagesByPersonaRun(conversationId);
     const evidence = await listRecognitionEvidence(conversationId);
@@ -289,6 +293,15 @@ export class RealtimeVoiceService {
       );
     }
 
+    const ledgerBinding = await ledgerRuntimeBinding(conversationId);
+    if (ledgerBinding) {
+      boundScenarioRun = {
+        ...boundScenarioRun, scenarioSnapshot: ledgerBinding.scenarioSnapshot,
+        evaluationHarnessSnapshot: ledgerBinding.evaluationHarnessSnapshot,
+      };
+      userLanguage = normalizeVoiceLanguage(ledgerBinding.language);
+      userSelectedDifficulty = ledgerBinding.difficulty;
+    }
     const liveScenario = boundScenarioRun?.scenarioSnapshot
       ? null
       : (await fileManager.getAllScenarios()).find(s => s.id === scenarioId);
@@ -509,6 +522,9 @@ export class RealtimeVoiceService {
 
     this.sessions.set(sessionId, session);
     console.log(`⏱️ [TIMING] 세션 객체 생성 완료: ${Date.now() - sessionStartTime}ms`);
+    if (usesLedger(await storage.getPersonaRun(conversationId))) {
+      await attachVoiceLedger(session, message => this.sendToClient(session, message));
+    }
 
     if (isOpenAIRealtimeModel(realtimeModel)) {
       // Route to OpenAI Realtime API
@@ -607,8 +623,14 @@ export class RealtimeVoiceService {
 
     this.sessions.set(sessionId, session);
     if (isOpenAIRealtimeModel(realtimeModel)) {
+      if (usesLedger(await storage.getPersonaRun(conversationId))) {
+        await attachVoiceLedger(session, message => this.sendToClient(session, message));
+      }
       await this.connectToOpenAI(session, systemInstructions, gender);
     } else {
+      if (usesLedger(await storage.getPersonaRun(conversationId))) {
+        await attachVoiceLedger(session, message => this.sendToClient(session, message));
+      }
       await this.connectToGemini(session, systemInstructions, gender, { isResume: preloadedMessagesUserPersona.length > 0 });
     }
     console.log(`⏱️ [TIMING] UserPersona createSession 완료: ${Date.now() - sessionStartTime}ms`);
@@ -776,6 +798,17 @@ export class RealtimeVoiceService {
   }
 
   private sendToClient(session: RealtimeSession, message: any): void {
+    if (session.ledgerAdapter) {
+      if (message.type === "session.ready") message = {
+        ...message, transcriptProtocol: "ledger-v1", generation: session.ledgerAdapter.generation,
+      };
+      if (message.type === "audio.delta") message = {
+        ...message, utteranceId: session.ledgerAdapter.ensureAi(realtimeVoiceProvider(session)),
+      };
+      if (message.type === "response.interrupted") {
+        session.ledgerAdapter.interruptAi(session.currentTranscript ?? "");
+      }
+    }
     if (session.clientWs && session.clientWs.readyState === WebSocket.OPEN) {
       session.clientWs.send(JSON.stringify(message));
     }
@@ -962,6 +995,7 @@ export class RealtimeVoiceService {
   closeSession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session) finishRecognitionCapture(session, this.sendToClient.bind(this), 'session_closed_before_commit');
+    if (session?.ledgerAdapter) void session.ledgerAdapter.lost();
     if (session) {
       console.log(`🔚 Closing realtime voice session: ${sessionId}`);
 

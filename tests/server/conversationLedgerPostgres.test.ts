@@ -18,7 +18,10 @@ describe.skipIf(!process.env.DATABASE_URL)("ledger PostgreSQL transactional cont
     client = new Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();
     await client.query(`
-      CREATE TEMP TABLE persona_runs (id varchar PRIMARY KEY, persona_id text, status text DEFAULT 'active', conversation_id varchar);
+      CREATE TEMP TABLE persona_runs (id varchar PRIMARY KEY, persona_id text, persona_snapshot jsonb, status text DEFAULT 'active', conversation_id varchar, transcript_protocol varchar NOT NULL DEFAULT 'legacy',
+        completed_at timestamp, score integer, feedback_status varchar, feedback_error text,
+        feedback_queued_at timestamp, feedback_expires_at timestamp, feedback_job_started_at timestamp,
+        feedback_worker_token varchar, feedback_completed_at timestamp, feedback_job_token varchar, feedback_job_payload jsonb);
       CREATE TEMP TABLE chat_messages (id varchar, persona_run_id varchar);
       CREATE TEMP TABLE voice_utterances (id varchar, persona_run_id varchar);
       CREATE TEMP TABLE conversations (id varchar, messages jsonb);
@@ -26,6 +29,7 @@ describe.skipIf(!process.env.DATABASE_URL)("ledger PostgreSQL transactional cont
     const migration = readFileSync("migrations/0017_conversation_ledger.sql", "utf8")
       .replaceAll("CREATE TABLE IF NOT EXISTS", "CREATE TEMP TABLE");
     await client.query(migration);
+    await client.query(readFileSync("migrations/0018_ledger_runtime_bridge.sql", "utf8"));
     database = drizzle(client);
     runId = randomUUID();
     await client.query("INSERT INTO persona_runs (id, persona_id) VALUES ($1, 'persona')", [runId]);

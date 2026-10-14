@@ -9,6 +9,7 @@ import {
 } from "../../../shared/schema/conversationLedger";
 import { ledgerCommandSchema, CLIENT_LEDGER_COMMANDS, type LedgerActor, type LedgerAck } from "../../../shared/conversationLedger";
 import { LedgerError, snapshotBlockers, transitionUtterance } from "./policy";
+import { snapshotFeedbackInput } from "./feedbackBinding";
 
 type Connection = Pick<typeof db, "transaction">;
 function digest(value: unknown) {
@@ -66,6 +67,8 @@ export async function initializeLedger(
     const [created] = await tx.insert(runs).values({
       personaRunId: runId, personaId, recognitionRequired, boundContext,
     }).returning();
+    await tx.update(personaRuns).set({ transcriptProtocol: "ledger-v1",
+      personaSnapshot: boundContext.personaSnapshot as Record<string, any> }).where(eq(personaRuns.id, runId));
     return created;
   });
 }
@@ -116,8 +119,11 @@ export async function applyLedgerCommand(
     const sequence = run.cursor + 1;
     const patch: Partial<LedgerRun> = { cursor: sequence };
     let row: LedgerUtterance | undefined;
-    if (payload.kind === "connection.open") {
-      patch.generation = run.generation + 1;
+    if (payload.kind === "connection.open" || payload.kind === "connection.lost") {
+      if (payload.kind === "connection.open") {
+        patch.generation = run.generation + 1;
+        patch.captureGeneration = null; patch.captureSequence = null;
+      }
       // No raw audio is retained or promised recoverable on connection loss.
       await tx.update(utterances).set({
         captureState: "gap", captureReason: "connection_lost",
@@ -202,6 +208,17 @@ export async function applyLedgerCommand(
     }
     const [updatedRun] = await tx.update(runs).set(patch).where(runFilter(runId)).returning();
     const snapshot = updatedRun.status === "closed" ? await snapshotInTransaction(tx, updatedRun) : null;
+    if (snapshot) {
+      const pending = snapshot.blockedReasons.length > 0;
+      await tx.update(personaRuns).set({
+        status: "completed", completedAt: new Date(), score: null,
+        feedbackStatus: pending ? "error" : "queued",
+        feedbackError: pending ? "snapshot_evaluation_pending" : null,
+        feedbackQueuedAt: new Date(), feedbackExpiresAt: new Date(Date.now() + 180000),
+        feedbackJobStartedAt: null, feedbackWorkerToken: null, feedbackCompletedAt: null,
+        feedbackJobToken: randomUUID(), feedbackJobPayload: snapshotFeedbackInput(updatedRun, snapshot),
+      }).where(eq(personaRuns.id, runId));
+    }
     const ack: LedgerAck = {
       eventId: command.eventId, cursor: sequence, utteranceRevision: row?.revision ?? null,
       snapshotId: snapshot?.id ?? null, duplicate: false,
@@ -244,14 +261,20 @@ export async function withCurrentLedgerSnapshot<T>(
 ): Promise<T> {
   return connection.transaction(async tx => {
     await lock(tx, runId);
-    const [run] = await tx.select().from(runs).where(runFilter(runId));
-    const [snapshot] = await tx.select().from(snapshots).where(and(
-      eq(snapshots.personaRunId, runId), eq(snapshots.id, snapshotId),
-    ));
-    if (!run || !snapshot) throw new LedgerError("snapshot_not_found", 404);
-    if (snapshot.hash !== hash) throw new LedgerError("snapshot_hash_mismatch");
-    if (run.cursor !== snapshot.revision) throw new LedgerError("snapshot_revision_stale");
-    if (run.status !== "closed" || snapshot.blockedReasons.length) throw new LedgerError("snapshot_evaluation_pending");
+    const snapshot = await assertCurrentLedgerSnapshot(tx, runId, snapshotId, hash);
     return publish(tx, snapshot);
   });
+}
+
+/** Caller must hold the run advisory lock in this same transaction. */
+export async function assertCurrentLedgerSnapshot(tx: any, runId: string, snapshotId: string, hash: string) {
+  const [run] = await tx.select().from(runs).where(runFilter(runId));
+  const [snapshot] = await tx.select().from(snapshots).where(and(
+    eq(snapshots.personaRunId, runId), eq(snapshots.id, snapshotId),
+  ));
+  if (!run || !snapshot) throw new LedgerError("snapshot_not_found", 404);
+  if (snapshot.hash !== hash) throw new LedgerError("snapshot_hash_mismatch");
+  if (run.cursor !== snapshot.revision) throw new LedgerError("snapshot_revision_stale");
+  if (run.status !== "closed" || snapshot.blockedReasons.length) throw new LedgerError("snapshot_evaluation_pending");
+  return snapshot;
 }

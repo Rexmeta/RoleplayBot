@@ -1,5 +1,9 @@
 import { Router } from "express";
 import { createConversationLedgerRouter } from "./conversationLedger";
+import { ledgerRolloutEnabled, enrollNewWebRun } from "../services/conversationLedger/enrollment";
+import { usesLedger } from "../services/conversationLedger/transcript";
+import { beginLedgerTextTurn } from "../services/conversationLedger/textTurn";
+import { conversationLedgerRuns } from "@shared/schema";
 import { listRecognitionEvidence, confirmRecognition } from '../services/voice/recognitionEvidence';
 import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
@@ -352,6 +356,13 @@ export default function createConversationsRouter(isAuthenticated: any) {
       difficulty: validatedData.difficulty || 4,
       status: 'active'
     });
+    if (ledgerRolloutEnabled()) {
+      const bound = await enrollNewWebRun(personaRun.id, personaId, scenarioObj, scenarioPersona,
+        (scenarioRun as any).evaluationHarnessSnapshot ?? scenarioObj.evaluationHarness,
+        user?.preferredLanguage ?? "ko", !!(scenarioRun as any).scenarioSnapshot, personaRun.difficulty ?? 4);
+      personaRun.transcriptProtocol = "ledger-v1";
+      personaRun.personaSnapshot = bound.boundContext.personaSnapshot as Record<string, any>;
+    }
 
     console.log(`👤 Persona Run 생성: ${personaRun.id}, mode=${validatedData.mode}`);
 
@@ -404,6 +415,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       personaId,
       personaSnapshot: validatedData.personaSnapshot,
       messages: [],
+      transcriptProtocol: personaRun.transcriptProtocol,
       turnCount: 0,
       status: 'active',
       mode: validatedData.mode,
@@ -489,6 +501,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       userAffect: (msg.userAffect as Record<string, unknown>) ?? undefined,
       voiceTurnId: msg.voiceTurnId ?? undefined,
       voiceTranscriptFinal: msg.voiceTranscriptFinal,
+      utteranceId: usesLedger(personaRun) ? msg.id : undefined,
+      ledger: (msg as any).ledger,
     }));
 
     const isPersonaXGet = scenarioRun.scenarioId === '__free_chat__' ||
@@ -560,6 +574,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       personaId: personaRun.personaId,
       personaSnapshot: personaRun.personaSnapshot,
       messages,
+      transcriptProtocol: personaRun.transcriptProtocol,
       turnCount: personaRun.turnCount,
       status: personaRun.status,
       mode: personaRun.mode || scenarioRun.mode,
@@ -634,7 +649,18 @@ export default function createConversationsRouter(isAuthenticated: any) {
     const userId = req.user?.id;
     const personaRunId = req.params.id;
 
-    const { personaRun, scenarioRun } = await verifyPersonaRunOwnership(personaRunId, userId);
+    let { personaRun, scenarioRun } = await verifyPersonaRunOwnership(personaRunId, userId);
+    const ledgerEnabled = usesLedger(personaRun);
+    if (ledgerEnabled) {
+      const [bound] = await db.select().from(conversationLedgerRuns)
+        .where(eq(conversationLedgerRuns.personaRunId, personaRunId));
+      if (!bound) throw createHttpError(409, "ledger_protocol_storage_missing");
+      scenarioRun = { ...scenarioRun,
+        scenarioSnapshot: bound.boundContext.scenarioSnapshot,
+        evaluationHarnessSnapshot: bound.boundContext.evaluationHarnessSnapshot,
+      } as any;
+      personaRun = { ...personaRun, personaSnapshot: bound.boundContext.personaSnapshot };
+    }
 
     const { message, previousInputMode } = req.body;
     if (typeof message !== "string") {
@@ -649,7 +675,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
     const isSkipTurn = message.trim() === "";
 
     if (personaRun!.status === "completed") {
-      if (validatedPreviousMode === 'realtime-voice') {
+      if (!ledgerEnabled && validatedPreviousMode === 'realtime-voice') {
         console.log(`🔄 음성→텍스트 전환 후 재활성화: ${personaRunId}`);
         await storage.updatePersonaRun(personaRunId, { status: 'active', completedAt: null });
         personaRun!.status = 'active';
@@ -662,7 +688,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       scenarioRun!.scenarioId?.startsWith('__user_persona__:') ||
       scenarioRun!.scenarioId?.startsWith('__mbti_persona__:');
 
-    const shouldEvalEarly = !isPersonaX && !isSkipTurn && message.trim().length >= 10;
+    const shouldEvalEarly = !ledgerEnabled && !isPersonaX && !isSkipTurn && message.trim().length >= 10;
     const cachedSimState = shouldEvalEarly ? getSessionState(personaRunId) : null;
     const needSimStateFromDb = shouldEvalEarly && !cachedSimState;
 
@@ -675,7 +701,24 @@ export default function createConversationsRouter(isAuthenticated: any) {
     // Greeting is stored at turnIndex 0 (1 existing message after init).
     // Using Math.ceil ensures the first real user turn starts at 1, not 0,
     // so the greeting's turnIndex is never shared with any subsequent message.
-    const currentTurnIndex = Math.ceil(existingMessages.length / 2);
+    const currentTurnIndex = ledgerEnabled
+      ? existingMessages.filter(m => m.sender === "user").length + 1
+      : Math.ceil(existingMessages.length / 2);
+    const ledgerTurn = ledgerEnabled
+      ? await beginLedgerTextTurn(personaRunId, personaRun.personaId, message, req.body.recording)
+      : null;
+    if (ledgerTurn?.replay) {
+      return res.json({
+        message: ledgerTurn.replay.message, emotion: ledgerTurn.replay.emotion ?? "중립",
+        emotionReason: ledgerTurn.replay.emotionReason ?? "", isCompleted: personaRun.status === "completed",
+        turnCount: personaRun.turnCount, personaRun, messages: [{
+          sender: "ai", message: ledgerTurn.replay.message, utteranceId: ledgerTurn.replay.id,
+          timestamp: ledgerTurn.replay.createdAt.toISOString(), ledger: ledgerTurn.replay.ledger,
+        }], simulationState: null, turnScore: null, evaluationSkipped: true,
+      });
+    }
+    const recordMessage = async (input: any) => ledgerTurn?.recordMessage
+      ? ledgerTurn.recordMessage(input) : storage.createChatMessage(input);
 
     if (existingMessages.length > 0) {
       const lastMessage = existingMessages[existingMessages.length - 1];
@@ -691,7 +734,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
     }
 
     if (!isSkipTurn) {
-      await storage.createChatMessage({
+      await recordMessage({
         personaRunId,
         sender: "user",
         message,
@@ -897,7 +940,7 @@ ${userNameLine}
     // quality: run LLM evaluation FIRST, inject [SIMULATION_STATE] into AI prompt, then generate
     const evalMode: 'fast' | 'quality' =
       (scenarioWithUserDifficulty as any)?.simulationConfig?.evaluationMode ?? 'fast';
-    const shouldEval = !isPersonaX && !isSkipTurn && message.trim().length >= 10;
+    const shouldEval = !ledgerEnabled && !isPersonaX && !isSkipTurn && message.trim().length >= 10;
     const evalTurnId = uuidv4();
 
     // Pre-load simulation state (required before AI generation for quality mode)
@@ -1059,6 +1102,7 @@ ${userNameLine}
           writeEvent({ type: 'delta', content: chunk });
         }
       } catch (streamErr) {
+        await ledgerTurn?.fail();
         console.error('[streaming] AI generation error:', streamErr);
         writeEvent({ type: 'error', message: '응답 생성 중 오류가 발생했습니다.' });
         res.end();
@@ -1090,7 +1134,7 @@ ${userNameLine}
       const streamAiMessageContent = (streamPersonaSwitchMode !== 'none' && streamSwitchPersonaInfo?.transitionLine?.trim()) || streamCleanContent;
 
       // Save AI message to DB
-      await storage.createChatMessage({
+      await recordMessage({
         personaRunId, sender: 'ai', message: streamAiMessageContent,
         turnIndex: currentTurnIndex, emotion: streamEmotion || null, emotionReason: streamEmotionReason || null
       });
@@ -1336,7 +1380,7 @@ ${userNameLine}
     // Use transitionLine as the persisted AI message when a persona switch occurs (skip in none mode)
     const aiMessageContent = (personaSwitchModeForGuard !== 'none' && switchPersonaInfo?.transitionLine?.trim()) || aiResult.content;
 
-    await storage.createChatMessage({
+    await recordMessage({
       personaRunId,
       sender: "ai",
       message: aiMessageContent,
@@ -1622,6 +1666,7 @@ ${userNameLine}
     const personaRunId = req.params.id;
 
     const { personaRun } = await verifyPersonaRunOwnership(personaRunId, userId);
+    if (usesLedger(personaRun)) throw createHttpError(409, "ledger_full_snapshot_write_forbidden");
 
     const { messages } = req.body;
     const isFinal = req.body.isFinal === true;

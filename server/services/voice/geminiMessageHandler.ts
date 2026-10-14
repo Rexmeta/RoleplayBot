@@ -936,7 +936,7 @@ export function handleGeminiMessage(
 
         // Evaluation always runs for valid finalized turns; toolCallsThisTurn===0
         // only gates buildRuleFallbackPatch (not the evaluation call itself)
-        if (!isPersonaXSession && !alreadyEvaluated && !session.voiceRecognitionRequired) {
+        if (!isPersonaXSession && !alreadyEvaluated && !session.voiceRecognitionRequired && !session.ledgerAdapter) {
           session.lastEvaluatedUserTurnId = currentTurnId;  // Mark evaluated by turnId (primary gate)
           session.lastFinalizedUserTranscriptHash = transcriptHash;  // Secondary hash guard
           session.lastEvaluatedUserTurnIndex = session.userTurnsCompleted;
@@ -1126,6 +1126,8 @@ export function handleGeminiMessage(
         const filteredTranscript = collapseDoubledTranscript(
           filterThinkingText(session.currentTranscript, session.userLanguage, { strictMode: session.turnSeq <= 1 })
         );
+        const ledgerAi = session.ledgerAdapter && filteredTranscript.trim()
+          ? session.ledgerAdapter.completeAi("gemini", filteredTranscript) : null;
         console.log(`📝 Filtered transcript (${session.userLanguage}, length=${filteredTranscript.length})`);
 
         // Detect persona switch announcement: the AI told the user it will connect
@@ -1179,6 +1181,7 @@ export function handleGeminiMessage(
                 sendToClient(session, {
                   type: 'ai.transcription.done',
                   text: filteredTranscript,
+                  ...(ledgerAi ? { utteranceId: ledgerAi.id } : {}),
                   emotion,
                   emotionReason,
                   userAffect,
@@ -1193,6 +1196,7 @@ export function handleGeminiMessage(
                 sendToClient(session, {
                   type: 'ai.transcription.done',
                   text: filteredTranscript,
+                  ...(ledgerAi ? { utteranceId: ledgerAi.id } : {}),
                   emotion: '중립',
                   emotionReason: '감정 분석 실패',
                 });

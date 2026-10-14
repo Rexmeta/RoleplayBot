@@ -1405,6 +1405,21 @@ export async function runMigrations(): Promise<void> {
         );
         CREATE UNIQUE INDEX IF NOT EXISTS "ledger_snapshot_revision" ON "conversation_ledger_snapshots"("persona_run_id", "revision");
       `);
+      await queryWithTimeout(client, 'Conversation ledger report history created/verified', `
+        CREATE TABLE IF NOT EXISTS "conversation_ledger_reports" (
+          "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          "persona_run_id" varchar NOT NULL REFERENCES "persona_runs"("id") ON DELETE CASCADE,
+          "snapshot_id" varchar NOT NULL REFERENCES "conversation_ledger_snapshots"("id") ON DELETE CASCADE,
+          "payload" jsonb NOT NULL,
+          "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "ledger_report_snapshot" ON "conversation_ledger_reports"("persona_run_id", "snapshot_id");
+      `);
+      await queryWithTimeout(client, 'Conversation ledger runtime bridge ensured', `
+        ALTER TABLE "persona_runs" ADD COLUMN IF NOT EXISTS "transcript_protocol" varchar NOT NULL DEFAULT 'legacy';
+        ALTER TABLE "conversation_ledger_utterances" ADD COLUMN IF NOT EXISTS "metadata" jsonb NOT NULL DEFAULT '{}';
+        ALTER TABLE "conversation_ledger_utterances" ADD COLUMN IF NOT EXISTS "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP;
+      `);
 
       // ─── Agent API Tables (Phase 1A) ──────────────────────────────────────
       await queryWithTimeout(client, 'Agent API tables created/verified', `

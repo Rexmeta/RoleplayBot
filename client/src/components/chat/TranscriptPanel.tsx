@@ -6,6 +6,7 @@ import type { PersonaSwitchEvent } from "./PersonaSwitchCard";
 import { parseJoinModeSpeakerSegments } from "@/lib/joinModeParser";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { RecognitionReview, useRecognitionEvidence } from './RecognitionReview';
+import { LedgerMessageStatus } from "./LedgerMessageStatus";
 
 interface JoinedPersona {
   name: string;
@@ -79,7 +80,7 @@ export function TranscriptPanel({
     <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
       {recognitionRunId && <RecognitionReview runId={recognitionRunId} />}
       {messages.filter(m => m.sender === 'user' || m.sender === 'ai').map((msg, index) => (
-        <div key={index}>
+        <div key={msg.utteranceId ?? index}>
           {msg.sender === 'ai' && (() => {
             const segs = parseJoinModeSpeakerSegments(msg.message);
             if (segs && segs.length > 1) {
@@ -120,6 +121,7 @@ export function TranscriptPanel({
             </div>
           </div>
           )}
+          <LedgerMessageStatus row={msg.ledger} />
           {personaSwitchEvents
             .filter(ev =>
               ev.turnIndex != null

@@ -17,6 +17,8 @@ export interface PersonaSwitchedPayload {
 interface UseChatMessagesOptions {
   conversationId: string;
   serverMessages?: ConversationMessage[];
+  ledgerEnabled?: boolean;
+  ledgerGeneration?: number;
   onSimulationUpdate?: (update: { type: 'simulation_update'; personaRunId: string; eventType: string; currentState: any; incident?: any; turnScore?: any; evaluationSkipped?: boolean; version: number; timestamp: string }) => void;
   onPersonaSwitched?: (info: PersonaSwitchedPayload) => void;
 }
@@ -126,7 +128,7 @@ async function streamingFetch(
   return response.json() as Promise<MessageResponsePayload>;
 }
 
-export function useChatMessages({ conversationId, serverMessages, onSimulationUpdate, onPersonaSwitched }: UseChatMessagesOptions) {
+export function useChatMessages({ conversationId, serverMessages, onSimulationUpdate, onPersonaSwitched, ledgerEnabled = false, ledgerGeneration = 0 }: UseChatMessagesOptions) {
   const nextIdRef = useRef(1);
   const nextId = () => nextIdRef.current++;
 
@@ -204,6 +206,10 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
 
   useEffect(() => {
     if (!serverMessages) return;
+    if (ledgerEnabled) {
+      setLocalMessages(serverMessages);
+      return;
+    }
     // Skip while a send mutation is in-flight or SSE stream is active to prevent
     // background React Query refetches (window focus, staleTime expiry) from
     // wiping optimistic user messages or in-progress AI responses.
@@ -215,7 +221,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     // or when repeated identical text matches a different message slot).
     if (hasPendingLocalRef.current) return;
     setLocalMessages(sortMessagesByTurnIndex(serverMessages));
-  }, [serverMessages, isStreamingActive]);
+  }, [serverMessages, isStreamingActive, ledgerEnabled]);
 
 
   const sendMessageMutation = useMutation({
@@ -223,11 +229,17 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
       const body = typeof payload === 'string'
         ? { message: payload }
         : { message: payload.message, previousInputMode: payload.previousInputMode };
+      if (ledgerEnabled) {
+        Object.assign(body, { recording: {
+          eventId: crypto.randomUUID(), utteranceId: crypto.randomUUID(), generation: ledgerGeneration,
+        } });
+      }
 
       let streamingMessageAdded = false;
       let streamingMsgId: number | undefined;
 
       const onDelta = (content: string) => {
+        if (ledgerEnabled) return; // transient UI may display deltas, never splice them into the server projection
         if (!streamingMessageAdded) {
           streamingMsgId = nextId();
           setIsStreamingActiveRef.current(true);
@@ -256,6 +268,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
       };
 
       const onStreamingDone = (cleanMessage: string, emotion: string, emotionReason: string, personaSwitched?: PersonaSwitchedPayload, turnIndex?: number) => {
+        if (ledgerEnabled) return;
         // isStreamingActive is cleared in onSuccess/onSettled so the spinner
         // does not re-appear between the done event and mutation resolution
         if (streamingMessageAdded && cleanMessage) {
@@ -301,7 +314,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
       // is authoritative — clear the flag so the sync effect can resume.
       hasPendingLocalRef.current = false;
       // Only add AI message if NOT streamed (streaming handles it progressively)
-      if (!data?._streamed && data?.messages?.length > 0) {
+      if (!ledgerEnabled && !data?._streamed && data?.messages?.length > 0) {
         const latestMessage = data.messages[data.messages.length - 1];
         if (latestMessage.sender === 'ai') {
           setLocalMessages(prev => [...prev, latestMessage]);
@@ -330,6 +343,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
       }
 
       queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
+      if (ledgerEnabled) queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'ledger'] });
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
     },
     onError: () => {
@@ -353,6 +367,7 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
   });
 
   const addUserMessage = (message: string) => {
+    if (ledgerEnabled) return undefined;
     hasPendingLocalRef.current = true;
     const userMessage: ConversationMessage = {
       id: nextId(),
@@ -382,6 +397,11 @@ export function useChatMessages({ conversationId, serverMessages, onSimulationUp
     voiceTurnId?: string,
     voiceTranscriptFinal = true,
   ) => {
+    if (ledgerEnabled) {
+      setPendingUserMessage(false); setPendingUserText(""); setPendingUserVoiceTurnId("");
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'ledger'] });
+      return;
+    }
     hasPendingLocalRef.current = true;
     setPendingUserMessage(false);
     // Append message BEFORE clearing pendingUserText so that any save path

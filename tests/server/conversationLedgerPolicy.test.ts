@@ -12,6 +12,7 @@ function voice(overrides: Partial<LedgerUtterance> = {}): LedgerUtterance {
     captureGeneration: 1, captureSequence: 1, captureState: "committed", captureReason: null,
     providerState: "pending", recognitionState: "pending", recognitionSource: null, playbackState: "not_required",
     providerText: "", candidateText: null, canonicalText: null, reason: null,
+    metadata: {}, createdAt: new Date(),
     ...overrides,
   };
 }

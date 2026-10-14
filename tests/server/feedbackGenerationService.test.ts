@@ -293,7 +293,9 @@ describe("durable feedback generation service", () => {
     ]);
     await flushJob();
 
-    expect([first.status, second.status]).toEqual(["queued", "queued"]);
+    expect(first.status).toBe("queued");
+    // The first job may finish while the second request resolves its binding.
+    expect(["queued", "completed"]).toContain(second.status);
     expect(mocks.generateAndSaveFeedback).toHaveBeenCalledTimes(1);
     expect(mocks.state.status).toBe("completed");
   });

@@ -18,7 +18,7 @@ async function bounded<T>(work: Promise<T>): Promise<T> {
 }
 
 export function beginRecognitionCapture(session: RealtimeSession, send: Send) {
-  if (!session.voiceRecognitionRequired) return;
+  if (!session.voiceRecognitionRequired && !session.ledgerAdapter) return;
   if (session.recognitionCapture?.generation === session.currentClientCaptureGeneration &&
     session.recognitionCapture?.speechSeq === session.currentClientSpeechSeq) return;
   if (session.recognitionBoundary?.generation === session.currentClientCaptureGeneration &&
@@ -41,7 +41,10 @@ export function beginRecognitionCapture(session: RealtimeSession, send: Send) {
   const turnId = ensureUserTranscriptTurn(session);
   session.recognitionTurnIds ??= new Set();
   session.recognitionTurnIds.add(turnId);
-  const registered = registerUtterance({
+  const registered = session.ledgerAdapter
+    ? session.ledgerAdapter.beginUser(turnId, session.currentClientCaptureGeneration ?? 0,
+      session.currentClientSpeechSeq ?? 1, realtimeVoiceProvider(session)).then(() => {})
+    : registerUtterance({
     id: turnId, personaRunId: session.personaRunId, language: session.userLanguage,
     provider: realtimeVoiceProvider(session),
     captureGeneration: session.currentClientCaptureGeneration ?? 0,
@@ -86,7 +89,7 @@ export function finishRecognitionCapture(session: RealtimeSession, send: Send, f
   for (const chunk of capture.chunks) chunk.fill(0);
   capture.chunks = [];
   // Retain the budget through the STT request, not just through capture.
-  void (async () => {
+  const processing = (async () => {
     let requested = false;
     let released = false;
     const release = () => {
@@ -99,6 +102,14 @@ export function finishRecognitionCapture(session: RealtimeSession, send: Send, f
     try {
       await bounded(capture.registered);
       let reason = failure || capture.failed;
+      if (session.ledgerAdapter) {
+        const gap = reason || capture.bytes === 0
+          ? ["connection_lost", "overlapping_capture", "capture_timeout"].includes(reason ?? "")
+            ? reason as "connection_lost" | "overlapping_capture" | "capture_timeout" : "capture_gap"
+          : undefined;
+        await session.ledgerAdapter.capture(capture.turnId, gap);
+        if (!session.voiceRecognitionRequired) { release(); return; }
+      }
       let candidate: string | null = null;
       const rollout = await bounded(import('../../storage').then(m => m.storage.getSystemSetting('ai', 'voice_stt_enabled')));
       if (!reason && rollout?.value !== 'true') reason = 'stt_rollout_disabled';
@@ -109,6 +120,10 @@ export function finishRecognitionCapture(session: RealtimeSession, send: Send, f
         if (segments > 1) reason = 'segmented_utterance_confirmation_required';
       }
       release(); // No raw audio survives a slow evidence-store operation.
+      if (session.ledgerAdapter) {
+        await session.ledgerAdapter.stt(capture.turnId, candidate, reason, model);
+        return;
+      }
       const row = await recordSttEvidence(capture.turnId, candidate, reason, model);
       console.info('[voice-recognition-metric]', {
         provider: 'openai', language: 'ko', status: row.status,
@@ -121,6 +136,10 @@ export function finishRecognitionCapture(session: RealtimeSession, send: Send, f
       // Do not log provider errors: they can include audio/transcript request data.
       const allowed = ['stt_not_configured', 'unsupported_stt_model', 'empty_stt_result', 'invalid_utterance_audio'];
       const code = error instanceof Error && allowed.includes(error.message) ? error.message : 'stt_failed';
+      if (session.ledgerAdapter) {
+        await session.ledgerAdapter.stt(capture.turnId, null, code).catch(() => {});
+        return;
+      }
       await recordSttEvidence(capture.turnId, null, code).then(row =>
         send(session, { type: 'voice.recognition', evidence: row }),
       ).catch(() => send(session, { type: 'voice.recognition.error', reason: 'evidence_storage_failed' }));
@@ -128,4 +147,5 @@ export function finishRecognitionCapture(session: RealtimeSession, send: Send, f
       release();
     }
   })();
+  session.ledgerAdapter?.track(processing);
 }

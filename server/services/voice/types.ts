@@ -12,6 +12,7 @@ export interface PendingOutgoingMessage {
 }
 
 export interface RealtimeSession {
+  ledgerAdapter?: import("../conversationLedger/voiceAdapter").VoiceLedgerAdapter;
   id: string;
   personaRunId: string;
   scenarioId: string;

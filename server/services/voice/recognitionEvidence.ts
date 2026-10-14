@@ -2,10 +2,29 @@ import { db, storage } from '../../storage';
 import { voiceUtterances, personaRuns } from '@shared/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import { candidateStatus, recognitionResolved, recognitionRevision, RecognitionPendingError } from './recognitionPolicy';
+import { readLedgerFeedbackInput } from "../conversationLedger/feedbackBinding";
+import { hasLedgerProtocol } from "../conversationLedger/transcript";
+import { applyLedgerCommand } from "../conversationLedger/service";
+import { conversationLedgerRuns, conversationLedgerUtterances } from "@shared/schema";
+import { randomUUID } from "node:crypto";
 
 export async function listRecognitionEvidence(
   runId: string, connection: any = db,
 ): Promise<Array<typeof voiceUtterances.$inferSelect>> {
+  if (await hasLedgerProtocol(runId, connection)) {
+    const [run] = await connection.select().from(conversationLedgerRuns)
+      .where(eq(conversationLedgerRuns.personaRunId, runId));
+    if (!run) throw new Error("ledger_protocol_storage_missing");
+    const rows = await connection.select().from(conversationLedgerUtterances)
+      .where(eq(conversationLedgerUtterances.personaRunId, runId));
+    return rows.filter((row: any) => row.mode === "voice" && row.speaker === "user").map((row: any) => ({
+      ...row, providerFinal: row.providerState === "final",
+      status: row.recognitionState === "pending" ? "processing" : row.recognitionState,
+      language: run.boundContext.language ?? "ko", speechSeq: row.captureSequence ?? 0,
+      source: row.recognitionState === "confirmed" ? "user_confirmation" : "independent_stt",
+      ledgerGeneration: run.generation, transcriptProtocol: "ledger-v1",
+    })) as Array<typeof voiceUtterances.$inferSelect>;
+  }
   return connection.select().from(voiceUtterances)
     .where(eq(voiceUtterances.personaRunId, runId));
 }
@@ -94,6 +113,16 @@ export async function recordSttEvidence(id: string, candidate: string | null, fa
 }
 
 export async function confirmRecognition(runId: string, id: string, revision: number, text: string) {
+  if (await hasLedgerProtocol(runId, db)) {
+    const [run] = await db.select().from(conversationLedgerRuns)
+      .where(eq(conversationLedgerRuns.personaRunId, runId));
+    if (!run) throw new Error("ledger_protocol_storage_missing");
+    await applyLedgerCommand(runId, {
+      eventId: randomUUID(), generation: run.generation,
+      payload: { kind: "recognition.confirm", utteranceId: id, text, expectedRevision: revision },
+    }, "client");
+    return (await listRecognitionEvidence(runId)).find(row => row.id === id);
+  }
   const [owned] = await db.select().from(voiceUtterances).where(and(
     eq(voiceUtterances.id, id), eq(voiceUtterances.personaRunId, runId),
   )).limit(1);
@@ -117,7 +146,12 @@ export async function confirmRecognition(runId: string, id: string, revision: nu
   return updated;
 }
 
-export async function prepareRecognitionConversation(runId: string, conversation: any) {
+export async function prepareRecognitionConversation(runId: string, conversation: any): Promise<{
+  conversation: any; revision: string; transcriptSnapshot?: { id: string; revision: number; hash: string };
+}> {
+  const bound = await readLedgerFeedbackInput(runId, db);
+  if (bound) return { conversation: bound.conversation, revision: bound.transcriptSnapshot.hash,
+    transcriptSnapshot: bound.transcriptSnapshot };
   const evidence = await listRecognitionEvidence(runId);
   if (!evidence.length) {
     const run = await storage.getPersonaRun(runId);
@@ -146,6 +180,22 @@ export async function prepareRecognitionConversation(runId: string, conversation
 /** Serve an affected report as a hold, never as a failed assessment. DB original stays intact. */
 export async function guardRecognitionReport<T extends Record<string, any>>(report: T): Promise<T> {
   if (!report?.personaRunId) return report;
+  const ledgerRun = await storage.getPersonaRun(report.personaRunId);
+  if (ledgerRun?.transcriptProtocol === "ledger-v1") {
+    try {
+      const bound = await readLedgerFeedbackInput(report.personaRunId, db);
+      if (bound && report.evaluationPromptSnapshot?.transcriptSnapshot?.hash === bound.transcriptSnapshot.hash) return report;
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "snapshot_evaluation_pending") throw error;
+    }
+    return {
+      id: report.id, personaRunId: report.personaRunId, conversationId: report.conversationId,
+      createdAt: report.createdAt, overallScore: null, confidence: null, scores: [],
+      reportStatus: "recognition_pending", metricSnapshot: null,
+      detailedFeedback: { recognitionPending: true,
+        reason: "기록·인식·재생 확인 또는 최신 스냅샷 평가가 필요합니다. 이전 보고서 원본은 보존됩니다." },
+    } as unknown as T;
+  }
   const evidence = await listRecognitionEvidence(report.personaRunId);
   if (!evidence.length) {
     const run = await storage.getPersonaRun(report.personaRunId);

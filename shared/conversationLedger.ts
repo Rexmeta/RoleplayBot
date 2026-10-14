@@ -5,6 +5,11 @@ const text = z.string().max(10000);
 const nonemptyText = text.refine(value => value.trim().length > 0, "empty_text");
 const integer = z.number().int().min(0).max(2147483647);
 const utteranceId = { utteranceId: identity };
+const metadata = z.object({
+  emotion: z.string().max(100).optional(),
+  emotionReason: z.string().max(1000).optional(),
+  userAffect: z.record(z.unknown()).refine(value => JSON.stringify(value).length <= 12000).optional(),
+}).strict();
 const reason = z.enum([
   "connection_lost", "capture_gap", "overlapping_capture", "capture_timeout",
   "stt_disabled", "stt_failed", "segmented_capture", "provider_failed",
@@ -13,6 +18,7 @@ const reason = z.enum([
 /** Important transitions only. Audio, tokens and arbitrary client metadata are forbidden. */
 export const ledgerPayloadSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("connection.open") }).strict(),
+  z.object({ kind: z.literal("connection.lost") }).strict(),
   z.object({
     kind: z.literal("utterance.register"), ...utteranceId,
     speaker: z.enum(["user", "ai"]), mode: z.enum(["text", "voice"]),
@@ -27,6 +33,7 @@ export const ledgerPayloadSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("provider.final"), ...utteranceId, text: nonemptyText,
     providerEventId: z.string().min(1).max(200).optional(),
+    metadata: metadata.optional(),
   }).strict(),
   z.object({ kind: z.literal("provider.interrupted"), ...utteranceId, text }).strict(),
   z.object({ kind: z.literal("provider.failed"), ...utteranceId }).strict(),
