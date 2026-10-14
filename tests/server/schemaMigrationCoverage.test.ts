@@ -296,6 +296,27 @@ const combinedCoverage = mergeMigrationCoverage(
 // Test
 // ---------------------------------------------------------------------------
 describe("Schema-migration coverage", () => {
+  it("keeps every ledger table in the startup migration as well as numbered SQL", () => {
+    const startupSql = startupMigrationContent.match(
+      /queryWithTimeout\(client, 'Conversation ledger tables created\/verified', `([\s\S]*?)`\);/
+    )?.[1];
+    const numberedSql = readFileSync(join(ROOT, "migrations/0017_conversation_ledger.sql"), "utf8");
+    const normalizeSql = (value: string) => value.replace(/\s+/g, " ").trim();
+    expect(startupSql, "startup must execute the ledger DDL").toBeTruthy();
+    expect(normalizeSql(startupSql ?? "")).toBe(normalizeSql(numberedSql));
+    for (const table of [
+      "conversation_ledger_runs", "conversation_ledger_utterances",
+      "conversation_ledger_events", "conversation_ledger_snapshots",
+    ]) {
+      const columns = allSchemaColumns.get(table);
+      expect(columns?.length, `schema extraction must include ${table}`).toBeGreaterThan(0);
+      for (const column of columns ?? []) {
+        expect(startupCoverage.get(table)?.has(column), `startup: ${table}.${column}`).toBe(true);
+        expect(numberedMigrationCoverage.get(table)?.has(column), `numbered: ${table}.${column}`).toBe(true);
+      }
+      expect(startupMigrationContent).toMatch(new RegExp(`CREATE\\s+TABLE\\s+IF\\s+NOT\\s+EXISTS\\s+"?${table}"?\\s*\\(`, "i"));
+    }
+  });
   it(
     "every Drizzle schema column has coverage in startup or numbered SQL migrations",
     () => {

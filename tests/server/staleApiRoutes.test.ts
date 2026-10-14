@@ -78,6 +78,7 @@ const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
   { file: "server/routes/bookmarks.ts",       prefix: "/api/bookmarks" },
   { file: "server/routes/scenarios.ts",        prefix: "/api/scenarios" },
   { file: "server/routes/conversations.ts",    prefix: "/api/conversations" },
+  { file: "server/routes/conversationLedger.ts", prefix: "/api/conversations/:id/ledger" },
   { file: "server/routes/simulation.ts",       prefix: "/api/simulation" },
   { file: "server/routes/systemAdmin.ts",      prefix: "/api/system-admin" },
   { file: "server/routes/subscriptions.ts",    prefix: "/api/subscriptions" },

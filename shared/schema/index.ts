@@ -3,6 +3,7 @@ export * from "./users";
 export * from "./scenarios";
 export * from "./personas";
 export * from "./conversations";
+export * from "./conversationLedger";
 export * from "./feedback";
 export * from "./analytics";
 export * from "./settings";

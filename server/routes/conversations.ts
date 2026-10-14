@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createConversationLedgerRouter } from "./conversationLedger";
 import { listRecognitionEvidence, confirmRecognition } from '../services/voice/recognitionEvidence';
 import { storage, db } from "../storage";
 import { fileManager } from "../services/fileManager";
@@ -112,6 +113,7 @@ function detectPersonaSwitchAnnouncement(
 
 export default function createConversationsRouter(isAuthenticated: any) {
   const router = Router();
+  router.use("/:id/ledger", createConversationLedgerRouter(isAuthenticated));
 
   router.get("/:id/voice-recognition", isAuthenticated, asyncHandler(async (req: any, res) => {
     await verifyPersonaRunOwnership(req.params.id, req.user.id);

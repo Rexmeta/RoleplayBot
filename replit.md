@@ -42,6 +42,7 @@ Preferred communication style: Simple, everyday language.
 - **Schema modules**:
   - `users.ts` — `companies`, `organizations`, `categories`, `users`, `operator_assignments`, `user_bookmarks`
   - `conversations.ts` — `conversations`, `persona_runs`, `simulation_events`, `chat_messages`, `voice_utterances`
+  - `conversationLedger.ts` — `conversation_ledger_runs`, `conversation_ledger_utterances`, `conversation_ledger_events`, `conversation_ledger_snapshots` (preparation only; existing sessions are not enrolled or migrated automatically; see `docs/conversation-ledger.md`)
   - `scenarios.ts` — `scenarios`, `scenario_versions`, `scenario_runs`, `scenario_overrides`
   - `personas.ts` — `mbti_personas`, `user_personas`, `user_persona_likes`, `persona_user_scenes`
   - `feedback.ts` — `feedbacks`, `evaluation_criteria_sets`, `evaluation_dimensions`, `few_shot_examples`, `criteria_set_few_shot_examples`
