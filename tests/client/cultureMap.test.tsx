@@ -2,6 +2,7 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CultureProfile, CultureProfileInput, CultureSnapshot } from "@shared/cultureMap";
 import { SYSTEM_CULTURE_OWNER_ID, EDITORIAL_CULTURE_NOTICE } from "@shared/cultureMap";
@@ -62,6 +63,7 @@ function renderWithQuery(ui: React.ReactNode) {
 
 describe("Culture Map actor and profile management", () => {
   beforeEach(() => {
+    Element.prototype.scrollIntoView ??= vi.fn();
     apiRequest.mockReset();
     authState.user = { id: "admin-1", role: "admin" };
     apiRequest.mockImplementation(async (method: string, url: string, body?: unknown) => {
@@ -188,8 +190,8 @@ describe("Culture Map actor and profile management", () => {
     expect(onValidityChange).toHaveBeenLastCalledWith(true);
     expect(onChange).not.toHaveBeenCalled();
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("GET", "/api/admin/culture-profiles"));
-    const selects = (await screen.findAllByRole("combobox")).filter(element => !element.id);
-    fireEvent.change(selects[0], { target: { value: "profile-1" } });
+    fireEvent.click(await screen.findByRole("combobox", { name: "문화 프로필 선택" }));
+    fireEvent.click(await screen.findByRole("option", { name: /상황별 업무 컨텍스트/ }));
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({
       enabled: true, profileId: "profile-1", profileVersion: 2, intensity: 70, overrides: {},
     }));
@@ -214,14 +216,18 @@ describe("Culture Map actor and profile management", () => {
   it("filters Actor choices by region and source confidence without changing saved selection", async () => {
     const onChange = vi.fn();
     renderWithQuery(<ActorCultureEditor actorKey="filters" value={{ enabled: true, profileId: profile.id, profileVersion: 2, intensity: 70, overrides: {} }} onChange={onChange} />);
+    const trigger = await screen.findByRole("combobox", { name: "문화 프로필 선택" });
+    expect(screen.queryByLabelText("프로필 검색")).toBeNull();
+    fireEvent.click(trigger);
     await screen.findByRole("option", { name: /다른 프로필/ });
-    fireEvent.change(screen.getByLabelText("지역"), { target: { value: "수도권" } });
+    fireEvent.change(screen.getByLabelText("지역 필터"), { target: { value: "수도권" } });
     expect(screen.queryByRole("option", { name: /다른 프로필/ })).toBeNull();
     expect(screen.getByRole("option", { name: /상황별 업무 컨텍스트/ })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("출처 신뢰도"), { target: { value: "high" } });
-    expect(screen.getByText("검색 결과가 없습니다.")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("출처 신뢰도 필터"), { target: { value: "high" } });
+    expect(screen.getByText("조건에 맞는 프로필이 없습니다.")).toBeTruthy();
+    expect(trigger.textContent).toContain(profile.name);
     expect(onChange).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "선택 필터 초기화" }));
+    fireEvent.click(screen.getByRole("button", { name: "필터 초기화" }));
     expect(screen.getByRole("option", { name: /다른 프로필/ })).toBeTruthy();
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -231,12 +237,12 @@ describe("Culture Map actor and profile management", () => {
     renderWithQuery(<ActorCultureEditor actorKey="actor-a" onChange={onChange} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "문화적 특성 추가" }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("GET", "/api/admin/culture-profiles"));
-    const selects = (await screen.findAllByRole("combobox")).filter(element => !element.id);
-    fireEvent.change(selects[0], { target: { value: "profile-1" } });
+    fireEvent.click(await screen.findByRole("combobox", { name: "문화 프로필 선택" }));
+    fireEvent.click(await screen.findByRole("option", { name: /상황별 업무 컨텍스트/ }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("GET", "/api/admin/culture-profiles/profile-1/versions"));
     const communicatingSummary = () => screen.getAllByText("의사소통").find((element) => element.tagName === "DT")?.parentElement?.textContent;
     await waitFor(() => expect(communicatingSummary()).toContain("82"));
-    fireEvent.change(selects[1], { target: { value: "1" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "selection" }), { target: { value: "1" } });
     await waitFor(() => expect(communicatingSummary()).toContain("17"));
     expect(onChange).toHaveBeenLastCalledWith({
       enabled: true, profileId: "profile-1", profileVersion: 1, intensity: 70, overrides: {},
@@ -246,11 +252,36 @@ describe("Culture Map actor and profile management", () => {
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({
       enabled: true, profileId: "profile-1", profileVersion: 1, intensity: 70, overrides: { communicating: 12 },
     }));
-    fireEvent.change(selects[0], { target: { value: "profile-2" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "문화 프로필 선택" }));
+    fireEvent.click(await screen.findByRole("option", { name: /다른 프로필/ }));
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({
       enabled: true, profileId: "profile-2", profileVersion: 1, intensity: 70, overrides: {},
     }));
     await waitFor(() => expect(communicatingSummary()).toContain("44"));
+  });
+
+  it("searches inside the picker and applies a profile with the keyboard, then restores focus", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderWithQuery(<ActorCultureEditor actorKey="keyboard" value={{ enabled: true, profileId: profile.id, profileVersion: 2, intensity: 63, overrides: { leading: 12 } }} onChange={onChange} />);
+    const trigger = await screen.findByRole("combobox", { name: "문화 프로필 선택" });
+    await user.click(trigger);
+    const search = await screen.findByLabelText("프로필 검색");
+    await user.type(search, "일본");
+    expect(screen.queryByRole("option", { name: /상황별 업무 컨텍스트/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /다른 프로필/ })).toBeTruthy();
+    expect(onChange).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({
+      enabled: true, profileId: secondProfile.id, profileVersion: 1, intensity: 63, overrides: {},
+    }));
+    await waitFor(() => expect(screen.queryByLabelText("프로필 검색")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    expect(trigger.textContent).toContain(secondProfile.name);
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByLabelText("프로필 검색")).toBeNull());
+    expect(onChange).toHaveBeenCalledTimes(1);
   });
 
   it("keeps actor selection callbacks independent", () => {

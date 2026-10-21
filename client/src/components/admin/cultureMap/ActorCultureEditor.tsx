@@ -3,12 +3,12 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { CULTURE_DIMENSIONS, CULTURE_DISCLAIMER } from "@shared/cultureMap";
-import { matchesCultureProfile } from "@shared/cultureComparison";
 import type { ActorCulture, CultureProfile, CultureProfileInput, CultureSelection, CultureValues } from "@shared/cultureMap";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
+import { CultureProfilePicker } from "./CultureProfilePicker";
 
 type VersionEntry = { version: number; content: CultureProfileInput; createdAt: string };
 type Props = {
@@ -25,9 +25,6 @@ export function ActorCultureEditor({ value, onChange, onValidityChange, actorKey
   const [version, setVersion] = useState(existingEnabled ? existingEnabled.profileVersion : 0);
   const [intensity, setIntensity] = useState(existingEnabled ? existingEnabled.intensity : 70);
   const [overrides, setOverrides] = useState<Partial<CultureValues>>(existingEnabled ? existingEnabled.overrides : {});
-  const [filter, setFilter] = useState("");
-  const [region, setRegion] = useState("all");
-  const [confidence, setConfidence] = useState("all");
   const profilesQuery = useQuery<CultureProfile[]>({
     queryKey: ["/api/admin/culture-profiles"],
     queryFn: async () => (await apiRequest("GET", "/api/admin/culture-profiles")).json(),
@@ -50,10 +47,6 @@ export function ActorCultureEditor({ value, onChange, onValidityChange, actorKey
   const displayedSnapshotDimensions = snapshot
     ? { ...snapshot.dimensions, ...snapshot.overrides }
     : undefined;
-  const regions = Array.from(new Set((profilesQuery.data ?? []).map(item => item.region).filter(Boolean))).sort();
-  const filtered = (profilesQuery.data ?? []).filter(item =>
-    matchesCultureProfile(item, { search: filter, region, confidence }));
-
   const setIncomplete = (incomplete: boolean) => onValidityChange?.(incomplete);
   const toggle = (checked: boolean) => {
     setEnabled(checked);
@@ -134,29 +127,14 @@ export function ActorCultureEditor({ value, onChange, onValidityChange, actorKey
       {profilesQuery.isLoading ? <div className="h-10 animate-pulse rounded bg-slate-200" aria-label="문화 프로필 로딩 중" />
         : profilesQuery.isError ? <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">문화 프로필을 불러오지 못했습니다.<Button type="button" variant="link" onClick={() => profilesQuery.refetch()}>다시 시도</Button></div>
         : <div className="grid gap-3 sm:grid-cols-2">
-          <div><Label htmlFor={`culture-filter-${actorKey}`}>국가·지역 검색</Label><input id={`culture-filter-${actorKey}`} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="국가, 지역, 이름" className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" />
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <label className="text-xs text-slate-600" htmlFor={`culture-region-filter-${actorKey}`}>지역
-                <select id={`culture-region-filter-${actorKey}`} value={region} onChange={event => setRegion(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm">
-                  <option value="all">모든 지역</option>
-                  {regions.map(value => <option key={value} value={value}>{value}</option>)}
-                  <option value="__unspecified__">지역 미지정</option>
-                </select>
-              </label>
-              <label className="text-xs text-slate-600" htmlFor={`culture-confidence-filter-${actorKey}`}>출처 신뢰도
-                <select id={`culture-confidence-filter-${actorKey}`} value={confidence} onChange={event => setConfidence(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm">
-                  <option value="all">모든 신뢰도</option><option value="low">낮음</option><option value="medium">중간</option><option value="high">높음</option><option value="unspecified">미지정</option>
-                </select>
-              </label>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">신뢰도는 원본 자료의 자체 표기입니다. 복제·수정한 프로필의 검증을 의미하지 않습니다. 필터는 현재 선택이나 저장된 스냅샷을 변경하지 않습니다.</p>
-            {(filter || region !== "all" || confidence !== "all") && <Button type="button" variant="link" size="sm" onClick={() => { setFilter(""); setRegion("all"); setConfidence("all"); }}>선택 필터 초기화</Button>}
-            <Label htmlFor={`culture-profile-${actorKey}`} className="mt-2 block">프로필</Label>
-            <Select value={profileId} onValueChange={chooseProfile}>
-              <SelectTrigger id={`culture-profile-${actorKey}`} className="bg-white"><SelectValue placeholder="프로필 선택" /></SelectTrigger>
-              <SelectContent>{filtered.map((item) => <SelectItem key={item.id} value={item.id}>{item.country}{item.region ? ` · ${item.region}` : ""} — {item.name}</SelectItem>)}</SelectContent>
-            </Select>
-            {!filtered.length && <p className="mt-1 text-xs text-slate-500">{profilesQuery.data?.length ? "검색 결과가 없습니다." : "사용 가능한 문화 프로필이 없습니다."}</p>}
+          <div>
+            <Label htmlFor={`culture-profile-${actorKey}`}>프로필</Label>
+            <CultureProfilePicker
+              id={`culture-profile-${actorKey}`}
+              profiles={profilesQuery.data ?? []}
+              selectedId={profileId}
+              onSelect={chooseProfile}
+            />
           </div>
           <div><Label htmlFor={`culture-version-${actorKey}`}>적용 버전</Label>
             <Select value={String(selectedVersion || "")} onValueChange={chooseVersion} disabled={!profileId || versionsQuery.isLoading}>
