@@ -56,6 +56,7 @@ const SERVER_FILES_ABSOLUTE: string[] = [
   "server/routes/scenarioRuns.ts",
   "server/routes/analytics.ts",
   "server/routes/adminPersonas.ts",
+  "server/routes/cultureMap.ts",
   "server/routes/adminOrganizations.ts",
   "server/routes/adminScenarioOverrides.ts",
   "server/routes/evaluationCriteria.ts",

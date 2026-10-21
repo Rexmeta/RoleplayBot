@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { buildScenarioCultureLayer } from "../cultureMap/prompt";
 import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@shared/schema";
 import { normalizeRubricBand } from "@shared/schema/types";
 import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage, RoleplayScenario, StrategyEvaluationInput, StrategyReflectionEvaluation } from "../aiService";
@@ -120,6 +121,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
     console.log(`🔥 Optimized Gemini API call... (language: ${language})`);
     const startTime = Date.now();
+    const cultureLayer = buildScenarioCultureLayer(scenario, persona);
     
     try {
       const scenarioObj: RoleplayScenario = typeof scenario === 'string' ? {} : scenario;
@@ -199,7 +201,7 @@ export class OptimizedGeminiProvider implements AIServiceInterface {
           this.genAI.models.generateContent({
             model: this.model,
             config: {
-              systemInstruction,
+              systemInstruction: systemInstruction + cultureLayer,
               responseMimeType: "application/json",
               responseSchema,
               maxOutputTokens: 800,
@@ -590,6 +592,7 @@ ${conversationHistory}
     userName?: string
   ): Promise<AsyncIterable<string>> {
     const scenarioObj: RoleplayScenario = typeof scenario === 'string' ? {} : scenario;
+    const cultureLayer = buildScenarioCultureLayer(scenarioObj, persona);
     const playerPosition = scenarioObj.context?.playerRole?.position;
     const enrichedPersona = await this.getEnrichedPersona(scenarioObj, persona);
     const modeTransitionHint = scenarioObj.modeTransitionHint;
@@ -640,7 +643,7 @@ ${conversationHistory}
         genAI.models.generateContentStream({
           model,
           config: {
-            systemInstruction,
+            systemInstruction: systemInstruction + cultureLayer,
             maxOutputTokens: 800,
             temperature: 0.7,
             ...(isFlash25 ? { thinkingConfig: { thinkingBudget: 0 } } : {}),

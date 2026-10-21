@@ -28,6 +28,12 @@ vi.mock('../../server/storage', () => ({
 vi.mock('../../server/services/voice/recognitionEvidence', () => ({
   listRecognitionEvidence: mockListRecognitionEvidence,
 }));
+// This suite exercises provider/session ordering, not ledger PostgreSQL.
+// Keep DB latency out of the "ready before connect" timing assertions.
+vi.mock('../../server/services/conversationLedger/transcript', async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../server/services/conversationLedger/transcript")>(),
+  ledgerRuntimeBinding: vi.fn().mockResolvedValue(null),
+}));
 
 const mockGetAllScenarios = vi.fn();
 const mockGetPersonaByMBTI = vi.fn();

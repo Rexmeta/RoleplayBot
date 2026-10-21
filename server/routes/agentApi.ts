@@ -31,6 +31,7 @@ import {
   attachAgentRequestId,
 } from "../middleware/agentApiKeyMiddleware";
 import { fileManager } from "../services/fileManager";
+import { captureCultureRunSnapshot, resolveAgentCultureScenario } from "../services/cultureMap/runSnapshot";
 import { generateAIResponse, generateStreamingAIResponse } from "../services/aiServiceFactory";
 import { storage } from "../storage";
 import { z } from "zod";
@@ -597,12 +598,17 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
 
     // Create internal persona run (userId is null – agent sessions are not
     // tied to a users table row; agent_sessions.id is the source of truth).
+    const cultureRunSnapshot = await captureCultureRunSnapshot(scenario, language);
     let personaRunId: string | null = null;
     try {
       const scenarioRun = await storage.createScenarioRun({
         userId: null as any,
         scenarioId,
         scenarioName: scenario.title ?? scenarioId,
+        ...(cultureRunSnapshot ? {
+          scenarioSnapshot: cultureRunSnapshot,
+          evaluationHarnessSnapshot: cultureRunSnapshot.evaluationHarness ?? null,
+        } : {}),
         attemptNumber: 1,
         mode: "text",
         difficulty,
@@ -622,6 +628,7 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
       });
       personaRunId = personaRun.id;
     } catch (err) {
+      if (cultureRunSnapshot) throw err; // Never continue a cultural session unbound.
       console.warn("[agentApi] Failed to create persona run (non-fatal):", err);
     }
 
@@ -768,7 +775,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
 
     // Build persona/scenario context for AI
     const allScenarios = await fileManager.getAllScenarios();
-    const scenario = allScenarios.find((s: any) => s.id === session.scenarioId);
+    const scenario = await resolveAgentCultureScenario(session, allScenarios.find((s: any) => s.id === session.scenarioId));
     if (!scenario) {
       agentError(res, 404, "scenario_not_found", "Scenario no longer exists.");
       return;
@@ -1324,7 +1331,7 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
     if (session.personaRunId) {
           const personaRunId = session.personaRunId;
           const allScenarios = await fileManager.getAllScenarios();
-          const scenario = allScenarios.find((s: any) => s.id === session.scenarioId);
+          const scenario = await resolveAgentCultureScenario(session, allScenarios.find((s: any) => s.id === session.scenarioId));
 
            if (scenario) {
             const scenarioPersona = scenario.personas?.find((p: any) => p.id === session.personaId);

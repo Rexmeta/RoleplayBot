@@ -296,7 +296,7 @@ export class RealtimeVoiceService {
     const ledgerBinding = await ledgerRuntimeBinding(conversationId);
     if (ledgerBinding) {
       boundScenarioRun = {
-        ...boundScenarioRun, scenarioSnapshot: ledgerBinding.scenarioSnapshot,
+        ...boundScenarioRun, scenarioId, scenarioSnapshot: ledgerBinding.scenarioSnapshot,
         evaluationHarnessSnapshot: ledgerBinding.evaluationHarnessSnapshot,
       };
       userLanguage = normalizeVoiceLanguage(ledgerBinding.language);

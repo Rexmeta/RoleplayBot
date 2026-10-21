@@ -353,6 +353,7 @@ export const scenarios = pgTable("scenarios", {
     entryLine?: string;
     voiceId?: string | null;
     npcBehaviorHarness?: NpcBehaviorHarness;
+    culture?: import("../cultureMap").ActorCulture;
   }>>(),
   recommendedFlow: text("recommended_flow").array(),
   flowGraph: jsonb("flow_graph").$type<FlowGraph>(),

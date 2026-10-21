@@ -1,5 +1,7 @@
 // 시나리오 페르소나 타입 정의 (실제 JSON 구조와 일치)
 // AI 생성 시나리오와 하드코딩된 레거시 시나리오 모두 지원
+import type { ActorCulture } from "@shared/cultureMap";
+
 export interface ScenarioPersona {
   id: string;
   name: string;
@@ -69,6 +71,8 @@ export interface ScenarioPersona {
   triggerHints?: string[];
   entryLine?: string;
   voiceId?: string;
+  /** Independent cultural behavior layer; does not alter Persona identity. */
+  culture?: ActorCulture;
 }
 
 export interface ComplexScenario {

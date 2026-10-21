@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { buildScenarioCultureLayer } from "../cultureMap/prompt";
 import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage, RoleplayScenario } from "../aiService";
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
@@ -47,6 +48,7 @@ export class OpenAIProvider implements AIServiceInterface {
     language: SupportedLanguage = 'ko',
     userName?: string
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
+    buildScenarioCultureLayer(scenario, persona); // Validate before generic API fallbacks.
     const startTime = Date.now();
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
     
@@ -124,6 +126,7 @@ ${overridePromptBlock ? `\n${overridePromptBlock}\n` : ''}
       };
 
       // 건너뛰기 시 자연스럽게 대화 이어가기
+      systemMessage.content += buildScenarioCultureLayer(scenarioObj, persona);
       const userMessageContent = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.";
 
       const response = await conversationSemaphore.run(() =>
@@ -242,7 +245,7 @@ ${metaInstruction}`;
           this.client.chat.completions.create({
             model: this.model,
             messages: [
-              { role: 'system', content: systemContent },
+              { role: 'system', content: systemContent + buildScenarioCultureLayer(scenarioObj, persona) },
               ...conversationHistory,
               { role: 'user', content: userMessageContent }
             ],

@@ -38,6 +38,7 @@ import { applyHarnessToSession, readScenarioHarness } from "../services/simulati
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
 import { buildRuleFallbackPatch, resolveStageTransition, inferIncidentCandidate, evaluateIncidentProbability } from "../services/simulation/simulationRules";
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
+import { captureCultureRunSnapshot } from "../services/cultureMap/runSnapshot";
 import { handleToolCall } from "../services/simulation/simulationToolHandler";
 import { v4 as uuidv4 } from "uuid";
 import { applyScenarioOverride, applyEvalWeightsOverride } from "../services/scenarios/overrideResolver";
@@ -216,6 +217,11 @@ export default function createConversationsRouter(isAuthenticated: any) {
         console.warn('⚠️ 시나리오 버전 조회 실패 (무시됨):', versionErr);
       }
 
+      if (!scenarioSnapshotForRun) {
+        const nativeScenario = await storage.getScenario(validatedData.scenarioId);
+        scenarioSnapshotForRun = await captureCultureRunSnapshot(nativeScenario, user?.preferredLanguage ?? "ko") ?? undefined;
+        if (scenarioSnapshotForRun) evaluationHarnessSnapshotForRun = (scenarioSnapshotForRun as any).evaluationHarness;
+      }
       scenarioRun = await storage.createScenarioRun({
         userId,
         scenarioId: validatedData.scenarioId,

@@ -10,6 +10,7 @@ import { EvaluationCriteriaManager } from "@/components/admin/EvaluationCriteria
 import { ScenarioOverrideManager } from "@/components/admin/ScenarioOverrideManager";
 import { AppHeader } from "@/components/AppHeader";
 import { useAuth } from "@/hooks/useAuth";
+import { CultureProfilesManager } from "@/components/admin/cultureMap/CultureProfilesManager";
 
 export default function AdminManagement() {
   const { t } = useTranslation();
@@ -32,6 +33,7 @@ export default function AdminManagement() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="flex flex-wrap w-full h-auto p-1 gap-1">
             <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오</TabsTrigger>
+            <TabsTrigger value="culture-map" data-testid="tab-culture-map">Culture Map</TabsTrigger>
             <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나</TabsTrigger>
             <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">평가기준</TabsTrigger>
             <TabsTrigger value="manage-structure" data-testid="tab-manage-structure">조직/카테고리</TabsTrigger>
@@ -44,6 +46,10 @@ export default function AdminManagement() {
               setActiveTab('manage-personas');
               setPersonaCreateTrigger(prev => prev + 1);
             }} />
+          </TabsContent>
+
+          <TabsContent value="culture-map" className="space-y-6">
+            <CultureProfilesManager />
           </TabsContent>
 
           <TabsContent value="manage-personas" className="space-y-6">

@@ -50,6 +50,7 @@ function normalisePersonaForDb(persona: ScenarioPersona): {
   concerns?: string[];
   image?: string;
   npcBehaviorHarness?: NpcBehaviorHarness;
+  culture?: import("../../shared/cultureMap").ActorCulture;
 } {
   return {
     id: persona.id,
@@ -71,6 +72,7 @@ function normalisePersonaForDb(persona: ScenarioPersona): {
     ...(persona.currentSituation?.concerns !== undefined && { concerns: persona.currentSituation.concerns }),
     ...(persona.image !== undefined && { image: persona.image }),
     ...(persona.npcBehaviorHarness !== undefined && { npcBehaviorHarness: persona.npcBehaviorHarness }),
+    ...(persona.culture !== undefined && { culture: persona.culture }),
   };
 }
 

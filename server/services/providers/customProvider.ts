@@ -1,6 +1,7 @@
 import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona, AIServiceConfig, EvaluationCriteriaWithDimensions, RoleplayScenario, SupportedLanguage } from "../aiService";
 import { LANGUAGE_INSTRUCTIONS } from "../aiService";
+import { buildScenarioCultureLayer } from "../cultureMap/prompt";
 import { retryWithBackoff, conversationSemaphore, feedbackSemaphore } from "../../utils/concurrency";
 import { DEFAULT_DIMENSIONS, calculateWeightedOverallScore } from "../evaluationEngine";
 import { normalizeProfileName } from "../conversationContextBuilder";
@@ -91,6 +92,7 @@ export class CustomProvider implements AIServiceInterface {
     language?: string,
     userName?: string
   ): Promise<{ content: string; emotion: string; emotionReason: string }> {
+    buildScenarioCultureLayer(scenario, persona); // Invalid bound culture must fail explicitly.
     const lang: SupportedLanguage = (language as SupportedLanguage) || 'ko';
     try {
       const normalizedUserName = normalizeProfileName(userName) || '';
@@ -123,7 +125,7 @@ ${userNameSection}
 이전 대화:
 ${conversationHistory}
 
-사용자의 새 메시지에 ${persona.name}로서 응답하세요.`;
+사용자의 새 메시지에 ${persona.name}로서 응답하세요.` + buildScenarioCultureLayer(scenario, persona);
 
       // 건너뛰기 시 자연스럽게 대화 이어가기
       const prompt = userMessage ? userMessage : "앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.";
@@ -330,7 +332,7 @@ ${normalizedUserName ? `\n상대방 실명 호칭:\n- 대화 상대방의 실제
 3. ${LANGUAGE_INSTRUCTIONS[lang] || LANGUAGE_INSTRUCTIONS['ko']}
 4. 50-100단어 내외로 간결하게 응답하세요
 5. 상황에 맞는 감정을 표현하세요
-6. **절대로 ${userLabel}의 역할을 수행하거나 ${userLabel} 입장에서 발언하지 마세요**`;
+6. **절대로 ${userLabel}의 역할을 수행하거나 ${userLabel} 입장에서 발언하지 마세요**` + buildScenarioCultureLayer(scenario, persona);
 
     const requestBody = {
       model: this.config.model,

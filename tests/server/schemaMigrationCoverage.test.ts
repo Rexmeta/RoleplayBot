@@ -141,7 +141,7 @@ function extractMigrationCoverage(content: string): Map<string, Set<string>> {
 
   // ── SQL type keyword set used for column detection ──
   const SQL_TYPE =
-    "(?:varchar|text|integer|jsonb|boolean|timestamp|double\\s*precision|bigint|real|smallint)";
+    "(?:varchar|text|integer|jsonb|boolean|timestamp|double\\s*precision|bigint|real|smallint|uuid)";
 
   // ── 1. CREATE TABLE (IF NOT EXISTS) ──────────────────────────────────────
   // Handles both quoted ("table_name") and unquoted (table_name) identifiers.

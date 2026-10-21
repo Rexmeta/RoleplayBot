@@ -10,6 +10,24 @@ import {
   type ExportableScenario,
 } from '../../client/src/lib/scenarioExport';
 import { unzipSync } from 'fflate';
+import { newCultureValues } from '../../shared/cultureMap';
+
+describe("Culture Map portable Actor settings", () => {
+  it("round-trips an immutable cultural snapshot without touching Persona data", () => {
+    const culture = {
+      enabled: true as const, snapshotVersion: 1 as const, profileId: "99dc1794-e6b9-4f84-8c70-d43cc57878d4",
+      profileVersion: 2, name: "Custom", country: "Custom region", region: "", sources: [],
+      intensity: 45, overrides: { leading: 10 }, dimensions: { ...newCultureValues(), leading: 10 },
+    };
+    const original = { title: "Culture round trip", personas: [{ id: "actor", name: "A", personaRef: "entj.json", culture }] };
+    const exported = serializeScenario(original);
+    expect(normalizeScenarioImport(exported).personas?.[0].culture).toEqual(culture);
+    expect(original.personas[0].personaRef).toBe("entj.json");
+  });
+  it("rejects invalid cultural settings instead of silently discarding them", () => {
+    expect(() => normalizeScenarioImport({ title: "Bad", personas: [{ id: "a", name: "A", culture: { enabled: true } }] })).toThrow("culture");
+  });
+});
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 

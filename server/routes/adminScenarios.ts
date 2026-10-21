@@ -18,6 +18,7 @@ import { validateScenario } from "../services/scenarios/scenarioValidator";
 import { mediaStorage } from "../services/mediaStorage";
 import { videoJobStore } from "../utils/videoJobStore";
 import { requireVideoAvatarManagementAccess } from "../services/videoAvatarAccess";
+import { bindActorCultures } from "../services/cultureMap/service";
 
 const AI_STREAM_TIMEOUT_MS = 55_000;
 
@@ -361,6 +362,9 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
     }
 
     scenarioData.sourceLocale = sourceLocale;
+    if (scenarioData.personas?.some((p: any) => p?.culture !== undefined)) {
+      scenarioData.personas = await bindActorCultures(scenarioData.personas, user);
+    }
 
     // Auto-fix isPrimary: if no persona is marked primary, designate the first one
     if (Array.isArray(scenarioData.personas) && scenarioData.personas.length > 0) {
@@ -456,6 +460,10 @@ export default function createAdminScenariosRouter(isAuthenticated: any) {
 
     // Pre-save validation
     const mergedData = { ...(existingScenario ?? {}), ...req.body };
+    if (req.body.personas?.some((p: any) => p?.culture !== undefined)) {
+      req.body.personas = await bindActorCultures(req.body.personas, user, existingScenario?.personas ?? []);
+      mergedData.personas = req.body.personas;
+    }
 
     // Auto-fix isPrimary: if no persona is marked primary, designate the first one
     if (Array.isArray(mergedData.personas) && mergedData.personas.length > 0) {

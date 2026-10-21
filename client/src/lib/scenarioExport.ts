@@ -1,4 +1,5 @@
 import { unzipSync, zipSync } from 'fflate';
+import { cultureSelectionSchema, cultureSnapshotSchema, type ActorCulture } from "@shared/cultureMap";
 
 /**
  * The external scenario interchange contract.
@@ -23,6 +24,7 @@ export interface PortableScenarioPersona {
   entryLine?: string;
   voiceId?: string | null;
   npcBehaviorHarness?: Record<string, unknown>;
+  culture?: ActorCulture;
 }
 
 export interface PortableScenario {
@@ -111,6 +113,7 @@ const PORTABLE_PERSONA_FIELDS = [
   'entryLine',
   'voiceId',
   'npcBehaviorHarness',
+  'culture',
 ] as const;
 
 function pickDefined(
@@ -202,6 +205,14 @@ function normalizePersona(value: unknown, index: number): PortableScenarioPerson
     throw new Error(`personas[${index}].voiceId must be a string or null`);
   }
   readObject(value.npcBehaviorHarness, `personas[${index}].npcBehaviorHarness`);
+  if (value.culture !== undefined) {
+    if (isRecord(value.culture) && value.culture.enabled === false) result.culture = { enabled: false };
+    else {
+      const parsed = cultureSnapshotSchema.or(cultureSelectionSchema).safeParse(value.culture);
+      if (!parsed.success) throw new Error(`personas[${index}].culture must be a valid cultural context`);
+      result.culture = parsed.data;
+    }
+  }
   return result as unknown as PortableScenarioPersona;
 }
 

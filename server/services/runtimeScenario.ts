@@ -30,6 +30,14 @@ export function resolveRuntimeScenario(
         : scenarioRun.scenarioSnapshot.evaluationHarness ?? null,
     };
   }
+  // No binding means a legacy/OFF run: later authoring must not add culture
+  // to an already running native conversation. New cultural runs are frozen.
+  if (liveScenario?.personas?.some((actor: any) => actor.culture !== undefined)) {
+    return { ...liveScenario, personas: liveScenario.personas.map((actor: any) => {
+      const { culture: _culture, ...legacyActor } = actor;
+      return legacyActor;
+    }) };
+  }
   return liveScenario ? { ...liveScenario } : null;
 }
 

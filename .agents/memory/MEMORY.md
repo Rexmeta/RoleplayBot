@@ -25,3 +25,4 @@
 - [동시 음성 장애 증거](voice-incident-evidence.md) — 저장소 배포 정의·최근 로그·모의 부하를 행사 실행 환경이나 실제 provider 수용량과 혼동하지 않는다.
 - [Startup vs numbered migrations](startup-vs-numbered-migrations.md) — 번호 SQL 존재만으로 개발 DB가 갱신되지 않는다; 런타임 즉시 조회 스키마는 startup 경로도 보장한다.
 - [Culture Map 독립성](culture-map-boundaries.md) — Persona 불변·Actor별 기본 OFF·시나리오 snapshot·검증된 국가 출처·평가 직접 가감 금지.
+- [테스트 워커 리소스 제한](test-worker-resource-limits.md) — 미디어 테스트의 병렬 timeout은 제한된 동시성으로 비교하고 양쪽 결과를 구분 보고한다.

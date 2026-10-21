@@ -22,6 +22,7 @@ import createBookmarksRouter from "./routes/bookmarks";
 import createScenariosRouter from "./routes/scenarios";
 import createAdminScenariosRouter from "./routes/adminScenarios";
 import createAdminPersonasRouter from "./routes/adminPersonas";
+import createCultureMapRouter from "./routes/cultureMap";
 import createAdminOrganizationsRouter from "./routes/adminOrganizations";
 import createAdminScenarioOverridesRouter from "./routes/adminScenarioOverrides";
 import createSystemAdminRouter from "./routes/systemAdmin";
@@ -213,6 +214,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
   app.use(createAnalyticsRouter(isAuthenticated));
   app.use(createAdminScenariosRouter(isAuthenticated));
   app.use(createAdminPersonasRouter(isAuthenticated));
+  app.use(createCultureMapRouter(isAuthenticated));
   app.use(createAdminOrganizationsRouter(isAuthenticated));
   app.use(createAdminScenarioOverridesRouter(isAuthenticated));
   app.use(createEvaluationCriteriaRouter(isAuthenticated));

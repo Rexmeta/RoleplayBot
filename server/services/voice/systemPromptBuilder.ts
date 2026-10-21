@@ -5,6 +5,7 @@ import { buildSimulationToolPrompt, buildPlayerConstraintsBlock } from '../simul
 import type { PlayerConstraints } from '../../../shared/schema/scenarios';
 import type { ScenarioOverrideData } from '@shared/schema/scenarios';
 import { buildOverridePromptBlock } from '../scenarios/overrideResolver';
+import { buildActorCultureLayer } from "../cultureMap/prompt";
 
 interface UserRoleInfo {
   name: string;
@@ -251,7 +252,11 @@ export function buildSystemInstructions(
       : []),
   ];
 
-  return instructions.join('\n');
+  const cultureLayer = personaSwitchMode === 'join' && allPersonas?.length
+    ? allPersonas.map(buildActorCultureLayer).join('')
+    : buildActorCultureLayer(scenarioPersona);
+  // Keep the durable layer before the greeting block, which reconnect removes.
+  return cultureLayer + instructions.join('\n');
 }
 
 const RECONNECT_DIRECTIVE: Record<LangCode, string> = {

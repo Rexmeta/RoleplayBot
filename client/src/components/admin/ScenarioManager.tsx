@@ -43,6 +43,9 @@ import {
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ActorCultureEditor } from '@/components/admin/cultureMap/ActorCultureEditor';
+import type { ActorCulture } from '@shared/cultureMap';
+import { getScenarioPersonaTemplateId, stableActorIdForTemplate } from '@/components/admin/cultureMap/actorIdentity';
 
 interface ScenarioPersona {
   id: string;
@@ -61,6 +64,7 @@ interface ScenarioPersona {
   entryLine?: string;
   triggerHints?: string[];
   npcBehaviorHarness?: NpcBehaviorHarness;
+  culture?: ActorCulture;
 }
 
 interface ScenarioFormData {
@@ -313,6 +317,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const defaultSourceLocale = useDefaultSourceLocale();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<ComplexScenario | null>(null);
+  const [invalidCultureActors, setInvalidCultureActors] = useState<Set<number>>(new Set());
   const [flowGraphValue, setFlowGraphValue] = useState<FlowGraph | null>(null);
   const [personaSwitchRulesValue, setPersonaSwitchRulesValue] = useState<PersonaSwitchRules | null>(null);
   const [terminationRulesValue, setTerminationRulesValue] = useState<TerminationRules | null>(null);
@@ -677,18 +682,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     return map;
   }, [liveValidation]);
 
-  // 시나리오 내 이미 선택된 페르소나 ID 목록
-  const selectedPersonaIds = useMemo(() => {
-    return formData.personas.map(p => p.id).filter(id => id);
-  }, [formData.personas]);
-
-  // 특정 인덱스의 페르소나 슬롯에서 선택 가능한 페르소나 목록 (중복 방지)
-  const getAvailablePersonasForSlot = (currentIndex: number) => {
-    const currentPersonaId = formData.personas[currentIndex]?.id;
-    return availablePersonas.filter(p => 
-      p.id === currentPersonaId || !selectedPersonaIds.includes(p.id)
-    );
-  };
+  // Each Actor has an independent id; Persona templates may be reused by any slot.
+  const getAvailablePersonasForSlot = () => availablePersonas;
 
   // 시나리오 로드 시 모두 펼쳐진 상태로 초기화
   React.useEffect(() => {
@@ -910,6 +905,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   });
 
   const resetForm = () => {
+    setInvalidCultureActors(new Set());
     setFormData({
       title: '',
       description: '',
@@ -984,6 +980,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   };
 
   const handleEdit = (scenario: ComplexScenario) => {
+    setInvalidCultureActors(new Set());
     // 번역된 데이터 대신 원본 데이터 사용
     const originalScenario = originalScenarios?.find((s: any) => s.id === scenario.id)
       || (!(scenario as any)._translated ? scenario : null);
@@ -1125,6 +1122,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       });
       return;
     }
+    if (invalidCultureActors.size > 0) {
+      toast({
+        title: '문화적 특성 설정을 확인해 주세요',
+        description: '문화적 특성을 켠 Actor는 프로필을 선택해야 저장할 수 있습니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     const submitData = buildSubmitPayload(normalizedTitle);
     if (!submitData) return;
@@ -1263,6 +1268,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       toast({
         title: '시나리오 제목이 필요합니다',
         description: '시나리오 제목을 먼저 입력해 주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (invalidCultureActors.size > 0) {
+      toast({
+        title: '문화적 특성 설정을 확인해 주세요',
+        description: '문화적 특성을 켠 Actor는 프로필을 선택해야 저장할 수 있습니다.',
         variant: 'destructive',
       });
       return;
@@ -3226,6 +3239,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   )}
 
                   <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {invalidCultureActors.size > 0 && (
+                      <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                        문화적 특성을 켠 Actor는 프로필 선택이 필요합니다. 미완료 Actor: {Array.from(invalidCultureActors).sort((a, b) => a - b).map((i) => i + 1).join(', ')}
+                      </div>
+                    )}
                     {formData.personas.map((persona, index) => (
                       <div key={index} className="border border-slate-300 rounded-lg p-4 space-y-3 bg-white shadow-sm">
                         <div className="flex items-center justify-between">
@@ -3233,6 +3251,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           <Button
                             type="button"
                             onClick={() => {
+                              setInvalidCultureActors((current) => {
+                                const adjusted = new Set<number>();
+                                current.forEach((actorIndex) => {
+                                  if (actorIndex < index) adjusted.add(actorIndex);
+                                  else if (actorIndex > index) adjusted.add(actorIndex - 1);
+                                });
+                                return adjusted;
+                              });
                               setFormData(prev => ({
                                 ...prev,
                                 personas: prev.personas.filter((_, i) => i !== index)
@@ -3250,7 +3276,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           <div>
                             <Label htmlFor={`persona-id-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaId')} *</Label>
                             <Select
-                              value={persona.id}
+                              value={getScenarioPersonaTemplateId(persona)}
                               onValueChange={(selectedId) => {
                                 if (selectedId === '__new_persona__') {
                                   handleSaveAndGoToPersona();
@@ -3259,9 +3285,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                 const selectedPersona = availablePersonas.find(p => p.id === selectedId);
                                 if (selectedPersona) {
                                   const newPersonas = [...formData.personas];
+                                  const actorId = stableActorIdForTemplate(selectedId, persona, formData.personas);
                                   newPersonas[index] = { 
                                     ...persona, 
-                                    id: selectedId,
+                                    id: actorId,
                                     mbti: selectedPersona.mbti.toUpperCase(),
                                     personaRef: selectedId 
                                   };
@@ -3279,12 +3306,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                     <span>페르소나 신규 생성</span>
                                   </div>
                                 </SelectItem>
-                                {getAvailablePersonasForSlot(index).length === 0 ? (
+                                {getAvailablePersonasForSlot().length === 0 ? (
                                   <div className="py-2 px-3 text-sm text-slate-500">
                                     {t('admin.scenarioManager.form.noPersonasAvailable')}
                                   </div>
                                 ) : (
-                                  getAvailablePersonasForSlot(index).map((p) => (
+                                  getAvailablePersonasForSlot().map((p) => (
                                     <SelectItem key={p.id} value={p.id}>
                                       <div className="flex items-center gap-2">
                                         <span className="font-medium">{p.mbti}</span>
@@ -3549,6 +3576,24 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                               }}
                             />
                           </div>
+                          <ActorCultureEditor
+                            key={`${editingScenario?.id ?? 'new'}-${persona.id || index}-${index}`}
+                            actorKey={`${editingScenario?.id ?? 'new'}-${persona.id || index}-${index}`}
+                            value={persona.culture}
+                            onValidityChange={(incomplete) => {
+                              setInvalidCultureActors((current) => {
+                                const next = new Set(current);
+                                if (incomplete) next.add(index);
+                                else next.delete(index);
+                                return next;
+                              });
+                            }}
+                            onChange={(culture) => {
+                              const newPersonas = [...formData.personas];
+                              newPersonas[index] = { ...persona, culture };
+                              setFormData(prev => ({ ...prev, personas: newPersonas }));
+                            }}
+                          />
                         </div>
                       </div>
                     ))}
