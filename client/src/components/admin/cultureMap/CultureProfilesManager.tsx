@@ -8,8 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CULTURE_DIMENSIONS, CULTURE_DISCLAIMER, EDITORIAL_CULTURE_NOTICE, isSystemCultureProfile, newCultureValues } from "@shared/cultureMap";
 import type { CultureProfile, CultureProfileInput, CultureSource, CultureValues } from "@shared/cultureMap";
-import { AlertTriangle, Copy, History, Plus, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Copy, History, Plus, Trash2 } from "lucide-react";
 import { CultureOriginNotice } from "./CultureOriginNotice";
+import { CultureProfileComparison } from "./CultureProfileComparison";
+import { CultureProfileFilters } from "./CultureProfileFilters";
+import { matchesCultureProfile } from "@shared/cultureComparison";
 
 type VersionEntry = { version: number; content: CultureProfileInput; createdAt: string };
 const emptyInput = (): CultureProfileInput => ({
@@ -24,6 +27,9 @@ export function CultureProfilesManager() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
+  const [regionFilter, setRegionFilter] = useState("all");
+  const [confidenceFilter, setConfidenceFilter] = useState("all");
+  const [comparisonIds, setComparisonIds] = useState<string[]>([]);
   const [editing, setEditing] = useState<CultureProfile | null>(null);
   const [draft, setDraft] = useState<CultureProfileInput>(emptyInput);
   const [errorText, setErrorText] = useState("");
@@ -74,6 +80,7 @@ export function CultureProfilesManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: listKey });
       setDeleteTarget(null);
+      if (deleteTarget) setComparisonIds((current) => current.filter((id) => id !== deleteTarget.id));
       if (editing?.id === deleteTarget?.id) setEditing(null);
     },
     onError: async (error) => setErrorText(await readError(error)),
@@ -81,10 +88,37 @@ export function CultureProfilesManager() {
 
   const profiles = profilesQuery.data ?? [];
   const readOnly = !!editing && (isSystemCultureProfile(editing) || (!isAdmin && editing.ownerId !== user?.id));
-  const filtered = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase();
-    return profiles.filter((profile) => !q || [profile.name, profile.country, profile.region].some((part) => part.toLocaleLowerCase().includes(q)));
-  }, [profiles, search]);
+  const filtered = useMemo(
+    () => profiles.filter((profile) => matchesCultureProfile(profile, {
+      search,
+      region: regionFilter,
+      confidence: confidenceFilter,
+    })),
+    [profiles, search, regionFilter, confidenceFilter],
+  );
+  const regions = useMemo(() => {
+    const values = profiles.map((profile) => profile.region.trim() || "__unspecified__");
+    return Array.from(new Set(values)).sort((a, b) => {
+      if (a === "__unspecified__") return 1;
+      if (b === "__unspecified__") return -1;
+      return a.localeCompare(b, "ko");
+    });
+  }, [profiles]);
+  const comparedProfiles = useMemo(
+    () => comparisonIds.map((id) => profiles.find((profile) => profile.id === id)).filter((profile): profile is CultureProfile => !!profile),
+    [comparisonIds, profiles],
+  );
+  const toggleComparison = (profile: CultureProfile) => {
+    setComparisonIds((current) => current.includes(profile.id)
+      ? current.filter((id) => id !== profile.id)
+      : current.length < 5 ? [...current, profile.id] : current);
+  };
+  const removeComparison = (id: string) => setComparisonIds((current) => current.filter((item) => item !== id));
+  const resetFilters = () => {
+    setSearch("");
+    setRegionFilter("all");
+    setConfidenceFilter("all");
+  };
   const setField = <K extends keyof CultureProfileInput>(key: K, value: CultureProfileInput[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
@@ -128,20 +162,48 @@ export function CultureProfilesManager() {
       </header>
       <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-950">
         <strong className="mr-1">사용 안내</strong>{CULTURE_DISCLAIMER}
-        <p className="mt-1 text-xs text-amber-800">모든 프로필은 운영자가 직접 정의합니다. 국가별 기본 점수나 근거가 사전 제공되지 않습니다.</p>
+        <p className="mt-1 text-xs text-amber-800">국가 기본 프로필은 RoleplayX 자체 추정 자료이며 공식 Erin Meyer 수치가 아닙니다. 국가나 문화의 우열이 아닌 상황별 경향을 비교하세요.</p>
       </div>
       {errorText && <div role="alert" className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{errorText}</div>}
+      <CultureProfileComparison
+        profiles={comparedProfiles}
+        onRemove={removeComparison}
+        onClear={() => setComparisonIds([])}
+        onInspect={beginEdit}
+        onDuplicate={(profile) => duplicateMutation.mutate(profile.id)}
+        duplicatePending={duplicateMutation.isPending}
+      />
       <div className="grid gap-5 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.4fr)]">
         <aside className="space-y-3">
-          <label className="relative block">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input aria-label="국가, 지역, 프로필 검색" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="국가·지역·프로필 검색" className="pl-9" />
-          </label>
+          <CultureProfileFilters
+            search={search}
+            onSearchChange={setSearch}
+            region={regionFilter}
+            onRegionChange={setRegionFilter}
+            regions={regions}
+            confidence={confidenceFilter}
+            onConfidenceChange={setConfidenceFilter}
+          />
           {profilesQuery.isLoading ? <div className="space-y-2" aria-label="프로필 로딩 중">{[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse rounded-md bg-slate-100" />)}</div>
             : profilesQuery.isError ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">프로필을 불러오지 못했습니다.<Button variant="link" onClick={() => profilesQuery.refetch()}>다시 시도</Button></div>
-            : filtered.length === 0 ? <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center"><p className="font-medium text-slate-700">{profiles.length ? "검색 결과가 없습니다" : "아직 프로필이 없습니다"}</p><p className="mt-1 text-sm text-slate-500">직접 정의한 문화 행동 컨텍스트를 추가하세요.</p></div>
-            : <><p className="text-xs text-slate-500">{filtered.length}개 프로필</p>{profiles.some(p => p.origin) && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">{EDITORIAL_CULTURE_NOTICE} 공식 점수가 아니며 검토가 필요한 초안입니다.</p>}<ul className="space-y-2">{filtered.map((profile) => (
+            : filtered.length === 0 ? <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center"><p className="font-medium text-slate-700">{profiles.length ? "조건에 맞는 프로필이 없습니다" : "아직 프로필이 없습니다"}</p><p className="mt-1 text-sm text-slate-500">{profiles.length ? "검색어, 지역 또는 신뢰도 조건을 바꿔 보세요. 비교 선택은 유지됩니다." : "직접 정의한 문화 행동 컨텍스트를 추가하세요."}</p>{profiles.length > 0 && <Button type="button" variant="link" className="mt-2" onClick={resetFilters}>필터 모두 초기화</Button>}</div>
+            : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p>{profiles.some(p => p.origin) && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">{EDITORIAL_CULTURE_NOTICE} 공식 점수가 아니며 검토가 필요한 초안입니다.</p>}<ul className="space-y-2">{filtered.map((profile) => (
               <li key={profile.id} className={`rounded-md border p-3 ${editing?.id === profile.id ? "border-teal-500 bg-teal-50/60" : "border-slate-200 bg-white"}`}>
+                <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                  <label className="flex min-w-0 items-center gap-2 text-xs font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={comparisonIds.includes(profile.id)}
+                      disabled={!comparisonIds.includes(profile.id) && comparisonIds.length >= 5}
+                      onChange={() => toggleComparison(profile)}
+                      aria-label={`${profile.country} ${profile.name} 비교에 ${comparisonIds.includes(profile.id) ? "포함됨" : "추가"}`}
+                      className="h-4 w-4 accent-teal-700"
+                    />
+                    <span>비교에 포함</span>
+                  </label>
+                  {!comparisonIds.includes(profile.id) && comparisonIds.length >= 5 && <span className="text-right text-[11px] text-amber-800">최대 5개 선택됨 · 추가하려면 하나를 제거하세요</span>}
+                  {comparisonIds.includes(profile.id) && <span className="text-[11px] text-teal-800">비교 {comparisonIds.indexOf(profile.id) + 1}번</span>}
+                </div>
                 <button type="button" onClick={() => beginEdit(profile)} className="w-full text-left">
                   <span className="flex items-center justify-between gap-2"><span className="font-semibold text-slate-900">{profile.name}</span><span className="text-xs text-slate-500">v{profile.version}</span></span>
                   <span className="mt-1 block text-sm text-slate-600">{profile.country}{profile.region ? ` · ${profile.region}` : ""}</span>
