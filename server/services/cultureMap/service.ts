@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { isDeepStrictEqual } from "node:util";
 import { db } from "../../storage/db";
 import { cultureProfiles, cultureProfileVersions } from "../../../shared/schema/cultureMap";
-import { cultureProfileInputSchema, cultureSelectionSchema, cultureSnapshotSchema, type CultureProfileInput } from "../../../shared/cultureMap";
+import { cultureProfileInputSchema, cultureSelectionSchema, cultureSnapshotSchema, isSystemCultureProfile, type CultureProfileInput } from "../../../shared/cultureMap";
 
 export type CultureUser = { id: string; role: string };
 export class CultureError extends Error {
@@ -12,6 +12,7 @@ export function canReadCulture(user: CultureUser, row: { ownerId: string; conten
   return user.role === "admin" || row.ownerId === user.id || row.content.visibility === "shared";
 }
 export function canWriteCulture(user: CultureUser, row: { ownerId: string }) {
+  if (isSystemCultureProfile(row)) return false;
   return user.role === "admin" || row.ownerId === user.id;
 }
 function parseContent(input: unknown, user: CultureUser) {
@@ -100,10 +101,11 @@ export async function bindActorCultures(actors: any[], user: CultureUser, existi
       eq(cultureProfileVersions.profileId, chosen.profileId), eq(cultureProfileVersions.version, chosen.profileVersion),
     ));
     if (!version) throw new CultureError("선택한 문화 프로필 버전이 없습니다.", 404);
-    const { name, country, region, sources, dimensions } = version.content;
+    const { name, country, region, sources, dimensions, origin } = version.content;
     const snapshot = cultureSnapshotSchema.parse({
       ...chosen, snapshotVersion: 1, name, country, region, sources,
       dimensions: { ...dimensions, ...chosen.overrides },
+      ...(origin ? { origin } : {}),
     });
     return { ...actor, culture: snapshot };
   }));

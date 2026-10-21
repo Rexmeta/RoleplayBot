@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CultureProfile, CultureProfileInput, CultureSnapshot } from "@shared/cultureMap";
+import { SYSTEM_CULTURE_OWNER_ID, EDITORIAL_CULTURE_NOTICE } from "@shared/cultureMap";
+import { countryCultureSeedProfiles } from "../../server/services/cultureMap/dataset";
 
 const { apiRequest, invalidateQueries, authState } = vi.hoisted(() => ({
   apiRequest: vi.fn(),
@@ -77,6 +79,36 @@ describe("Culture Map actor and profile management", () => {
     });
   });
   afterEach(cleanup);
+  it("labels country baselines as unvalidated estimates and keeps them read-only even for admins; clone opens for editing", async () => {
+    const baseline = countryCultureSeedProfiles.find(p => p.content.origin!.originalProfile.countryCode === "US")!;
+    const base: CultureProfile = { ...baseline.content, id: baseline.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1, createdAt: profile.createdAt, updatedAt: profile.updatedAt };
+    const clone = { ...base, id: "private-clone", ownerId: "admin-1", name: "미국 (복제)", visibility: "private" };
+    apiRequest.mockImplementation(async (method: string, url: string) => {
+      if (method === "POST") return response(clone);
+      return response([base]);
+    });
+    renderWithQuery(<CultureProfilesManager />);
+    fireEvent.click(await screen.findByText("미국", { exact: true }));
+    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "변경 저장" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "삭제" })).toBeNull();
+    expect(screen.getAllByText(EDITORIAL_CULTURE_NOTICE).length).toBeGreaterThan(0);
+    expect(screen.getByText(/원본 설득 축:/).textContent).toContain("원본 20 → 기본 적용 80");
+    fireEvent.click(screen.getByRole("button", { name: "복제 후 편집" }));
+    await waitFor(() => expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("미국 (복제)"));
+    expect((screen.getByRole("button", { name: "변경 저장" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+  it("shows data version, original values and review warning when a country is selected for an Actor", async () => {
+    const baseline = countryCultureSeedProfiles.find(p => p.content.origin!.originalProfile.countryCode === "US")!;
+    const base: CultureProfile = { ...baseline.content, id: baseline.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1, createdAt: profile.createdAt, updatedAt: profile.updatedAt };
+    apiRequest.mockImplementation(async (_method: string, url: string) => url.endsWith("/versions")
+      ? response([{ version: 1, content: baseline.content, createdAt: profile.createdAt }])
+      : response([base]));
+    renderWithQuery(<ActorCultureEditor actorKey="country-actor" value={{ enabled: true, profileId: baseline.id, profileVersion: 1, intensity: 70, overrides: {} }} onChange={vi.fn()} />);
+    await screen.findByText(EDITORIAL_CULTURE_NOTICE);
+    expect(screen.getByText(/국가 코드 US/).textContent).toContain("2026.1");
+    expect(screen.getByText(/공식 점수 아님/).textContent).toContain("검토 필요");
+  });
 
   it("starts OFF and emits explicit disabled state only when switched off", () => {
     const onChange = vi.fn();

@@ -618,6 +618,9 @@ async function initializeApp() {
   initStatus = 'running_migrations';
   try {
     await runMigrations();
+    const { seedCountryCultureProfiles } = await import("./services/cultureMap/seed");
+    const cultureSeed = await seedCountryCultureProfiles();
+    console.log(`[Culture Map] Country baselines: ${cultureSeed.inserted} inserted, ${cultureSeed.preserved} preserved (${cultureSeed.total} total)`);
     const { recoverFeedbackJobs } = await import('./services/feedbackGenerationService');
     await recoverFeedbackJobs();
     recordStep('migrations', 'done');

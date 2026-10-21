@@ -11,6 +11,9 @@ export const CULTURE_DIMENSIONS = [
   { key: "scheduling", label: "일정", low: "선형", high: "유연" },
 ] as const;
 export type CultureDimension = typeof CULTURE_DIMENSIONS[number]["key"];
+export const SYSTEM_CULTURE_OWNER_ID = "system:roleplayx-culture-map-2026";
+export const EDITORIAL_CULTURE_NOTICE = "Erin Meyer의 8개 문화 차원을 참고한 RoleplayX 자체 추정 프로필입니다. 국가별 개인의 성격이나 행동을 확정하지 않습니다.";
+export const isSystemCultureProfile = (profile: { ownerId: string }) => profile.ownerId === SYSTEM_CULTURE_OWNER_ID;
 const score = z.number().finite().min(0).max(100);
 export const cultureValuesSchema = z.object({
   communicating: score, evaluating: score, persuading: score, leading: score,
@@ -22,6 +25,34 @@ export const cultureSourceSchema = z.object({
   locator: z.string().trim().max(1000),
   note: z.string().trim().max(2000),
 }).strict();
+/** Retain the uploaded record verbatim, including its ORIGINAL axis direction.
+ * Only the operational dimensions below are adapted to the app's scales.
+ */
+export const cultureDatasetProfileSchema = z.object({
+  id: z.string().min(1).max(150),
+  countryCode: z.string().min(2).max(10),
+  countryNameKo: z.string().min(1).max(100),
+  region: z.string().max(100),
+  schemaVersion: z.string().min(1).max(50),
+  profileVersion: z.string().min(1).max(50),
+  profileType: z.literal("editorial_estimate"),
+  confidence: z.enum(["low", "medium", "high"]),
+  dimensions: cultureValuesSchema,
+  context: z.string().max(1000),
+  notesKo: z.string().max(2000),
+  sourceIds: z.array(z.string().min(1)).max(20),
+  individuationRule: z.string().max(2000),
+  reviewStatus: z.literal("draft_requires_validation"),
+}).strict();
+export const cultureOriginSchema = z.object({
+  datasetId: z.literal("roleplayx-2026"),
+  dataset: z.string().max(300),
+  createdOn: z.string().max(30),
+  importantNotice: z.string().max(2000),
+  method: z.string().max(2000),
+  originalProfile: cultureDatasetProfileSchema,
+  axisTransforms: z.tuple([z.literal("persuading:100-x")]),
+}).strict();
 export const cultureProfileInputSchema = z.object({
   name: z.string().trim().min(1).max(150),
   country: z.string().trim().min(1).max(100),
@@ -30,6 +61,7 @@ export const cultureProfileInputSchema = z.object({
   dimensions: cultureValuesSchema,
   sources: z.array(cultureSourceSchema).max(20),
   visibility: z.enum(["private", "shared"]).default("private"),
+  origin: cultureOriginSchema.optional(),
 }).strict();
 export type CultureValues = z.infer<typeof cultureValuesSchema>;
 export type CultureSource = z.infer<typeof cultureSourceSchema>;
@@ -55,13 +87,16 @@ export const cultureSnapshotSchema = cultureSelectionSchema.extend({
   region: z.string().max(100),
   dimensions: cultureValuesSchema,
   sources: z.array(cultureSourceSchema).max(20),
+  origin: cultureOriginSchema.optional(),
 }).strict();
 export type CultureSnapshot = z.infer<typeof cultureSnapshotSchema>;
 export type CultureSelection = z.infer<typeof cultureSelectionSchema>;
 export type ActorCulture = CultureSelection | CultureSnapshot | { enabled: false };
 export const CULTURE_DISCLAIMER = "문화 차원은 상황에 따른 행동 경향이며, 국적에 따른 개인의 고정 성격이나 능력이 아닙니다. 반영 강도는 지침의 강조 수준이지 행동 확률이 아니며 평가 점수를 직접 가감하지 않습니다.";
 
-/** No national scores are shipped. These are neutral authoring defaults only. */
+/** Neutral custom-authoring defaults only, not country scores. The optional
+ * country dataset is separately labeled as unvalidated editorial estimates.
+ */
 export const newCultureValues = (): CultureValues => ({
   communicating: 50, evaluating: 50, persuading: 50, leading: 50,
   deciding: 50, trusting: 50, disagreeing: 50, scheduling: 50,

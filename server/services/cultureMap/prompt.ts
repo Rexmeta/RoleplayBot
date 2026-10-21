@@ -30,7 +30,7 @@ export function buildActorCultureLayer(actor: { id?: string; culture?: unknown }
 Apply ONLY when speaking as this Actor. This is a scenario-specific behavioral tendency, not a person's fixed personality, nationality stereotype, or ability.
 Instruction emphasis: ${emphasis} (${snapshot.intensity}/100). This is NOT a deterministic probability of behavior.
 Respect safety, explicit scenario constraints, the individual's goals and observed behavior over this layer. Never modify assessment scores because of cultural dimensions.
-${lines.join("\n")}
+${snapshot.origin ? "These are unvalidated editorial estimates, NOT official Erin Meyer scores or individual measurements. Individual biography, professional role, organization and explicit overrides take precedence over this starting prior.\n" : ""}${lines.join("\n")}
 [/CULTURE_CONTEXT]`;
 }
 

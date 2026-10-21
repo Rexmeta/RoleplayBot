@@ -1,3 +1,4 @@
+import { CultureOriginNotice } from "./CultureOriginNotice";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -152,6 +153,7 @@ export function ActorCultureEditor({ value, onChange, onValidityChange, actorKey
 
       {enabled && !profileId && <p role="alert" className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">프로필을 선택해야 시나리오를 저장할 수 있습니다.</p>}
       {enabled && profileId && !selectedContent && !versionsQuery.isLoading && <p role="alert" className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">선택한 버전의 내용을 불러올 수 없습니다. 기록을 다시 시도하거나 다른 버전을 선택하세요.</p>}
+      <CultureOriginNotice origin={selectedContent?.origin ?? snapshot?.origin} />
       {selectedContent && <div className="rounded border border-slate-200 bg-white p-3">
         <div className="flex items-baseline justify-between gap-2"><h4 className="text-sm font-semibold">{selectedContent.name}</h4><span className="text-xs text-slate-500">v{selectedVersion} 기준 차원</span></div>
         <p className="text-xs text-slate-500">{selectedContent.country}{selectedContent.region ? ` · ${selectedContent.region}` : ""}</p>

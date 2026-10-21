@@ -45,7 +45,7 @@ Preferred communication style: Simple, everyday language.
   - `conversationLedger.ts` — `conversation_ledger_runs`, `conversation_ledger_utterances`, `conversation_ledger_events`, `conversation_ledger_snapshots`, `conversation_ledger_reports` (default-off rollout; existing sessions are never enrolled or migrated automatically; see `docs/conversation-ledger.md`)
   - `scenarios.ts` — `scenarios`, `scenario_versions`, `scenario_runs`, `scenario_overrides`
   - `personas.ts` — `mbti_personas`, `user_personas`, `user_persona_likes`, `persona_user_scenes`
-  - `cultureMap.ts` — `culture_profiles`, `culture_profile_versions` (independent user-defined Culture Map profiles; immutable Actor snapshots; no unverified national score seeds)
+  - `cultureMap.ts` — `culture_profiles`, `culture_profile_versions` (independent custom profiles and 47 explicitly unvalidated RoleplayX editorial country baselines; immutable Actor snapshots; no official Erin Meyer score claims)
   - `feedback.ts` — `feedbacks`, `evaluation_criteria_sets`, `evaluation_dimensions`, `few_shot_examples`, `criteria_set_few_shot_examples`
   - `analytics.ts` — `ai_usage_logs`, `hr_benchmark_targets`
   - `billing.ts` — `plans`, `subscriptions`

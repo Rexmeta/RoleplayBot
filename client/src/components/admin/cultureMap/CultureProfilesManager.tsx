@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CULTURE_DIMENSIONS, CULTURE_DISCLAIMER, newCultureValues } from "@shared/cultureMap";
+import { CULTURE_DIMENSIONS, CULTURE_DISCLAIMER, EDITORIAL_CULTURE_NOTICE, isSystemCultureProfile, newCultureValues } from "@shared/cultureMap";
 import type { CultureProfile, CultureProfileInput, CultureSource, CultureValues } from "@shared/cultureMap";
 import { AlertTriangle, Copy, History, Plus, Search, Trash2 } from "lucide-react";
+import { CultureOriginNotice } from "./CultureOriginNotice";
 
 type VersionEntry = { version: number; content: CultureProfileInput; createdAt: string };
 const emptyInput = (): CultureProfileInput => ({
@@ -62,7 +63,10 @@ export function CultureProfilesManager() {
   });
   const duplicateMutation = useMutation({
     mutationFn: async (id: string) => (await apiRequest("POST", `/api/admin/culture-profiles/${id}/duplicate`)).json(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: listKey }),
+    onSuccess: (clone: CultureProfile) => {
+      queryClient.invalidateQueries({ queryKey: listKey });
+      beginEdit(clone);
+    },
     onError: async (error) => setErrorText(await readError(error)),
   });
   const deleteMutation = useMutation({
@@ -76,7 +80,7 @@ export function CultureProfilesManager() {
   });
 
   const profiles = profilesQuery.data ?? [];
-  const readOnly = !!editing && !isAdmin && editing.ownerId !== user?.id;
+  const readOnly = !!editing && (isSystemCultureProfile(editing) || (!isAdmin && editing.ownerId !== user?.id));
   const filtered = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
     return profiles.filter((profile) => !q || [profile.name, profile.country, profile.region].some((part) => part.toLocaleLowerCase().includes(q)));
@@ -95,6 +99,7 @@ export function CultureProfilesManager() {
       dimensions: { ...profile.dimensions },
       sources: profile.sources.map(({ title, url, locator, note }) => ({ title, url, locator, note })),
       visibility: profile.visibility,
+      ...(profile.origin ? { origin: profile.origin } : {}),
     });
     setErrorText("");
   };
@@ -135,26 +140,29 @@ export function CultureProfilesManager() {
           {profilesQuery.isLoading ? <div className="space-y-2" aria-label="프로필 로딩 중">{[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse rounded-md bg-slate-100" />)}</div>
             : profilesQuery.isError ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">프로필을 불러오지 못했습니다.<Button variant="link" onClick={() => profilesQuery.refetch()}>다시 시도</Button></div>
             : filtered.length === 0 ? <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center"><p className="font-medium text-slate-700">{profiles.length ? "검색 결과가 없습니다" : "아직 프로필이 없습니다"}</p><p className="mt-1 text-sm text-slate-500">직접 정의한 문화 행동 컨텍스트를 추가하세요.</p></div>
-            : <ul className="space-y-2">{filtered.map((profile) => (
+            : <><p className="text-xs text-slate-500">{filtered.length}개 프로필</p>{profiles.some(p => p.origin) && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">{EDITORIAL_CULTURE_NOTICE} 공식 점수가 아니며 검토가 필요한 초안입니다.</p>}<ul className="space-y-2">{filtered.map((profile) => (
               <li key={profile.id} className={`rounded-md border p-3 ${editing?.id === profile.id ? "border-teal-500 bg-teal-50/60" : "border-slate-200 bg-white"}`}>
                 <button type="button" onClick={() => beginEdit(profile)} className="w-full text-left">
                   <span className="flex items-center justify-between gap-2"><span className="font-semibold text-slate-900">{profile.name}</span><span className="text-xs text-slate-500">v{profile.version}</span></span>
                   <span className="mt-1 block text-sm text-slate-600">{profile.country}{profile.region ? ` · ${profile.region}` : ""}</span>
                   <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{profile.visibility === "shared" ? "공유" : "비공개"}</span>
+                  {profile.origin && <span className="mt-1 block text-xs text-amber-800">{isSystemCultureProfile(profile) ? "시스템 기본" : "사용자 정의 · 추정 데이터에서 복제"} · 자체 추정 · 검토 필요 · 신뢰도 {({ low: "낮음", medium: "중간", high: "높음" })[profile.origin.originalProfile.confidence]} · 데이터 v{profile.origin.originalProfile.profileVersion}</span>}
                 </button>
                 <div className="mt-2 flex flex-wrap gap-1">
                   <Button type="button" variant="ghost" size="sm" className="h-8 gap-1" onClick={() => duplicateMutation.mutate(profile.id)} disabled={duplicateMutation.isPending}><Copy className="h-3.5 w-3.5" />복제</Button>
                   <Button type="button" variant="ghost" size="sm" className="h-8 gap-1" onClick={() => setHistoryTarget(profile)}><History className="h-3.5 w-3.5" />기록</Button>
-                  {(isAdmin || profile.ownerId === user?.id) && <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-red-700 hover:text-red-800" onClick={() => setDeleteTarget(profile)}><Trash2 className="h-3.5 w-3.5" />삭제</Button>}
+                  {!isSystemCultureProfile(profile) && (isAdmin || profile.ownerId === user?.id) && <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-red-700 hover:text-red-800" onClick={() => setDeleteTarget(profile)}><Trash2 className="h-3.5 w-3.5" />삭제</Button>}
                 </div>
               </li>
-            ))}</ul>}
+            ))}</ul></>}
         </aside>
         <div className="min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-6">
           <div className="mb-5 flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
             <div><h3 className="text-lg font-semibold text-slate-900">{editing ? "프로필 편집" : "새 프로필"}</h3><p className="text-sm text-slate-500">8개 차원은 프로필의 행동 경향을 정의합니다.</p></div>
-            {isAdmin && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.visibility === "shared"} onChange={(event) => setField("visibility", event.target.checked ? "shared" : "private")} />공유 프로필</label>}
+            {isAdmin && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.visibility === "shared"} disabled={readOnly} onChange={(event) => setField("visibility", event.target.checked ? "shared" : "private")} />공유 프로필</label>}
           </div>
+          <div className="mb-4"><CultureOriginNotice origin={draft.origin} /></div>
+          {editing && isSystemCultureProfile(editing) && <div className="mb-4 flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm"><span>시스템 기본 프로필은 읽기 전용입니다. 수정하려면 복제하세요.</span><Button type="button" variant="outline" size="sm" disabled={duplicateMutation.isPending} onClick={() => duplicateMutation.mutate(editing.id)}>복제 후 편집</Button></div>}
           <div className="grid gap-4 sm:grid-cols-2">
             <div><Label htmlFor="culture-name">프로필 이름 *</Label><Input id="culture-name" value={draft.name} maxLength={150} disabled={readOnly} onChange={(event) => setField("name", event.target.value)} /></div>
             <div><Label htmlFor="culture-country">국가/문화권 *</Label><Input id="culture-country" value={draft.country} maxLength={100} disabled={readOnly} onChange={(event) => setField("country", event.target.value)} /></div>
@@ -182,7 +190,7 @@ export function CultureProfilesManager() {
           </div>
           <div className="mt-6 flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
             {editing && <Button type="button" variant="outline" onClick={beginCreate}>새 프로필</Button>}
-            {readOnly && <p className="self-center text-sm text-slate-600">공유 프로필은 관리자만 수정할 수 있습니다.</p>}
+            {readOnly && <p className="self-center text-sm text-slate-600">{editing && isSystemCultureProfile(editing) ? "시스템 기본 프로필은 복제 후 수정할 수 있습니다." : "공유 프로필은 관리자만 수정할 수 있습니다."}</p>}
             <Button type="button" onClick={save} disabled={readOnly || saveMutation.isPending}>{saveMutation.isPending ? "저장 중…" : editing ? "변경 저장" : "프로필 생성"}</Button>
           </div>
           {editing && <p className="mt-2 text-right text-xs text-slate-500">수정 시 v{editing.version}을 기준으로 저장합니다.</p>}

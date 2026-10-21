@@ -20,6 +20,9 @@ import createCultureMapRouter from "../../server/routes/cultureMap";
 import { buildActorCultureLayer, buildScenarioCultureLayer } from "../../server/services/cultureMap/prompt";
 import { resolveRuntimeScenario } from "../../server/services/runtimeScenario";
 import { buildSystemInstructions, buildReconnectSystemInstructions } from "../../server/services/voice/systemPromptBuilder";
+import { countryCultureDataset, countryCultureSeedProfiles, datasetDimensionsToApp, countrySeedId } from "../../server/services/cultureMap/dataset";
+import { seedCountryCultureProfiles } from "../../server/services/cultureMap/seed";
+import { SYSTEM_CULTURE_OWNER_ID } from "../../shared/cultureMap";
 
 const owner = { id: "operator-owner", role: "operator" };
 const other = { id: "other-operator", role: "operator" };
@@ -35,6 +38,26 @@ const snapshot = (value = 80) => cultureSnapshotSchema.parse({
 });
 
 describe("Culture Map pure contracts", () => {
+  it("validates all 47 country names and preserves each original record while explicitly adapting the reversed persuasion scale", () => {
+    const original = JSON.parse(readFileSync("server/data/culture-map/roleplayx-2026.json", "utf8"));
+    expect(countryCultureSeedProfiles).toHaveLength(47);
+    expect(new Set(countryCultureSeedProfiles.map(p => p.id)).size).toBe(47);
+    countryCultureDataset.profiles.forEach((profile, index) => {
+      const seeded = countryCultureSeedProfiles[index];
+      expect(seeded.id).toBe(countrySeedId(profile));
+      expect(seeded.content.name).toBe(profile.countryNameKo);
+      expect(seeded.content.visibility).toBe("shared");
+      expect(seeded.content.origin?.originalProfile).toEqual(original.profiles[index]);
+      expect(seeded.content.origin?.axisTransforms).toEqual(["persuading:100-x"]);
+      expect(seeded.content.dimensions).toEqual({ ...profile.dimensions, persuading: 100 - profile.dimensions.persuading });
+      expect(cultureProfileInputSchema.safeParse(seeded.content).success).toBe(true);
+      expect(seeded.content.sources).toHaveLength(profile.sourceIds.length);
+    });
+    const us = countryCultureSeedProfiles.find(p => p.content.origin!.originalProfile.countryCode === "US")!;
+    expect(us.content.origin!.originalProfile.dimensions.persuading).toBe(20);
+    expect(us.content.dimensions.persuading).toBe(80);
+    expect(datasetDimensionsToApp(datasetDimensionsToApp(us.content.dimensions))).toEqual(us.content.dimensions);
+  });
   it("requires all eight bounded, finite dimensions and rejects untrusted source URLs", () => {
     expect(cultureProfileInputSchema.safeParse(content()).success).toBe(true);
     for (const invalid of [-1, 101, NaN, Infinity, "10"]) {
@@ -110,6 +133,54 @@ describe.skipIf(!process.env.DATABASE_URL)("Culture Map PostgreSQL + HTTP", () =
     holder.database = drizzle(client);
   });
   afterEach(async () => { await client?.end(); });
+  it("seeds exactly 47 shared countries with initial history, never duplicates or overwrites custom/edited/deleted records", async () => {
+    const custom = await createCultureProfile({ ...content(), name: "대한민국" }, owner);
+    expect(await seedCountryCultureProfiles(holder.database)).toEqual({ total: 47, inserted: 47, preserved: 0 });
+    expect(await seedCountryCultureProfiles(holder.database)).toEqual({ total: 47, inserted: 0, preserved: 47 });
+    const rows = (await listCultureProfiles(admin)).filter(p => p.ownerId === SYSTEM_CULTURE_OWNER_ID);
+    expect(rows).toHaveLength(47);
+    for (const profile of rows) {
+      const expected = countryCultureSeedProfiles.find(p => p.id === profile.id)!;
+      expect(profile.name).toBe(expected.content.name);
+      expect(profile.dimensions).toEqual(expected.content.dimensions);
+      expect(profile.origin).toEqual(expected.content.origin);
+      expect((await listCultureVersions(profile.id, owner))[0].content).toEqual(expected.content);
+    }
+    const first = rows[0];
+    await client.query("UPDATE culture_profiles SET version=2, content=jsonb_set(content, '{description}', '\"preserve operator edit\"') WHERE id=$1", [first.id]);
+    await client.query("UPDATE culture_profiles SET is_deleted=true WHERE id=$1", [rows[1].id]);
+    await seedCountryCultureProfiles(holder.database);
+    expect((await getCultureProfile(first.id, admin)).description).toBe("preserve operator edit");
+    expect((await getCultureProfile(first.id, admin)).version).toBe(2);
+    await expect(getCultureProfile(rows[1].id, admin)).rejects.toMatchObject({ statusCode: 404 });
+    expect((await getCultureProfile(custom.id, owner)).name).toBe("대한민국");
+    expect((await getCultureProfile(custom.id, owner)).version).toBe(1);
+    expect((await client.query("SELECT COUNT(*)::int AS n FROM culture_profiles")).rows[0].n).toBe(48);
+  }, 20000);
+  it("makes country originals read-only even for admins, allows independent private clones and freezes provenance in Actor snapshots", async () => {
+    await seedCountryCultureProfiles(holder.database);
+    const baseline = countryCultureSeedProfiles.find(p => p.content.origin!.originalProfile.countryCode === "US")!;
+    await expect(updateCultureProfile(baseline.id, baseline.content, 1, admin)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(deleteCultureProfile(baseline.id, 1, admin)).rejects.toMatchObject({ statusCode: 403 });
+    const clone = await duplicateCultureProfile(baseline.id, owner);
+    expect(clone.visibility).toBe("private");
+    expect(clone.origin).toEqual(baseline.content.origin);
+    await updateCultureProfile(clone.id, { ...baseline.content, visibility: "private", dimensions: newCultureValues() }, 1, owner);
+    expect((await getCultureProfile(baseline.id, owner)).dimensions.persuading).toBe(80);
+    expect((await getCultureProfile(clone.id, owner)).dimensions.persuading).toBe(50);
+    const saved = await bindActorCultures([{ id: "actor", culture: { enabled: true, profileId: clone.id, profileVersion: 2, intensity: 70, overrides: {} } }], owner);
+    expect(saved[0].culture.origin).toEqual(baseline.content.origin);
+    const prompt = buildActorCultureLayer(saved[0]);
+    expect(prompt).toContain("unvalidated editorial estimates");
+    expect(prompt).not.toContain(baseline.content.origin!.originalProfile.notesKo);
+    await deleteCultureProfile(clone.id, 2, owner);
+    expect(await bindActorCultures(saved, owner, saved)).toEqual(saved);
+  }, 20000);
+  it("rolls back baseline insertion if its version history cannot be written", async () => {
+    await client.query("ALTER TABLE culture_profile_versions ADD CONSTRAINT reject_seed CHECK (content->>'visibility' <> 'shared')");
+    await expect(seedCountryCultureProfiles(holder.database)).rejects.toThrow();
+    expect((await client.query("SELECT COUNT(*)::int AS n FROM culture_profiles")).rows[0].n).toBe(0);
+  });
   it("creates, versions, clones and soft deletes without destroying version history", async () => {
     const created = await createCultureProfile(content(), owner);
     expect(created.version).toBe(1);

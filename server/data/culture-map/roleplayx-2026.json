@@ -1,0 +1,1555 @@
+{
+  "dataset": "RoleplayX Culture Map 2026 — Editorial Estimates",
+  "createdOn": "2026-10-21",
+  "importantNotice": "These are model-authored heuristic scores, NOT Erin Meyer official national scores, NOT directly computed from cross-country surveys, and NOT measurements of individuals.",
+  "scale": {
+    "range": [
+      0,
+      100
+    ],
+    "neutral": 50,
+    "precision": 5,
+    "axes": [
+      {
+        "key": "communicating",
+        "ko": "커뮤니케이션",
+        "low": "저맥락·명시적",
+        "high": "고맥락·암묵적"
+      },
+      {
+        "key": "evaluating",
+        "ko": "부정 피드백",
+        "low": "직접적",
+        "high": "간접적"
+      },
+      {
+        "key": "persuading",
+        "ko": "설득",
+        "low": "적용 우선",
+        "high": "원리 우선"
+      },
+      {
+        "key": "leading",
+        "ko": "리더십",
+        "low": "평등주의",
+        "high": "위계주의"
+      },
+      {
+        "key": "deciding",
+        "ko": "의사결정",
+        "low": "합의형",
+        "high": "하향식"
+      },
+      {
+        "key": "trusting",
+        "ko": "신뢰 형성",
+        "low": "업무 기반",
+        "high": "관계 기반"
+      },
+      {
+        "key": "disagreeing",
+        "ko": "이견 표현",
+        "low": "공개적 논쟁",
+        "high": "갈등 회피"
+      },
+      {
+        "key": "scheduling",
+        "ko": "시간 관리",
+        "low": "선형적 일정",
+        "high": "유연한 일정"
+      }
+    ]
+  },
+  "method": "Qualitative literature synthesis, interpreted into 5-point synthetic scores. Confidence refers to robustness of interpretation, not statistical confidence. No quantitative time-series model was estimated.",
+  "sources": [
+    {
+      "id": "erin_framework",
+      "title": "Erin Meyer official Corporate Mapping Tool dimensions",
+      "url": "https://erinmeyer.com/corporate-mapping-tool-report/",
+      "usage": "eight dimension definitions and qualitative archetypes only"
+    },
+    {
+      "id": "wvs_2024",
+      "title": "Joint EVS/WVS 2017–2022 v5.0 (published 2024)",
+      "url": "https://www.worldvaluessurvey.org/WVSEVSjoint2017.jsp",
+      "usage": "broad values and authority context; not 1:1 mapping to culture scales"
+    },
+    {
+      "id": "globe",
+      "title": "GLOBE culture and leadership research",
+      "url": "https://www.globeproject.com/results/countries/KOR%3Fmenu%3Dlist.html",
+      "usage": "power distance and related culture constructs; not direct equivalent"
+    },
+    {
+      "id": "gallup_2026",
+      "title": "Gallup State of the Global Workplace 2026",
+      "url": "https://www.gallup.com/workplace/697850/state-of-the-global-workplace-regional-data.aspx",
+      "usage": "contemporary workplace context only; engagement not converted into culture dimension scores"
+    },
+    {
+      "id": "wvs_map",
+      "title": "World Values Survey cultural map",
+      "url": "https://worldvaluessurvey.org/WVSContents.jsp?CMSID=Findings",
+      "usage": "macro cultural pattern cross-check only"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "culture-kr-2026-v1",
+      "countryCode": "KR",
+      "countryNameKo": "대한민국",
+      "region": "East Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 75,
+        "persuading": 50,
+        "leading": 75,
+        "deciding": 65,
+        "trusting": 70,
+        "disagreeing": 75,
+        "scheduling": 40
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "위계·맥락과 빠른 실행이 공존; 산업·세대에 따른 편차가 큼",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-jp-2026-v1",
+      "countryCode": "JP",
+      "countryNameKo": "일본",
+      "region": "East Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 90,
+        "evaluating": 85,
+        "persuading": 55,
+        "leading": 80,
+        "deciding": 20,
+        "trusting": 75,
+        "disagreeing": 85,
+        "scheduling": 20
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "사전 조율과 합의 형성, 높은 일정 예측성",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-cn-2026-v1",
+      "countryCode": "CN",
+      "countryNameKo": "중국",
+      "region": "East Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 80,
+        "evaluating": 75,
+        "persuading": 55,
+        "leading": 80,
+        "deciding": 85,
+        "trusting": 80,
+        "disagreeing": 80,
+        "scheduling": 65
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "관계와 위계, 의사결정의 중앙집중; 기술기업은 예외 가능",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-tw-2026-v1",
+      "countryCode": "TW",
+      "countryNameKo": "대만",
+      "region": "East Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 70,
+        "persuading": 50,
+        "leading": 65,
+        "deciding": 55,
+        "trusting": 75,
+        "disagreeing": 70,
+        "scheduling": 50
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "관계와 완곡한 피드백을 가정하되 산업 차이 유의",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-hk-2026-v1",
+      "countryCode": "HK",
+      "countryNameKo": "홍콩",
+      "region": "East Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 65,
+        "evaluating": 55,
+        "persuading": 35,
+        "leading": 65,
+        "deciding": 70,
+        "trusting": 55,
+        "disagreeing": 55,
+        "scheduling": 40
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "국제 금융 중심의 직접성과 중국권 맥락이 혼합",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-sg-2026-v1",
+      "countryCode": "SG",
+      "countryNameKo": "싱가포르",
+      "region": "Southeast Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 55,
+        "evaluating": 65,
+        "persuading": 35,
+        "leading": 65,
+        "deciding": 65,
+        "trusting": 50,
+        "disagreeing": 65,
+        "scheduling": 25
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "국제업무의 명료함과 조직 위계, 일정 엄수 혼합",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-my-2026-v1",
+      "countryCode": "MY",
+      "countryNameKo": "말레이시아",
+      "region": "Southeast Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 80,
+        "persuading": 40,
+        "leading": 75,
+        "deciding": 75,
+        "trusting": 80,
+        "disagreeing": 85,
+        "scheduling": 65
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "관계·체면·위계 가설; 다언어·다문화 편차 큼",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-id-2026-v1",
+      "countryCode": "ID",
+      "countryNameKo": "인도네시아",
+      "region": "Southeast Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 80,
+        "evaluating": 85,
+        "persuading": 40,
+        "leading": 80,
+        "deciding": 75,
+        "trusting": 85,
+        "disagreeing": 90,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "관계 및 체면 기반 완곡한 소통 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-th-2026-v1",
+      "countryCode": "TH",
+      "countryNameKo": "태국",
+      "region": "Southeast Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 80,
+        "evaluating": 85,
+        "persuading": 40,
+        "leading": 80,
+        "deciding": 70,
+        "trusting": 80,
+        "disagreeing": 90,
+        "scheduling": 70
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "갈등 회피·위계적 상호작용 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-vn-2026-v1",
+      "countryCode": "VN",
+      "countryNameKo": "베트남",
+      "region": "Southeast Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 75,
+        "persuading": 40,
+        "leading": 80,
+        "deciding": 75,
+        "trusting": 80,
+        "disagreeing": 80,
+        "scheduling": 65
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "위계와 관계 중심, 국제업무에서 변동",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-ph-2026-v1",
+      "countryCode": "PH",
+      "countryNameKo": "필리핀",
+      "region": "Southeast Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 65,
+        "evaluating": 80,
+        "persuading": 30,
+        "leading": 75,
+        "deciding": 70,
+        "trusting": 80,
+        "disagreeing": 80,
+        "scheduling": 65
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "영어 사용과 관계·체면 중심 행동이 공존",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-in-2026-v1",
+      "countryCode": "IN",
+      "countryNameKo": "인도",
+      "region": "South Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 75,
+        "persuading": 50,
+        "leading": 80,
+        "deciding": 75,
+        "trusting": 80,
+        "disagreeing": 75,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "위계·관계·유연한 시간, 대기업·스타트업 편차",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-pk-2026-v1",
+      "countryCode": "PK",
+      "countryNameKo": "파키스탄",
+      "region": "South Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 80,
+        "evaluating": 80,
+        "persuading": 45,
+        "leading": 85,
+        "deciding": 75,
+        "trusting": 85,
+        "disagreeing": 85,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "고맥락과 위계 가설, 편차 큼",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-bd-2026-v1",
+      "countryCode": "BD",
+      "countryNameKo": "방글라데시",
+      "region": "South Asia",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 80,
+        "evaluating": 80,
+        "persuading": 45,
+        "leading": 85,
+        "deciding": 75,
+        "trusting": 85,
+        "disagreeing": 85,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "고맥락과 위계 가설, 편차 큼",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-us-2026-v1",
+      "countryCode": "US",
+      "countryNameKo": "미국",
+      "region": "North America",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 15,
+        "evaluating": 25,
+        "persuading": 20,
+        "leading": 30,
+        "deciding": 70,
+        "trusting": 20,
+        "disagreeing": 30,
+        "scheduling": 20
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "명료한 메시지, 빠른 결정, 업무 중심 신뢰; 지역 편차",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-ca-2026-v1",
+      "countryCode": "CA",
+      "countryNameKo": "캐나다",
+      "region": "North America",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 20,
+        "evaluating": 45,
+        "persuading": 25,
+        "leading": 25,
+        "deciding": 45,
+        "trusting": 25,
+        "disagreeing": 50,
+        "scheduling": 20
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "명료하되 미국 대비 피드백 완곡, 합의 성향",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-mx-2026-v1",
+      "countryCode": "MX",
+      "countryNameKo": "멕시코",
+      "region": "Latin America",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 80,
+        "persuading": 40,
+        "leading": 75,
+        "deciding": 70,
+        "trusting": 85,
+        "disagreeing": 80,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "체면·관계·유연한 일정 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-br-2026-v1",
+      "countryCode": "BR",
+      "countryNameKo": "브라질",
+      "region": "Latin America",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 70,
+        "persuading": 40,
+        "leading": 70,
+        "deciding": 65,
+        "trusting": 85,
+        "disagreeing": 60,
+        "scheduling": 85
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "관계 신뢰와 시간 유연성, 공개적 토론도 존재",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-ar-2026-v1",
+      "countryCode": "AR",
+      "countryNameKo": "아르헨티나",
+      "region": "Latin America",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 65,
+        "evaluating": 45,
+        "persuading": 55,
+        "leading": 65,
+        "deciding": 60,
+        "trusting": 75,
+        "disagreeing": 35,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "논쟁적 토론과 관계 중심 신뢰가 혼합",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-cl-2026-v1",
+      "countryCode": "CL",
+      "countryNameKo": "칠레",
+      "region": "Latin America",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 70,
+        "evaluating": 70,
+        "persuading": 45,
+        "leading": 70,
+        "deciding": 65,
+        "trusting": 80,
+        "disagreeing": 70,
+        "scheduling": 65
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "위계·관계 중심, 일정 규범은 조직별 차이",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-co-2026-v1",
+      "countryCode": "CO",
+      "countryNameKo": "콜롬비아",
+      "region": "Latin America",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 80,
+        "persuading": 40,
+        "leading": 75,
+        "deciding": 70,
+        "trusting": 85,
+        "disagreeing": 80,
+        "scheduling": 80
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "신뢰 구축에 개인 관계 비중 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-pe-2026-v1",
+      "countryCode": "PE",
+      "countryNameKo": "페루",
+      "region": "Latin America",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 80,
+        "persuading": 45,
+        "leading": 75,
+        "deciding": 70,
+        "trusting": 85,
+        "disagreeing": 80,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "관계와 위계 가설, 도시·산업 간 이질성",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-gb-2026-v1",
+      "countryCode": "GB",
+      "countryNameKo": "영국",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 30,
+        "evaluating": 65,
+        "persuading": 30,
+        "leading": 35,
+        "deciding": 50,
+        "trusting": 25,
+        "disagreeing": 60,
+        "scheduling": 25
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "완곡한 비판과 실무 중심 신뢰, 일정 규범",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-ie-2026-v1",
+      "countryCode": "IE",
+      "countryNameKo": "아일랜드",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 35,
+        "evaluating": 55,
+        "persuading": 30,
+        "leading": 30,
+        "deciding": 45,
+        "trusting": 30,
+        "disagreeing": 55,
+        "scheduling": 30
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "명시적 업무소통과 완곡함의 혼합 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-de-2026-v1",
+      "countryCode": "DE",
+      "countryNameKo": "독일",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 20,
+        "evaluating": 15,
+        "persuading": 85,
+        "leading": 40,
+        "deciding": 30,
+        "trusting": 20,
+        "disagreeing": 20,
+        "scheduling": 10
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "원리 기반 논증, 합의 절차, 일정 준수",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-at-2026-v1",
+      "countryCode": "AT",
+      "countryNameKo": "오스트리아",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 25,
+        "evaluating": 20,
+        "persuading": 75,
+        "leading": 50,
+        "deciding": 40,
+        "trusting": 25,
+        "disagreeing": 25,
+        "scheduling": 15
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "독일어권 원리 중심·계획성 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-ch-2026-v1",
+      "countryCode": "CH",
+      "countryNameKo": "스위스",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 25,
+        "evaluating": 30,
+        "persuading": 75,
+        "leading": 40,
+        "deciding": 25,
+        "trusting": 25,
+        "disagreeing": 40,
+        "scheduling": 10
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "합의·계획성 중시, 언어권 차이 큼",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-fr-2026-v1",
+      "countryCode": "FR",
+      "countryNameKo": "프랑스",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 60,
+        "evaluating": 20,
+        "persuading": 90,
+        "leading": 70,
+        "deciding": 65,
+        "trusting": 50,
+        "disagreeing": 15,
+        "scheduling": 45
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "원리 중심 논증과 공개 토론, 상대적 위계",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-nl-2026-v1",
+      "countryCode": "NL",
+      "countryNameKo": "네덜란드",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 15,
+        "evaluating": 10,
+        "persuading": 35,
+        "leading": 15,
+        "deciding": 25,
+        "trusting": 20,
+        "disagreeing": 10,
+        "scheduling": 15
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "직접 피드백·평등주의·합의",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-be-2026-v1",
+      "countryCode": "BE",
+      "countryNameKo": "벨기에",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 45,
+        "evaluating": 40,
+        "persuading": 65,
+        "leading": 55,
+        "deciding": 35,
+        "trusting": 45,
+        "disagreeing": 40,
+        "scheduling": 30
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "지역·언어권에 따른 차이 큼",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-se-2026-v1",
+      "countryCode": "SE",
+      "countryNameKo": "스웨덴",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 25,
+        "evaluating": 55,
+        "persuading": 35,
+        "leading": 10,
+        "deciding": 15,
+        "trusting": 30,
+        "disagreeing": 55,
+        "scheduling": 20
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "평등한 발언·숙의형 합의·계획성",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-no-2026-v1",
+      "countryCode": "NO",
+      "countryNameKo": "노르웨이",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 25,
+        "evaluating": 55,
+        "persuading": 30,
+        "leading": 10,
+        "deciding": 20,
+        "trusting": 30,
+        "disagreeing": 55,
+        "scheduling": 20
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "평등주의와 협의형 결정",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-dk-2026-v1",
+      "countryCode": "DK",
+      "countryNameKo": "덴마크",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 20,
+        "evaluating": 35,
+        "persuading": 25,
+        "leading": 10,
+        "deciding": 25,
+        "trusting": 25,
+        "disagreeing": 30,
+        "scheduling": 20
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "상대적 평등주의와 직접적 대화",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-fi-2026-v1",
+      "countryCode": "FI",
+      "countryNameKo": "핀란드",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 15,
+        "evaluating": 30,
+        "persuading": 50,
+        "leading": 20,
+        "deciding": 30,
+        "trusting": 30,
+        "disagreeing": 45,
+        "scheduling": 15
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "명료함·사실 중심·시간 엄수 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-es-2026-v1",
+      "countryCode": "ES",
+      "countryNameKo": "스페인",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 65,
+        "evaluating": 40,
+        "persuading": 55,
+        "leading": 65,
+        "deciding": 55,
+        "trusting": 70,
+        "disagreeing": 35,
+        "scheduling": 70
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "비판의 명시성과 관계·시간 유연성 혼합",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-it-2026-v1",
+      "countryCode": "IT",
+      "countryNameKo": "이탈리아",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 65,
+        "evaluating": 35,
+        "persuading": 75,
+        "leading": 65,
+        "deciding": 60,
+        "trusting": 75,
+        "disagreeing": 30,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "원리적 설명, 활발한 이견, 관계 중심",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-pt-2026-v1",
+      "countryCode": "PT",
+      "countryNameKo": "포르투갈",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 65,
+        "evaluating": 60,
+        "persuading": 55,
+        "leading": 65,
+        "deciding": 60,
+        "trusting": 70,
+        "disagreeing": 60,
+        "scheduling": 65
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "관계와 완곡한 소통 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-pl-2026-v1",
+      "countryCode": "PL",
+      "countryNameKo": "폴란드",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 40,
+        "evaluating": 30,
+        "persuading": 60,
+        "leading": 65,
+        "deciding": 65,
+        "trusting": 40,
+        "disagreeing": 30,
+        "scheduling": 25
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "직접 소통·위계·일정 준수 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-cz-2026-v1",
+      "countryCode": "CZ",
+      "countryNameKo": "체코",
+      "region": "Europe",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 30,
+        "evaluating": 25,
+        "persuading": 65,
+        "leading": 45,
+        "deciding": 45,
+        "trusting": 35,
+        "disagreeing": 30,
+        "scheduling": 20
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "명시적 업무소통과 절차 중시 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-tr-2026-v1",
+      "countryCode": "TR",
+      "countryNameKo": "튀르키예",
+      "region": "Europe/Middle East",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 70,
+        "persuading": 60,
+        "leading": 80,
+        "deciding": 75,
+        "trusting": 85,
+        "disagreeing": 65,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "고맥락·관계·위계 가설",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-ae-2026-v1",
+      "countryCode": "AE",
+      "countryNameKo": "아랍에미리트",
+      "region": "Middle East",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 70,
+        "evaluating": 75,
+        "persuading": 40,
+        "leading": 80,
+        "deciding": 80,
+        "trusting": 80,
+        "disagreeing": 80,
+        "scheduling": 65
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "글로벌 인력 구성에 따른 편차가 특히 큼",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-sa-2026-v1",
+      "countryCode": "SA",
+      "countryNameKo": "사우디아라비아",
+      "region": "Middle East",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 80,
+        "evaluating": 80,
+        "persuading": 45,
+        "leading": 90,
+        "deciding": 85,
+        "trusting": 90,
+        "disagreeing": 85,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "위계·관계 가설; 변화 중인 산업환경 고려",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-il-2026-v1",
+      "countryCode": "IL",
+      "countryNameKo": "이스라엘",
+      "region": "Middle East",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 30,
+        "evaluating": 15,
+        "persuading": 45,
+        "leading": 20,
+        "deciding": 45,
+        "trusting": 45,
+        "disagreeing": 10,
+        "scheduling": 50
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "위계 낮고 반론이 활발한 토론 문화",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-za-2026-v1",
+      "countryCode": "ZA",
+      "countryNameKo": "남아프리카공화국",
+      "region": "Africa",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 50,
+        "evaluating": 55,
+        "persuading": 35,
+        "leading": 60,
+        "deciding": 60,
+        "trusting": 65,
+        "disagreeing": 55,
+        "scheduling": 50
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "다언어·다문화 특성상 국가평균 적용 위험",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-ng-2026-v1",
+      "countryCode": "NG",
+      "countryNameKo": "나이지리아",
+      "region": "Africa",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 75,
+        "evaluating": 70,
+        "persuading": 40,
+        "leading": 80,
+        "deciding": 80,
+        "trusting": 85,
+        "disagreeing": 75,
+        "scheduling": 75
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "관계·위계 가설, 지역/업종 차이 큼",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-au-2026-v1",
+      "countryCode": "AU",
+      "countryNameKo": "호주",
+      "region": "Oceania",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "medium",
+      "dimensions": {
+        "communicating": 20,
+        "evaluating": 30,
+        "persuading": 20,
+        "leading": 20,
+        "deciding": 50,
+        "trusting": 25,
+        "disagreeing": 25,
+        "scheduling": 25
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "낮은 위계와 직설적 업무 표현",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    },
+    {
+      "id": "culture-nz-2026-v1",
+      "countryCode": "NZ",
+      "countryNameKo": "뉴질랜드",
+      "region": "Oceania",
+      "schemaVersion": "1.0",
+      "profileVersion": "2026.1",
+      "profileType": "editorial_estimate",
+      "confidence": "low",
+      "dimensions": {
+        "communicating": 20,
+        "evaluating": 40,
+        "persuading": 25,
+        "leading": 20,
+        "deciding": 40,
+        "trusting": 30,
+        "disagreeing": 40,
+        "scheduling": 25
+      },
+      "context": "default_professional_workplace",
+      "notesKo": "낮은 위계, 실무적 소통, 비교적 협의적 결정",
+      "sourceIds": [
+        "erin_framework",
+        "wvs_2024",
+        "globe",
+        "gallup_2026",
+        "wvs_map"
+      ],
+      "individuationRule": "Country profile is only a starting prior; actor biography, professional role, organization, and user override take precedence.",
+      "reviewStatus": "draft_requires_validation"
+    }
+  ]
+}

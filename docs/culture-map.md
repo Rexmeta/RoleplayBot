@@ -3,8 +3,11 @@
 ## Authoring and boundaries
 
 The Culture Map tab is immediately after Scenario in `/admin-management`.
-All profiles are **user-defined**, not verified national averages. No national
-scores are seeded. Initial editor values of 50 are neutral authoring controls,
+Custom profiles are user-defined, not verified national averages. The uploaded
+RoleplayX dataset now supplies 47 shared **editorial estimates**, explicitly
+marked as unvalidated and NOT official Erin Meyer scores. See
+`culture-map-v2-audit.md` for import policy and axis conversion. Initial editor
+values of 50 remain neutral authoring controls,
 not evidence about a country. Source titles, URLs, page/section locators and
 notes are versioned alongside the eight dimensions.
 
@@ -65,7 +68,7 @@ are unchanged; cultural dimensions do not directly add or subtract points.
 `server/migrate.ts`. Existing Persona/Scenario table layouts are unchanged:
 the optional Actor property uses the existing scenario `personas` JSONB.
 
-No production publish, national data import or historical migration is part
+No production publish or historical scenario migration is part
 of this change. Run the normal numbered migrations in environments that use
 that migration channel; startup also ensures both new tables.
 
