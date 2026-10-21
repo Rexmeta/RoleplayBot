@@ -10,8 +10,7 @@ import { EvaluationCriteriaManager } from "@/components/admin/EvaluationCriteria
 import { ScenarioOverrideManager } from "@/components/admin/ScenarioOverrideManager";
 import { AppHeader } from "@/components/AppHeader";
 import { useAuth } from "@/hooks/useAuth";
-import { CultureProfilesManager } from "@/components/admin/cultureMap/CultureProfilesManager";
-import { CultureBehaviorExperiment } from "@/components/admin/cultureMap/CultureBehaviorExperiment";
+import { CultureMapWorkspace } from "@/components/admin/cultureMap/CultureMapWorkspace";
 
 export default function AdminManagement() {
   const { t } = useTranslation();
@@ -50,8 +49,7 @@ export default function AdminManagement() {
           </TabsContent>
 
           <TabsContent value="culture-map" className="space-y-6">
-            <CultureProfilesManager />
-            {isAdmin && <CultureBehaviorExperiment />}
+            <CultureMapWorkspace />
           </TabsContent>
 
           <TabsContent value="manage-personas" className="space-y-6">

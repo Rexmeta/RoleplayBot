@@ -296,6 +296,21 @@ describe("Culture Map actor and profile management", () => {
     expect(secondChange).not.toHaveBeenCalled();
   });
 
+  it("reveals and focuses a fresh editor from the prominent action, including repeated creation", async () => {
+    renderWithQuery(<CultureProfilesManager />);
+    fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트/ }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
+    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe(profile.name);
+    fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
+    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
+    fireEvent.change(screen.getByLabelText("프로필 이름 *"), { target: { value: "임시 초안" } });
+    fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
+    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
+    expect(apiRequest.mock.calls.some(([method]) => method !== "GET")).toBe(false);
+  });
+
   it("creates a profile through the management API", async () => {
     renderWithQuery(<CultureProfilesManager />);
     fireEvent.change(screen.getByLabelText("프로필 이름 *"), { target: { value: input.name } });

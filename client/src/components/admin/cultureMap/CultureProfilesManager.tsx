@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +35,16 @@ export function CultureProfilesManager() {
   const [errorText, setErrorText] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<CultureProfile | null>(null);
   const [historyTarget, setHistoryTarget] = useState<CultureProfile | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const revealEditor = () => {
+    requestAnimationFrame(() => {
+      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (nameInputRef.current && !nameInputRef.current.disabled) nameInputRef.current.focus({ preventScroll: true });
+      else editorRef.current?.focus({ preventScroll: true });
+    });
+  };
 
   const profilesQuery = useQuery<CultureProfile[]>({
     queryKey: listKey,
@@ -122,7 +132,12 @@ export function CultureProfilesManager() {
   const setField = <K extends keyof CultureProfileInput>(key: K, value: CultureProfileInput[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
-  const beginCreate = () => { setEditing(null); setDraft(emptyInput()); setErrorText(""); };
+  const beginCreate = () => {
+    setEditing(null);
+    setDraft(emptyInput());
+    setErrorText("");
+    revealEditor();
+  };
   const beginEdit = (profile: CultureProfile) => {
     setEditing(profile);
     setDraft({
@@ -136,6 +151,7 @@ export function CultureProfilesManager() {
       ...(profile.origin ? { origin: profile.origin } : {}),
     });
     setErrorText("");
+    revealEditor();
   };
   const save = () => {
     const missing = !draft.name.trim() || !draft.country.trim();
@@ -158,7 +174,7 @@ export function CultureProfilesManager() {
           <h2 className="mt-1 text-2xl font-semibold text-slate-900">문화 행동 컨텍스트</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">페르소나 정체성은 그대로 두고, 연습할 상황의 문화적 행동 경향을 별도 레이어로 작성합니다.</p>
         </div>
-        <Button type="button" onClick={beginCreate} className="gap-2"><Plus className="h-4 w-4" />프로필 만들기</Button>
+        <Button type="button" onClick={beginCreate} className="min-h-11 gap-2 px-5 font-semibold"><Plus className="h-4 w-4" />새 프로필 만들기</Button>
       </header>
       <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-950">
         <strong className="mr-1">사용 안내</strong>{CULTURE_DISCLAIMER}
@@ -174,7 +190,7 @@ export function CultureProfilesManager() {
         duplicatePending={duplicateMutation.isPending}
       />
       <div className="grid gap-5 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.4fr)]">
-        <aside className="space-y-3">
+        <aside className="order-2 min-w-0 space-y-3 lg:order-1">
           <CultureProfileFilters
             search={search}
             onSearchChange={setSearch}
@@ -187,7 +203,7 @@ export function CultureProfilesManager() {
           {profilesQuery.isLoading ? <div className="space-y-2" aria-label="프로필 로딩 중">{[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse rounded-md bg-slate-100" />)}</div>
             : profilesQuery.isError ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">프로필을 불러오지 못했습니다.<Button variant="link" onClick={() => profilesQuery.refetch()}>다시 시도</Button></div>
             : filtered.length === 0 ? <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center"><p className="font-medium text-slate-700">{profiles.length ? "조건에 맞는 프로필이 없습니다" : "아직 프로필이 없습니다"}</p><p className="mt-1 text-sm text-slate-500">{profiles.length ? "검색어, 지역 또는 신뢰도 조건을 바꿔 보세요. 비교 선택은 유지됩니다." : "직접 정의한 문화 행동 컨텍스트를 추가하세요."}</p>{profiles.length > 0 && <Button type="button" variant="link" className="mt-2" onClick={resetFilters}>필터 모두 초기화</Button>}</div>
-            : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p>{profiles.some(p => p.origin) && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">{EDITORIAL_CULTURE_NOTICE} 공식 점수가 아니며 검토가 필요한 초안입니다.</p>}<ul className="space-y-2">{filtered.map((profile) => (
+            : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p>{profiles.some(p => p.origin) && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">{EDITORIAL_CULTURE_NOTICE} 공식 점수가 아니며 검토가 필요한 초안입니다.</p>}<ul aria-label="문화 프로필 목록" className="max-h-[min(68dvh,46rem)] space-y-2 overflow-y-auto overscroll-contain pr-1">{filtered.map((profile) => (
               <li key={profile.id} className={`rounded-md border p-3 ${editing?.id === profile.id ? "border-teal-500 bg-teal-50/60" : "border-slate-200 bg-white"}`}>
                 <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                   <label className="flex min-w-0 items-center gap-2 text-xs font-medium text-slate-700">
@@ -218,7 +234,7 @@ export function CultureProfilesManager() {
               </li>
             ))}</ul></>}
         </aside>
-        <div className="min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-6">
+        <div ref={editorRef} tabIndex={-1} aria-label="문화 프로필 편집기" className="order-1 min-w-0 scroll-mt-4 rounded-md border border-slate-200 bg-white p-4 sm:p-6 lg:order-2">
           <div className="mb-5 flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
             <div><h3 className="text-lg font-semibold text-slate-900">{editing ? "프로필 편집" : "새 프로필"}</h3><p className="text-sm text-slate-500">8개 차원은 프로필의 행동 경향을 정의합니다.</p></div>
             {isAdmin && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.visibility === "shared"} disabled={readOnly} onChange={(event) => setField("visibility", event.target.checked ? "shared" : "private")} />공유 프로필</label>}
@@ -226,7 +242,7 @@ export function CultureProfilesManager() {
           <div className="mb-4"><CultureOriginNotice origin={draft.origin} /></div>
           {editing && isSystemCultureProfile(editing) && <div className="mb-4 flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm"><span>시스템 기본 프로필은 읽기 전용입니다. 수정하려면 복제하세요.</span><Button type="button" variant="outline" size="sm" disabled={duplicateMutation.isPending} onClick={() => duplicateMutation.mutate(editing.id)}>복제 후 편집</Button></div>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div><Label htmlFor="culture-name">프로필 이름 *</Label><Input id="culture-name" value={draft.name} maxLength={150} disabled={readOnly} onChange={(event) => setField("name", event.target.value)} /></div>
+             <div><Label htmlFor="culture-name">프로필 이름 *</Label><Input ref={nameInputRef} id="culture-name" value={draft.name} maxLength={150} disabled={readOnly} onChange={(event) => setField("name", event.target.value)} /></div>
             <div><Label htmlFor="culture-country">국가/문화권 *</Label><Input id="culture-country" value={draft.country} maxLength={100} disabled={readOnly} onChange={(event) => setField("country", event.target.value)} /></div>
             <div><Label htmlFor="culture-region">지역/맥락</Label><Input id="culture-region" value={draft.region} maxLength={100} disabled={readOnly} onChange={(event) => setField("region", event.target.value)} /></div>
             <div className="sm:col-span-2"><Label htmlFor="culture-description">설명</Label><Textarea id="culture-description" value={draft.description} maxLength={2000} rows={3} disabled={readOnly} onChange={(event) => setField("description", event.target.value)} /></div>
