@@ -16,9 +16,11 @@ import {
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
 import { buildRuleFallbackPatch, inferStagePatchFromState } from "../services/simulation/simulationRules";
 import { v4 as uuidv4 } from "uuid";
+import createCultureExperimentRouter from "./cultureExperiment";
 
 export default function createSimulationRouter(isAuthenticated: any) {
   const router = Router();
+  router.use(createCultureExperimentRouter(isAuthenticated));
 
   router.get("/:personaRunId/state", isAuthenticated, asyncHandler(async (req: any, res) => {
     const userId = req.user?.id;

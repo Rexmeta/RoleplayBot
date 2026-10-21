@@ -11,6 +11,7 @@ import { ScenarioOverrideManager } from "@/components/admin/ScenarioOverrideMana
 import { AppHeader } from "@/components/AppHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { CultureProfilesManager } from "@/components/admin/cultureMap/CultureProfilesManager";
+import { CultureBehaviorExperiment } from "@/components/admin/cultureMap/CultureBehaviorExperiment";
 
 export default function AdminManagement() {
   const { t } = useTranslation();
@@ -50,6 +51,7 @@ export default function AdminManagement() {
 
           <TabsContent value="culture-map" className="space-y-6">
             <CultureProfilesManager />
+            {isAdmin && <CultureBehaviorExperiment />}
           </TabsContent>
 
           <TabsContent value="manage-personas" className="space-y-6">

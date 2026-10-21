@@ -64,13 +64,14 @@ export class AIServiceFactory {
     return this.createServiceWithPolicy({ provider: this.getProviderFromModel(model), model });
   }
 
-  static createServiceWithPolicy(policy: AIModelPolicy): AIServiceInterface {
+  static createServiceWithPolicy(policy: AIModelPolicy, options: { strict?: boolean } = {}): AIServiceInterface {
     const { provider, model } = policy;
 
     switch (provider) {
       case 'openai':
         const openaiKey = process.env.OPENAI_API_KEY;
         if (!openaiKey) {
+          if (options.strict) throw new Error("Configured OpenAI provider is unavailable");
           console.warn('OPENAI_API_KEY not set, falling back to Gemini');
           return new OptimizedGeminiProvider(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '', 'gemini-2.5-flash');
         }
@@ -87,10 +88,12 @@ export class AIServiceFactory {
         );
 
       case 'claude':
+        if (options.strict) throw new Error("Configured provider does not support controlled comparisons");
         console.warn('Claude provider not implemented yet, falling back to Gemini');
         return new OptimizedGeminiProvider(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '', 'gemini-2.5-flash');
 
       default: // gemini
+        if (options.strict && provider !== 'gemini') throw new Error("Configured provider does not support controlled comparisons");
         const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
         if (!geminiKey) {
           throw new Error('GEMINI_API_KEY or GOOGLE_API_KEY is required');
@@ -157,7 +160,7 @@ export function parseAIModelPolicy(value: string, feature?: AIFeature): AIModelP
  * 특정 기능에 대한 AI 모델을 결정하는 단일 진입점
  * 우선순위: 기능별 환경변수 → 전역 환경변수 → DB 시스템 설정 → 기본값
  */
-async function getPolicyForFeature(feature: AIFeature): Promise<AIModelPolicy> {
+export async function getPolicyForFeature(feature: AIFeature): Promise<AIModelPolicy> {
   // 1. 기능별 환경변수 (예: AI_MODEL_CONVERSATION)
   const featureEnvModel = process.env[FEATURE_ENV_KEYS[feature]];
   if (featureEnvModel) return parseAIModelPolicy(featureEnvModel, feature);

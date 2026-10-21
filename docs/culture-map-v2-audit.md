@@ -78,13 +78,23 @@ future file with changed semantics fails rather than silently misapplying data.
 - `tests/server/cultureMap.test.ts`, `tests/client/cultureMap.test.tsx`
 - `docs/culture-map.md`, this audit, `replit.md`
 
-## Further roadmap items (not implemented in this import)
+## Further roadmap items (not implemented in the original import)
 
 The supplied brief additionally describes multi-country comparison charts,
 region/confidence filters, admin JSON/CSV import/export UI, generated behavioral
 examples, review workflows and controlled behavioral simulations. These are
 separate extensions. Actual paid-provider behavior and signed-in browser
 interactions must not be claimed as validated by unit tests.
+
+### Controlled behavior comparison extension
+
+The later controlled comparison tool is now available to system admins in the
+Culture Map tab. See [culture-map-experiments.md](culture-map-experiments.md) for
+operation, controls, costs, test evidence and limits. It reuses bound snapshots
+and the existing text streaming providers, not learner evaluation. This changes
+the implementation status of controlled behavioral simulations only; it does
+not establish empirical national validity or live-provider behavior. No actual
+paid-provider comparison was performed as part of implementation verification.
 
 ## Verification results
 
