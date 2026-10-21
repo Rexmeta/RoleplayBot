@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CULTURE_DIMENSIONS, CULTURE_DISCLAIMER, EDITORIAL_CULTURE_NOTICE, isSystemCultureProfile, newCultureValues } from "@shared/cultureMap";
 import type { CultureProfile, CultureProfileInput, CultureSource, CultureValues } from "@shared/cultureMap";
-import { AlertTriangle, Copy, History, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { CultureOriginNotice } from "./CultureOriginNotice";
 import { CultureProfileComparison } from "./CultureProfileComparison";
 import { CultureProfileFilters } from "./CultureProfileFilters";
 import { matchesCultureProfile } from "@shared/cultureComparison";
+import { CultureProfileCard } from "./CultureProfileCard";
 
 type VersionEntry = { version: number; content: CultureProfileInput; createdAt: string };
 const emptyInput = (): CultureProfileInput => ({
@@ -189,7 +190,7 @@ export function CultureProfilesManager() {
         onDuplicate={(profile) => duplicateMutation.mutate(profile.id)}
         duplicatePending={duplicateMutation.isPending}
       />
-      <div className="grid gap-5 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.4fr)]">
+      <div className="grid gap-5 lg:grid-cols-2">
         <aside className="order-2 min-w-0 space-y-3 lg:order-1">
           <CultureProfileFilters
             search={search}
@@ -203,35 +204,23 @@ export function CultureProfilesManager() {
           {profilesQuery.isLoading ? <div className="space-y-2" aria-label="프로필 로딩 중">{[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse rounded-md bg-slate-100" />)}</div>
             : profilesQuery.isError ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">프로필을 불러오지 못했습니다.<Button variant="link" onClick={() => profilesQuery.refetch()}>다시 시도</Button></div>
             : filtered.length === 0 ? <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center"><p className="font-medium text-slate-700">{profiles.length ? "조건에 맞는 프로필이 없습니다" : "아직 프로필이 없습니다"}</p><p className="mt-1 text-sm text-slate-500">{profiles.length ? "검색어, 지역 또는 신뢰도 조건을 바꿔 보세요. 비교 선택은 유지됩니다." : "직접 정의한 문화 행동 컨텍스트를 추가하세요."}</p>{profiles.length > 0 && <Button type="button" variant="link" className="mt-2" onClick={resetFilters}>필터 모두 초기화</Button>}</div>
-            : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p>{profiles.some(p => p.origin) && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">{EDITORIAL_CULTURE_NOTICE} 공식 점수가 아니며 검토가 필요한 초안입니다.</p>}<ul aria-label="문화 프로필 목록" className="max-h-[min(68dvh,46rem)] space-y-2 overflow-y-auto overscroll-contain pr-1">{filtered.map((profile) => (
-              <li key={profile.id} className={`rounded-md border p-3 ${editing?.id === profile.id ? "border-teal-500 bg-teal-50/60" : "border-slate-200 bg-white"}`}>
-                <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                  <label className="flex min-w-0 items-center gap-2 text-xs font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={comparisonIds.includes(profile.id)}
-                      disabled={!comparisonIds.includes(profile.id) && comparisonIds.length >= 5}
-                      onChange={() => toggleComparison(profile)}
-                      aria-label={`${profile.country} ${profile.name} 비교에 ${comparisonIds.includes(profile.id) ? "포함됨" : "추가"}`}
-                      className="h-4 w-4 accent-teal-700"
-                    />
-                    <span>비교에 포함</span>
-                  </label>
-                  {!comparisonIds.includes(profile.id) && comparisonIds.length >= 5 && <span className="text-right text-[11px] text-amber-800">최대 5개 선택됨 · 추가하려면 하나를 제거하세요</span>}
-                  {comparisonIds.includes(profile.id) && <span className="text-[11px] text-teal-800">비교 {comparisonIds.indexOf(profile.id) + 1}번</span>}
-                </div>
-                <button type="button" onClick={() => beginEdit(profile)} className="w-full text-left">
-                  <span className="flex items-center justify-between gap-2"><span className="font-semibold text-slate-900">{profile.name}</span><span className="text-xs text-slate-500">v{profile.version}</span></span>
-                  <span className="mt-1 block text-sm text-slate-600">{profile.country}{profile.region ? ` · ${profile.region}` : ""}</span>
-                  <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{profile.visibility === "shared" ? "공유" : "비공개"}</span>
-                  {profile.origin && <span className="mt-1 block text-xs text-amber-800">{isSystemCultureProfile(profile) ? "시스템 기본" : "사용자 정의 · 추정 데이터에서 복제"} · 자체 추정 · 검토 필요 · 신뢰도 {({ low: "낮음", medium: "중간", high: "높음" })[profile.origin.originalProfile.confidence]} · 데이터 v{profile.origin.originalProfile.profileVersion}</span>}
-                </button>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  <Button type="button" variant="ghost" size="sm" className="h-8 gap-1" onClick={() => duplicateMutation.mutate(profile.id)} disabled={duplicateMutation.isPending}><Copy className="h-3.5 w-3.5" />복제</Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-8 gap-1" onClick={() => setHistoryTarget(profile)}><History className="h-3.5 w-3.5" />기록</Button>
-                  {!isSystemCultureProfile(profile) && (isAdmin || profile.ownerId === user?.id) && <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-red-700 hover:text-red-800" onClick={() => setDeleteTarget(profile)}><Trash2 className="h-3.5 w-3.5" />삭제</Button>}
-                </div>
-              </li>
+            : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p>{profiles.some(p => p.origin) && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">{EDITORIAL_CULTURE_NOTICE} 공식 점수가 아니며 검토가 필요한 초안입니다.</p>}<ul aria-label="문화 프로필 목록" className="grid max-h-[min(68dvh,46rem)] grid-cols-1 gap-2 overflow-y-auto overscroll-contain pr-1 min-[560px]:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">{filtered.map((profile) => (
+              <CultureProfileCard
+                key={profile.id}
+                profile={profile}
+                selected={comparisonIds.includes(profile.id)}
+                comparisonIndex={comparisonIds.indexOf(profile.id) + 1}
+                comparisonLimitReached={comparisonIds.length >= 5}
+                isOwner={profile.ownerId === user?.id}
+                isAdmin={isAdmin}
+                isEditing={editing?.id === profile.id}
+                duplicatePending={duplicateMutation.isPending}
+                onToggleComparison={() => toggleComparison(profile)}
+                onInspect={() => beginEdit(profile)}
+                onDuplicate={() => duplicateMutation.mutate(profile.id)}
+                onHistory={() => setHistoryTarget(profile)}
+                onDelete={() => setDeleteTarget(profile)}
+              />
             ))}</ul></>}
         </aside>
         <div ref={editorRef} tabIndex={-1} aria-label="문화 프로필 편집기" className="order-1 min-w-0 scroll-mt-4 rounded-md border border-slate-200 bg-white p-4 sm:p-6 lg:order-2">

@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CultureProfile, CultureProfileInput, CultureSnapshot } from "@shared/cultureMap";
-import { SYSTEM_CULTURE_OWNER_ID, EDITORIAL_CULTURE_NOTICE } from "@shared/cultureMap";
+import { CULTURE_DIMENSIONS, SYSTEM_CULTURE_OWNER_ID, EDITORIAL_CULTURE_NOTICE } from "@shared/cultureMap";
 import { countryCultureSeedProfiles } from "../../server/services/cultureMap/dataset";
 
 const { apiRequest, invalidateQueries, authState } = vi.hoisted(() => ({
@@ -81,6 +81,46 @@ describe("Culture Map actor and profile management", () => {
     });
   });
   afterEach(cleanup);
+  it("shows all eight saved values on compact cards with title before the comparison control", async () => {
+    renderWithQuery(<CultureProfilesManager />);
+    const list = await screen.findByRole("list", { name: "문화 프로필 목록" });
+    const row = within(list).getAllByRole("listitem")[0];
+    const card = within(row);
+    expect(card.getAllByRole("meter")).toHaveLength(8);
+    for (const dimension of CULTURE_DIMENSIONS) {
+      const meter = card.getByRole("meter", { name: dimension.label });
+      expect(meter.getAttribute("aria-valuenow")).toBe(String(profile.dimensions[dimension.key]));
+      expect(meter.getAttribute("aria-valuemin")).toBe("0");
+      expect(meter.getAttribute("aria-valuemax")).toBe("100");
+      expect(meter.getAttribute("aria-valuetext")).toContain(`0: ${dimension.low}, 100: ${dimension.high}`);
+    }
+    const title = card.getByRole("button", { name: `${profile.name} 프로필 미리보기 및 편집` });
+    const compare = card.getByRole("checkbox");
+    expect(title.compareDocumentPosition(compare) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.getByText("비교", { exact: true })).toBeTruthy();
+    expect(card.queryByText("비교에 포함")).toBeNull();
+    expect(card.queryByRole("button", { name: "복제" })).toBeNull();
+    expect(card.queryByRole("button", { name: "기록" })).toBeNull();
+    expect(card.queryByRole("button", { name: "삭제" })).toBeNull();
+  });
+
+  it("prevents deleting system profiles from the keyboard-accessible card menu", async () => {
+    const user = userEvent.setup();
+    const seed = countryCultureSeedProfiles[0];
+    apiRequest.mockImplementation(() => response([{ ...seed.content, id: seed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1 }]));
+    renderWithQuery(<CultureProfilesManager />);
+    const menu = await screen.findByRole("button", { name: `${seed.content.name} 프로필 메뉴` });
+    menu.focus();
+    await user.keyboard("{Enter}");
+    const blocked = await screen.findByRole("menuitem", { name: "삭제할 수 없음" });
+    expect(blocked.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("menuitem", { name: "복제" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "기록" })).toBeTruthy();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(apiRequest.mock.calls.some(([method]) => method === "DELETE")).toBe(false);
+  });
+
   it("compares saved app dimensions and reverses signed deltas when the reference changes", async () => {
     renderWithQuery(<CultureProfilesManager />);
     fireEvent.click(await screen.findByRole("checkbox", { name: /한국 상황별 업무 컨텍스트 비교에 추가/ }));
@@ -298,7 +338,7 @@ describe("Culture Map actor and profile management", () => {
 
   it("reveals and focuses a fresh editor from the prominent action, including repeated creation", async () => {
     renderWithQuery(<CultureProfilesManager />);
-    fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트 프로필 미리보기 및 편집/ }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe(profile.name);
     fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
@@ -323,7 +363,7 @@ describe("Culture Map actor and profile management", () => {
 
   it("edits with only CultureProfileInput fields and expectedVersion", async () => {
     renderWithQuery(<CultureProfilesManager />);
-    fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트 프로필 미리보기 및 편집/ }));
     fireEvent.change(screen.getByLabelText("프로필 이름 *"), { target: { value: "편집된 컨텍스트" } });
     fireEvent.click(screen.getByRole("button", { name: "변경 저장" }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("PUT", "/api/admin/culture-profiles/profile-1", expect.any(Object)));
@@ -335,20 +375,26 @@ describe("Culture Map actor and profile management", () => {
   });
 
   it("supports profile clone and version-history viewing", async () => {
+    const user = userEvent.setup();
     renderWithQuery(<CultureProfilesManager />);
     const profileRow = within((await screen.findAllByRole("listitem"))[0]);
-    fireEvent.click(profileRow.getByRole("button", { name: "복제" }));
+    expect(profileRow.queryByRole("button", { name: "복제" })).toBeNull();
+    await user.click(profileRow.getByRole("button", { name: `${profile.name} 프로필 메뉴` }));
+    await user.click(await screen.findByRole("menuitem", { name: "복제" }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("POST", "/api/admin/culture-profiles/profile-1/duplicate"));
-    fireEvent.click(profileRow.getByRole("button", { name: "기록" }));
+    await user.click(profileRow.getByRole("button", { name: `${profile.name} 프로필 메뉴` }));
+    await user.click(await screen.findByRole("menuitem", { name: "기록" }));
     expect(await screen.findByRole("dialog", { name: /버전 기록/ })).toBeTruthy();
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("GET", "/api/admin/culture-profiles/profile-1/versions"));
     expect(screen.getByText(/버전 1 · 이전 문화 버전/)).toBeTruthy();
   });
 
   it("requires delete confirmation and sends the expected version", async () => {
+    const user = userEvent.setup();
     renderWithQuery(<CultureProfilesManager />);
     const profileRow = within((await screen.findAllByRole("listitem"))[0]);
-    fireEvent.click(profileRow.getByRole("button", { name: "삭제" }));
+    await user.click(profileRow.getByRole("button", { name: `${profile.name} 프로필 메뉴` }));
+    await user.click(await screen.findByRole("menuitem", { name: "삭제" }));
     const confirmation = screen.getByRole("alertdialog", { name: "프로필을 삭제할까요?" });
     fireEvent.click(within(confirmation).getByRole("button", { name: "삭제" }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("DELETE", "/api/admin/culture-profiles/profile-1", { expectedVersion: 2 }));
@@ -362,7 +408,7 @@ describe("Culture Map actor and profile management", () => {
       return response([]);
     });
     renderWithQuery(<CultureProfilesManager />);
-    fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트 프로필 미리보기 및 편집/ }));
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "변경 저장" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByLabelText("공유 프로필")).toBeNull();
