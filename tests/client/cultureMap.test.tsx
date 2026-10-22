@@ -27,7 +27,12 @@ vi.mock("@/components/ui/slider", () => ({ Slider: ({ value, onValueChange, ...p
 
 import { ActorCultureEditor } from "@/components/admin/cultureMap/ActorCultureEditor";
 import { CultureProfilesManager } from "@/components/admin/cultureMap/CultureProfilesManager";
+import { CultureMapWorkspace } from "@/components/admin/cultureMap/CultureMapWorkspace";
 import { getScenarioPersonaTemplateId, stableActorIdForTemplate } from "@/components/admin/cultureMap/actorIdentity";
+
+vi.mock("@/components/admin/cultureMap/CultureBehaviorExperiment", () => ({
+  CultureBehaviorExperiment: () => <div>문화 행동 실험 화면</div>,
+}));
 
 const dimensions = (communicating: number) => ({
   communicating, evaluating: 50, persuading: 50, leading: 50,
@@ -81,6 +86,41 @@ describe("Culture Map actor and profile management", () => {
     });
   });
   afterEach(cleanup);
+  it("places the single create action directly to the right of profile management and opens the existing popup", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<CultureMapWorkspace />);
+    const navigation = screen.getByRole("tablist", { name: "Culture Map 기능" });
+    const profilesTab = within(navigation).getByRole("tab", { name: "프로필 관리" });
+    const create = within(navigation).getByRole("button", { name: "새 프로필 만들기" });
+    const experimentTab = within(navigation).getByRole("tab", { name: "행동 실험" });
+    expect(profilesTab.nextElementSibling?.contains(create)).toBe(true);
+    expect(create.compareDocumentPosition(experimentTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "새 프로필 만들기" })).toHaveLength(1);
+    expect(within(screen.getByRole("region", { name: "Culture Map 프로필 관리" })).queryByRole("button", { name: "새 프로필 만들기" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(create);
+    expect(await screen.findByRole("dialog", { name: "새 프로필 만들기" })).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(document.activeElement).toBe(create));
+    expect(profilesTab.getAttribute("aria-selected")).toBe("true");
+    expect(apiRequest.mock.calls.some(([method]) => method !== "GET")).toBe(false);
+  });
+
+  it("keeps the tab-shaped create action working from the experiment view", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<CultureMapWorkspace />);
+    const experimentTab = screen.getByRole("tab", { name: "행동 실험" });
+    await user.click(experimentTab);
+    const create = screen.getByRole("button", { name: "새 프로필 만들기" });
+    await user.click(create);
+    await screen.findByRole("dialog", { name: "새 프로필 만들기" });
+    await user.click(screen.getByRole("button", { name: "취소" }));
+    await waitFor(() => expect(document.activeElement).toBe(create));
+    expect(experimentTab.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("문화 행동 실험 화면")).toBeTruthy();
+  });
+
   it("shows all eight saved values on compact cards with title before the comparison control", async () => {
     renderWithQuery(<CultureProfilesManager />);
     const list = await screen.findByRole("list", { name: "문화 프로필 목록" });

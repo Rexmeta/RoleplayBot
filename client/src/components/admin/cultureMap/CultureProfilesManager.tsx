@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,7 +26,7 @@ async function readError(error: unknown) {
   return error instanceof Error ? error.message : "요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
-export function CultureProfilesManager() {
+export function CultureProfilesManager({ createActionContainer }: { createActionContainer?: HTMLElement | null } = {}) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
@@ -170,12 +171,25 @@ export function CultureProfilesManager() {
     setDraft((current) => ({ ...current, dimensions: { ...current.dimensions, [key]: value } }));
   const updateSource = (index: number, patch: Partial<CultureSource>) =>
     setDraft((current) => ({ ...current, sources: current.sources.map((source, i) => i === index ? { ...source, ...patch } : source) }));
+  const createAction = (
+    <Button
+      ref={createButtonRef}
+      type="button"
+      aria-haspopup="dialog"
+      onClick={beginCreate}
+      className={createActionContainer
+        ? "h-full min-h-11 gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-3 py-3 font-semibold text-slate-600 shadow-none hover:border-teal-300 hover:bg-transparent hover:text-teal-900 focus-visible:ring-teal-700 sm:px-4"
+        : "min-h-11 gap-2 px-5 font-semibold"}
+    >
+      <Plus className="h-4 w-4" aria-hidden="true" />새 프로필 만들기
+    </Button>
+  );
 
   return (
     <section className="space-y-5" aria-label="Culture Map 프로필 관리">
-      <header className="flex justify-end">
-        <Button ref={createButtonRef} type="button" onClick={beginCreate} className="min-h-11 gap-2 px-5 font-semibold"><Plus className="h-4 w-4" />새 프로필 만들기</Button>
-      </header>
+      {createActionContainer
+        ? createPortal(createAction, createActionContainer)
+        : createActionContainer === undefined && <header className="flex justify-end">{createAction}</header>}
       {errorText && !dialogOpen && !deleteTarget && <div role="alert" className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{errorText}</div>}
       {comparedProfiles.length === 0 ? (
         <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">목록에서 프로필을 선택하면 비교를 시작합니다. (최대 5개)</p>

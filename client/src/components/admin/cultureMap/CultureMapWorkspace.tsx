@@ -15,12 +15,13 @@ export function CultureMapWorkspace() {
   const isAdmin = user?.role === "admin";
   const [activePanel, setActivePanel] = useState<WorkspacePanel>("profiles");
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [createActionContainer, setCreateActionContainer] = useState<HTMLDivElement | null>(null);
   const visiblePanel = isAdmin ? activePanel : "profiles";
 
   return (
     <Tabs value={visiblePanel} onValueChange={(value) => setActivePanel(value as WorkspacePanel)} className="space-y-5" aria-label="Culture Map 작업 공간">
       <div className="flex items-center gap-2 border-b border-teal-200/80">
-        <TabsList className="h-auto flex-1 justify-start gap-1 rounded-none bg-transparent p-0" aria-label="Culture Map 기능">
+        <TabsList className="h-auto min-w-0 flex-1 flex-wrap justify-start gap-1 rounded-none bg-transparent p-0" aria-label="Culture Map 기능">
           <TabsTrigger
             value="profiles"
             className={`rounded-none border-b-2 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 ${
@@ -31,6 +32,7 @@ export function CultureMapWorkspace() {
           >
             <span className="font-semibold">프로필 관리</span>
           </TabsTrigger>
+          <div ref={setCreateActionContainer} className="self-stretch" />
           {isAdmin && (
             <TabsTrigger
               value="experiment"
@@ -66,7 +68,7 @@ export function CultureMapWorkspace() {
       </div>
 
       <TabsContent value="profiles" forceMount className="data-[state=inactive]:hidden" hidden={visiblePanel !== "profiles"}>
-        <CultureProfilesManager />
+        <CultureProfilesManager createActionContainer={createActionContainer} />
       </TabsContent>
       {isAdmin && (
         <TabsContent value="experiment" forceMount className="data-[state=inactive]:hidden" hidden={visiblePanel !== "experiment"}>
