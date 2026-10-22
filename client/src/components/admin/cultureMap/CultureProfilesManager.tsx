@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CULTURE_DIMENSIONS, CULTURE_DISCLAIMER, EDITORIAL_CULTURE_NOTICE, isSystemCultureProfile, newCultureValues } from "@shared/cultureMap";
+import { CULTURE_DIMENSIONS, isSystemCultureProfile, newCultureValues } from "@shared/cultureMap";
 import type { CultureProfile, CultureProfileInput, CultureSource, CultureValues } from "@shared/cultureMap";
 import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { CultureOriginNotice } from "./CultureOriginNotice";
@@ -169,27 +169,20 @@ export function CultureProfilesManager() {
 
   return (
     <section className="space-y-5" aria-label="Culture Map 프로필 관리">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">RoleplayX · Culture Map</p>
-          <h2 className="mt-1 text-2xl font-semibold text-slate-900">문화 행동 컨텍스트</h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">페르소나 정체성은 그대로 두고, 연습할 상황의 문화적 행동 경향을 별도 레이어로 작성합니다.</p>
-        </div>
+      <header className="flex justify-end">
         <Button type="button" onClick={beginCreate} className="min-h-11 gap-2 px-5 font-semibold"><Plus className="h-4 w-4" />새 프로필 만들기</Button>
       </header>
-      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-950">
-        <strong className="mr-1">사용 안내</strong>{CULTURE_DISCLAIMER}
-        <p className="mt-1 text-xs text-amber-800">국가 기본 프로필은 RoleplayX 자체 추정 자료이며 공식 Erin Meyer 수치가 아닙니다. 국가나 문화의 우열이 아닌 상황별 경향을 비교하세요.</p>
-      </div>
       {errorText && <div role="alert" className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{errorText}</div>}
-      <CultureProfileComparison
+      {comparedProfiles.length === 0 ? (
+        <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">목록에서 프로필을 선택하면 비교를 시작합니다. (최대 5개)</p>
+      ) : <CultureProfileComparison
         profiles={comparedProfiles}
         onRemove={removeComparison}
         onClear={() => setComparisonIds([])}
         onInspect={beginEdit}
         onDuplicate={(profile) => duplicateMutation.mutate(profile.id)}
         duplicatePending={duplicateMutation.isPending}
-      />
+      />}
       <div className="grid gap-5 lg:grid-cols-2">
         <aside className="order-2 min-w-0 space-y-3 lg:order-1">
           <CultureProfileFilters
@@ -204,7 +197,7 @@ export function CultureProfilesManager() {
           {profilesQuery.isLoading ? <div className="space-y-2" aria-label="프로필 로딩 중">{[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse rounded-md bg-slate-100" />)}</div>
             : profilesQuery.isError ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">프로필을 불러오지 못했습니다.<Button variant="link" onClick={() => profilesQuery.refetch()}>다시 시도</Button></div>
             : filtered.length === 0 ? <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center"><p className="font-medium text-slate-700">{profiles.length ? "조건에 맞는 프로필이 없습니다" : "아직 프로필이 없습니다"}</p><p className="mt-1 text-sm text-slate-500">{profiles.length ? "검색어, 지역 또는 신뢰도 조건을 바꿔 보세요. 비교 선택은 유지됩니다." : "직접 정의한 문화 행동 컨텍스트를 추가하세요."}</p>{profiles.length > 0 && <Button type="button" variant="link" className="mt-2" onClick={resetFilters}>필터 모두 초기화</Button>}</div>
-            : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p>{profiles.some(p => p.origin) && <p className="rounded bg-amber-50 p-2 text-xs text-amber-900">{EDITORIAL_CULTURE_NOTICE} 공식 점수가 아니며 검토가 필요한 초안입니다.</p>}<ul aria-label="문화 프로필 목록" className="grid max-h-[min(68dvh,46rem)] grid-cols-1 gap-2 overflow-y-auto overscroll-contain pr-1 min-[560px]:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">{filtered.map((profile) => (
+             : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p><ul aria-label="문화 프로필 목록" className="grid max-h-[min(68dvh,46rem)] grid-cols-1 gap-2 overflow-y-auto overscroll-contain pr-1 min-[560px]:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">{filtered.map((profile) => (
               <CultureProfileCard
                 key={profile.id}
                 profile={profile}
@@ -256,7 +249,6 @@ export function CultureProfilesManager() {
             </div>)}
           </div>
           <div className="mt-6 flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-            {editing && <Button type="button" variant="outline" onClick={beginCreate}>새 프로필</Button>}
             {readOnly && <p className="self-center text-sm text-slate-600">{editing && isSystemCultureProfile(editing) ? "시스템 기본 프로필은 복제 후 수정할 수 있습니다." : "공유 프로필은 관리자만 수정할 수 있습니다."}</p>}
             <Button type="button" onClick={save} disabled={readOnly || saveMutation.isPending}>{saveMutation.isPending ? "저장 중…" : editing ? "변경 저장" : "프로필 생성"}</Button>
           </div>

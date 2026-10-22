@@ -162,7 +162,7 @@ describe("Culture Map actor and profile management", () => {
     expect((screen.getByRole("checkbox", { name: `${countries[5].country} ${countries[5].name} 비교에 추가` }) as HTMLInputElement).disabled).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "선택 모두 지우기" }));
     expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.getByText("비교할 저장 프로필을 선택하세요")).toBeTruthy();
+    expect(screen.getByText(/목록에서 프로필을 선택하면 비교를 시작합니다/)).toBeTruthy();
   });
 
   it("combines manager region and confidence filters and keeps custom profiles available as unspecified", async () => {
@@ -412,7 +412,7 @@ describe("Culture Map actor and profile management", () => {
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "변경 저장" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByLabelText("공유 프로필")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "새 프로필" }));
+    fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).disabled).toBe(false);
     expect(screen.queryByLabelText("공유 프로필")).toBeNull();
   });
