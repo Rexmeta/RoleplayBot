@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +12,7 @@ import { CultureProfileComparison } from "./CultureProfileComparison";
 import { CultureProfileFilters } from "./CultureProfileFilters";
 import { matchesCultureProfile } from "@shared/cultureComparison";
 import { CultureProfileCard } from "./CultureProfileCard";
+import { CultureProfileComparisonTray } from "./CultureProfileComparisonTray";
 
 type VersionEntry = { version: number; content: CultureProfileInput; createdAt: string };
 const listKey = ["/api/admin/culture-profiles"];
@@ -26,6 +27,8 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
   const [regionFilter, setRegionFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"list" | "comparison">("list");
+  const [trayHeight, setTrayHeight] = useState(240);
   const [editing, setEditing] = useState<CultureProfile | null>(null);
   const [draft, setDraft] = useState<CultureProfileInput>(emptyInput);
   const [errorText, setErrorText] = useState("");
@@ -36,6 +39,10 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
   const nameInputRef = useRef<HTMLInputElement>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const comparisonHeadingRef = useRef<HTMLHeadingElement>(null);
+  const listHeadingRef = useRef<HTMLHeadingElement>(null);
+  const listScrollYRef = useRef(0);
+  const focusModeRef = useRef<"list" | "comparison" | null>(null);
 
   const requestDialogClose = (open: boolean) => {
     if (!open && saveMutation.isPending) return;
@@ -94,6 +101,14 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
   });
 
   const profiles = profilesQuery.data ?? [];
+  useEffect(() => {
+    if (!profilesQuery.isSuccess) return;
+    const availableIds = new Set(profilesQuery.data.map((profile) => profile.id));
+    setComparisonIds((current) => {
+      const next = current.filter((id) => availableIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [profilesQuery.data, profilesQuery.isSuccess]);
   const readOnly = !!editing && (isSystemCultureProfile(editing) || (!isAdmin && editing.ownerId !== user?.id));
   const filtered = useMemo(
     () => profiles.filter((profile) => matchesCultureProfile(profile, {
@@ -115,12 +130,43 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
     () => comparisonIds.map((id) => profiles.find((profile) => profile.id === id)).filter((profile): profile is CultureProfile => !!profile),
     [comparisonIds, profiles],
   );
+  useEffect(() => {
+    if (viewMode === "comparison" && comparedProfiles.length < 2) {
+      focusModeRef.current = "list";
+      setViewMode("list");
+    }
+  }, [viewMode, comparedProfiles.length]);
+  useEffect(() => {
+    if (!focusModeRef.current) return;
+    const targetMode = focusModeRef.current;
+    focusModeRef.current = null;
+    const frame = requestAnimationFrame(() => {
+      if (targetMode === "comparison") {
+        comparisonHeadingRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+        comparisonHeadingRef.current?.focus({ preventScroll: true });
+      } else {
+        window.scrollTo({ top: listScrollYRef.current, behavior: "instant" as ScrollBehavior });
+        listHeadingRef.current?.focus({ preventScroll: true });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [viewMode]);
   const toggleComparison = (profile: CultureProfile) => {
     setComparisonIds((current) => current.includes(profile.id)
       ? current.filter((id) => id !== profile.id)
       : current.length < 5 ? [...current, profile.id] : current);
   };
   const removeComparison = (id: string) => setComparisonIds((current) => current.filter((item) => item !== id));
+  const enterComparison = () => {
+    if (comparedProfiles.length < 2) return;
+    listScrollYRef.current = window.scrollY;
+    focusModeRef.current = "comparison";
+    setViewMode("comparison");
+  };
+  const returnToList = () => {
+    focusModeRef.current = "list";
+    setViewMode("list");
+  };
   const resetFilters = () => {
     setSearch("");
     setRegionFilter("all");
@@ -167,20 +213,35 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
   );
 
   return (
-    <section className="space-y-5" aria-label="Culture Map 프로필 관리">
-      {showCreateAction && <header className="flex justify-end">{createAction}</header>}
+    <section
+      className="space-y-5"
+      aria-label="Culture Map 프로필 관리"
+      style={{ paddingBottom: viewMode === "list" && comparisonIds.length > 0 ? trayHeight + 20 : undefined }}
+    >
+      {viewMode === "list" && showCreateAction && <header className="flex justify-end">{createAction}</header>}
       {errorText && !dialogOpen && !deleteTarget && <div role="alert" className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{errorText}</div>}
-      {comparedProfiles.length === 0 ? (
-        <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">목록에서 프로필을 선택하면 비교를 시작합니다. (최대 5개)</p>
-      ) : <CultureProfileComparison
-        profiles={comparedProfiles}
-        onRemove={removeComparison}
-        onClear={() => setComparisonIds([])}
-        onInspect={beginEdit}
-        onDuplicate={(profile) => duplicateMutation.mutate(profile.id)}
-        duplicatePending={duplicateMutation.isPending}
-      />}
+      {viewMode === "comparison" ? (
+        <div className="space-y-4" aria-label="선택한 문화 프로필 비교">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 ref={comparisonHeadingRef} tabIndex={-1} className="text-xl font-semibold text-teal-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700">
+              선택한 프로필 비교
+            </h2>
+            <Button type="button" variant="outline" className="min-h-11 border-teal-300 text-teal-900" onClick={returnToList}>
+              목록으로 돌아가기
+            </Button>
+          </div>
+          {comparedProfiles.length >= 2 && <CultureProfileComparison
+            profiles={comparedProfiles}
+            onRemove={removeComparison}
+            onClear={() => setComparisonIds([])}
+            onInspect={beginEdit}
+            onDuplicate={(profile) => duplicateMutation.mutate(profile.id)}
+            duplicatePending={duplicateMutation.isPending}
+          />}
+        </div>
+      ) : (
       <div className="min-w-0 space-y-3">
+          <h2 ref={listHeadingRef} tabIndex={-1} className="sr-only focus-visible:not-sr-only focus-visible:rounded focus-visible:bg-white focus-visible:px-2 focus-visible:py-1 focus-visible:text-teal-950">문화 프로필 목록</h2>
           <CultureProfileFilters
             search={search}
             onSearchChange={setSearch}
@@ -193,7 +254,7 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
           {profilesQuery.isLoading ? <div className="space-y-2" aria-label="프로필 로딩 중">{[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse rounded-md bg-slate-100" />)}</div>
             : profilesQuery.isError ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">프로필을 불러오지 못했습니다.<Button variant="link" onClick={() => profilesQuery.refetch()}>다시 시도</Button></div>
             : filtered.length === 0 ? <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center"><p className="font-medium text-slate-700">{profiles.length ? "조건에 맞는 프로필이 없습니다" : "아직 프로필이 없습니다"}</p><p className="mt-1 text-sm text-slate-500">{profiles.length ? "검색어, 지역 또는 신뢰도 조건을 바꿔 보세요. 비교 선택은 유지됩니다." : "직접 정의한 문화 행동 컨텍스트를 추가하세요."}</p>{profiles.length > 0 && <Button type="button" variant="link" className="mt-2" onClick={resetFilters}>필터 모두 초기화</Button>}</div>
-              : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p><ul aria-label="문화 프로필 목록" className="grid max-h-[min(68dvh,46rem)] grid-cols-1 gap-2 overflow-y-auto overscroll-contain pr-1 min-[560px]:grid-cols-2">{filtered.map((profile) => (
+               : <><p className="text-xs text-slate-500">{filtered.length}개 표시 · {comparisonIds.length}개 비교 선택</p><ul aria-label="문화 프로필 목록" className="grid grid-cols-1 gap-2 pr-1 min-[560px]:grid-cols-2">{filtered.map((profile) => (
               <CultureProfileCard
                 key={profile.id}
                 profile={profile}
@@ -212,6 +273,16 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
               />
             ))}</ul></>}
       </div>
+      )}
+      {viewMode === "list" && comparisonIds.length > 0 && (
+        <CultureProfileComparisonTray
+          profiles={comparedProfiles}
+          onRemove={removeComparison}
+          onClear={() => setComparisonIds([])}
+          onCompare={enterComparison}
+          onHeightChange={setTrayHeight}
+        />
+      )}
       <Dialog open={dialogOpen} onOpenChange={requestDialogClose}>
         <DialogContent
           ref={dialogContentRef}

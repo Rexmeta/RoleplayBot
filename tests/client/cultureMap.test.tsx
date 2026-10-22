@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CultureProfile, CultureProfileInput, CultureSnapshot } from "@shared/cultureMap";
@@ -63,7 +63,7 @@ function response(data: unknown, status = 200) {
 }
 function renderWithQuery(ui: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  return { ...render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>), client };
 }
 
 describe("Culture Map actor and profile management", () => {
@@ -222,21 +222,25 @@ describe("Culture Map actor and profile management", () => {
 
   it("compares saved app dimensions and reverses signed deltas when the reference changes", async () => {
     renderWithQuery(<CultureProfilesManager />);
+    fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
+    fireEvent.change(screen.getByLabelText("프로필 이름 *"), { target: { value: "비교하지 않을 초안" } });
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: /한국 상황별 업무 컨텍스트 비교에 추가/ }));
-    expect(screen.getByText(/한 프로필이 선택되었습니다/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "비교하기" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole("table")).toBeNull();
     fireEvent.click(screen.getByRole("checkbox", { name: /일본 다른 프로필 비교에 추가/ }));
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText("비교하지 않을 초안")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "비교하기" }));
     const table = screen.getByRole("table");
+    expect(screen.queryByRole("list", { name: "문화 프로필 목록" })).toBeNull();
     expect(within(table).getAllByRole("row")).toHaveLength(9);
     expect(within(table).getByText("-38")).toBeTruthy();
     expect(within(table).getAllByText("비슷함")).toHaveLength(7);
     expect(within(table).getByText("원리 우선 ↔ 적용 우선")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("차이 비교 기준 프로필"), { target: { value: "profile-2" } });
     expect(within(screen.getByRole("table")).getByText("+38")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
-    fireEvent.change(screen.getByLabelText("프로필 이름 *"), { target: { value: "비교하지 않을 초안" } });
     expect(screen.queryByRole("option", { name: /비교하지 않을 초안/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "취소" }));
     const comparison = screen.getByRole("region", { name: "문화 행동 프로필 비교" });
     fireEvent.click(within(comparison).getAllByRole("button", { name: "살펴보기" })[0]);
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("다른 프로필");
@@ -252,18 +256,100 @@ describe("Culture Map actor and profile management", () => {
     const checkboxes = await screen.findAllByRole("checkbox", { name: /비교에 추가/ });
     checkboxes.slice(0, 5).forEach(checkbox => fireEvent.click(checkbox));
     expect((checkboxes[5] as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText(/최대 5개 선택됨/)).toBeTruthy();
-    expect(screen.getAllByRole("table")).toHaveLength(4);
+    expect((checkboxes[0] as HTMLInputElement).disabled).toBe(false);
+    expect(screen.queryByRole("table")).toBeNull();
     fireEvent.change(screen.getByLabelText("국가, 지역, 프로필 검색"), { target: { value: "없는 국가" } });
     expect(screen.getByText("조건에 맞는 프로필이 없습니다")).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "비교하기" }));
     expect(screen.getAllByRole("table")).toHaveLength(4);
+    fireEvent.click(screen.getByRole("button", { name: "목록으로 돌아가기" }));
+    expect((screen.getByLabelText("국가, 지역, 프로필 검색") as HTMLInputElement).value).toBe("없는 국가");
     fireEvent.click(screen.getByRole("button", { name: "필터 모두 초기화" }));
-    const chips = screen.getByLabelText("비교 프로필");
+    const chips = screen.getByRole("button", { name: "비교하기" }).closest("aside")!;
     fireEvent.click(within(chips).getAllByRole("button", { name: /비교에서 제거/ })[0]);
     expect((screen.getByRole("checkbox", { name: `${countries[5].country} ${countries[5].name} 비교에 추가` }) as HTMLInputElement).disabled).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "선택 모두 지우기" }));
     expect(screen.queryByRole("table")).toBeNull();
-    expect(screen.getByText(/목록에서 프로필을 선택하면 비교를 시작합니다/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "비교하기" })).toBeNull();
+  });
+
+  it("allows the document to scroll without a height-limited card list", async () => {
+    renderWithQuery(<CultureProfilesManager />);
+    const list = await screen.findByRole("list", { name: "문화 프로필 목록" });
+    expect(list.className).not.toMatch(/max-h-|overflow-y-|overscroll-/);
+    expect(getComputedStyle(list).overflowY).not.toBe("auto");
+    expect(getComputedStyle(list).overflowY).not.toBe("scroll");
+  });
+
+  it("collects selected names at the screen bottom and synchronizes removals with checkboxes", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<CultureProfilesManager />);
+    expect(screen.queryByRole("button", { name: "비교하기" })).toBeNull();
+    const first = await screen.findByRole("checkbox", { name: /한국 상황별 업무 컨텍스트 비교에 추가/ });
+    await user.click(first);
+    const compare = screen.getByRole("button", { name: "비교하기" }) as HTMLButtonElement;
+    const tray = compare.closest("aside")!;
+    expect(tray).toBeTruthy();
+    expect(within(tray).getByText(profile.name, { exact: false })).toBeTruthy();
+    expect(compare.disabled).toBe(true);
+    expect(screen.queryByRole("region", { name: "문화 행동 프로필 비교" })).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: /일본 다른 프로필 비교에 추가/ }));
+    expect(within(tray).getByText(secondProfile.name, { exact: false })).toBeTruthy();
+    expect(compare.disabled).toBe(false);
+    await user.click(within(tray).getByRole("button", { name: `${profile.name} 비교에서 제거` }));
+    expect((first as HTMLInputElement).checked).toBe(false);
+    expect(compare.disabled).toBe(true);
+    await user.click(within(tray).getByRole("button", { name: "선택 모두 지우기" }));
+    expect(screen.queryByRole("button", { name: "비교하기" })).toBeNull();
+    expect(screen.queryAllByRole("checkbox", { name: /포함됨/ })).toHaveLength(0);
+    expect(apiRequest.mock.calls.some(([method]) => method !== "GET")).toBe(false);
+  });
+
+  it("returns to the list when too few profiles remain in a comparison without losing the last selection", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<CultureProfilesManager />);
+    await user.click(await screen.findByRole("checkbox", { name: /한국 상황별 업무 컨텍스트 비교에 추가/ }));
+    await user.click(screen.getByRole("checkbox", { name: /일본 다른 프로필 비교에 추가/ }));
+    await user.click(screen.getByRole("button", { name: "비교하기" }));
+    const comparison = screen.getByRole("region", { name: "문화 행동 프로필 비교" });
+    await user.click(within(comparison).getAllByRole("button", { name: `${profile.name} 비교에서 제거` })[0]);
+    await screen.findByRole("list", { name: "문화 프로필 목록" });
+    expect(screen.queryByRole("table")).toBeNull();
+    expect((screen.getByRole("checkbox", { name: /일본 다른 프로필 비교에 포함됨/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("button", { name: "비교하기" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("hides the selection tray on other Culture Map tabs and restores it on returning", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<CultureMapWorkspace />);
+    await user.click(await screen.findByRole("checkbox", { name: /한국 상황별 업무 컨텍스트 비교에 추가/ }));
+    expect(screen.getByRole("button", { name: "비교하기" })).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "새 프로필 만들기" }));
+    expect(screen.queryByRole("button", { name: "비교하기" })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "행동 실험" }));
+    expect(screen.queryByRole("button", { name: "비교하기" })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "프로필 관리" }));
+    expect(screen.getByRole("button", { name: "비교하기" })).toBeTruthy();
+    expect((screen.getByRole("checkbox", { name: /한국 상황별 업무 컨텍스트 비교에 포함됨/ }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("frees selection capacity when a previously selected profile disappears from refreshed data", async () => {
+    const user = userEvent.setup();
+    const countries: CultureProfile[] = countryCultureSeedProfiles.slice(0, 6).map(seed => ({
+      ...seed.content, id: seed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1, createdAt: "", updatedAt: "",
+    }));
+    apiRequest.mockImplementation(() => response(countries));
+    const { client } = renderWithQuery(<CultureProfilesManager />);
+    const checkboxes = await screen.findAllByRole("checkbox", { name: /비교에 추가/ });
+    for (const checkbox of checkboxes.slice(0, 5)) await user.click(checkbox);
+    expect((checkboxes[5] as HTMLInputElement).disabled).toBe(true);
+    await act(async () => { client.setQueryData(["/api/admin/culture-profiles"], countries.slice(1)); });
+    await waitFor(() => expect((checkboxes[5] as HTMLInputElement).disabled).toBe(false));
+    const tray = screen.getByRole("complementary", { name: "비교할 프로필 선택함" });
+    expect(within(tray).queryByRole("button", { name: `${countries[0].name} 비교에서 제거` })).toBeNull();
+    await user.click(checkboxes[5]);
+    expect(within(tray).getAllByRole("button", { name: /비교에서 제거/ })).toHaveLength(5);
   });
 
   it("combines manager region and confidence filters and keeps custom profiles available as unspecified", async () => {
