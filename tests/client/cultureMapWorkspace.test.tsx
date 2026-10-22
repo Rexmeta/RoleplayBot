@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import React, { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { CULTURE_DISCLAIMER } from "@shared/cultureMap";
 import userEvent from "@testing-library/user-event";
 
 const { authState, experimentMount, experimentUnmount, startExperiment } = vi.hoisted(() => ({
@@ -37,15 +38,15 @@ describe("Culture Map workspace navigation", () => {
     const user = userEvent.setup();
     render(<CultureMapWorkspace />);
     expect(screen.getByRole("tab", { name: /프로필 관리/ }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByRole("tab", { name: /문화 행동 실험/ }).textContent).toContain("비용");
+    expect(screen.getByRole("tab", { name: "행동 실험" })).toBeTruthy();
     await user.type(screen.getByLabelText("작성 중인 프로필"), "작성 중");
-    await user.click(screen.getByRole("tab", { name: /문화 행동 실험/ }));
+    await user.click(screen.getByRole("tab", { name: "행동 실험" }));
     expect(startExperiment).not.toHaveBeenCalled();
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "실험 시작 테스트" }));
     await user.click(screen.getByRole("tab", { name: /프로필 관리/ }));
     expect((screen.getByLabelText("작성 중인 프로필") as HTMLInputElement).value).toBe("작성 중");
-    await user.click(screen.getByRole("tab", { name: /문화 행동 실험/ }));
+    await user.click(screen.getByRole("tab", { name: "행동 실험" }));
     expect(screen.getByText("실험 결과 보존")).toBeTruthy();
     expect(experimentMount).toHaveBeenCalledTimes(1);
     expect(experimentUnmount).not.toHaveBeenCalled();
@@ -57,17 +58,17 @@ describe("Culture Map workspace navigation", () => {
     render(<CultureMapWorkspace />);
     screen.getByRole("tab", { name: /프로필 관리/ }).focus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: /문화 행동 실험/ }).getAttribute("aria-selected")).toBe("true");
-    expect(document.activeElement).toBe(screen.getByRole("tab", { name: /문화 행동 실험/ }));
+    expect(screen.getByRole("tab", { name: "행동 실험" }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "행동 실험" }));
   });
 
   it("does not expose or mount experiments for non-admins and recovers after a role change", async () => {
     const user = userEvent.setup();
     const view = render(<CultureMapWorkspace />);
-    await user.click(screen.getByRole("tab", { name: /문화 행동 실험/ }));
+    await user.click(screen.getByRole("tab", { name: "행동 실험" }));
     authState.user = { role: "operator" };
     view.rerender(<CultureMapWorkspace />);
-    expect(screen.queryByRole("tab", { name: /문화 행동 실험/ })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "행동 실험" })).toBeNull();
     expect(screen.queryByRole("button", { name: "실험 시작 테스트", hidden: true })).toBeNull();
     expect(screen.getByRole("tab", { name: /프로필 관리/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByLabelText("작성 중인 프로필")).toBeTruthy();
@@ -76,5 +77,29 @@ describe("Culture Map workspace navigation", () => {
     experimentMount.mockClear();
     render(<CultureMapWorkspace />);
     expect(experimentMount).not.toHaveBeenCalled();
+  });
+
+  it("starts with the switcher and exposes the complete notice only on hover, focus or tap", async () => {
+    const user = userEvent.setup();
+    render(<CultureMapWorkspace />);
+    expect(screen.queryByRole("heading")).toBeNull();
+    const notice = screen.getByRole("button", { name: "문화 프로필 자료 안내" });
+    expect(screen.queryByText(/국가 기본 프로필은 자체 추정 자료이며/)).toBeNull();
+    await user.hover(notice);
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip.textContent).toContain(CULTURE_DISCLAIMER);
+    await user.unhover(notice);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+    screen.getByRole("tab", { name: "프로필 관리" }).focus();
+    notice.focus();
+    expect((await screen.findByRole("tooltip")).textContent).toContain("공식 Erin Meyer 수치가 아닙니다.");
+    await user.keyboard("{Escape}");
+    await user.click(notice);
+    const popover = await screen.findByRole("dialog");
+    expect(popover.textContent).toContain(CULTURE_DISCLAIMER);
+    expect(within(popover).getByText(/국가 기본 프로필은 자체 추정 자료이며/)).toBeTruthy();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
