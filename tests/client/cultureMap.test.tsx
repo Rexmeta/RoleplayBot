@@ -86,39 +86,98 @@ describe("Culture Map actor and profile management", () => {
     });
   });
   afterEach(cleanup);
-  it("places the single create action directly to the right of profile management and opens the existing popup", async () => {
+  it("places a real creation tab to the right of management and displays its form in the tab page, never a popup", async () => {
     const user = userEvent.setup();
     renderWithQuery(<CultureMapWorkspace />);
     const navigation = screen.getByRole("tablist", { name: "Culture Map 기능" });
     const profilesTab = within(navigation).getByRole("tab", { name: "프로필 관리" });
-    const create = within(navigation).getByRole("button", { name: "새 프로필 만들기" });
+    const create = within(navigation).getByRole("tab", { name: "새 프로필 만들기" });
     const experimentTab = within(navigation).getByRole("tab", { name: "행동 실험" });
-    expect(profilesTab.nextElementSibling?.contains(create)).toBe(true);
+    expect(profilesTab.nextElementSibling).toBe(create);
     expect(create.compareDocumentPosition(experimentTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "새 프로필 만들기" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "새 프로필 만들기" })).toBeNull();
     expect(within(screen.getByRole("region", { name: "Culture Map 프로필 관리" })).queryByRole("button", { name: "새 프로필 만들기" })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     await user.click(create);
-    expect(await screen.findByRole("dialog", { name: "새 프로필 만들기" })).toBeTruthy();
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(document.activeElement).toBe(create));
-    expect(profilesTab.getAttribute("aria-selected")).toBe("true");
+    expect(create.getAttribute("aria-selected")).toBe("true");
+    const panel = screen.getByRole("tabpanel");
+    expect(panel.getAttribute("aria-labelledby")).toBe(create.id);
+    const form = within(panel).getByRole("form", { name: "새 프로필 만들기" });
+    expect(within(form).getByLabelText("프로필 이름 *")).toBeTruthy();
+    expect(within(form).getAllByRole("slider")).toHaveLength(8);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("list", { name: "문화 프로필 목록" })).toBeNull();
     expect(apiRequest.mock.calls.some(([method]) => method !== "GET")).toBe(false);
   });
 
-  it("keeps the tab-shaped create action working from the experiment view", async () => {
+  it("preserves the creation draft when navigating through management and experiments; cancel returns to management", async () => {
     const user = userEvent.setup();
     renderWithQuery(<CultureMapWorkspace />);
     const experimentTab = screen.getByRole("tab", { name: "행동 실험" });
-    await user.click(experimentTab);
-    const create = screen.getByRole("button", { name: "새 프로필 만들기" });
+    const create = screen.getByRole("tab", { name: "새 프로필 만들기" });
     await user.click(create);
-    await screen.findByRole("dialog", { name: "새 프로필 만들기" });
-    await user.click(screen.getByRole("button", { name: "취소" }));
-    await waitFor(() => expect(document.activeElement).toBe(create));
-    expect(experimentTab.getAttribute("aria-selected")).toBe("true");
+    await user.type(within(screen.getByRole("form", { name: "새 프로필 만들기" })).getByLabelText("프로필 이름 *"), "유지할 초안");
+    await user.click(screen.getByRole("tab", { name: "프로필 관리" }));
+    await user.click(experimentTab);
     expect(screen.getByText("문화 행동 실험 화면")).toBeTruthy();
+    await user.click(create);
+    expect((within(screen.getByRole("form", { name: "새 프로필 만들기" })).getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("유지할 초안");
+    await user.click(screen.getByRole("button", { name: "취소" }));
+    const management = screen.getByRole("tab", { name: "프로필 관리" });
+    await waitFor(() => expect(document.activeElement).toBe(management));
+    expect(management.getAttribute("aria-selected")).toBe("true");
+    await user.click(create);
+    expect((within(screen.getByRole("form", { name: "새 프로필 만들기" })).getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
+  });
+
+  it("creates from the tab page, refreshes saved profiles, and returns to management with a fresh creation form", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<CultureMapWorkspace />);
+    const create = screen.getByRole("tab", { name: "새 프로필 만들기" });
+    await user.click(create);
+    const form = within(screen.getByRole("form", { name: "새 프로필 만들기" }));
+    await user.type(form.getByLabelText("프로필 이름 *"), "페이지 생성");
+    await user.type(form.getByLabelText("국가/문화권 *"), "한국");
+    await user.click(form.getByRole("button", { name: "프로필 생성" }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("POST", "/api/admin/culture-profiles", expect.objectContaining({
+      name: "페이지 생성", country: "한국", visibility: "private", dimensions: expect.objectContaining({ communicating: 50 }),
+    })));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "프로필 관리" }).getAttribute("aria-selected")).toBe("true"));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["/api/admin/culture-profiles"] });
+    await user.click(create);
+    expect((within(screen.getByRole("form", { name: "새 프로필 만들기" })).getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
+  });
+
+  it("shows creation validation and server errors inline without losing the page draft", async () => {
+    const user = userEvent.setup();
+    apiRequest.mockImplementation(async (method: string) => {
+      if (method === "POST") throw new Error("생성 서버 오류");
+      return response([profile]);
+    });
+    renderWithQuery(<CultureMapWorkspace />);
+    await user.click(screen.getByRole("tab", { name: "새 프로필 만들기" }));
+    const form = within(screen.getByRole("form", { name: "새 프로필 만들기" }));
+    await user.click(form.getByRole("button", { name: "프로필 생성" }));
+    expect(form.getByRole("alert").textContent).toContain("프로필 이름과 국가/지역");
+    expect(apiRequest.mock.calls.some(([method]) => method === "POST")).toBe(false);
+    await user.type(form.getByLabelText("프로필 이름 *"), "오류 후 유지");
+    await user.type(form.getByLabelText("국가/문화권 *"), "한국");
+    await user.click(form.getByRole("button", { name: "프로필 생성" }));
+    await waitFor(() => expect(form.getByRole("alert").textContent).toContain("생성 서버 오류"));
+    expect((form.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("오류 후 유지");
+    expect(screen.getByRole("tab", { name: "새 프로필 만들기" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("allows operator creation in its page without exposing shared-profile or experiment controls", async () => {
+    authState.user = { id: "operator-1", role: "operator" };
+    const user = userEvent.setup();
+    renderWithQuery(<CultureMapWorkspace />);
+    await user.click(screen.getByRole("tab", { name: "새 프로필 만들기" }));
+    expect(screen.getByRole("tab", { name: "새 프로필 만들기" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("form", { name: "새 프로필 만들기" })).toBeTruthy();
+    expect(screen.queryByLabelText("공유 프로필")).toBeNull();
+    expect(screen.queryByRole("tab", { name: "행동 실험" })).toBeNull();
   });
 
   it("shows all eight saved values on compact cards with title before the comparison control", async () => {

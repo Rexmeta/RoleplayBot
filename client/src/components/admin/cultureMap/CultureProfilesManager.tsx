@@ -1,32 +1,25 @@
 import { useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CULTURE_DIMENSIONS, isSystemCultureProfile, newCultureValues } from "@shared/cultureMap";
-import type { CultureProfile, CultureProfileInput, CultureSource, CultureValues } from "@shared/cultureMap";
-import { AlertTriangle, Plus, Trash2 } from "lucide-react";
-import { CultureOriginNotice } from "./CultureOriginNotice";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { isSystemCultureProfile } from "@shared/cultureMap";
+import type { CultureProfile, CultureProfileInput } from "@shared/cultureMap";
+import { AlertTriangle, Plus } from "lucide-react";
+import { CultureProfileForm, emptyCultureProfile as emptyInput, validateCultureProfile } from "./CultureProfileForm";
 import { CultureProfileComparison } from "./CultureProfileComparison";
 import { CultureProfileFilters } from "./CultureProfileFilters";
 import { matchesCultureProfile } from "@shared/cultureComparison";
 import { CultureProfileCard } from "./CultureProfileCard";
 
 type VersionEntry = { version: number; content: CultureProfileInput; createdAt: string };
-const emptyInput = (): CultureProfileInput => ({
-  name: "", country: "", region: "", description: "", dimensions: newCultureValues(), sources: [], visibility: "private",
-});
 const listKey = ["/api/admin/culture-profiles"];
 async function readError(error: unknown) {
   return error instanceof Error ? error.message : "요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
-export function CultureProfilesManager({ createActionContainer }: { createActionContainer?: HTMLElement | null } = {}) {
+export function CultureProfilesManager({ showCreateAction = true }: { showCreateAction?: boolean } = {}) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
@@ -133,9 +126,6 @@ export function CultureProfilesManager({ createActionContainer }: { createAction
     setRegionFilter("all");
     setConfidenceFilter("all");
   };
-  const setField = <K extends keyof CultureProfileInput>(key: K, value: CultureProfileInput[K]) =>
-    setDraft((current) => ({ ...current, [key]: value }));
-
   const beginCreate = () => {
     returnFocusRef.current = document.activeElement as HTMLElement | null;
     setEditing(null);
@@ -160,26 +150,17 @@ export function CultureProfilesManager({ createActionContainer }: { createAction
     setDialogOpen(true);
   };
   const save = () => {
-    const missing = !draft.name.trim() || !draft.country.trim();
-    if (missing) { setErrorText("프로필 이름과 국가/지역을 입력해 주세요."); return; }
-    if (draft.sources.some((source) => !source.title.trim() || !/^https?:\/\//i.test(source.url))) {
-      setErrorText("출처 제목과 유효한 HTTP(S) URL을 확인해 주세요."); return;
-    }
+    const error = validateCultureProfile(draft);
+    if (error) { setErrorText(error); return; }
     saveMutation.mutate();
   };
-  const updateDimension = (key: keyof CultureValues, value: number) =>
-    setDraft((current) => ({ ...current, dimensions: { ...current.dimensions, [key]: value } }));
-  const updateSource = (index: number, patch: Partial<CultureSource>) =>
-    setDraft((current) => ({ ...current, sources: current.sources.map((source, i) => i === index ? { ...source, ...patch } : source) }));
   const createAction = (
     <Button
       ref={createButtonRef}
       type="button"
       aria-haspopup="dialog"
       onClick={beginCreate}
-      className={createActionContainer
-        ? "h-full min-h-11 gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-3 py-3 font-semibold text-slate-600 shadow-none hover:border-teal-300 hover:bg-transparent hover:text-teal-900 focus-visible:ring-teal-700 sm:px-4"
-        : "min-h-11 gap-2 px-5 font-semibold"}
+      className="min-h-11 gap-2 px-5 font-semibold"
     >
       <Plus className="h-4 w-4" aria-hidden="true" />새 프로필 만들기
     </Button>
@@ -187,9 +168,7 @@ export function CultureProfilesManager({ createActionContainer }: { createAction
 
   return (
     <section className="space-y-5" aria-label="Culture Map 프로필 관리">
-      {createActionContainer
-        ? createPortal(createAction, createActionContainer)
-        : createActionContainer === undefined && <header className="flex justify-end">{createAction}</header>}
+      {showCreateAction && <header className="flex justify-end">{createAction}</header>}
       {errorText && !dialogOpen && !deleteTarget && <div role="alert" className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{errorText}</div>}
       {comparedProfiles.length === 0 ? (
         <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">목록에서 프로필을 선택하면 비교를 시작합니다. (최대 5개)</p>
@@ -255,47 +234,21 @@ export function CultureProfilesManager({ createActionContainer }: { createAction
           onInteractOutside={(event) => { if (saveMutation.isPending) event.preventDefault(); }}
         >
           <div className="max-h-[min(92dvh,58rem)] overflow-y-auto overscroll-contain p-4 sm:p-7">
-          <DialogHeader className="mb-5 border-b border-teal-100 pb-4 pr-8">
-            <DialogTitle className="text-xl text-slate-900">{editing ? (readOnly ? "프로필 살펴보기" : "프로필 편집") : "새 프로필 만들기"}</DialogTitle>
-            <DialogDescription>8개 차원은 프로필의 행동 경향을 정의합니다.</DialogDescription>
-          </DialogHeader>
-          {errorText && <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{errorText}</div>}
-          <div className="mb-5 flex items-start justify-end gap-3">
-            {isAdmin && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.visibility === "shared"} disabled={readOnly} onChange={(event) => setField("visibility", event.target.checked ? "shared" : "private")} />공유 프로필</label>}
-          </div>
-          <div className="mb-4"><CultureOriginNotice origin={draft.origin} /></div>
-          {editing && isSystemCultureProfile(editing) && <div className="mb-4 flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm"><span>시스템 기본 프로필은 읽기 전용입니다. 수정하려면 복제하세요.</span><Button type="button" variant="outline" size="sm" disabled={duplicateMutation.isPending} onClick={() => duplicateMutation.mutate(editing.id)}>복제 후 편집</Button></div>}
-          <div className="grid gap-4 sm:grid-cols-2">
-              <div><Label htmlFor="culture-name">프로필 이름 *</Label><Input ref={nameInputRef} id="culture-name" value={draft.name} maxLength={150} disabled={readOnly} onChange={(event) => setField("name", event.target.value)} /></div>
-            <div><Label htmlFor="culture-country">국가/문화권 *</Label><Input id="culture-country" value={draft.country} maxLength={100} disabled={readOnly} onChange={(event) => setField("country", event.target.value)} /></div>
-            <div><Label htmlFor="culture-region">지역/맥락</Label><Input id="culture-region" value={draft.region} maxLength={100} disabled={readOnly} onChange={(event) => setField("region", event.target.value)} /></div>
-            <div className="sm:col-span-2"><Label htmlFor="culture-description">설명</Label><Textarea id="culture-description" value={draft.description} maxLength={2000} rows={3} disabled={readOnly} onChange={(event) => setField("description", event.target.value)} /></div>
-          </div>
-          <div className="mt-6 space-y-4">
-            <h4 className="font-semibold text-slate-800">행동 차원 <span className="text-xs font-normal text-slate-500">(0–100)</span></h4>
-            <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">{CULTURE_DIMENSIONS.map((dimension) => (
-              <div key={dimension.key}>
-                <div className="mb-1 flex justify-between text-sm"><Label htmlFor={`dimension-${dimension.key}`}>{dimension.label}</Label><output htmlFor={`dimension-${dimension.key}`} className="font-mono text-xs text-slate-600">{draft.dimensions[dimension.key]}</output></div>
-                <input id={`dimension-${dimension.key}`} aria-label={`${dimension.label} 점수`} type="range" min="0" max="100" step="1" value={draft.dimensions[dimension.key]} disabled={readOnly} onChange={(event) => updateDimension(dimension.key, Number(event.target.value))} className="w-full accent-teal-700" />
-                <div className="flex justify-between text-[11px] text-slate-500"><span>{dimension.low}</span><span>{dimension.high}</span></div>
-              </div>
-            ))}</div>
-          </div>
-          <div className="mt-7 space-y-3">
-            <div className="flex items-center justify-between"><div><h4 className="font-semibold text-slate-800">근거 자료</h4><p className="text-xs text-slate-500">직접 조사한 출처를 기록하세요. 최대 20개.</p></div><Button type="button" variant="outline" size="sm" disabled={readOnly || draft.sources.length >= 20} onClick={() => setField("sources", [...draft.sources, { title: "", url: "", locator: "", note: "" }])}><Plus className="mr-1 h-4 w-4" />출처 추가</Button></div>
-            {draft.sources.map((source, index) => <div key={index} className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
-              <Input aria-label={`출처 ${index + 1} 제목`} value={source.title} placeholder="자료 제목" disabled={readOnly} onChange={(event) => updateSource(index, { title: event.target.value })} />
-              <Input aria-label={`출처 ${index + 1} URL`} type="url" value={source.url} placeholder="https://" disabled={readOnly} onChange={(event) => updateSource(index, { url: event.target.value })} />
-              <Input aria-label={`출처 ${index + 1} 위치`} value={source.locator} placeholder="페이지·절·위치" disabled={readOnly} onChange={(event) => updateSource(index, { locator: event.target.value })} />
-              <div className="flex gap-2"><Input aria-label={`출처 ${index + 1} 메모`} value={source.note} placeholder="메모" disabled={readOnly} onChange={(event) => updateSource(index, { note: event.target.value })} /><Button type="button" variant="ghost" aria-label={`출처 ${index + 1} 삭제`} disabled={readOnly} onClick={() => setField("sources", draft.sources.filter((_, i) => i !== index))}><Trash2 className="h-4 w-4" /></Button></div>
-            </div>)}
-          </div>
-          <div className="mt-6 flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-            {readOnly && <p className="self-center text-sm text-slate-600">{editing && isSystemCultureProfile(editing) ? "시스템 기본 프로필은 복제 후 수정할 수 있습니다." : "공유 프로필은 관리자만 수정할 수 있습니다."}</p>}
-            <Button type="button" variant="outline" disabled={saveMutation.isPending} onClick={() => requestDialogClose(false)}>취소</Button>
-            <Button type="button" onClick={save} disabled={readOnly || saveMutation.isPending}>{saveMutation.isPending ? "저장 중…" : editing ? "변경 저장" : "프로필 생성"}</Button>
-          </div>
-          {editing && <p className="mt-2 text-right text-xs text-slate-500">수정 시 v{editing.version}을 기준으로 저장합니다.</p>}
+            <CultureProfileForm
+              inDialog
+              draft={draft}
+              onChange={setDraft}
+              editing={editing}
+              readOnly={readOnly}
+              isAdmin={isAdmin}
+              saving={saveMutation.isPending}
+              errorText={errorText}
+              nameInputRef={nameInputRef}
+              duplicatePending={duplicateMutation.isPending}
+              onDuplicate={() => { if (editing) duplicateMutation.mutate(editing.id); }}
+              onSave={save}
+              onCancel={() => requestDialogClose(false)}
+            />
           </div>
         </DialogContent>
       </Dialog>

@@ -1,28 +1,34 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CultureBehaviorExperiment } from "./CultureBehaviorExperiment";
 import { CultureProfilesManager } from "./CultureProfilesManager";
+import { CultureProfileCreatePage } from "./CultureProfileCreatePage";
 import { CULTURE_DISCLAIMER } from "@shared/cultureMap";
-import { Info } from "lucide-react";
+import { Info, Plus } from "lucide-react";
 
-type WorkspacePanel = "profiles" | "experiment";
+type WorkspacePanel = "profiles" | "create" | "experiment";
 
 export function CultureMapWorkspace() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [activePanel, setActivePanel] = useState<WorkspacePanel>("profiles");
   const [noticeOpen, setNoticeOpen] = useState(false);
-  const [createActionContainer, setCreateActionContainer] = useState<HTMLDivElement | null>(null);
-  const visiblePanel = isAdmin ? activePanel : "profiles";
+  const profilesTabRef = useRef<HTMLButtonElement>(null);
+  const visiblePanel = !isAdmin && activePanel === "experiment" ? "profiles" : activePanel;
+  const returnToProfiles = () => {
+    setActivePanel("profiles");
+    profilesTabRef.current?.focus();
+  };
 
   return (
     <Tabs value={visiblePanel} onValueChange={(value) => setActivePanel(value as WorkspacePanel)} className="space-y-5" aria-label="Culture Map 작업 공간">
       <div className="flex items-center gap-2 border-b border-teal-200/80">
         <TabsList className="h-auto min-w-0 flex-1 flex-wrap justify-start gap-1 rounded-none bg-transparent p-0" aria-label="Culture Map 기능">
           <TabsTrigger
+            ref={profilesTabRef}
             value="profiles"
             className={`rounded-none border-b-2 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 ${
               visiblePanel === "profiles"
@@ -32,7 +38,17 @@ export function CultureMapWorkspace() {
           >
             <span className="font-semibold">프로필 관리</span>
           </TabsTrigger>
-          <div ref={setCreateActionContainer} className="self-stretch" />
+          <TabsTrigger
+            value="create"
+            className={`gap-1.5 rounded-none border-b-2 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 ${
+              visiblePanel === "create"
+                ? "border-teal-700 bg-transparent text-teal-950"
+                : "border-transparent bg-transparent text-slate-600 hover:border-teal-300 hover:text-teal-900"
+            }`}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span className="font-semibold">새 프로필 만들기</span>
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger
               value="experiment"
@@ -68,7 +84,10 @@ export function CultureMapWorkspace() {
       </div>
 
       <TabsContent value="profiles" forceMount className="data-[state=inactive]:hidden" hidden={visiblePanel !== "profiles"}>
-        <CultureProfilesManager createActionContainer={createActionContainer} />
+        <CultureProfilesManager showCreateAction={false} />
+      </TabsContent>
+      <TabsContent value="create" forceMount className="data-[state=inactive]:hidden" hidden={visiblePanel !== "create"}>
+        <CultureProfileCreatePage onCreated={returnToProfiles} onCancel={returnToProfiles} />
       </TabsContent>
       {isAdmin && (
         <TabsContent value="experiment" forceMount className="data-[state=inactive]:hidden" hidden={visiblePanel !== "experiment"}>

@@ -18,6 +18,12 @@ vi.mock("@/components/admin/cultureMap/CultureProfilesManager", () => ({
     return <input aria-label="작성 중인 프로필" value={draft} onChange={event => setDraft(event.target.value)} />;
   },
 }));
+vi.mock("@/components/admin/cultureMap/CultureProfileCreatePage", () => ({
+  CultureProfileCreatePage: () => {
+    const [draft, setDraft] = useState("");
+    return <input aria-label="작성 중인 새 프로필" value={draft} onChange={event => setDraft(event.target.value)} />;
+  },
+}));
 vi.mock("@/components/admin/cultureMap/CultureBehaviorExperiment", () => ({
   CultureBehaviorExperiment: () => {
     const [result, setResult] = useState("");
@@ -57,6 +63,10 @@ describe("Culture Map workspace navigation", () => {
     const user = userEvent.setup();
     render(<CultureMapWorkspace />);
     screen.getByRole("tab", { name: /프로필 관리/ }).focus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "새 프로필 만들기" }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "새 프로필 만들기" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "행동 실험" }).getAttribute("aria-selected")).toBe("true");
     expect(document.activeElement).toBe(screen.getByRole("tab", { name: "행동 실험" }));
