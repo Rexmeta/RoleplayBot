@@ -94,7 +94,7 @@ describe("Culture Map workspace navigation", () => {
     render(<CultureMapWorkspace />);
     expect(screen.queryByRole("heading")).toBeNull();
     const notice = screen.getByRole("button", { name: "문화 프로필 자료 안내" });
-    expect(screen.queryByText(/국가 기본 프로필은 자체 추정 자료이며/)).toBeNull();
+    expect(screen.queryByText(/국가 프로필은 자체 추정 자료이며/)).toBeNull();
     await user.hover(notice);
     const tooltip = await screen.findByRole("tooltip");
     expect(tooltip.textContent).toContain(CULTURE_DISCLAIMER);
@@ -108,7 +108,7 @@ describe("Culture Map workspace navigation", () => {
     await user.click(notice);
     const popover = await screen.findByRole("dialog");
     expect(popover.textContent).toContain(CULTURE_DISCLAIMER);
-    expect(within(popover).getByText(/국가 기본 프로필은 자체 추정 자료이며/)).toBeTruthy();
+    expect(within(popover).getByText(/국가 프로필은 자체 추정 자료이며/)).toBeTruthy();
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });

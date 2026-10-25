@@ -137,7 +137,11 @@ export function CultureProfileCard({
       <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-100 pt-2 text-[10px] leading-relaxed text-slate-600">
         {selected && <span className="font-medium text-teal-800">비교 {comparisonIndex}번</span>}
         {comparisonLimitReached && !selected && <span className="text-amber-800">최대 5개 선택됨 · 비교를 해제하면 추가 가능</span>}
-        {profile.origin ? (
+        {profile.assessment ? (
+          <span title={profile.assessment.notice}>
+            시스템 기업 프로필 · 공개자료 기반 자체 추정 · 검토 필요 · 신뢰도 낮음
+          </span>
+        ) : profile.origin ? (
           <span title={profile.origin.importantNotice}>
             {isSystemCultureProfile(profile) ? "시스템 기본 · 자체 추정" : "자체 추정 자료에서 복제"} · 검토 필요 · 신뢰도 {confidenceLabel[profile.origin.originalProfile.confidence]} · 자료 v{profile.origin.originalProfile.profileVersion}
           </span>

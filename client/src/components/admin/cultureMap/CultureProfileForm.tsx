@@ -68,6 +68,7 @@ export function CultureProfileForm({
       {errorText && <div role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{errorText}</div>}
       {isAdmin && <div className="mb-5 flex justify-end"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.visibility === "shared"} disabled={disabled} onChange={event => setField("visibility", event.target.checked ? "shared" : "private")} />공유 프로필</label></div>}
       <div className="mb-4"><CultureOriginNotice origin={draft.origin} /></div>
+      {editing?.assessment && <p className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-950">{editing.assessment.notice}</p>}
       {editing && isSystemCultureProfile(editing) && <div className="mb-4 flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm"><span>시스템 기본 프로필은 읽기 전용입니다. 수정하려면 복제하세요.</span><Button type="button" variant="outline" size="sm" disabled={duplicatePending} onClick={onDuplicate}>복제 후 편집</Button></div>}
       <div className="grid gap-4 sm:grid-cols-2">
         <div><Label htmlFor={fieldId("name")}>프로필 이름 *</Label><Input ref={nameInputRef} id={fieldId("name")} value={draft.name} maxLength={150} disabled={disabled} onChange={event => setField("name", event.target.value)} /></div>

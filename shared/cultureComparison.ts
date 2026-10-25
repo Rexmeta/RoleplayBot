@@ -4,7 +4,7 @@ import { CULTURE_DIMENSIONS, type CultureProfile } from "./cultureMap";
 export const CULTURE_SIMILARITY_THRESHOLD = 10;
 
 export function cultureProfileConfidence(profile: CultureProfile) {
-  return profile.origin?.originalProfile.confidence ?? "unspecified";
+  return profile.origin?.originalProfile.confidence ?? profile.assessment?.confidence ?? "unspecified";
 }
 
 export function matchesCultureProfile(

@@ -101,11 +101,12 @@ export async function bindActorCultures(actors: any[], user: CultureUser, existi
       eq(cultureProfileVersions.profileId, chosen.profileId), eq(cultureProfileVersions.version, chosen.profileVersion),
     ));
     if (!version) throw new CultureError("선택한 문화 프로필 버전이 없습니다.", 404);
-    const { name, country, region, sources, dimensions, origin } = version.content;
+    const { name, country, region, sources, dimensions, origin, assessment } = version.content;
     const snapshot = cultureSnapshotSchema.parse({
       ...chosen, snapshotVersion: 1, name, country, region, sources,
       dimensions: { ...dimensions, ...chosen.overrides },
       ...(origin ? { origin } : {}),
+      ...(assessment ? { assessment } : {}),
     });
     return { ...actor, culture: snapshot };
   }));

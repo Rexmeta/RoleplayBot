@@ -21,8 +21,10 @@ import { buildActorCultureLayer, buildScenarioCultureLayer } from "../../server/
 import { resolveRuntimeScenario } from "../../server/services/runtimeScenario";
 import { buildSystemInstructions, buildReconnectSystemInstructions } from "../../server/services/voice/systemPromptBuilder";
 import { countryCultureDataset, countryCultureSeedProfiles, datasetDimensionsToApp, countrySeedId } from "../../server/services/cultureMap/dataset";
-import { seedCountryCultureProfiles } from "../../server/services/cultureMap/seed";
+import { organizationCultureSeedProfiles } from "../../server/services/cultureMap/organizationDataset";
+import { seedCountryCultureProfiles, seedOrganizationCultureProfiles } from "../../server/services/cultureMap/seed";
 import { SYSTEM_CULTURE_OWNER_ID } from "../../shared/cultureMap";
+import { cultureProfileConfidence } from "../../shared/cultureComparison";
 
 const owner = { id: "operator-owner", role: "operator" };
 const other = { id: "other-operator", role: "operator" };
@@ -57,6 +59,28 @@ describe("Culture Map pure contracts", () => {
     expect(us.content.origin!.originalProfile.dimensions.persuading).toBe(20);
     expect(us.content.dimensions.persuading).toBe(80);
     expect(datasetDimensionsToApp(datasetDimensionsToApp(us.content.dimensions))).toEqual(us.content.dimensions);
+  });
+  it("defines six sourced, low-confidence company estimates separately from country baselines", () => {
+    expect(organizationCultureSeedProfiles.map(profile => profile.content.name)).toEqual([
+      "Meta", "Google", "Apple", "Intel", "Anthropic", "OpenAI",
+    ]);
+    expect(new Set(organizationCultureSeedProfiles.map(profile => profile.id)).size).toBe(6);
+    for (const profile of organizationCultureSeedProfiles) {
+      expect(profile.content.country).toBe("기업");
+      expect(profile.content.visibility).toBe("shared");
+      expect(profile.content.origin).toBeUndefined();
+      expect(profile.content.assessment).toMatchObject({
+        kind: "organization_editorial_estimate",
+        confidence: "low",
+      });
+      expect(profile.content.sources.length).toBeGreaterThan(0);
+      expect(profile.content.sources.every(source => source.url.startsWith("https://"))).toBe(true);
+      expect(Object.values(profile.content.dimensions).every(score => score % 5 === 0)).toBe(true);
+      expect(cultureProfileConfidence({
+        ...profile.content, id: profile.id, ownerId: SYSTEM_CULTURE_OWNER_ID,
+        version: 1, createdAt: "", updatedAt: "",
+      })).toBe("low");
+    }
   });
   it("requires all eight bounded, finite dimensions and rejects untrusted source URLs", () => {
     expect(cultureProfileInputSchema.safeParse(content()).success).toBe(true);
@@ -156,6 +180,28 @@ describe.skipIf(!process.env.DATABASE_URL)("Culture Map PostgreSQL + HTTP", () =
     expect((await getCultureProfile(custom.id, owner)).name).toBe("대한민국");
     expect((await getCultureProfile(custom.id, owner)).version).toBe(1);
     expect((await client.query("SELECT COUNT(*)::int AS n FROM culture_profiles")).rows[0].n).toBe(48);
+  }, 20000);
+  it("seeds six read-only, sourced organization estimates idempotently and preserves the estimate in Actor snapshots", async () => {
+    expect(await seedOrganizationCultureProfiles(holder.database)).toEqual({ total: 6, inserted: 6, preserved: 0 });
+    expect(await seedOrganizationCultureProfiles(holder.database)).toEqual({ total: 6, inserted: 0, preserved: 6 });
+    const rows = (await listCultureProfiles(admin)).filter(profile =>
+      organizationCultureSeedProfiles.some(seed => seed.id === profile.id));
+    expect(rows.map(profile => profile.name).sort()).toEqual(["Anthropic", "Apple", "Google", "Intel", "Meta", "OpenAI"]);
+    for (const profile of rows) {
+      const expected = organizationCultureSeedProfiles.find(seed => seed.id === profile.id)!;
+      expect(profile.assessment).toEqual(expected.content.assessment);
+      expect((await listCultureVersions(profile.id, owner))[0].content).toEqual(expected.content);
+      await expect(updateCultureProfile(profile.id, expected.content, profile.version, admin)).rejects.toMatchObject({ statusCode: 403 });
+      await expect(deleteCultureProfile(profile.id, profile.version, admin)).rejects.toMatchObject({ statusCode: 403 });
+    }
+
+    const selected = rows[0];
+    const bound = await bindActorCultures([{
+      id: "company-actor",
+      culture: { enabled: true, profileId: selected.id, profileVersion: 1, intensity: 70, overrides: {} },
+    }], owner);
+    expect(bound[0].culture.assessment).toEqual(selected.assessment);
+    expect(buildActorCultureLayer(bound[0])).toContain("low-confidence organization tendencies");
   }, 20000);
   it("makes country originals read-only even for admins, allows independent private clones and freezes provenance in Actor snapshots", async () => {
     await seedCountryCultureProfiles(holder.database);

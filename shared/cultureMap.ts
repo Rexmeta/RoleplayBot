@@ -25,6 +25,11 @@ export const cultureSourceSchema = z.object({
   locator: z.string().trim().max(1000),
   note: z.string().trim().max(2000),
 }).strict();
+export const cultureAssessmentSchema = z.object({
+  kind: z.literal("organization_editorial_estimate"),
+  confidence: z.literal("low"),
+  notice: z.string().trim().min(1).max(1000),
+}).strict();
 /** Retain the uploaded record verbatim, including its ORIGINAL axis direction.
  * Only the operational dimensions below are adapted to the app's scales.
  */
@@ -62,6 +67,7 @@ export const cultureProfileInputSchema = z.object({
   sources: z.array(cultureSourceSchema).max(20),
   visibility: z.enum(["private", "shared"]).default("private"),
   origin: cultureOriginSchema.optional(),
+  assessment: cultureAssessmentSchema.optional(),
 }).strict();
 export type CultureValues = z.infer<typeof cultureValuesSchema>;
 export type CultureSource = z.infer<typeof cultureSourceSchema>;
@@ -88,6 +94,7 @@ export const cultureSnapshotSchema = cultureSelectionSchema.extend({
   dimensions: cultureValuesSchema,
   sources: z.array(cultureSourceSchema).max(20),
   origin: cultureOriginSchema.optional(),
+  assessment: cultureAssessmentSchema.optional(),
 }).strict();
 export type CultureSnapshot = z.infer<typeof cultureSnapshotSchema>;
 export type CultureSelection = z.infer<typeof cultureSelectionSchema>;

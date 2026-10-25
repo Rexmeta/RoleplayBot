@@ -26,11 +26,16 @@ export function buildActorCultureLayer(actor: { id?: string; culture?: unknown }
       : `balance both approaches: ${behaviors[key][0]}; ${behaviors[key][1]}`;
     return `- ${key} (${value}/100 continuum, not probability): ${tendency}.`;
   });
+  const estimateNotice = snapshot.assessment
+    ? "These low-confidence organization tendencies are editorial estimates mapped from public company materials, NOT official scores or measured employee behavior. Teams, roles, regions and time periods vary; follow the scenario, individual behavior and explicit overrides."
+    : snapshot.origin
+      ? "These are unvalidated editorial estimates, NOT official Erin Meyer scores or individual measurements. Individual biography, professional role, organization and explicit overrides take precedence over this starting prior."
+      : "";
   return `\n[CULTURE_CONTEXT actorId=${JSON.stringify(actor.id ?? "")} version=${snapshot.profileVersion}]
 Apply ONLY when speaking as this Actor. This is a scenario-specific behavioral tendency, not a person's fixed personality, nationality stereotype, or ability.
 Instruction emphasis: ${emphasis} (${snapshot.intensity}/100). This is NOT a deterministic probability of behavior.
 Respect safety, explicit scenario constraints, the individual's goals and observed behavior over this layer. Never modify assessment scores because of cultural dimensions.
-${snapshot.origin ? "These are unvalidated editorial estimates, NOT official Erin Meyer scores or individual measurements. Individual biography, professional role, organization and explicit overrides take precedence over this starting prior.\n" : ""}${lines.join("\n")}
+${estimateNotice ? `${estimateNotice}\n` : ""}${lines.join("\n")}
 [/CULTURE_CONTEXT]`;
 }
 

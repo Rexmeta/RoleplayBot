@@ -73,10 +73,10 @@ export function CultureMapWorkspace() {
                 </PopoverTrigger>
               </TooltipTrigger>
               {!noticeOpen && <TooltipContent side="bottom" className="max-h-[min(70dvh,24rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto whitespace-normal border-teal-200 bg-teal-50 text-left text-sm leading-relaxed text-teal-950">
-                국가 기본 프로필은 자체 추정 자료이며 공식 Erin Meyer 수치가 아닙니다. {CULTURE_DISCLAIMER}
+                국가 프로필은 자체 추정 자료이며 공식 Erin Meyer 수치가 아닙니다. 기업 프로필도 공개 자료에 기반한 낮은 신뢰도의 자체 추정으로, 공식 측정값이 아닙니다. {CULTURE_DISCLAIMER}
               </TooltipContent>}
               <PopoverContent side="bottom" align="end" className="max-h-[min(70dvh,24rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto border-teal-200 bg-teal-50 text-sm leading-relaxed text-teal-950">
-                국가 기본 프로필은 자체 추정 자료이며 공식 Erin Meyer 수치가 아닙니다. {CULTURE_DISCLAIMER}
+                국가 프로필은 자체 추정 자료이며 공식 Erin Meyer 수치가 아닙니다. 기업 프로필도 공개 자료에 기반한 낮은 신뢰도의 자체 추정으로, 공식 측정값이 아닙니다. {CULTURE_DISCLAIMER}
               </PopoverContent>
             </Popover>
           </Tooltip>
