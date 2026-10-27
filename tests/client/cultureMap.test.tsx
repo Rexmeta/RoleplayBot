@@ -58,6 +58,22 @@ const snapshot: CultureSnapshot = {
   intensity: 63, overrides: {}, name: "삭제된 프로필 스냅샷", country: "싱가포르", region: "중부",
   dimensions: dimensions(31), sources: [],
 };
+const companySnapshot: CultureSnapshot = {
+  ...snapshot,
+  assessment: {
+    kind: "organization_editorial_estimate",
+    confidence: "low",
+    notice: "기업 공개 자료를 바탕으로 한 자체 추정입니다.",
+    sourceReviewedAt: "2026-10-27",
+    revision: "2026.2",
+  },
+  sources: [{
+    title: "Meta 기업 문화 자료",
+    url: "https://example.com/meta-culture",
+    locator: "기업 가치",
+    note: "공개 자료",
+  }],
+};
 
 function response(data: unknown, status = 200) {
   return Promise.resolve({ ok: status < 400, status, json: async () => data } as Response);
@@ -492,6 +508,23 @@ describe("Culture Map actor and profile management", () => {
     expect(screen.getByText(/공식 점수 아님/).textContent).toContain("검토 필요");
   });
 
+  it("shows company estimate notice, low confidence, and source links for the selected Actor profile", async () => {
+    const companySeed = organizationCultureSeedProfiles[0];
+    const company: CultureProfile = { ...companySeed.content, id: companySeed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1, createdAt: profile.createdAt, updatedAt: profile.updatedAt };
+    apiRequest.mockImplementation(async (_method: string, url: string) => url.endsWith("/versions")
+      ? response([{ version: 1, content: companySeed.content, createdAt: profile.createdAt }])
+      : response([company]));
+
+    renderWithQuery(<ActorCultureEditor actorKey="company-actor" value={{ enabled: true, profileId: company.id, profileVersion: 1, intensity: 70, overrides: {} }} onChange={vi.fn()} />);
+
+    expect(await screen.findByText(company.assessment!.notice)).toBeTruthy();
+    expect(screen.getByText(/기업 공개 자료 기반 자체 추정 · 검토 필요 · 신뢰도 낮음/)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`출처 검토일: ${company.assessment!.sourceReviewedAt}`))).toBeTruthy();
+    const source = screen.getByRole("link", { name: company.sources[0].title });
+    expect(source.getAttribute("href")).toBe(company.sources[0].url);
+    expect(source.getAttribute("target")).toBe("_blank");
+  });
+
   it("filters Actor choices by source type without changing the saved selection", async () => {
     const baseline = countryCultureSeedProfiles[0];
     const country: CultureProfile = {
@@ -582,12 +615,14 @@ describe("Culture Map actor and profile management", () => {
       return response([]);
     });
     const onChange = vi.fn();
-    renderWithQuery(<ActorCultureEditor actorKey="actor-a" value={snapshot} onChange={onChange} />);
+    renderWithQuery(<ActorCultureEditor actorKey="actor-a" value={companySnapshot} onChange={onChange} />);
     const savedSnapshot = screen.getByRole("region", { name: "저장된 문화 스냅샷" });
     expect(savedSnapshot.textContent).toContain("삭제된 프로필 스냅샷");
     expect(savedSnapshot.textContent).toContain("싱가포르");
     expect(savedSnapshot.textContent).toContain("v4");
     expect(savedSnapshot.textContent).toContain("31");
+    expect(screen.getByText(companySnapshot.assessment!.notice)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Meta 기업 문화 자료" }).getAttribute("href")).toBe("https://example.com/meta-culture");
     expect(onChange).not.toHaveBeenCalled();
   });
 
