@@ -12,6 +12,7 @@ import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "./services/videoAvatarAccess";
 import { normalizeVoiceLanguage } from "./services/voice/transcriptionIntegrity";
+import createLiveAvatarRouter from "./routes/liveAvatar";
 
 import createUserRouter from "./routes/user";
 import createFreeChatRouter from "./routes/freeChat";
@@ -47,6 +48,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
+  app.use("/api/live-avatar", createLiveAvatarRouter(isAuthenticated));
 
   // Seed model_translation setting if not present
   try {

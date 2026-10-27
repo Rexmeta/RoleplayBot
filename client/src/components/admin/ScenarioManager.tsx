@@ -44,6 +44,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ActorCultureEditor } from '@/components/admin/cultureMap/ActorCultureEditor';
+import { ScenarioLiveAvatarPolicy } from '@/components/admin/ScenarioLiveAvatarPolicy';
 import type { ActorCulture } from '@shared/cultureMap';
 import { getScenarioPersonaTemplateId, stableActorIdForTemplate } from '@/components/admin/cultureMap/actorIdentity';
 
@@ -2709,6 +2710,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     );
                   })()}
                   
+                  <ScenarioLiveAvatarPolicy key={editingScenario?.id ?? "new"} scenarioId={editingScenario?.id} />
+
                   {canManageVideoAvatar && <div className="flex items-center gap-3">
                     <Switch
                       id="useVideoAvatar"

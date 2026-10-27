@@ -7,12 +7,13 @@ interface TopMenuPanelProps {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
+  children?: React.ReactNode;
 }
 
 const DISMISS_THRESHOLD = 80;
 const FLICK_VELOCITY = 0.4;
 
-export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
+export function TopMenuPanel({ isOpen, onToggle, onClose, children }: TopMenuPanelProps) {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   );
@@ -92,6 +93,7 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
             <div className="w-10 h-1 bg-slate-300 rounded-full" />
           </div>
           <AppHeader />
+          {isOpen && children && <div className="max-h-[60dvh] overflow-y-auto bg-white p-3">{children}</div>}
         </div>
 
         <button
@@ -129,6 +131,7 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
         }`}
       >
         <AppHeader />
+        {isOpen && children && <div className="max-h-[60dvh] overflow-y-auto bg-white p-3"><div className="mx-auto max-w-2xl">{children}</div></div>}
       </div>
       <button
         onClick={onToggle}

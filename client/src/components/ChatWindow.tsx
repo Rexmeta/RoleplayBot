@@ -34,6 +34,7 @@ import { resolvePersonaAfterSwitch } from "@/components/chat/resolvePersonaAfter
 import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
+import { LiveAvatarChoice } from "@/components/chat/LiveAvatarChoice";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
 import type { VideoAvatarRenderer } from "@/lib/avatar/VideoAvatarRenderer";
@@ -922,7 +923,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   return (
     <>
-      <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)} />
+      <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)}>
+        <LiveAvatarChoice key={conversationId} conversationId={conversationId} voiceMode={inputMode === 'realtime-voice'} />
+      </TopMenuPanel>
 
       <div className="chat-window relative">
         {isInitialLoading && (

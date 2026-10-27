@@ -90,6 +90,7 @@ const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
   { file: "server/routes/imageGeneration.ts",  prefix: "/api/image" },
   { file: "server/routes/userPersonaImage.ts", prefix: "/api/user-personas" },
   { file: "server/routes/media.ts",            prefix: "/api/media" },
+  { file: "server/routes/liveAvatar.ts",       prefix: "/api/live-avatar" },
 ];
 
 /**
@@ -134,6 +135,11 @@ const PATH_ALLOWLIST: string[] = [
   // /api/admin/categories is used as a query-key prefix; actual routes include
   // /api/admin/categories/:id and /api/admin/categories/:categoryId/translations/:locale.
   "/api/admin/categories/",
+
+  // Exact React Query key prefixes only; actual HTTP routes are registered
+  // under conversations/:conversationId and scenarios/:scenarioId.
+  "/api/live-avatar/conversations",
+  "/api/live-avatar/scenarios",
 
 ];
 
