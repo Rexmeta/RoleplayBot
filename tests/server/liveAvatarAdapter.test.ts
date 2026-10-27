@@ -35,6 +35,19 @@ describe("AvatarRouter read-only adapter", () => {
     }
   });
 
+  it("accepts the documented degraded provider status without unlocking sessions", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(json(ready))
+      .mockResolvedValueOnce(json([{ ...provider, status: "degraded" }]));
+    const adapter = new AvatarRouterAdapter(fetcher);
+    const result = await adapter.diagnose();
+    expect(result.reachable).toBe(true);
+    expect(result.providers[0].status).toBe("degraded");
+    expect(adapter.contractReady).toBe(false);
+    await expect(adapter.openSession({ ownerId: "owner", conversationId: "conversation" }))
+      .rejects.toBeInstanceOf(LiveAvatarContractError);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it("coalesces concurrent refreshes and caches failures as safe diagnostics", async () => {
     const fetcher = vi.fn().mockRejectedValue(new Error("upstream secret token"));
     const adapter = new AvatarRouterAdapter(fetcher);

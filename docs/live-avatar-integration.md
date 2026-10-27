@@ -16,6 +16,32 @@
 외부 API는 고정된 HTTPS origin으로만 요청하며 관리자 수동 진단은 공개 상태 GET 2개만 실행한다. 시작 시 자동 진단은 없다.
 타임아웃·응답 크기 제한·redirect 거부·필드 검증을 적용하고, 성공과 실패 모두 짧게 캐시하여 반복 진단의 부하를 제한한다.
 
+## 제공된 공식 규격과의 대조
+
+2026-10-27 사용자가 제공한 integration guide 및 OpenAPI와 공개 `/docs`를 대조했다.
+문서 수령은 인증·실제 미디어 전송의 승인이나 계약 충족을 의미하지 않는다.
+
+| 항목 | 공식 문서가 보장하는 범위 | 현재 앱에서 남은 조건 |
+| --- | --- | --- |
+| 인증 | 같은 관리형 Clerk tenant의 동일 사용자가 발급받은 단기 JWT와 사용자별 `avatar_playground` owner cookie | 현재 앱은 자체 JWT 인증이다. 이 JWT를 Clerk 토큰처럼 전달할 수 없으며 계정 교환·신뢰 매핑 계약도 없다. 기존 로그인을 임의로 이전하지 않는다 |
+| 소유권 | BFF가 같은 사용자의 쿠키를 암호화된 별도 jar에 보존해야 함 | 사용자 연결을 먼저 검증해야 하며 공용 쿠키 jar나 브라우저 노출은 금지 |
+| 라이브 대상 | `tavus` / `tavus-stock-lucy` stock 인물 | 현재 페르소나의 사용자 이미지 기반 라이브 dispatch는 미제공. stock 인물로 자동 대체하지 않음 |
+| PCM | 24 kHz mono PCM16 LE, 요청당 20ms~5초, at-most-once clip 명령 | 연속 Gemini PCM 스트림이 아님. 조각화·buffering·순서·턴 및 interrupt 동기화는 별도 구현·실측 필요. timeout audio 명령 자동 재전송 금지 |
+| 영상·음성 | 준비 완료 뒤 room 한정 subscribe-only LiveKit token | 브라우저 수신기와 로컬/원격 단일 출력 소유권 검증 필요. token은 메모리에서만 취급 |
+| 생성·종료 | 201은 queued. active + running + stopRequested=false + cleanupPending=false를 확인해야 준비 완료. end 200은 종료 요청 접수 | workerReady·사용 한도를 확인해야 하며 실제 종료는 terminal status와 cleanupPending=false까지 확인. 생성 결과가 불명확하면 자동 재시도 금지 |
+| 비용·용량 | global 동시 stock 세션 1개, 시도당 120초 예약. provider credit은 unknown | 별도 유료 사용 승인 필요. 예약량을 요금 상한으로 해석하지 않음 |
+
+OpenAPI Provider의 `degraded` 상태를 진단 parser와 타입에 반영했다. 이것이 실제 연결 gate를 해제하지는 않는다.
+
+### AvatarRouter 측에 먼저 필요한 결정
+
+기존 RoleplayX 계정을 유지하는 인증 브리지를 AvatarRouter 측에서 먼저 설계·지원해야 한다.
+그 계약에는 검증 가능한 사용자 식별, 사용자·tenant scope, 허용된 session/asset 권한, 단기 권한의 발급·철회 및 사용자별 owner-cookie 유지 정책이 포함되어야 한다.
+현재 JWT의 서명 비밀을 외부 서비스에 공유하거나, 임의 헤더를 추가하거나, 한 테스트 사용자의 Clerk 토큰을 다른 사용자에게 재사용해서는 안 된다.
+그 계약 없이 RoleplayX BFF만 작성해도 인증 호환성은 해결되지 않는다.
+대안인 같은 Clerk 사용자 기반 stock 개발 시험도 현재 로그인을 유지하면서 추가 사용자 인증·계정 연결을 설계해야 하므로 별도 범위 승인이 필요하다.
+원래 요청한 실제 라이브 연동은 여전히 **미완료**이며, 차단 UI를 실제 연결 완료로 간주하지 않는다.
+
 ## 개발 화면 사용법
 
 1. 시스템 관리자 → 시스템 설정 → **실시간 아바타 설정**에서 전역 허용 여부를 저장한다. 기본 OFF이며 권한은 관리자만 가진다.

@@ -14,3 +14,9 @@ Live avatar integration must use an isolated adapter and remain an optional serv
 **Why:** The user explicitly requested adapter-based integration and optional live-avatar service selection while preserving existing features.
 
 **How to apply:** Preserve existing defaults and separate external session, audio transport, and failure handling from the existing avatar and voice paths.
+
+The official integration guide requires the same verified Clerk user plus a strictly per-user owner cookie. It explicitly does not supply a cross-application identity bridge. Its PCM endpoint accepts bounded clips, not continuous Gemini streaming.
+
+**Why:** Receiving an official stock-echo contract does not remove the identity incompatibility or prove end-to-end dialogue integration.
+
+**How to apply:** Verify identity compatibility before implementing authenticated requests. Do not migrate existing login, forward unrelated JWTs, share cookie jars, or mark a blocked foundation as completed live integration.

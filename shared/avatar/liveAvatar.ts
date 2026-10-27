@@ -24,7 +24,7 @@ export interface LiveAvatarAvailability extends LiveAvatarConfig {
 export interface AvatarProviderDiagnostic {
   id: string;
   name: string;
-  status: "available" | "unconfigured" | "unavailable";
+  status: "available" | "degraded" | "unconfigured" | "unavailable";
   externalAudio: boolean;
   implemented: boolean;
 }

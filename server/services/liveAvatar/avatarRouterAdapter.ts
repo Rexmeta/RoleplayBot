@@ -14,7 +14,7 @@ const readinessSchema = z.object({
 const providersSchema = z.array(z.object({
   id: z.string().regex(/^[a-z0-9_-]{1,60}$/),
   name: z.string().min(1).max(100),
-  status: z.enum(["available", "unconfigured", "unavailable"]),
+  status: z.enum(["available", "degraded", "unconfigured", "unavailable"]),
   externalAudio: z.boolean(),
   implemented: z.boolean(),
 })).max(30);
