@@ -72,6 +72,8 @@ describe("Culture Map pure contracts", () => {
       expect(profile.content.assessment).toMatchObject({
         kind: "organization_editorial_estimate",
         confidence: "low",
+        sourceReviewedAt: "2026-10-27",
+        revision: "2026.2",
       });
       expect(profile.content.sources.length).toBeGreaterThan(0);
       expect(profile.content.sources.every(source => source.url.startsWith("https://"))).toBe(true);
@@ -182,8 +184,8 @@ describe.skipIf(!process.env.DATABASE_URL)("Culture Map PostgreSQL + HTTP", () =
     expect((await client.query("SELECT COUNT(*)::int AS n FROM culture_profiles")).rows[0].n).toBe(48);
   }, 20000);
   it("seeds six read-only, sourced organization estimates idempotently and preserves the estimate in Actor snapshots", async () => {
-    expect(await seedOrganizationCultureProfiles(holder.database)).toEqual({ total: 6, inserted: 6, preserved: 0 });
-    expect(await seedOrganizationCultureProfiles(holder.database)).toEqual({ total: 6, inserted: 0, preserved: 6 });
+    expect(await seedOrganizationCultureProfiles(holder.database)).toEqual({ total: 6, inserted: 6, updated: 0, preserved: 0 });
+    expect(await seedOrganizationCultureProfiles(holder.database)).toEqual({ total: 6, inserted: 0, updated: 0, preserved: 6 });
     const rows = (await listCultureProfiles(admin)).filter(profile =>
       organizationCultureSeedProfiles.some(seed => seed.id === profile.id));
     expect(rows.map(profile => profile.name).sort()).toEqual(["Anthropic", "Apple", "Google", "Intel", "Meta", "OpenAI"]);
@@ -202,6 +204,49 @@ describe.skipIf(!process.env.DATABASE_URL)("Culture Map PostgreSQL + HTTP", () =
     }], owner);
     expect(bound[0].culture.assessment).toEqual(selected.assessment);
     expect(buildActorCultureLayer(bound[0])).toContain("low-confidence organization tendencies");
+  }, 20000);
+  it("appends newer company estimates while retaining old history and saved Actor snapshots", async () => {
+    const seed = organizationCultureSeedProfiles[0];
+    const oldContent = {
+      ...seed.content,
+      dimensions: { ...seed.content.dimensions, communicating: 45 },
+      assessment: {
+        ...seed.content.assessment!,
+        sourceReviewedAt: "2026-06-01",
+        revision: "2026.1",
+      },
+    };
+    await client.query(
+      "INSERT INTO culture_profiles (id, owner_id, version, content) VALUES ($1, $2, 1, $3::jsonb)",
+      [seed.id, SYSTEM_CULTURE_OWNER_ID, JSON.stringify(oldContent)],
+    );
+    await client.query(
+      "INSERT INTO culture_profile_versions (profile_id, version, content, created_by) VALUES ($1, 1, $2::jsonb, $3)",
+      [seed.id, JSON.stringify(oldContent), SYSTEM_CULTURE_OWNER_ID],
+    );
+
+    const selected = await bindActorCultures([{
+      id: "version-one-actor",
+      culture: { enabled: true, profileId: seed.id, profileVersion: 1, intensity: 70, overrides: {} },
+    }], owner);
+    const savedSnapshot = structuredClone(selected[0].culture);
+
+    expect(await seedOrganizationCultureProfiles(holder.database)).toEqual({ total: 6, inserted: 5, updated: 1, preserved: 0 });
+    const current = await getCultureProfile(seed.id, admin);
+    expect(current.version).toBe(2);
+    expect(current.assessment).toEqual(seed.content.assessment);
+    expect(current.dimensions.communicating).toBe(seed.content.dimensions.communicating);
+
+    const history = await listCultureVersions(seed.id, owner);
+    expect(history.map(entry => entry.version)).toEqual([2, 1]);
+    expect(history[1].content).toEqual(oldContent);
+    const stillBoundToOldVersion = await bindActorCultures([{
+      id: "version-one-actor",
+      culture: { enabled: true, profileId: seed.id, profileVersion: 1, intensity: 70, overrides: {} },
+    }], owner);
+    expect(stillBoundToOldVersion[0].culture).toEqual(savedSnapshot);
+
+    expect(await seedOrganizationCultureProfiles(holder.database)).toEqual({ total: 6, inserted: 0, updated: 0, preserved: 6 });
   }, 20000);
   it("makes country originals read-only even for admins, allows independent private clones and freezes provenance in Actor snapshots", async () => {
     await seedCountryCultureProfiles(holder.database);

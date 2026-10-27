@@ -151,9 +151,31 @@ export function CultureProfileCard({
         {selected && <span className="font-medium text-teal-800">비교 {comparisonIndex}번</span>}
         {comparisonLimitReached && !selected && <span className="text-amber-800">최대 5개 선택됨 · 비교를 해제하면 추가 가능</span>}
         {profile.assessment ? (
-          <span title={profile.assessment.notice}>
-            시스템 기업 프로필 · 공개자료 기반 자체 추정 · 검토 필요 · 신뢰도 낮음
-          </span>
+          <div className="w-full space-y-1">
+            <p title={profile.assessment.notice}>
+              시스템 기업 프로필 · 공개자료 기반 자체 추정 · 검토 필요 · 신뢰도 낮음
+            </p>
+            <p>
+              출처 검토일: {profile.assessment.sourceReviewedAt ?? "미등록"} · 추정 개정: {profile.assessment.revision ?? "미등록"}
+            </p>
+            {profile.sources.length > 0 && (
+              <ul aria-label={`${profile.name} 출처`} className="list-inside list-disc space-y-0.5">
+                {profile.sources.map((source) => (
+                  <li key={`${source.url}:${source.title}`} className="truncate">
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`${source.title}${source.locator ? ` · ${source.locator}` : ""}${source.note ? ` — ${source.note}` : ""}`}
+                      className="text-teal-800 underline underline-offset-2 hover:text-teal-950"
+                    >
+                      {source.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         ) : profile.origin ? (
           <span title={profile.origin.importantNotice}>
             {isSystemCultureProfile(profile) ? "시스템 기본 · 자체 추정" : "자체 추정 자료에서 복제"} · 검토 필요 · 신뢰도 {confidenceLabel[profile.origin.originalProfile.confidence]} · 자료 v{profile.origin.originalProfile.profileVersion}

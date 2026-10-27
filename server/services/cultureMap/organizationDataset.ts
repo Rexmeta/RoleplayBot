@@ -9,6 +9,8 @@ import {
 
 const estimateNotice =
   "기업이 공개한 가치·문화 소개를 Culture Map 8개 차원에 대응시킨 RoleplayX 자체 추정입니다. 기업의 공식 점수나 직원 행동 측정값이 아니며, 팀·직무·지역·시점에 따라 달라질 수 있습니다.";
+const sourceReviewedAt = "2026-10-27";
+const revision = "2026.2";
 
 type OrganizationRecord = {
   slug: string;
@@ -56,8 +58,8 @@ const organizationRecords: OrganizationRecord[] = [
     }, {
       title: "Apple Careers — Work at Apple",
       url: "https://www.apple.com/careers/us/work-at-apple.html",
-      locator: "Teams and culture",
-      note: "전문가 주도와 협업 문화에 관한 자체 소개입니다. 독립적인 직원 행동 측정 자료는 아닙니다.",
+      locator: "How We Work; Collaboration",
+      note: "전문가 주도 조직과 협업·토론에 관한 자체 소개입니다. 독립적인 직원 행동 측정 자료는 아닙니다.",
     }],
   },
   {
@@ -119,9 +121,13 @@ export const organizationCultureSeedProfiles = organizationRecords.map(record =>
       kind: "organization_editorial_estimate",
       confidence: "low",
       notice: estimateNotice,
+      sourceReviewedAt,
+      revision,
     },
   });
   return {
+    // Keep the profile identity stable. New estimates become a new profile
+    // version so saved Actor snapshots can continue to reference older ones.
     id: uuidv5(`${SYSTEM_CULTURE_OWNER_ID}:organization:${record.slug}:2026.1`, uuidv5.URL),
     content,
   };

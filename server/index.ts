@@ -622,7 +622,7 @@ async function initializeApp() {
     const cultureSeed = await seedCountryCultureProfiles();
     console.log(`[Culture Map] Country baselines: ${cultureSeed.inserted} inserted, ${cultureSeed.preserved} preserved (${cultureSeed.total} total)`);
     const organizationSeed = await seedOrganizationCultureProfiles();
-    console.log(`[Culture Map] Organization estimates: ${organizationSeed.inserted} inserted, ${organizationSeed.preserved} preserved (${organizationSeed.total} total)`);
+    console.log(`[Culture Map] Organization estimates: ${organizationSeed.inserted} inserted, ${organizationSeed.updated} updated, ${organizationSeed.preserved} preserved (${organizationSeed.total} total)`);
     const { recoverFeedbackJobs } = await import('./services/feedbackGenerationService');
     await recoverFeedbackJobs();
     recordStep('migrations', 'done');

@@ -29,6 +29,8 @@ export const cultureAssessmentSchema = z.object({
   kind: z.literal("organization_editorial_estimate"),
   confidence: z.literal("low"),
   notice: z.string().trim().min(1).max(1000),
+  sourceReviewedAt: z.string().date().optional(),
+  revision: z.string().trim().min(1).max(50).optional(),
 }).strict();
 /** Retain the uploaded record verbatim, including its ORIGINAL axis direction.
  * Only the operational dimensions below are adapted to the app's scales.

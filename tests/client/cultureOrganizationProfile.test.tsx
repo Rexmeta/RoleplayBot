@@ -28,6 +28,8 @@ const companyProfile: CultureProfile = {
     kind: "organization_editorial_estimate",
     confidence: "low",
     notice: "공개 자료 기반 자체 추정입니다.",
+    sourceReviewedAt: "2026-10-27",
+    revision: "2026.2",
   },
 };
 
@@ -54,6 +56,8 @@ describe("organization culture profile card", () => {
     );
 
     expect(screen.getByText("시스템 기업 프로필 · 공개자료 기반 자체 추정 · 검토 필요 · 신뢰도 낮음")).toBeTruthy();
+    expect(screen.getByText("출처 검토일: 2026-10-27 · 추정 개정: 2026.2")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Work Culture at Meta" }).getAttribute("href")).toBe("https://www.metacareers.com/culture");
     expect(screen.getByText("기업 · 글로벌 기술")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Meta 프로필 미리보기 및 편집" })).toBeTruthy();
   });
