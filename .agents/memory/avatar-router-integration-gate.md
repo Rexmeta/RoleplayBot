@@ -26,3 +26,9 @@ For delegated tenant ownership, use the user's current organization membership; 
 **Why:** Conflating management reach with membership can let an operator act as another organization's tenant. Stable opaque derivation also keeps names/emails out of delegated claims.
 
 **How to apply:** Keep subject/tenant derivation stable across key rotations and verify current active user/organization/company records on each operation.
+
+Treat the issuer as a stable identity namespace, not a key-host address. A URN issuer is compatible with the contract; only the separately pinned public JWKS URL must be HTTPS.
+
+**Why:** Remote ownership includes the exact issuer. Replacing a valid URN merely to match a hosting URL changes ownership identity, not just key discovery.
+
+**How to apply:** Preserve the enrolled issuer across key-host changes and configure the public key URL separately. Do not require a login migration or rewrite the issuer to obtain HTTPS keys.

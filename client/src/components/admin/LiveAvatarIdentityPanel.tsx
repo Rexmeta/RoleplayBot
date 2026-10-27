@@ -117,7 +117,7 @@ export function LiveAvatarIdentityPanel() {
                     : t("liveAvatar.identity.setup", { defaultValue: "서버 위임 신원을 구성해야 합니다." })}
                 </p>
                 <p className="mt-1 text-muted-foreground">
-                  {t("liveAvatar.identity.setupHint", { defaultValue: "전용 개인 키를 서버 Secrets에 안전하게 저장하고, 유효한 HTTPS issuer를 설정하세요. 이 화면에 비밀 값을 입력하지 마세요." })}
+                  {t("liveAvatar.identity.setupHint", { defaultValue: "전용 개인 키를 서버 Secrets에 안전하게 저장하고, 고정 issuer와 공개 HTTPS JWKS 주소를 설정하세요. 이 화면에 비밀 값을 입력하지 마세요." })}
                 </p>
               </div>
             </div>

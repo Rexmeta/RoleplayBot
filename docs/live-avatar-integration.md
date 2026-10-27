@@ -36,7 +36,7 @@ OpenAPI Provider의 `degraded` 상태를 진단 parser와 타입에 반영했다
 
 ### 현재 구현된 위임 계층과 등록 대기
 
-- `delegationSigner.ts`: 기존 로그인과 별도인 RSA 2048~8192-bit 키만 허용. issuer는 고정 HTTPS 설정이며 request Host/URL에서 추론하지 않는다. 45초 JWT에 정확한 audience/client, opaque subject/tenant, scope 하나, 무작위 jti만 넣는다. 개인 키와 위임 토큰은 HTTP 응답에 넣지 않는다.
+- `delegationSigner.ts`: 기존 로그인과 별도인 RSA 2048~8192-bit 키만 허용. issuer는 고정 HTTPS 식별자 또는 URN이며 JWKS의 공개 HTTPS 주소와 분리한다. request Host/URL에서 추론하지 않는다. 45초 JWT에 정확한 audience/client, opaque subject/tenant, scope 하나, 무작위 jti만 넣는다. 개인 키와 위임 토큰은 HTTP 응답에 넣지 않는다.
 - `delegatedIdentity.ts`: 현재 사용자 활성/익명화 상태, 소속 조직과 회사의 활성·일치 상태를 다시 확인한다. 조직 회원은 조직 tenant를 공유하고 subject는 개별적이다. 조직 없는 계정은 사용자별 개인 tenant로 격리한다. operator의 관리 범위는 소속 회원 자격이 아니다. tenant ID는 browser가 선택하거나 임의 주장할 수 없다.
 - `identityService.ts`: 현재 관리자가 명시적으로 실행할 때만 `live-limits:read` 하나로 고정된 `/api/v1/live-limits` GET을 호출한다. 로그인 JWT·cookie·Origin/Sec-Fetch 헤더를 전달하지 않는다. redirect/응답 크기/시간/스키마 제한을 적용하고 raw upstream 오류·추가 필드는 반환하지 않는다.
 - 공개 `/.well-known/jwks.json`: 검증용 RSA public key만 반환. 미구성/오류 시 503, 오류 응답은 no-store. 정상 키는 5분 캐시한다.
@@ -46,12 +46,13 @@ OpenAPI Provider의 `degraded` 상태를 진단 parser와 타입에 반영했다
 
 | 이 앱의 이름 | 종류 | 용도 |
 | --- | --- | --- |
-| `AVATAR_ROUTER_DELEGATION_ISSUER` | 환경변수 | 이 앱의 공개 JWKS를 제공할 고정 HTTPS origin. 개발/운영은 별도 등록 |
+| `AVATAR_ROUTER_DELEGATION_ISSUER` | 환경변수 | 등록할 정확한 고정 issuer 식별자(HTTPS 또는 URN). 개발/운영은 별도 등록. JWKS 호스트와 같을 필요가 없음 |
+| `AVATAR_ROUTER_JWKS_URL` | 공개 환경변수 | 이 앱의 공개 검증 키 경로를 가리키는 고정 HTTPS URL. URN issuer일 때 필수. 자격증명·query·fragment는 허용하지 않음 |
 | `AVATAR_ROUTER_SIGNING_PRIVATE_KEY` | Secrets의 전용 RSA PEM | 최소 2048-bit. 기존 로그인 secret을 사용하지 않는다. 키는 운영자가 안전하게 생성·저장하며 채팅·저장소·AvatarRouter로 전달하지 않는다 |
 | `AVATAR_ROUTER_PREVIOUS_PUBLIC_JWKS` | 선택적 공개 환경변수 | rotation overlap용 `{ "keys": [...] }` public RSA JWK만 허용. 현재 키 포함 총 32개 이하 |
 
 키와 issuer 설정 후 workflow를 재시작해야 한다. 이 앱은 미구성 시 임시/공용 키를 만들지 않는다.
-발급용 kid는 RSA 공개키 fingerprint에서 파생한다. issuer가 `https://<개발-host>`이면 JWKS는 해당 origin의 `/.well-known/jwks.json`이다.
+발급용 kid는 RSA 공개키 fingerprint에서 파생한다. HTTPS issuer이며 JWKS 주소를 별도 설정하지 않았을 때만 해당 origin의 `/.well-known/jwks.json`을 사용한다. URN issuer는 반드시 JWKS 주소를 별도 지정한다. issuer는 원격 소유권 namespace이므로 키 호스트 변경만을 이유로 바꾸지 않는다.
 AvatarRouter 개발 환경에는 이 **공개 정보만** 등록한다:
 
 ```

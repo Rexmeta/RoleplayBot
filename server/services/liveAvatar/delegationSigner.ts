@@ -16,8 +16,8 @@ export type AvatarDelegationStatus = {
   issuer?: string; jwksUrl?: string; kid?: string;
   audience: string; clientId: string; tokenLifetimeSeconds: 45;
 };
-type SignerInput = { issuer?: string; privateKeyPem?: string; previousPublicJwks?: string };
-type Configuration = { privateKey: KeyObject; issuer: string; keys: PublicAvatarJwk[]; kid: string };
+type SignerInput = { issuer?: string; jwksUrl?: string; privateKeyPem?: string; previousPublicJwks?: string };
+type Configuration = { privateKey: KeyObject; issuer: string; jwksUrl: string; keys: PublicAvatarJwk[]; kid: string };
 const privateParameters = ["d", "p", "q", "dp", "dq", "qi", "oth"];
 
 /** No login JWT reuse. No token-minting HTTP endpoint. Keys stay server-only. */
@@ -28,6 +28,7 @@ export class AvatarDelegationSigner {
 
   constructor(private readonly input: () => SignerInput = () => ({
     issuer: process.env.AVATAR_ROUTER_DELEGATION_ISSUER,
+    jwksUrl: process.env.AVATAR_ROUTER_JWKS_URL,
     privateKeyPem: process.env.AVATAR_ROUTER_SIGNING_PRIVATE_KEY,
     previousPublicJwks: process.env.AVATAR_ROUTER_PREVIOUS_PUBLIC_JWKS,
   })) {}
@@ -38,9 +39,20 @@ export class AvatarDelegationSigner {
     try {
       const input = this.input();
       if (!input.issuer || !input.privateKeyPem) return;
+      if (input.issuer.length > 2048 || /[\s\u0000-\u001f\u007f]/.test(input.issuer) ||
+          input.privateKeyPem.length > 20_000) throw new Error();
       const issuerUrl = new URL(input.issuer);
-      if (issuerUrl.protocol !== "https:" || issuerUrl.username || issuerUrl.password ||
-          issuerUrl.search || issuerUrl.hash || input.issuer.length > 2048 || input.privateKeyPem.length > 20_000) throw new Error();
+      const urnIssuer = /^urn:[a-z0-9][a-z0-9-]{0,31}:[^\s?#]+$/i.test(input.issuer);
+      if (!urnIssuer && (issuerUrl.protocol !== "https:" || issuerUrl.username || issuerUrl.password ||
+          issuerUrl.search || issuerUrl.hash)) throw new Error();
+      // An issuer is an identity namespace, not necessarily a network address.
+      // URNs require an explicitly pinned public HTTPS key URL; never infer Host.
+      if (urnIssuer && !input.jwksUrl) return;
+      const jwksAddress = input.jwksUrl ?? new URL("/.well-known/jwks.json", issuerUrl).toString();
+      if (jwksAddress.length > 2048 || /[\s\u0000-\u001f\u007f]/.test(jwksAddress)) throw new Error();
+      const jwksUrl = new URL(jwksAddress);
+      if (jwksUrl.protocol !== "https:" || jwksUrl.username || jwksUrl.password ||
+          jwksUrl.search || jwksUrl.hash) throw new Error();
       const privateKey = createPrivateKey(input.privateKeyPem);
       this.validateRsa(privateKey);
       const publicKey = createPublicKey(privateKey);
@@ -57,7 +69,7 @@ export class AvatarDelegationSigner {
           keys.push(accepted);
         }
       }
-      this.config = { privateKey, issuer: input.issuer, kid, keys };
+      this.config = { privateKey, issuer: input.issuer, jwksUrl: jwksUrl.toString(), kid, keys };
       this.configurationState = "configured";
     } catch {
       // Never attach a PEM, parser error, input value or underlying cause.
@@ -88,7 +100,7 @@ export class AvatarDelegationSigner {
     const common = { audience: AVATAR_DELEGATION_AUDIENCE, clientId: AVATAR_DELEGATION_CLIENT_ID, tokenLifetimeSeconds: 45 as const };
     return this.config ? {
       ...common, state: "configured", issuer: this.config.issuer, kid: this.config.kid,
-      jwksUrl: new URL("/.well-known/jwks.json", this.config.issuer).toString(),
+      jwksUrl: this.config.jwksUrl,
     } : { ...common, state: this.configurationState };
   }
 

@@ -104,6 +104,29 @@ describe("server-only RS256 delegation signer", () => {
     expect(first.jti).not.toBe(next.jti);
   });
 
+  it("preserves an exact URN issuer independently of the pinned HTTPS JWKS address", async () => {
+    const urn = "urn:roleplayx:avatarrouter:development";
+    const jwksUrl = "https://keys.example.test/.well-known/jwks.json";
+    const signing = signer({ issuer: urn, jwksUrl });
+    expect(signing.status()).toMatchObject({ state: "configured", issuer: urn, jwksUrl });
+    const token = signing.mint(await resolveAvatarIdentity(store, "a"), "live-limits:read");
+    const claims = jwt.verify(token, pair.publicKey, { algorithms: ["RS256"], issuer: urn }) as jwt.JwtPayload;
+    expect(claims.iss).toBe(urn);
+    expect(jwt.decode(token, { complete: true })?.header).not.toHaveProperty("jku");
+    expect(() => jwt.verify(token, pair.publicKey, { algorithms: ["RS256"], issuer: "https://keys.example.test" })).toThrow();
+  });
+
+  it("requires an explicit key URL for URN issuers rather than inventing a host", () => {
+    const signing = signer({ issuer: "urn:roleplayx:avatarrouter:development" });
+    expect(signing.status().state).toBe("unconfigured");
+    expect(() => signing.publicJwks()).toThrow("avatar_delegation_unconfigured");
+  });
+
+  it("allows an explicit HTTPS key URL independent of an HTTPS issuer", () => {
+    const jwksUrl = "https://keys.example.test/.well-known/jwks.json";
+    expect(signer({ jwksUrl }).status()).toMatchObject({ state: "configured", issuer, jwksUrl });
+  });
+
   it("publishes only verification-compatible public RSA parameters at a fixed URL", () => {
     const signing = signer();
     const published = signing.publicJwks();
@@ -125,6 +148,12 @@ describe("server-only RS256 delegation signer", () => {
   it.each([
     { issuer: "http://issuer.test" }, { issuer: "https://user:password@issuer.test" },
     { issuer: "https://issuer.test/?query=1" }, { issuer: "https://issuer.test/#fragment" },
+    { issuer: "urn:missing-namespace" }, { issuer: "urn:roleplayx:bad issuer" },
+    { issuer: "urn:roleplayx:avatarrouter:development", jwksUrl: "http://keys.example.test/jwks.json" },
+    { jwksUrl: "https://user:password@keys.example.test/jwks.json" },
+    { jwksUrl: "https://keys.example.test/jwks.json?query=1" },
+    { jwksUrl: "https://keys.example.test/jwks.json#fragment" },
+    { jwksUrl: " https://keys.example.test/jwks.json" },
     { privateKeyPem: "ordinary-login-jwt-secret-not-an-rsa-key" },
     { previousPublicJwks: JSON.stringify({ keys: [{ ...oldJwk, d: "PRIVATE" }] }) },
     { previousPublicJwks: JSON.stringify({ keys: [{ ...oldJwk, alg: "HS256" }] }) },
