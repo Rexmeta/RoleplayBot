@@ -7,10 +7,10 @@
 **현재 실제 라이브 아바타 연결은 차단되어 있다.** 설정을 켜도 외부 세션 생성, 이미지 업로드, AI PCM 전송 또는 라이브 영상·음성 수신이 시작되지 않는다.
 이는 연결 오류를 숨기는 mock이나 일반 아바타로의 가짜 성공 처리가 아니다. 화면과 API 모두 사용 불가 사유를 반환한다.
 
-2026-10-27 공개 GET 재확인:
+초기 공개 GET 점검 기록 (새 위임 계약의 실서비스 등록 검증은 아님):
 - `https://avatar-router.replit.app/api/ready`: DB ready, live enabled. Stock Tavus echo는 로그인·사용량 확인 및 120초 제한이 있다.
 - `/api/v1/providers`: Tavus available, Anam unconfigured, LemonSlice·Simli 미구현.
-- 공개 Docs: browser-scoped sessions, 서버 간 tenant 인증 및 Gemini-to-avatar E2E 검증 미완료.
+- 초기 공개 Docs는 browser-scoped sessions만 설명했다. 이후 제공된 API 0.3 인증 계약은 아래처럼 이를 확장한다. Gemini-to-avatar E2E는 여전히 미검증이다.
 
 이 상태는 RoleplayX 서비스 간 인증, 특정 페르소나 이미지 사용 권한, AI PCM 또는 사용자별 미디어 권한이 준비되었다는 증거가 아니다.
 외부 API는 고정된 HTTPS origin으로만 요청하며 관리자 수동 진단은 공개 상태 GET 2개만 실행한다. 시작 시 자동 진단은 없다.
@@ -18,13 +18,14 @@
 
 ## 제공된 공식 규격과의 대조
 
-2026-10-27 사용자가 제공한 integration guide 및 OpenAPI와 공개 `/docs`를 대조했다.
+2026-10-27 추가 제공된 identity contract, integration guide, OpenAPI reference PDF의 API 0.3 계약을 반영했다.
+이 계약은 이전 API 0.2의 "동일 Clerk 사용자 + owner cookie" 제한을 대체하는 서버 간 위임 경로를 명시한다.
 문서 수령은 인증·실제 미디어 전송의 승인이나 계약 충족을 의미하지 않는다.
 
 | 항목 | 공식 문서가 보장하는 범위 | 현재 앱에서 남은 조건 |
 | --- | --- | --- |
-| 인증 | 같은 관리형 Clerk tenant의 동일 사용자가 발급받은 단기 JWT와 사용자별 `avatar_playground` owner cookie | 현재 앱은 자체 JWT 인증이다. 이 JWT를 Clerk 토큰처럼 전달할 수 없으며 계정 교환·신뢰 매핑 계약도 없다. 기존 로그인을 임의로 이전하지 않는다 |
-| 소유권 | BFF가 같은 사용자의 쿠키를 암호화된 별도 jar에 보존해야 함 | 사용자 연결을 먼저 검증해야 하며 공용 쿠키 jar나 브라우저 노출은 금지 |
+| 인증 | 별도 RSA 키의 RS256 `at+jwt`, 최대 60초, pinned issuer/audience/client/JWKS 검증 | 현재 앱에 45초 위임 서명과 공개 JWKS를 구현했다. 실제 전용 키 설정·개발 issuer/JWKS 등록·remote 인증 검증은 대기 중. 기존 로그인 JWT는 공유하지 않음 |
+| 소유권 | 서명된 `(iss, tenant_id, sub)`로 세션은 tenant+subject, asset은 tenant 격리 | 현재 사용자·조직·회사의 활성 상태를 DB에서 매 요청 다시 확인해 opaque 식별자를 만들며 관리 범위나 요청 body를 회원 자격으로 사용하지 않음. remote 두 사용자·두 tenant 검증은 별도 필요 |
 | 라이브 대상 | `tavus` / `tavus-stock-lucy` stock 인물 | 현재 페르소나의 사용자 이미지 기반 라이브 dispatch는 미제공. stock 인물로 자동 대체하지 않음 |
 | PCM | 24 kHz mono PCM16 LE, 요청당 20ms~5초, at-most-once clip 명령 | 연속 Gemini PCM 스트림이 아님. 조각화·buffering·순서·턴 및 interrupt 동기화는 별도 구현·실측 필요. timeout audio 명령 자동 재전송 금지 |
 | 영상·음성 | 준비 완료 뒤 room 한정 subscribe-only LiveKit token | 브라우저 수신기와 로컬/원격 단일 출력 소유권 검증 필요. token은 메모리에서만 취급 |
@@ -33,13 +34,36 @@
 
 OpenAPI Provider의 `degraded` 상태를 진단 parser와 타입에 반영했다. 이것이 실제 연결 gate를 해제하지는 않는다.
 
-### AvatarRouter 측에 먼저 필요한 결정
+### 현재 구현된 위임 계층과 등록 대기
 
-기존 RoleplayX 계정을 유지하는 인증 브리지를 AvatarRouter 측에서 먼저 설계·지원해야 한다.
-그 계약에는 검증 가능한 사용자 식별, 사용자·tenant scope, 허용된 session/asset 권한, 단기 권한의 발급·철회 및 사용자별 owner-cookie 유지 정책이 포함되어야 한다.
-현재 JWT의 서명 비밀을 외부 서비스에 공유하거나, 임의 헤더를 추가하거나, 한 테스트 사용자의 Clerk 토큰을 다른 사용자에게 재사용해서는 안 된다.
-그 계약 없이 RoleplayX BFF만 작성해도 인증 호환성은 해결되지 않는다.
-대안인 같은 Clerk 사용자 기반 stock 개발 시험도 현재 로그인을 유지하면서 추가 사용자 인증·계정 연결을 설계해야 하므로 별도 범위 승인이 필요하다.
+- `delegationSigner.ts`: 기존 로그인과 별도인 RSA 2048~8192-bit 키만 허용. issuer는 고정 HTTPS 설정이며 request Host/URL에서 추론하지 않는다. 45초 JWT에 정확한 audience/client, opaque subject/tenant, scope 하나, 무작위 jti만 넣는다. 개인 키와 위임 토큰은 HTTP 응답에 넣지 않는다.
+- `delegatedIdentity.ts`: 현재 사용자 활성/익명화 상태, 소속 조직과 회사의 활성·일치 상태를 다시 확인한다. 조직 회원은 조직 tenant를 공유하고 subject는 개별적이다. 조직 없는 계정은 사용자별 개인 tenant로 격리한다. operator의 관리 범위는 소속 회원 자격이 아니다. tenant ID는 browser가 선택하거나 임의 주장할 수 없다.
+- `identityService.ts`: 현재 관리자가 명시적으로 실행할 때만 `live-limits:read` 하나로 고정된 `/api/v1/live-limits` GET을 호출한다. 로그인 JWT·cookie·Origin/Sec-Fetch 헤더를 전달하지 않는다. redirect/응답 크기/시간/스키마 제한을 적용하고 raw upstream 오류·추가 필드는 반환하지 않는다.
+- 공개 `/.well-known/jwks.json`: 검증용 RSA public key만 반환. 미구성/오류 시 503, 오류 응답은 no-store. 정상 키는 5분 캐시한다.
+- 관리자 화면의 **서버 위임 신원**은 구성 상태와 공개 등록값을 표시하고 **위임 인증 확인**을 수동 실행한다. 한 계정의 read 성공은 실제 미디어나 tenant 격리 검증을 의미하지 않는다.
+
+서버 설정:
+
+| 이 앱의 이름 | 종류 | 용도 |
+| --- | --- | --- |
+| `AVATAR_ROUTER_DELEGATION_ISSUER` | 환경변수 | 이 앱의 공개 JWKS를 제공할 고정 HTTPS origin. 개발/운영은 별도 등록 |
+| `AVATAR_ROUTER_SIGNING_PRIVATE_KEY` | Secrets의 전용 RSA PEM | 최소 2048-bit. 기존 로그인 secret을 사용하지 않는다. 키는 운영자가 안전하게 생성·저장하며 채팅·저장소·AvatarRouter로 전달하지 않는다 |
+| `AVATAR_ROUTER_PREVIOUS_PUBLIC_JWKS` | 선택적 공개 환경변수 | rotation overlap용 `{ "keys": [...] }` public RSA JWK만 허용. 현재 키 포함 총 32개 이하 |
+
+키와 issuer 설정 후 workflow를 재시작해야 한다. 이 앱은 미구성 시 임시/공용 키를 만들지 않는다.
+발급용 kid는 RSA 공개키 fingerprint에서 파생한다. issuer가 `https://<개발-host>`이면 JWKS는 해당 origin의 `/.well-known/jwks.json`이다.
+AvatarRouter 개발 환경에는 이 **공개 정보만** 등록한다:
+
+```
+ROLEPLAYX_ISSUER=<이 앱에 설정한 정확한 issuer>
+ROLEPLAYX_JWKS_URL=<관리자 화면의 공개 JWKS URL>
+ROLEPLAYX_AUDIENCE=avatarrouter-api
+ROLEPLAYX_CLIENT_ID=roleplayx-avatarrouter
+```
+
+이 프로젝트가 외부 AvatarRouter 설정을 자동으로 변경하지 않는다. 등록 후 실제 개발 계정으로 읽기 전용 인증을 확인하고, 두 사용자·두 tenant의 소유권 격리를 검증해야 한다.
+키 교체 시 기존/새 공개키를 함께 노출하고 provider 캐시 5분 + 최대 토큰 수명 60초 이상을 고려한다. 새 키 공개 후 서명 키 전환을 단계적으로 수행하고 검증한다.
+개인 키를 외부에 공유하거나 브라우저에 위임 JWT를 반환하거나 한 사용자의 권한을 다른 사용자에게 재사용해서는 안 된다.
 원래 요청한 실제 라이브 연동은 여전히 **미완료**이며, 차단 UI를 실제 연결 완료로 간주하지 않는다.
 
 ## 개발 화면 사용법
@@ -66,6 +90,8 @@ OpenAPI Provider의 `degraded` 상태를 진단 parser와 타입에 반영했다
 | GET `/api/live-avatar/config` | 로그인 사용자, 전역 flag와 고정 origin·계약 차단 사유. 외부 요청 없음 |
 | PUT `/api/live-avatar/config` | 시스템 관리자, strict `{enabled: boolean}` |
 | POST `/api/live-avatar/diagnostics` | 시스템 관리자 수동 공개 상태 진단. session/asset/PCM 호출 없음 |
+| GET `/api/live-avatar/identity` | 시스템 관리자, 위임 서명 구성 상태와 공개 등록값. 외부 요청 없음 |
+| POST `/api/live-avatar/identity/check` | 시스템 관리자, body는 비어 있어야 함. 현재 관리자의 fresh membership으로 `live-limits:read`만 수행. 유료 session/PCM 호출 없음 |
 | GET/PUT `/api/live-avatar/scenarios/:scenarioId/policy` | 해당 시나리오 관리 권한, strict `{allowed: boolean}` |
 | GET `/api/live-avatar/conversations/:conversationId/availability` | 해당 persona run의 scenario run 소유자. 관리자의 타 사용자 소유권 우회 없음 |
 | POST `/api/live-avatar/conversations/:conversationId/sessions` | 소유권·완료 상태·strict 서비스 선택과 동의를 검증. flag/정책 검사 후에도 계약 미검증으로 409 반환, 원격 세션 생성 없음 |
@@ -92,7 +118,7 @@ OpenAPI Provider의 `degraded` 상태를 진단 parser와 타입에 반영했다
 
 ## 실제 연결을 활성화하기 위한 선행 조건
 
-1. AvatarRouter의 공식 서버 간 인증, trusted tenant mapping, live-session lifecycle, provider capability, AI PCM framing/ack/interrupt 및 단기 미디어 권한 계약을 제공받고 검증한다.
+1. 제공된 서버 간 인증 계약에 맞춰 전용 키·개발 issuer/JWKS를 설정·등록하고, 실제 두 사용자·두 tenant의 위임과 소유권을 검증한다. 세션 lifecycle·provider capability·AI PCM framing/ack/interrupt·단기 미디어 권한도 실제 서비스에서 별도 검증한다.
 2. 필요한 credential은 서버 비밀 설정으로 관리한다. 채팅이나 브라우저에는 provider 비밀정보를 넣지 않는다.
 3. 기존 persona asset/binding의 올바른 tenant scope, 현재 이미지 hash/version, ready 상태와 권리 승인을 검증하는 서버 경로를 연결한다. 미검증 이미지를 전송하거나 stock 인물로 자동 대체하지 않는다.
 4. 실제 session transport를 구현한 다음 기존 AI 출력 event의 **측정·확인된** 형식과 샘플레이트를 명시하여 bridge에 연결한다. 현재 브라우저의 24 kHz 가정만으로 PCM 규격을 검증했다고 간주하지 않는다.

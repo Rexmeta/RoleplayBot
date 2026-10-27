@@ -15,8 +15,14 @@ Live avatar integration must use an isolated adapter and remain an optional serv
 
 **How to apply:** Preserve existing defaults and separate external session, audio transport, and failure handling from the existing avatar and voice paths.
 
-The official integration guide requires the same verified Clerk user plus a strictly per-user owner cookie. It explicitly does not supply a cross-application identity bridge. Its PCM endpoint accepts bounded clips, not continuous Gemini streaming.
+The newer identity contract supports dedicated RS256 per-user/tenant delegation and pinned public JWKS without changing existing login. It supersedes the older same-Clerk-user/cookie-only constraint. Trust enrollment and end-to-end acceptance remain separate gates; bounded PCM clips are not continuous Gemini streaming.
 
-**Why:** Receiving an official stock-echo contract does not remove the identity incompatibility or prove end-to-end dialogue integration.
+**Why:** A documented/locally tested bridge is not proof of deployment enrollment, tenant isolation or real media playback.
 
-**How to apply:** Verify identity compatibility before implementing authenticated requests. Do not migrate existing login, forward unrelated JWTs, share cookie jars, or mark a blocked foundation as completed live integration.
+**How to apply:** Use a dedicated server signing key, fresh membership attestations and narrow scopes; never forward the login JWT or cookies. Do not mark a blocked foundation or a successful read-only auth check as completed live integration.
+
+For delegated tenant ownership, use the user's current organization membership; operator management assignments are not membership. Organization-less accounts remain personal tenants.
+
+**Why:** Conflating management reach with membership can let an operator act as another organization's tenant. Stable opaque derivation also keeps names/emails out of delegated claims.
+
+**How to apply:** Keep subject/tenant derivation stable across key rotations and verify current active user/organization/company records on each operation.

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { liveAvatarBlockerText } from "@/lib/liveAvatarBlockers";
+import { LiveAvatarIdentityPanel } from "@/components/admin/LiveAvatarIdentityPanel";
 
 type LiveAvatarConfig = {
   enabled: boolean;
@@ -229,6 +230,9 @@ export function LiveAvatarSettingsPanel() {
             </div>
           )}
         </section>
+        <div className="border-t pt-5">
+          <LiveAvatarIdentityPanel />
+        </div>
       </CardContent>
     </Card>
   );

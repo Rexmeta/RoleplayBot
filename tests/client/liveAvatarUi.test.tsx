@@ -15,6 +15,7 @@ import { apiRequest, queryClient } from "../../client/src/lib/queryClient";
 import { LiveAvatarChoice } from "../../client/src/components/chat/LiveAvatarChoice";
 import { LiveAvatarSettingsPanel } from "../../client/src/components/admin/LiveAvatarSettingsPanel";
 import { ScenarioLiveAvatarPolicy } from "../../client/src/components/admin/ScenarioLiveAvatarPolicy";
+import { LiveAvatarIdentityPanel } from "../../client/src/components/admin/LiveAvatarIdentityPanel";
 
 const config = {
   enabled: false, service: "avatar-router", contractReady: false,
@@ -33,6 +34,7 @@ beforeEach(() => {
   api.mockReset();
   api.mockImplementation(async (method, url, body) => {
     calls.push({ method, url, body });
+    if (url.endsWith("/identity")) return response({ state: "unconfigured", audience: "avatarrouter-api", clientId: "roleplayx-avatarrouter", tokenLifetimeSeconds: 45 });
     if (url.endsWith("/availability")) return response({ ...config, allowed: false, available: false });
     if (url.endsWith("/policy")) return response({ allowed: method === "PUT" ? (body as any).allowed : false });
     if (url.endsWith("/config")) return response({ ...config, ...(method === "PUT" ? body as any : {}) });
@@ -47,12 +49,43 @@ beforeEach(() => {
 afterEach(() => { cleanup(); queryClient.clear(); });
 
 describe("optional live avatar UI", () => {
+  it("shows missing signing configuration without requesting credentials or checking protected upstream APIs", async () => {
+    view(<LiveAvatarIdentityPanel />);
+    await screen.findByText("미구성");
+    expect((screen.getByRole("button", { name: "위임 인증 확인" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(calls.every(call => call.method === "GET")).toBe(true);
+  });
+
+  it("checks configured delegation only after an explicit click, without enabling live sessions", async () => {
+    api.mockImplementation(async (method, url, body) => {
+      calls.push({ method, url, body });
+      if (method === "GET") return response({
+        state: "configured", issuer: "https://issuer.example.test", jwksUrl: "https://issuer.example.test/.well-known/jwks.json",
+        kid: "public-kid", audience: "avatarrouter-api", clientId: "roleplayx-avatarrouter", tokenLifetimeSeconds: 45,
+      });
+      return response({ accepted: true, checkedAt: "2026-10-27T00:00:00Z", limits: {
+        userDailySeconds: 600, userRemainingSeconds: 600, globalDailySeconds: 3600, globalRemainingSeconds: 3600,
+        sessionSeconds: 120, cleanupPending: 0, workerReady: true, providerCredits: "unknown", resetsAt: "2026-10-28T00:00:00Z",
+      } });
+    });
+    view(<LiveAvatarIdentityPanel />);
+    await screen.findByText("구성됨 · 미검증");
+    expect(screen.getByText("public-kid")).toBeTruthy();
+    expect(calls.filter(call => call.method === "POST")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "위임 인증 확인" }));
+    await screen.findByText("현재 계정의 위임 인증이 수락되었습니다.");
+    expect(calls.filter(call => call.method === "POST")).toEqual([{ method: "POST", url: "/api/live-avatar/identity/check", body: {} }]);
+    expect(screen.getByText(/테넌트가 공유하는 예약 가능 시간/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "실시간 아바타 시작" })).toBeNull();
+  });
+
   it("defaults to existing mode, blocks live even with consent and never creates a session", async () => {
     view(<LiveAvatarChoice conversationId="pr" voiceMode />);
     expect(screen.getByText("현재: 기존 아바타·음성 사용")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
     await screen.findByText("현재 사용할 수 없음");
-    expect(screen.getByText("서버 간 인증 규격이 확인되지 않았습니다.")).toBeTruthy();
+    expect(screen.getByText("위임 서명 키·발급자 등록과 실제 인증 확인이 필요합니다.")).toBeTruthy();
     fireEvent.click(screen.getByRole("checkbox"));
     const start = screen.getByRole("button", { name: "실시간 아바타 시작" });
     expect((start as HTMLButtonElement).disabled).toBe(true);

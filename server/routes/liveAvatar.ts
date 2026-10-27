@@ -6,6 +6,8 @@ import { isOperatorOrAdmin, isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError, getOperatorAccessibleCategoryIds } from "./routerHelpers";
 import { AvatarRouterAdapter, LiveAvatarContractError } from "../services/liveAvatar/avatarRouterAdapter";
 import { liveAvatarAvailability } from "../../shared/avatar/liveAvatar";
+import { avatarRouterIdentityService, type AvatarRouterIdentityService } from "../services/liveAvatar/identityService";
+import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 
 const enabledSchema = z.object({ enabled: z.boolean() }).strict();
 const policySchema = z.object({ allowed: z.boolean() }).strict();
@@ -17,6 +19,7 @@ export const LIVE_AVATAR_POLICY_CATEGORY = "live_avatar_policy";
 export default function createLiveAvatarRouter(
   isAuthenticated: any,
   deps = { storage, fileManager, getOperatorAccessibleCategoryIds, adapter: new AvatarRouterAdapter() },
+  identityService: AvatarRouterIdentityService = avatarRouterIdentityService,
 ) {
   const router = Router();
   router.use(isAuthenticated);
@@ -67,6 +70,21 @@ export default function createLiveAvatarRouter(
 
   router.post("/diagnostics", isSystemAdmin, asyncHandler(async (_req, res) => {
     res.json(await deps.adapter.diagnose());
+  }));
+
+  router.get("/identity", isSystemAdmin, (_req, res) => {
+    res.json(identityService.signer.status());
+  });
+
+  router.post("/identity/check", isSystemAdmin, asyncHandler(async (req: any, res) => {
+    // The browser cannot request a user, tenant, destination, token or scope.
+    if (!z.object({}).strict().safeParse(req.body ?? {}).success) throw createHttpError(400, "No identity parameters accepted");
+    try {
+      res.json(await identityService.check(req.user.id));
+    } catch (error) {
+      if (!(error instanceof AvatarIdentityError)) throw error;
+      res.status(error.status).json({ code: error.code, error: error.message });
+    }
   }));
 
   router.get("/scenarios/:scenarioId/policy", isOperatorOrAdmin, asyncHandler(async (req: any, res) => {

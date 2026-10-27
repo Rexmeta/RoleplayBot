@@ -13,6 +13,7 @@ import { registerObjectStorageRoutes } from "./replit_integrations/object_storag
 import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "./services/videoAvatarAccess";
 import { normalizeVoiceLanguage } from "./services/voice/transcriptionIntegrity";
 import createLiveAvatarRouter from "./routes/liveAvatar";
+import { avatarRouterIdentityService } from "./services/liveAvatar/identityService";
 
 import createUserRouter from "./routes/user";
 import createFreeChatRouter from "./routes/freeChat";
@@ -48,6 +49,16 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
+  // Public verification material only. Never derive issuer/JWKS from Host headers.
+  app.get("/.well-known/jwks.json", (_req, res) => {
+    try {
+      res.setHeader("Cache-Control", "public, max-age=300");
+      res.json(avatarRouterIdentityService.signer.publicJwks());
+    } catch {
+      res.setHeader("Cache-Control", "no-store");
+      res.status(503).json({ code: "avatar_delegation_not_configured" });
+    }
+  });
   app.use("/api/live-avatar", createLiveAvatarRouter(isAuthenticated));
 
   // Seed model_translation setting if not present

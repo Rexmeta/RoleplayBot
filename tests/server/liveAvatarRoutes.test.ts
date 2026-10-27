@@ -17,6 +17,7 @@ let settings: Map<string, string>;
 let app: express.Express;
 let deps: any;
 let externalRequest: ReturnType<typeof vi.fn>;
+let identityService: any;
 const base = "/api/live-avatar";
 function api(method: "get" | "put" | "post", path: string, role = "user", user = "owner") {
   return request(app)[method](`${base}${path}`).set("x-role", role).set("x-user", user);
@@ -39,17 +40,52 @@ beforeEach(() => {
     getOperatorAccessibleCategoryIds: vi.fn(async () => ["category"]),
     adapter: new AvatarRouterAdapter(externalRequest),
   };
+  identityService = {
+    signer: { status: vi.fn(() => ({ state: "unconfigured", audience: "avatarrouter-api", clientId: "roleplayx-avatarrouter", tokenLifetimeSeconds: 45 })) },
+    check: vi.fn().mockResolvedValue({ accepted: true, checkedAt: "2026-10-27T00:00:00Z", limits: {} }),
+  };
   app = express();
   app.use(express.json());
   app.use(base, createLiveAvatarRouter((req: any, res: any, next: any) => {
     if (!req.headers["x-user"]) return res.status(401).json({ error: "Sign in required" });
     req.user = { id: req.headers["x-user"], role: req.headers["x-role"] };
     next();
-  }, deps));
+  }, deps, identityService));
   app.use((error: any, _req: any, res: any, _next: any) => res.status(error.status ?? 500).json({ error: error.message }));
 });
 
 describe("live avatar policy routes", () => {
+  it("exposes only public delegation status to administrators without checking upstream", async () => {
+    const status = await api("get", "/identity", "admin");
+    expect(status.status).toBe(200);
+    expect(status.body.state).toBe("unconfigured");
+    expect(status.headers["cache-control"]).toBe("no-store");
+    expect(identityService.check).not.toHaveBeenCalled();
+    expect(externalRequest).not.toHaveBeenCalled();
+  });
+
+  it.each(["operator", "user"])("denies %s access to delegation configuration/check", async role => {
+    expect((await api("get", "/identity", role)).status).toBe(403);
+    expect((await api("post", "/identity/check", role).send({})).status).toBe(403);
+    expect(identityService.signer.status).not.toHaveBeenCalled();
+    expect(identityService.check).not.toHaveBeenCalled();
+  });
+
+  it.each([{ userId: "other" }, { tenant_id: "other" }, { scope: "sessions:create" }, { url: "https://evil.example" }])(
+    "rejects browser-controlled delegated identities and scopes", async body => {
+      expect((await api("post", "/identity/check", "admin").send(body)).status).toBe(400);
+      expect(identityService.check).not.toHaveBeenCalled();
+    },
+  );
+
+  it("checks only the currently authenticated administrator, without returning delegation credentials", async () => {
+    const result = await api("post", "/identity/check", "admin", "current").send({});
+    expect(result.status).toBe(200);
+    expect(identityService.check).toHaveBeenCalledWith("current");
+    expect(result.body).toEqual({ accepted: true, checkedAt: "2026-10-27T00:00:00Z", limits: {} });
+    expect(externalRequest).not.toHaveBeenCalled();
+  });
+
   it("requires authentication", async () => {
     expect((await request(app).get(`${base}/config`)).status).toBe(401);
   });
