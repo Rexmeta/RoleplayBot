@@ -94,6 +94,19 @@ export function CultureProfileCard({
       </div>
 
       <button type="button" onClick={onInspect} className="mb-3 block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+        <span className={`mb-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+          profile.assessment?.kind === "organization_editorial_estimate"
+            ? "bg-amber-100 text-amber-900"
+            : profile.origin
+              ? "bg-teal-100 text-teal-900"
+              : "bg-slate-100 text-slate-700"
+        }`}>
+          {profile.assessment?.kind === "organization_editorial_estimate"
+            ? "기업 추정"
+            : profile.origin
+              ? "국가 기준"
+              : "사용자 정의"}
+        </span>
         <span className="block truncate text-xs text-slate-600">{profile.country}{profile.region ? ` · ${profile.region}` : ""}</span>
         <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{profile.visibility === "shared" ? "공유" : "비공개"}</span>
       </button>

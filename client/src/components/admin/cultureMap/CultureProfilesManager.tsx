@@ -24,6 +24,7 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
+  const [profileTypeFilter, setProfileTypeFilter] = useState<"all" | "country" | "company">("all");
   const [regionFilter, setRegionFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
@@ -111,12 +112,19 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
   }, [profilesQuery.data, profilesQuery.isSuccess]);
   const readOnly = !!editing && (isSystemCultureProfile(editing) || (!isAdmin && editing.ownerId !== user?.id));
   const filtered = useMemo(
-    () => profiles.filter((profile) => matchesCultureProfile(profile, {
-      search,
-      region: regionFilter,
-      confidence: confidenceFilter,
-    })),
-    [profiles, search, regionFilter, confidenceFilter],
+    () => profiles.filter((profile) => {
+      const isCompany = profile.assessment?.kind === "organization_editorial_estimate";
+      const isCountryBaseline = !!profile.origin;
+      const matchesType = profileTypeFilter === "all"
+        || (profileTypeFilter === "company" && isCompany)
+        || (profileTypeFilter === "country" && isCountryBaseline);
+      return matchesType && matchesCultureProfile(profile, {
+        search,
+        region: regionFilter,
+        confidence: confidenceFilter,
+      });
+    }),
+    [profiles, profileTypeFilter, search, regionFilter, confidenceFilter],
   );
   const regions = useMemo(() => {
     const values = profiles.map((profile) => profile.region.trim() || "__unspecified__");
@@ -168,6 +176,7 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
     setViewMode("list");
   };
   const resetFilters = () => {
+    setProfileTypeFilter("all");
     setSearch("");
     setRegionFilter("all");
     setConfidenceFilter("all");
@@ -243,6 +252,8 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
       <div className="min-w-0 space-y-3">
           <h2 ref={listHeadingRef} tabIndex={-1} className="sr-only focus-visible:not-sr-only focus-visible:rounded focus-visible:bg-white focus-visible:px-2 focus-visible:py-1 focus-visible:text-teal-950">문화 프로필 목록</h2>
           <CultureProfileFilters
+            profileType={profileTypeFilter}
+            onProfileTypeChange={setProfileTypeFilter}
             search={search}
             onSearchChange={setSearch}
             region={regionFilter}

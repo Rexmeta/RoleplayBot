@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CultureProfile, CultureProfileInput, CultureSnapshot } from "@shared/cultureMap";
 import { CULTURE_DIMENSIONS, SYSTEM_CULTURE_OWNER_ID, EDITORIAL_CULTURE_NOTICE } from "@shared/cultureMap";
 import { countryCultureSeedProfiles } from "../../server/services/cultureMap/dataset";
+import { organizationCultureSeedProfiles } from "../../server/services/cultureMap/organizationDataset";
 
 const { apiRequest, invalidateQueries, authState } = vi.hoisted(() => ({
   apiRequest: vi.fn(),
@@ -201,6 +202,52 @@ describe("Culture Map actor and profile management", () => {
     expect(card.queryByRole("button", { name: "복제" })).toBeNull();
     expect(card.queryByRole("button", { name: "기록" })).toBeNull();
     expect(card.queryByRole("button", { name: "삭제" })).toBeNull();
+  });
+
+  it("filters country baselines and company estimates without changing comparison selections", async () => {
+    const countrySeed = countryCultureSeedProfiles[0];
+    const companySeed = organizationCultureSeedProfiles[0];
+    const country: CultureProfile = {
+      ...countrySeed.content, id: countrySeed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1,
+      createdAt: "", updatedAt: "",
+    };
+    const company: CultureProfile = {
+      ...companySeed.content, id: companySeed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1,
+      createdAt: "", updatedAt: "",
+    };
+    apiRequest.mockImplementation(() => response([country, company, profile]));
+    renderWithQuery(<CultureProfilesManager />);
+
+    await screen.findByRole("list", { name: "문화 프로필 목록" });
+    const typeFilter = screen.getByLabelText("프로필 유형");
+    const countryCard = screen.getByRole("button", { name: `${country.name} 프로필 미리보기 및 편집` }).closest("li")!;
+    const companyCard = screen.getByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` }).closest("li")!;
+    expect(within(countryCard).getByText("국가 기준")).toBeTruthy();
+    expect(within(companyCard).getByText("기업 추정")).toBeTruthy();
+    expect(screen.getByText("사용자 정의")).toBeTruthy();
+
+    fireEvent.click(within(countryCard).getByRole("checkbox"));
+    fireEvent.change(typeFilter, { target: { value: "company" } });
+    expect(screen.queryByRole("button", { name: `${country.name} 프로필 미리보기 및 편집` })).toBeNull();
+    expect(screen.getByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` })).toBeTruthy();
+    expect(screen.getByText(country.name, { exact: false })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("국가, 지역, 프로필 검색"), { target: { value: company.name } });
+    fireEvent.change(screen.getByLabelText("지역"), { target: { value: company.region } });
+    fireEvent.change(screen.getByLabelText("출처 신뢰도"), { target: { value: "low" } });
+    expect(screen.getByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("국가, 지역, 프로필 검색"), { target: { value: "일치하지 않는 검색어" } });
+    expect(screen.getByText("조건에 맞는 프로필이 없습니다")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "필터 모두 초기화" }));
+    expect((typeFilter as HTMLSelectElement).value).toBe("all");
+
+    fireEvent.change(typeFilter, { target: { value: "country" } });
+    expect(screen.getByRole("button", { name: `${country.name} 프로필 미리보기 및 편집` })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` })).toBeNull();
+
+    fireEvent.change(typeFilter, { target: { value: "all" } });
+    fireEvent.change(screen.getByLabelText("출처 신뢰도"), { target: { value: "low" } });
+    expect(screen.getByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: `${profile.name} 프로필 미리보기 및 편집` })).toBeNull();
   });
 
   it("prevents deleting system profiles from the keyboard-accessible card menu", async () => {
