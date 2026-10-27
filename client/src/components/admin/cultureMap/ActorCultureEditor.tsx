@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { CultureProfilePicker } from "./CultureProfilePicker";
+import { CultureProfileTypeBadge } from "./CultureProfileTypeBadge";
 
 type VersionEntry = { version: number; content: CultureProfileInput; createdAt: string };
 type Props = {
@@ -151,7 +152,7 @@ export function ActorCultureEditor({ value, onChange, onValidityChange, actorKey
       {enabled && profileId && !selectedContent && !versionsQuery.isLoading && <p role="alert" className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">선택한 버전의 내용을 불러올 수 없습니다. 기록을 다시 시도하거나 다른 버전을 선택하세요.</p>}
       <CultureOriginNotice origin={selectedContent?.origin ?? snapshot?.origin} />
       {selectedContent && <div className="rounded border border-slate-200 bg-white p-3">
-        <div className="flex items-baseline justify-between gap-2"><h4 className="text-sm font-semibold">{selectedContent.name}</h4><span className="text-xs text-slate-500">v{selectedVersion} 기준 차원</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><h4 className="truncate text-sm font-semibold">{selectedContent.name}</h4><CultureProfileTypeBadge profile={selectedContent} /></div><span className="text-xs text-slate-500">v{selectedVersion} 기준 차원</span></div>
         <p className="text-xs text-slate-500">{selectedContent.country}{selectedContent.region ? ` · ${selectedContent.region}` : ""}</p>
         <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">{CULTURE_DIMENSIONS.map((dimension) => <div key={dimension.key} className="flex justify-between gap-2 text-xs"><dt className="text-slate-500">{dimension.label}</dt><dd className="font-mono">{selectedContent.dimensions[dimension.key]}</dd></div>)}</dl>
       </div>}

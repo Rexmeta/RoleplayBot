@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { CultureProfile } from "@shared/cultureMap";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, X } from "lucide-react";
+import { CultureProfileTypeBadge } from "./CultureProfileTypeBadge";
 
 type CultureProfileComparisonTrayProps = {
   profiles: CultureProfile[];
@@ -57,6 +58,7 @@ export function CultureProfileComparisonTray({
             {profiles.map((profile) => (
               <li key={profile.id} aria-label={`선택된 프로필 이름: ${profile.name}`} className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md border border-teal-200 bg-white px-2 py-1 text-xs text-teal-950 transition-colors duration-150">
                 <span className="min-w-0 break-all font-medium">{profile.name}</span>
+                <CultureProfileTypeBadge profile={profile} />
                 <button
                   type="button"
                   aria-label={`${profile.name} 비교에서 제거`}

@@ -14,6 +14,7 @@ import { CULTURE_DIMENSIONS, EDITORIAL_CULTURE_NOTICE } from "@shared/cultureMap
 import type { CultureProfile } from "@shared/cultureMap";
 import { compareCultureProfiles, cultureProfileConfidence, CULTURE_SIMILARITY_THRESHOLD } from "@shared/cultureComparison";
 import { Copy, Eye, X } from "lucide-react";
+import { CultureProfileTypeBadge, getCultureProfileTypeLabel } from "./CultureProfileTypeBadge";
 
 type CultureProfileComparisonProps = {
   profiles: CultureProfile[];
@@ -87,6 +88,7 @@ export function CultureProfileComparison({
           {profiles.map((profile) => (
             <span key={profile.id} className="inline-flex max-w-full items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs text-teal-950">
               <span className="truncate font-medium">{profile.country} · {profile.name}</span>
+              <CultureProfileTypeBadge profile={profile} />
               <button type="button" aria-label={`${profile.name} 비교에서 제거`} onClick={() => onRemove(profile.id)} className="rounded-full p-0.5 hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700">
                 <X aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
@@ -107,7 +109,7 @@ export function CultureProfileComparison({
                     <p className="text-xs text-slate-500">모든 축은 앱에 적용되는 0–100 점수입니다.</p>
                   </div>
                 </div>
-                <div className="h-[320px] min-w-0 sm:h-[380px]" role="img" aria-label={`${profiles.map((profile) => `${profile.country} ${profile.name}`).join(", ")} 문화 프로필의 여덟 차원 레이더 차트. 정확한 값은 아래 표에 있습니다.`}>
+                <div className="h-[320px] min-w-0 sm:h-[380px]" role="img" aria-label={`${profiles.map((profile) => `${profile.country} ${profile.name}, ${getCultureProfileTypeLabel(profile)}`).join(", ")} 문화 프로필의 여덟 차원 레이더 차트. 정확한 값은 아래 표에 있습니다.`}>
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={chartData} outerRadius="68%">
                       <PolarGrid stroke="#d9e2dc" />
@@ -116,7 +118,7 @@ export function CultureProfileComparison({
                       {profiles.map((profile, index) => (
                         <Radar
                           key={profile.id}
-                          name={`${profile.country} · ${profile.name}`}
+                          name={`${profile.country} · ${profile.name} · ${getCultureProfileTypeLabel(profile)}`}
                           dataKey={profile.id}
                           stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
                           fill={SERIES_COLORS[index % SERIES_COLORS.length]}
@@ -149,10 +151,10 @@ export function CultureProfileComparison({
                           }}
                           className="mt-1 block h-9 w-full rounded-md border border-input bg-white px-2 text-sm"
                         >
-                          {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.country} · {profile.name}</option>)}
+                          {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.country} · {profile.name} · {getCultureProfileTypeLabel(profile)}</option>)}
                         </select>
                       </label>
-                      {reference && <p className="mt-1 text-xs text-slate-500">기준 출처 신뢰도: {confidenceLabel[cultureProfileConfidence(reference)]}</p>}
+                      {reference && <div className="mt-1 flex flex-wrap items-center gap-2"><CultureProfileTypeBadge profile={reference} /><p className="text-xs text-slate-500">기준 출처 신뢰도: {confidenceLabel[cultureProfileConfidence(reference)]}</p></div>}
                       {reference && <div className="mt-1.5 flex justify-end gap-1">
                         <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => onInspect(reference)}><Eye className="h-3 w-3" />살펴보기</Button>
                         <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" disabled={duplicatePending} onClick={() => onDuplicate(reference)}><Copy className="h-3 w-3" />복제</Button>
@@ -166,7 +168,7 @@ export function CultureProfileComparison({
                     <article key={profile.id} className="rounded-md border border-slate-200 p-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <h5 className="font-semibold text-slate-900">{profile.country} <span className="font-normal text-slate-500">· {profile.name}</span></h5>
+                          <div className="flex flex-wrap items-center gap-2"><h5 className="font-semibold text-slate-900">{profile.country} <span className="font-normal text-slate-500">· {profile.name}</span></h5><CultureProfileTypeBadge profile={profile} /></div>
                           <p className="mt-0.5 text-xs text-slate-500">출처 신뢰도: {confidenceLabel[cultureProfileConfidence(profile)]}</p>
                         </div>
                         <div className="flex shrink-0 gap-1">

@@ -294,6 +294,37 @@ describe("Culture Map actor and profile management", () => {
     expect(apiRequest.mock.calls.filter(([method]) => method !== "GET")).toHaveLength(0);
   });
 
+  it("shows country and company types throughout profile comparison", async () => {
+    const countrySeed = countryCultureSeedProfiles[0];
+    const companySeed = organizationCultureSeedProfiles[0];
+    const country: CultureProfile = {
+      ...countrySeed.content, id: countrySeed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1,
+      createdAt: "", updatedAt: "",
+    };
+    const company: CultureProfile = {
+      ...companySeed.content, id: companySeed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1,
+      createdAt: "", updatedAt: "",
+    };
+    apiRequest.mockImplementation(() => response([country, company]));
+    renderWithQuery(<CultureProfilesManager />);
+
+    const checkboxes = await screen.findAllByRole("checkbox", { name: /비교에 추가/ });
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+    const compareButton = screen.getByRole("button", { name: "비교하기" });
+    const tray = compareButton.closest("aside")!;
+    expect(within(tray).getByText("국가 기준")).toBeTruthy();
+    expect(within(tray).getByText("기업 추정")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "비교하기" }));
+
+    const comparison = screen.getByRole("region", { name: "문화 행동 프로필 비교" });
+    expect(within(comparison).getAllByText("국가 기준").length).toBeGreaterThan(0);
+    expect(within(comparison).getAllByText("기업 추정").length).toBeGreaterThan(0);
+    expect(within(comparison).getByRole("option", { name: /국가 기준/ })).toBeTruthy();
+    expect(within(comparison).getByText(/출처 신뢰도: 낮음/)).toBeTruthy();
+    expect(within(comparison).getByText(/공식 Erin Meyer 수치가 아닙니다/)).toBeTruthy();
+  });
+
   it("limits selection to five, retains comparisons through filters, and allows removal and reset", async () => {
     const countries: CultureProfile[] = countryCultureSeedProfiles.slice(0, 6).map(seed => ({
       ...seed.content, id: seed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1, createdAt: "", updatedAt: "",
@@ -435,11 +466,17 @@ describe("Culture Map actor and profile management", () => {
   it("shows data version, original values and review warning when a country is selected for an Actor", async () => {
     const baseline = countryCultureSeedProfiles.find(p => p.content.origin!.originalProfile.countryCode === "US")!;
     const base: CultureProfile = { ...baseline.content, id: baseline.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1, createdAt: profile.createdAt, updatedAt: profile.updatedAt };
+    const companySeed = organizationCultureSeedProfiles[0];
+    const company: CultureProfile = { ...companySeed.content, id: companySeed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1, createdAt: profile.createdAt, updatedAt: profile.updatedAt };
     apiRequest.mockImplementation(async (_method: string, url: string) => url.endsWith("/versions")
       ? response([{ version: 1, content: baseline.content, createdAt: profile.createdAt }])
-      : response([base]));
+      : response([base, company]));
     renderWithQuery(<ActorCultureEditor actorKey="country-actor" value={{ enabled: true, profileId: baseline.id, profileVersion: 1, intensity: 70, overrides: {} }} onChange={vi.fn()} />);
     await screen.findByText(EDITORIAL_CULTURE_NOTICE);
+    expect(screen.getAllByText("국가 기준").length).toBeGreaterThan(0);
+    expect(screen.getByRole("combobox", { name: "문화 프로필 선택" }).textContent).toContain("국가 기준");
+    fireEvent.click(screen.getByRole("combobox", { name: "문화 프로필 선택" }));
+    expect(await screen.findByRole("option", { name: new RegExp(`${company.name}.*기업 추정`) })).toBeTruthy();
     expect(screen.getByText(/국가 코드 US/).textContent).toContain("2026.1");
     expect(screen.getByText(/공식 점수 아님/).textContent).toContain("검토 필요");
   });

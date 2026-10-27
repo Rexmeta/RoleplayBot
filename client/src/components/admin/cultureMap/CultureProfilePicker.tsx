@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { CultureProfileTypeBadge } from "./CultureProfileTypeBadge";
 
 type Props = {
   profiles: CultureProfile[];
@@ -64,7 +65,10 @@ export function CultureProfilePicker({ profiles, selectedId, onSelect, disabled,
           <span className="min-w-0">
             {selected ? (
               <>
-                <span className="block truncate text-sm font-medium text-slate-800">{selected.name}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-medium text-slate-800">{selected.name}</span>
+                  <CultureProfileTypeBadge profile={selected} />
+                </span>
                 {profileSecondary(selected) && <span className="block truncate text-xs text-slate-500">{profileSecondary(selected)}</span>}
               </>
             ) : (
@@ -149,9 +153,12 @@ export function CultureProfilePicker({ profiles, selectedId, onSelect, disabled,
                 }}
                 className="min-h-12 cursor-pointer items-center justify-between gap-3 rounded-sm px-3 py-2 aria-selected:bg-teal-50 aria-selected:text-slate-900"
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">{profile.name}</span>
-                  {profileSecondary(profile) && <span className="block truncate text-xs text-slate-500">{profileSecondary(profile)}</span>}
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{profile.name}</span>
+                    {profileSecondary(profile) && <span className="block truncate text-xs text-slate-500">{profileSecondary(profile)}</span>}
+                  </span>
+                  <CultureProfileTypeBadge profile={profile} />
                 </span>
                 <Check
                   className={cn("h-4 w-4 shrink-0 text-teal-700", selectedId === profile.id ? "opacity-100" : "opacity-0")}
