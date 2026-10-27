@@ -13,3 +13,4 @@ export * from "./billing";
 export * from "./store";
 export * from "./contentx";
 export * from "./cultureMap";
+export * from "./personaAvatar";

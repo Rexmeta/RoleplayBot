@@ -46,6 +46,7 @@ Preferred communication style: Simple, everyday language.
   - `scenarios.ts` — `scenarios`, `scenario_versions`, `scenario_runs`, `scenario_overrides`
   - `personas.ts` — `mbti_personas`, `user_personas`, `user_persona_likes`, `persona_user_scenes`
   - `cultureMap.ts` — `culture_profiles`, `culture_profile_versions` (independent custom profiles and 47 explicitly unvalidated RoleplayX editorial country baselines; immutable Actor snapshots; no official Erin Meyer score claims)
+  - `personaAvatar.ts` — `persona_avatar_assets`, `persona_avatar_bindings` (tenant-scoped provider asset reuse, versioned persona links, and unverified-by-default image-rights review)
   - `feedback.ts` — `feedbacks`, `evaluation_criteria_sets`, `evaluation_dimensions`, `few_shot_examples`, `criteria_set_few_shot_examples`
   - `analytics.ts` — `ai_usage_logs`, `hr_benchmark_targets`
   - `billing.ts` — `plans`, `subscriptions`
@@ -155,6 +156,7 @@ Test files are organized under `tests/server/`, `tests/client/`, and `tests/` (r
 - `incrementUsageDaily.test.ts` — Daily usage counter increment logic
 - `memStorage.test.ts` — In-memory storage domain coverage
 - `metricSnapshot.test.ts` — Metric snapshot computation
+- `personaAvatarManifest.test.ts` — Stable seed-image resolution, manifest hashing, rights blockers, and source-image versioning
 - `optimizedGeminiProvider.test.ts` — Gemini AI provider optimizations
 - `realtimeVoiceService.test.ts` — Realtime voice service session lifecycle
 - `scenarioValidator.test.ts` — Scenario data validation
