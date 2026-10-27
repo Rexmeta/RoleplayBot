@@ -6,6 +6,7 @@ import type { ChangeEvent } from "react";
 type CultureProfileFiltersProps = {
   profileType: "all" | "country" | "company" | "custom";
   onProfileTypeChange: (value: "all" | "country" | "company" | "custom") => void;
+  profileTypeCounts: { all: number; country: number; company: number; custom: number };
   search: string;
   onSearchChange: (value: string) => void;
   region: string;
@@ -18,6 +19,7 @@ type CultureProfileFiltersProps = {
 export function CultureProfileFilters({
   profileType,
   onProfileTypeChange,
+  profileTypeCounts,
   search,
   onSearchChange,
   region,
@@ -49,10 +51,10 @@ export function CultureProfileFilters({
             onChange={(event) => onProfileTypeChange(event.target.value as "all" | "country" | "company" | "custom")}
             className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm text-slate-800 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <option value="all">모든 유형</option>
-            <option value="country">국가 기준</option>
-            <option value="company">기업 추정</option>
-            <option value="custom">사용자 정의</option>
+            <option value="all">모든 유형 ({profileTypeCounts.all})</option>
+            <option value="country">국가 기준 ({profileTypeCounts.country})</option>
+            <option value="company">기업 추정 ({profileTypeCounts.company})</option>
+            <option value="custom">사용자 정의 ({profileTypeCounts.custom})</option>
           </select>
         </div>
         <div>

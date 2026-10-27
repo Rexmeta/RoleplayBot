@@ -20,6 +20,12 @@ async function readError(error: unknown) {
   return error instanceof Error ? error.message : "요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
+function getCultureProfileType(profile: CultureProfile): "country" | "company" | "custom" {
+  if (profile.assessment?.kind === "organization_editorial_estimate") return "company";
+  if (profile.origin) return "country";
+  return "custom";
+}
+
 export function CultureProfilesManager({ showCreateAction = true }: { showCreateAction?: boolean } = {}) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -111,15 +117,15 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
     });
   }, [profilesQuery.data, profilesQuery.isSuccess]);
   const readOnly = !!editing && (isSystemCultureProfile(editing) || (!isAdmin && editing.ownerId !== user?.id));
+  const profileTypeCounts = useMemo(() => {
+    const counts = { all: profiles.length, country: 0, company: 0, custom: 0 };
+    profiles.forEach((profile) => { counts[getCultureProfileType(profile)] += 1; });
+    return counts;
+  }, [profiles]);
   const filtered = useMemo(
     () => profiles.filter((profile) => {
-      const isCompany = profile.assessment?.kind === "organization_editorial_estimate";
-      const isCountryBaseline = !!profile.origin;
-      const isUserDefined = !isCompany && !isCountryBaseline;
       const matchesType = profileTypeFilter === "all"
-        || (profileTypeFilter === "company" && isCompany)
-        || (profileTypeFilter === "country" && isCountryBaseline)
-        || (profileTypeFilter === "custom" && isUserDefined);
+        || getCultureProfileType(profile) === profileTypeFilter;
       return matchesType && matchesCultureProfile(profile, {
         search,
         region: regionFilter,
@@ -256,6 +262,7 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
           <CultureProfileFilters
             profileType={profileTypeFilter}
             onProfileTypeChange={setProfileTypeFilter}
+            profileTypeCounts={profileTypeCounts}
             search={search}
             onSearchChange={setSearch}
             region={regionFilter}
