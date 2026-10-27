@@ -492,6 +492,62 @@ describe("Culture Map actor and profile management", () => {
     expect(screen.getByText(/공식 점수 아님/).textContent).toContain("검토 필요");
   });
 
+  it("filters Actor choices by source type without changing the saved selection", async () => {
+    const baseline = countryCultureSeedProfiles[0];
+    const country: CultureProfile = {
+      ...baseline.content, id: baseline.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1,
+      createdAt: profile.createdAt, updatedAt: profile.updatedAt,
+    };
+    const companySeed = organizationCultureSeedProfiles[0];
+    const company: CultureProfile = {
+      ...companySeed.content, id: companySeed.id, ownerId: SYSTEM_CULTURE_OWNER_ID, version: 1,
+      createdAt: profile.createdAt, updatedAt: profile.updatedAt,
+    };
+    apiRequest.mockImplementation(async () => response([country, company, profile]));
+    const onChange = vi.fn();
+    renderWithQuery(<ActorCultureEditor
+      actorKey="source-filter"
+      value={{ enabled: true, profileId: profile.id, profileVersion: profile.version, intensity: 70, overrides: {} }}
+      onChange={onChange}
+    />);
+
+    const trigger = await screen.findByRole("combobox", { name: "문화 프로필 선택" });
+    fireEvent.click(trigger);
+    const typeFilter = await screen.findByLabelText("프로필 유형 필터");
+    expect(screen.getByRole("option", { name: new RegExp(`${country.name}.*국가 기준`) })).toBeTruthy();
+    expect(screen.getByRole("option", { name: new RegExp(`${company.name}.*기업 추정`) })).toBeTruthy();
+    expect(screen.getByRole("option", { name: new RegExp(`${profile.name}.*사용자 정의`) })).toBeTruthy();
+
+    fireEvent.change(typeFilter, { target: { value: "custom" } });
+    fireEvent.change(screen.getByLabelText("지역 필터"), { target: { value: "수도권" } });
+    fireEvent.change(screen.getByLabelText("출처 신뢰도 필터"), { target: { value: "unspecified" } });
+    fireEvent.change(screen.getByLabelText("프로필 검색"), { target: { value: "한국" } });
+    expect(screen.getByRole("option", { name: new RegExp(`${profile.name}.*사용자 정의`) })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: new RegExp(`${country.name}.*국가 기준`) })).toBeNull();
+    expect(screen.queryByRole("option", { name: new RegExp(`${company.name}.*기업 추정`) })).toBeNull();
+    expect(trigger.textContent).toContain(profile.name);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "필터 초기화" }));
+
+    fireEvent.change(typeFilter, { target: { value: "company" } });
+    expect(screen.getByRole("option", { name: new RegExp(`${company.name}.*기업 추정`) })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: new RegExp(`${country.name}.*국가 기준`) })).toBeNull();
+    expect(screen.queryByRole("option", { name: new RegExp(`${profile.name}.*사용자 정의`) })).toBeNull();
+    expect(trigger.textContent).toContain(profile.name);
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(typeFilter, { target: { value: "country" } });
+    expect(screen.getByRole("option", { name: new RegExp(`${country.name}.*국가 기준`) })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: new RegExp(`${company.name}.*기업 추정`) })).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "필터 초기화" }));
+    expect(screen.getByRole("option", { name: new RegExp(`${company.name}.*기업 추정`) })).toBeTruthy();
+    expect(screen.getByRole("option", { name: new RegExp(`${profile.name}.*사용자 정의`) })).toBeTruthy();
+    expect(trigger.textContent).toContain(profile.name);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("starts OFF and emits explicit disabled state only when switched off", () => {
     const onChange = vi.fn();
     renderWithQuery(<ActorCultureEditor actorKey="actor-a" onChange={onChange} />);
@@ -542,6 +598,7 @@ describe("Culture Map actor and profile management", () => {
     expect(screen.queryByLabelText("프로필 검색")).toBeNull();
     fireEvent.click(trigger);
     await screen.findByRole("option", { name: /다른 프로필/ });
+    fireEvent.change(screen.getByLabelText("프로필 유형 필터"), { target: { value: "custom" } });
     fireEvent.change(screen.getByLabelText("지역 필터"), { target: { value: "수도권" } });
     expect(screen.queryByRole("option", { name: /다른 프로필/ })).toBeNull();
     expect(screen.getByRole("option", { name: /상황별 업무 컨텍스트/ })).toBeTruthy();

@@ -22,6 +22,14 @@ type Props = {
   id: string;
 };
 
+type ProfileSourceType = "all" | "country" | "company" | "custom";
+
+function profileSourceType(profile: CultureProfile): Exclude<ProfileSourceType, "all"> {
+  if (profile.assessment?.kind === "organization_editorial_estimate") return "company";
+  if (profile.origin) return "country";
+  return "custom";
+}
+
 function profileSecondary(profile: CultureProfile) {
   const details = [profile.region, profile.country !== profile.name ? profile.country : undefined].filter(Boolean);
   return details.join(" · ");
@@ -30,6 +38,7 @@ function profileSecondary(profile: CultureProfile) {
 export function CultureProfilePicker({ profiles, selectedId, onSelect, disabled, id }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [sourceType, setSourceType] = useState<ProfileSourceType>("all");
   const [region, setRegion] = useState("all");
   const [confidence, setConfidence] = useState("all");
   const regions = useMemo(
@@ -37,14 +46,18 @@ export function CultureProfilePicker({ profiles, selectedId, onSelect, disabled,
     [profiles],
   );
   const filtered = useMemo(
-    () => profiles.filter((profile) => matchesCultureProfile(profile, { search, region, confidence })),
-    [profiles, search, region, confidence],
+    () => profiles.filter((profile) => (
+      (sourceType === "all" || profileSourceType(profile) === sourceType)
+      && matchesCultureProfile(profile, { search, region, confidence })
+    )),
+    [profiles, sourceType, search, region, confidence],
   );
   const selected = profiles.find((profile) => profile.id === selectedId);
-  const hasFilters = Boolean(search.trim()) || region !== "all" || confidence !== "all";
+  const hasFilters = Boolean(search.trim()) || sourceType !== "all" || region !== "all" || confidence !== "all";
 
   const resetFilters = () => {
     setSearch("");
+    setSourceType("all");
     setRegion("all");
     setConfidence("all");
   };
@@ -93,6 +106,21 @@ export function CultureProfilePicker({ profiles, selectedId, onSelect, disabled,
             aria-label="프로필 검색"
           />
           <div className="grid grid-cols-2 gap-2 border-b border-slate-200 bg-slate-50 p-3">
+            <label className="col-span-2 min-w-0 text-[11px] font-medium text-slate-600">
+              프로필 유형
+              <select
+                value={sourceType}
+                onChange={(event) => setSourceType(event.target.value as ProfileSourceType)}
+                onKeyDown={(event) => { if (event.key !== "Escape") event.stopPropagation(); }}
+                className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                aria-label="프로필 유형 필터"
+              >
+                <option value="all">모든 유형</option>
+                <option value="country">국가 기준</option>
+                <option value="company">기업 추정</option>
+                <option value="custom">사용자 정의</option>
+              </select>
+            </label>
             <label className="min-w-0 text-[11px] font-medium text-slate-600">
               지역
               <select
