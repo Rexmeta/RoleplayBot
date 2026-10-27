@@ -24,7 +24,7 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
-  const [profileTypeFilter, setProfileTypeFilter] = useState<"all" | "country" | "company">("all");
+  const [profileTypeFilter, setProfileTypeFilter] = useState<"all" | "country" | "company" | "custom">("all");
   const [regionFilter, setRegionFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
@@ -115,9 +115,11 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
     () => profiles.filter((profile) => {
       const isCompany = profile.assessment?.kind === "organization_editorial_estimate";
       const isCountryBaseline = !!profile.origin;
+      const isUserDefined = !isCompany && !isCountryBaseline;
       const matchesType = profileTypeFilter === "all"
         || (profileTypeFilter === "company" && isCompany)
-        || (profileTypeFilter === "country" && isCountryBaseline);
+        || (profileTypeFilter === "country" && isCountryBaseline)
+        || (profileTypeFilter === "custom" && isUserDefined);
       return matchesType && matchesCultureProfile(profile, {
         search,
         region: regionFilter,

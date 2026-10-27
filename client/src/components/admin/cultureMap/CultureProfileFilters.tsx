@@ -4,8 +4,8 @@ import { Search, SlidersHorizontal } from "lucide-react";
 import type { ChangeEvent } from "react";
 
 type CultureProfileFiltersProps = {
-  profileType: "all" | "country" | "company";
-  onProfileTypeChange: (value: "all" | "country" | "company") => void;
+  profileType: "all" | "country" | "company" | "custom";
+  onProfileTypeChange: (value: "all" | "country" | "company" | "custom") => void;
   search: string;
   onSearchChange: (value: string) => void;
   region: string;
@@ -46,12 +46,13 @@ export function CultureProfileFilters({
           <select
             id="culture-filter-type"
             value={profileType}
-            onChange={(event) => onProfileTypeChange(event.target.value as "all" | "country" | "company")}
+            onChange={(event) => onProfileTypeChange(event.target.value as "all" | "country" | "company" | "custom")}
             className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm text-slate-800 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="all">모든 유형</option>
             <option value="country">국가 기준</option>
             <option value="company">기업 추정</option>
+            <option value="custom">사용자 정의</option>
           </select>
         </div>
         <div>

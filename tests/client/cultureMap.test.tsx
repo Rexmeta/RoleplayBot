@@ -204,7 +204,7 @@ describe("Culture Map actor and profile management", () => {
     expect(card.queryByRole("button", { name: "삭제" })).toBeNull();
   });
 
-  it("filters country baselines and company estimates without changing comparison selections", async () => {
+  it("filters country, company, and user-defined profiles without changing comparison selections", async () => {
     const countrySeed = countryCultureSeedProfiles[0];
     const companySeed = organizationCultureSeedProfiles[0];
     const country: CultureProfile = {
@@ -224,7 +224,8 @@ describe("Culture Map actor and profile management", () => {
     const companyCard = screen.getByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` }).closest("li")!;
     expect(within(countryCard).getByText("국가 기준")).toBeTruthy();
     expect(within(companyCard).getByText("기업 추정")).toBeTruthy();
-    expect(screen.getByText("사용자 정의")).toBeTruthy();
+    const authoredCard = screen.getByRole("button", { name: `${profile.name} 프로필 미리보기 및 편집` }).closest("li")!;
+    expect(within(authoredCard).getByText("사용자 정의")).toBeTruthy();
 
     fireEvent.click(within(countryCard).getByRole("checkbox"));
     fireEvent.change(typeFilter, { target: { value: "company" } });
@@ -244,10 +245,20 @@ describe("Culture Map actor and profile management", () => {
     expect(screen.getByRole("button", { name: `${country.name} 프로필 미리보기 및 편집` })).toBeTruthy();
     expect(screen.queryByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` })).toBeNull();
 
+    fireEvent.change(typeFilter, { target: { value: "custom" } });
+    expect(screen.getByRole("button", { name: `${profile.name} 프로필 미리보기 및 편집` })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: `${country.name} 프로필 미리보기 및 편집` })).toBeNull();
+    expect(screen.queryByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` })).toBeNull();
+    const customCard = screen.getByRole("button", { name: `${profile.name} 프로필 미리보기 및 편집` }).closest("li")!;
+    expect(within(customCard).getByText("사용자 정의")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("국가, 지역, 프로필 검색"), { target: { value: profile.name } });
+    fireEvent.change(screen.getByLabelText("지역"), { target: { value: profile.region } });
+    fireEvent.change(screen.getByLabelText("출처 신뢰도"), { target: { value: "unspecified" } });
+    expect(screen.getByRole("button", { name: `${profile.name} 프로필 미리보기 및 편집` })).toBeTruthy();
+    expect((within(countryCard).getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
+
     fireEvent.change(typeFilter, { target: { value: "all" } });
-    fireEvent.change(screen.getByLabelText("출처 신뢰도"), { target: { value: "low" } });
-    expect(screen.getByRole("button", { name: `${company.name} 프로필 미리보기 및 편집` })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: `${profile.name} 프로필 미리보기 및 편집` })).toBeNull();
+    expect(screen.getByRole("button", { name: `${profile.name} 프로필 미리보기 및 편집` })).toBeTruthy();
   });
 
   it("prevents deleting system profiles from the keyboard-accessible card menu", async () => {
