@@ -62,6 +62,7 @@ timeoutMs = 30000
 [userenv.development]
 AVATAR_ROUTER_DELEGATION_ISSUER = "urn:roleplayx:avatarrouter:development"
 AVATAR_ROUTER_JWKS_URL = "https://543bcf34-dde8-497f-8837-398b7f6da8ad-00-2yfgavbsxbsva.janeway.replit.dev/.well-known/jwks.json"
+AVATAR_ROUTER_BASE_URL = "https://avatar-router.replit.app/api/v1"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-1c14cc42-14e3-4e55-b9bd-e3ea4382f1c2"
