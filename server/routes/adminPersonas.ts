@@ -17,6 +17,8 @@ import {
 } from "../services/gemini-video-generator";
 import { videoJobStore } from "../utils/videoJobStore";
 import { hasVideoAvatarConfiguration, requireVideoAvatarManagementAccess } from "../services/videoAvatarAccess";
+import { personaAvatarCatalog } from "../services/liveAvatar/personaCatalog";
+import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 
 const videoUpload = multer({
   storage: multer.memoryStorage(),
@@ -32,6 +34,19 @@ const videoUpload = multer({
 
 export default function createAdminPersonasRouter(isAuthenticated: any) {
   const router = Router();
+  const catalogError = (error: unknown, res: any) => {
+    if (error instanceof AvatarIdentityError) {
+      res.status(error.status).json({ code: error.code, error: error.code });
+      return;
+    }
+    throw error;
+  };
+
+  router.get("/api/admin/personas/live-avatar/assets", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    try { res.json(await personaAvatarCatalog.list(req.user.id)); }
+    catch (error) { catalogError(error, res); }
+  }));
 
   router.get("/api/admin/personas", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const [personas, allLocaleRows] = await Promise.all([
@@ -55,22 +70,30 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
   }));
 
   router.post("/api/admin/personas", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
-    if (hasVideoAvatarConfiguration(req.body?.videos)) {
+    let avatar;
+    try { avatar = await personaAvatarCatalog.normalize(req.user.id, req.body); }
+    catch (error) { catalogError(error, res); return; }
+    const input = { ...req.body, ...avatar };
+    if (hasVideoAvatarConfiguration(input.videos)) {
       await requireVideoAvatarManagementAccess(req);
     }
-    const persona = await fileManager.createMBTIPersona(req.body);
+    const persona = await fileManager.createMBTIPersona(input);
     const transformedPersona = await transformPersonaMedia(persona);
     res.json(transformedPersona);
   }));
 
   router.put("/api/admin/personas/:id", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
-    if ((req as any).user.role === "operator" && req.body?.videos !== undefined) {
-      const existing = await storage.getMbtiPersona(req.params.id);
-      if (JSON.stringify(existing?.videos ?? null) !== JSON.stringify(req.body.videos ?? null)) {
+    const existing = await storage.getMbtiPersona(req.params.id);
+    let avatar;
+    try { avatar = await personaAvatarCatalog.normalize(req.user.id, req.body, existing); }
+    catch (error) { catalogError(error, res); return; }
+    const input = { ...req.body, ...avatar };
+    if ((req as any).user.role === "operator" && input.videos !== undefined) {
+      if (JSON.stringify(existing?.videos ?? null) !== JSON.stringify(input.videos ?? null)) {
         await requireVideoAvatarManagementAccess(req);
       }
     }
-    const persona = await fileManager.updateMBTIPersona(req.params.id, req.body);
+    const persona = await fileManager.updateMBTIPersona(req.params.id, input);
     const transformedPersona = await transformPersonaMedia(persona);
     res.json(transformedPersona);
   }));

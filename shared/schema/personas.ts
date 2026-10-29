@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, index, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import type { PersonaAvatarMode, PersonaLiveAvatar } from "../avatar/personaAvatar";
 
 /** The compact emotion axis used by the first commercial video-avatar release. */
 export type VideoAvatarEmotion = "positive" | "neutral" | "negative";
@@ -75,6 +76,9 @@ export const mbtiPersonas = pgTable("mbti_personas", {
       female?: VideoAvatarClipSlots;
     };
   }>(),
+  // Null preserves legacy inference. Live is a desired draft, not an active renderer.
+  avatarMode: varchar("avatar_mode").$type<PersonaAvatarMode>(),
+  liveAvatar: jsonb("live_avatar").$type<PersonaLiveAvatar>(),
   freeChatAvailable: boolean("free_chat_available").notNull().default(false),
   freeChatDescription: text("free_chat_description"),
   storeListed: boolean("store_listed").notNull().default(false),

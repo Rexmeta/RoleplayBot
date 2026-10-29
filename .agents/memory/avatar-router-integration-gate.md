@@ -21,6 +21,12 @@ Treat the settings-page stock-avatar conversation test as an isolated administra
 
 **How to apply:** Keep explicit cost/data-transfer consent on the test action, avoid automatic paid or media E2E during development, and preserve ordinary scenario gates until their own ownership and media paths are verified.
 
+Persona-level live configuration is draft-only until custom asset runtime is supported and verified. A saved live preference must not silently activate paid sessions or replace the existing image/video behavior.
+
+**Why:** The user chose to implement the RoleplayX persona side first despite AvatarRouter's custom live-dispatch blocker. Preserving existing behavior was an explicit requirement.
+
+**How to apply:** Keep desired live configuration separate from activation. Show the draft restriction clearly, distinguish provisioned/ready from live verification, and do not treat a successful catalog lookup or saved asset reference as completed live integration.
+
 The current contract makes project API keys the default; Base URL plus API key is enough for basic connection. Dedicated RS256 per-user/tenant delegation and pinned public JWKS remain optional advanced mode, not prerequisites. Bounded PCM clips are not continuous Gemini streaming.
 
 **Why:** A documented/locally tested bridge is not proof of deployment enrollment, tenant isolation or real media playback.
