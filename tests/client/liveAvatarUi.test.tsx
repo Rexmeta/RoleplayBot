@@ -16,6 +16,7 @@ import { LiveAvatarChoice } from "../../client/src/components/chat/LiveAvatarCho
 import { LiveAvatarSettingsPanel } from "../../client/src/components/admin/LiveAvatarSettingsPanel";
 import { ScenarioLiveAvatarPolicy } from "../../client/src/components/admin/ScenarioLiveAvatarPolicy";
 import { LiveAvatarIdentityPanel } from "../../client/src/components/admin/LiveAvatarIdentityPanel";
+import { LiveAvatarConnectionPanel } from "../../client/src/components/admin/LiveAvatarConnectionPanel";
 
 const config = {
   enabled: false, service: "avatar-router", contractReady: false,
@@ -34,6 +35,7 @@ beforeEach(() => {
   api.mockReset();
   api.mockImplementation(async (method, url, body) => {
     calls.push({ method, url, body });
+    if (url.endsWith("/connection")) return response({ authMode: "api-key", state: "unconfigured" });
     if (url.endsWith("/identity")) return response({ state: "unconfigured", audience: "avatarrouter-api", clientId: "roleplayx-avatarrouter", tokenLifetimeSeconds: 45 });
     if (url.endsWith("/availability")) return response({ ...config, allowed: false, available: false });
     if (url.endsWith("/policy")) return response({ allowed: method === "PUT" ? (body as any).allowed : false });
@@ -49,6 +51,57 @@ beforeEach(() => {
 afterEach(() => { cleanup(); queryClient.clear(); });
 
 describe("optional live avatar UI", () => {
+  it("defaults to API-key setup without requesting a key or checking external auth", async () => {
+    view(<LiveAvatarConnectionPanel />);
+    await screen.findByText("미구성");
+    expect((screen.getByRole("button", { name: "API 키 연결 확인" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByText(/기본 API 키 방식에는 issuer나 JWKS 설정이 필요하지 않습니다/)).toBeTruthy();
+    expect(calls.every(call => call.method === "GET" && call.url === "/api/live-avatar/connection")).toBe(true);
+  });
+
+  it("uses API-key connection as default and does not query advanced JWT until expanded", async () => {
+    view(<LiveAvatarSettingsPanel />);
+    await screen.findByRole("button", { name: "API 키 연결 확인" });
+    expect(calls.some(call => call.url.endsWith("/identity"))).toBe(false);
+    const disclosure = screen.getByText("고급 JWT 위임 · 선택 사항").closest("details")!;
+    disclosure.open = true;
+    fireEvent(disclosure, new Event("toggle"));
+    await screen.findByText("서버 위임 신원");
+    await waitFor(() => expect(calls.some(call => call.url.endsWith("/identity"))).toBe(true));
+  });
+
+  it("checks the configured key only on a click and keeps live activation blocked", async () => {
+    api.mockImplementation(async (method, url, body) => {
+      calls.push({ method, url, body });
+      return response(method === "GET"
+        ? { authMode: "api-key", state: "configured", baseUrl: "https://avatar.example.test/api/v1" }
+        : { authenticated: true, authType: "api-key", projectId: "project-one", projectName: "RoleplayX",
+            scopes: ["live-limits:read"], expiresAt: "2099-01-01T00:00:00Z", userContext: true, checkedAt: "2026-10-29T00:00:00Z" });
+    });
+    view(<LiveAvatarConnectionPanel />);
+    await screen.findByText("구성됨 · 확인 필요");
+    expect(calls.filter(call => call.method === "POST")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "API 키 연결 확인" }));
+    await screen.findByText("API 키 인증 확인됨");
+    expect(calls.filter(call => call.method === "POST")).toEqual([{ method: "POST", url: "/api/live-avatar/connection/check", body: {} }]);
+    expect(screen.getByText("RoleplayX · project-one")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "실시간 아바타 시작" })).toBeNull();
+  });
+
+  it("shows failed API-key auth without silently falling back or claiming success", async () => {
+    api.mockImplementation(async method => {
+      if (method === "POST") throw new Error("502: avatar_connection_rejected");
+      return response({ authMode: "api-key", state: "configured" });
+    });
+    view(<LiveAvatarConnectionPanel />);
+    await screen.findByText("구성됨 · 확인 필요");
+    fireEvent.click(screen.getByRole("button", { name: "API 키 연결 확인" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("avatar_connection_rejected");
+    expect(screen.queryByText("API 키 인증 확인됨")).toBeNull();
+    expect(screen.queryByText("서버 위임 신원")).toBeNull();
+  });
+
   it("shows missing signing configuration without requesting credentials or checking protected upstream APIs", async () => {
     view(<LiveAvatarIdentityPanel />);
     await screen.findByText("미구성");
@@ -85,7 +138,7 @@ describe("optional live avatar UI", () => {
     expect(screen.getByText("현재: 기존 아바타·음성 사용")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
     await screen.findByText("현재 사용할 수 없음");
-    expect(screen.getByText("위임 서명 키·발급자 등록과 실제 인증 확인이 필요합니다.")).toBeTruthy();
+    expect(screen.getByText("Base URL·프로젝트 API 키 설정과 실제 연결 확인이 필요합니다.")).toBeTruthy();
     fireEvent.click(screen.getByRole("checkbox"));
     const start = screen.getByRole("button", { name: "실시간 아바타 시작" });
     expect((start as HTMLButtonElement).disabled).toBe(true);

@@ -10,15 +10,37 @@
 초기 공개 GET 점검 기록 (새 위임 계약의 실서비스 등록 검증은 아님):
 - `https://avatar-router.replit.app/api/ready`: DB ready, live enabled. Stock Tavus echo는 로그인·사용량 확인 및 120초 제한이 있다.
 - `/api/v1/providers`: Tavus available, Anam unconfigured, LemonSlice·Simli 미구현.
-- 초기 공개 Docs는 browser-scoped sessions만 설명했다. 이후 제공된 API 0.3 인증 계약은 아래처럼 이를 확장한다. Gemini-to-avatar E2E는 여전히 미검증이다.
+- 초기 공개 Docs는 browser-scoped sessions만 설명했다. 이후 API 0.3에 JWT 위임이 추가되었고 최신 API 0.4는 프로젝트 API 키를 기본으로 한다. Gemini-to-avatar E2E는 여전히 미검증이다.
 
 이 상태는 RoleplayX 서비스 간 인증, 특정 페르소나 이미지 사용 권한, AI PCM 또는 사용자별 미디어 권한이 준비되었다는 증거가 아니다.
-외부 API는 고정된 HTTPS origin으로만 요청하며 관리자 수동 진단은 공개 상태 GET 2개만 실행한다. 시작 시 자동 진단은 없다.
+외부 API는 서버 환경설정에 고정된 HTTPS Base URL로만 요청한다. 공개 상태 진단은 GET 2개이며, 별도의 API 키 연결 확인은 무료 `/auth/check` GET 하나만 실행한다. 시작 시 자동 진단·인증 확인은 없다.
 타임아웃·응답 크기 제한·redirect 거부·필드 검증을 적용하고, 성공과 실패 모두 짧게 캐시하여 반복 진단의 부하를 제한한다.
 
-## 제공된 공식 규격과의 대조
+## 기본 연결: Base URL + 프로젝트 API 키 (API 0.4)
 
-2026-10-27 추가 제공된 identity contract, integration guide, OpenAPI reference PDF의 API 0.3 계약을 반영했다.
+추가 제공된 identity contract v2, API-key quickstart와 OpenAPI 0.4 PDF에 따른 기본 경로다.
+기존 RoleplayX 로그인은 그대로 사용한다. 기본 연결에는 issuer, 공개 JWKS, RSA 개인 키, Clerk 이전이 필요하지 않다.
+기존 JWT 관련 환경설정은 보존하되 프로젝트 API 키 경로의 성공/실패에 관여하지 않는다. API 키 오류를 JWT나 익명 세션으로 우회하지 않는다.
+
+1. **AvatarRouter Studio → API keys**에서 대상 환경의 프로젝트 키를 발급한다. 필요한 scope만 선택한다. 키 관리 API를 이 앱에서 호출하지 않는다.
+2. 같은 화면의 정확한 Base URL(끝이 `/api/v1`)을 복사하여 이 앱 서버의 `AVATAR_ROUTER_BASE_URL`에 설정한다. 개발용 preview 주소를 운영 주소로 간주하지 않는다.
+3. 한 번 표시되는 `ar_sk_…` 키는 이 앱의 **Secrets**에 `AVATAR_ROUTER_API_KEY`로 저장한다. 브라우저 입력·보관, 채팅, 로그, 저장소, URL에 넣지 않는다.
+4. 개발 workflow를 재시작한다. 관리자 → 시스템 설정 → 실시간 아바타 설정의 **API 키 연결 확인**을 명시적으로 실행한다.
+5. `/auth/check`가 `authenticated: true`, `authType: api-key`, 프로젝트 정보·scope·만료 정보를 반환하는지 확인한다. 이 작업은 provider 세션을 만들거나 아바타 세션 사용량을 발생시키지 않는다.
+
+서버는 매번 현재 관리자 활성 상태와 소속을 다시 확인한다. `X-Avatar-User-ID`는 검증된 계정으로부터 파생한 안정적인 opaque subject만 사용한다. 브라우저가 보낸 사용자 헤더·tenant·목적지·키는 사용하지 않는다.
+프로젝트 API 키는 **프로젝트 인증**이지 독립적인 사람/조직 인증이 아니다. 하나의 키는 외부 프로젝트/tenant 하나에 고정된다. 이 헤더만으로 여러 RoleplayX 조직을 분리했다고 간주하지 않는다. 별도 외부 tenant에는 별도 프로젝트 키와 검증된 서버 매핑이 필요하며, 아직 조직별 session/asset dispatch는 활성화하지 않았다.
+
+인증 응답은 크기·시간·스키마를 제한하고 raw 오류·추가 필드를 제거한다. redirect·자동 재시도·인증 fallback은 하지 않는다. 성공해도 전역/시나리오 정책이나 실제 라이브 readiness를 변경하지 않는다.
+공개 상태 진단 역시 설정된 Base URL 호스트를 사용한다. Base URL 미설정 시에만 기존 공개 진단 호스트를 사용하며, 잘못된 설정을 다른 호스트로 우회하지 않는다.
+
+키 회전은 프로젝트·scope·소유권을 보존하지만 이전 키를 즉시 무효화하고 만료를 90일로 갱신한다. 신규 키 생성은 새 프로젝트이므로 회전과 다르다.
+마지막 사용 가능 키를 폐기하기 전에는 활성 세션을 중지하고 terminal 상태 및 `cleanupPending: false`를 확인해야 한다. 폐기만으로 provider 과금 종료를 보장할 수 없다.
+유료 생성·실제 이미지/오디오 전송·운영 변경은 별도 승인 없이 실행하지 않는다.
+
+## 선택적 고급 연결: JWT 위임 규격과의 대조
+
+아래는 이전 API 0.3에서 도입되어 API 0.4에도 선택적으로 유지된 JWT 위임 경로다. 관리자 화면에서 **고급 JWT 위임 · 선택 사항**을 펼칠 때만 조회한다. API 키 기본 연결의 선행 조건이 아니다.
 이 계약은 이전 API 0.2의 "동일 Clerk 사용자 + owner cookie" 제한을 대체하는 서버 간 위임 경로를 명시한다.
 문서 수령은 인증·실제 미디어 전송의 승인이나 계약 충족을 의미하지 않는다.
 
@@ -91,6 +113,8 @@ ROLEPLAYX_CLIENT_ID=roleplayx-avatarrouter
 | GET `/api/live-avatar/config` | 로그인 사용자, 전역 flag와 고정 origin·계약 차단 사유. 외부 요청 없음 |
 | PUT `/api/live-avatar/config` | 시스템 관리자, strict `{enabled: boolean}` |
 | POST `/api/live-avatar/diagnostics` | 시스템 관리자 수동 공개 상태 진단. session/asset/PCM 호출 없음 |
+| GET `/api/live-avatar/connection` | 시스템 관리자, API 키 기본 연결의 공개 구성 상태. 비밀 값과 외부 요청 없음 |
+| POST `/api/live-avatar/connection/check` | 시스템 관리자, 빈 body만 허용. 현재 관리자 검증 후 `/auth/check` GET 하나. 키·사용자 헤더는 서버 전용이며 세션 생성 없음 |
 | GET `/api/live-avatar/identity` | 시스템 관리자, 위임 서명 구성 상태와 공개 등록값. 외부 요청 없음 |
 | POST `/api/live-avatar/identity/check` | 시스템 관리자, body는 비어 있어야 함. 현재 관리자의 fresh membership으로 `live-limits:read`만 수행. 유료 session/PCM 호출 없음 |
 | GET/PUT `/api/live-avatar/scenarios/:scenarioId/policy` | 해당 시나리오 관리 권한, strict `{allowed: boolean}` |
@@ -119,7 +143,7 @@ ROLEPLAYX_CLIENT_ID=roleplayx-avatarrouter
 
 ## 실제 연결을 활성화하기 위한 선행 조건
 
-1. 제공된 서버 간 인증 계약에 맞춰 전용 키·개발 issuer/JWKS를 설정·등록하고, 실제 두 사용자·두 tenant의 위임과 소유권을 검증한다. 세션 lifecycle·provider capability·AI PCM framing/ack/interrupt·단기 미디어 권한도 실제 서비스에서 별도 검증한다.
+1. 기본 프로젝트 API 키와 정확한 Base URL을 설정하고 무료 연결 확인을 수행한다. 실제 두 사용자·두 tenant에는 일관된 user context와 별도 프로젝트 키 매핑을 검증한다. JWT 위임을 선택한 경우에만 전용 서명 키·issuer/JWKS 등록을 수행한다. 세션 lifecycle·provider capability·AI PCM framing/ack/interrupt·단기 미디어 권한도 실제 서비스에서 별도 검증한다.
 2. 필요한 credential은 서버 비밀 설정으로 관리한다. 채팅이나 브라우저에는 provider 비밀정보를 넣지 않는다.
 3. 기존 persona asset/binding의 올바른 tenant scope, 현재 이미지 hash/version, ready 상태와 권리 승인을 검증하는 서버 경로를 연결한다. 미검증 이미지를 전송하거나 stock 인물로 자동 대체하지 않는다.
 4. 실제 session transport를 구현한 다음 기존 AI 출력 event의 **측정·확인된** 형식과 샘플레이트를 명시하여 bridge에 연결한다. 현재 브라우저의 24 kHz 가정만으로 PCM 규격을 검증했다고 간주하지 않는다.

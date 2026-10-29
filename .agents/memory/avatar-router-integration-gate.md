@@ -15,11 +15,17 @@ Live avatar integration must use an isolated adapter and remain an optional serv
 
 **How to apply:** Preserve existing defaults and separate external session, audio transport, and failure handling from the existing avatar and voice paths.
 
-The newer identity contract supports dedicated RS256 per-user/tenant delegation and pinned public JWKS without changing existing login. It supersedes the older same-Clerk-user/cookie-only constraint. Trust enrollment and end-to-end acceptance remain separate gates; bounded PCM clips are not continuous Gemini streaming.
+The current contract makes project API keys the default; Base URL plus API key is enough for basic connection. Dedicated RS256 per-user/tenant delegation and pinned public JWKS remain optional advanced mode, not prerequisites. Bounded PCM clips are not continuous Gemini streaming.
 
 **Why:** A documented/locally tested bridge is not proof of deployment enrollment, tenant isolation or real media playback.
 
-**How to apply:** Use a dedicated server signing key, fresh membership attestations and narrow scopes; never forward the login JWT or cookies. Do not mark a blocked foundation or a successful read-only auth check as completed live integration.
+**How to apply:** Use server-only project API keys and fresh local authorization for basic connection; require signing-key trust enrollment only when JWT delegation is explicitly selected. Never forward login JWTs or cookies. Do not mark a blocked foundation or successful auth check as completed live integration.
+
+An API key fixes one external project/tenant. A user header partitions sessions inside that project but cannot establish independent tenant isolation. Separate external tenants require separate project keys.
+
+**Why:** The key holder can assert any user within its own project; treating a browser header or local organization hash as tenant isolation would exceed the provider's contract.
+
+**How to apply:** Derive user context from verified login only, keep it consistent across the session lifecycle, and do not enable multi-organization dispatch without a server-verified key mapping. New-key creation changes project ownership; rotation preserves it.
 
 For delegated tenant ownership, use the user's current organization membership; operator management assignments are not membership. Organization-less accounts remain personal tenants.
 

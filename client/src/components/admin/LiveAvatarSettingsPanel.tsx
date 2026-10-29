@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { liveAvatarBlockerText } from "@/lib/liveAvatarBlockers";
+import { LiveAvatarConnectionPanel } from "@/components/admin/LiveAvatarConnectionPanel";
 import { LiveAvatarIdentityPanel } from "@/components/admin/LiveAvatarIdentityPanel";
 
 type LiveAvatarConfig = {
@@ -39,6 +40,7 @@ const configKey = ["/api/live-avatar/config"];
 export function LiveAvatarSettingsPanel() {
   const { t } = useTranslation();
   const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
+  const [showAdvancedIdentity, setShowAdvancedIdentity] = useState(false);
   const configQuery = useQuery<LiveAvatarConfig>({
     queryKey: configKey,
     queryFn: async () => (await apiRequest("GET", "/api/live-avatar/config")).json(),
@@ -231,8 +233,24 @@ export function LiveAvatarSettingsPanel() {
           )}
         </section>
         <div className="border-t pt-5">
-          <LiveAvatarIdentityPanel />
+          <LiveAvatarConnectionPanel />
         </div>
+        <details
+          className="group border-t pt-5"
+          onToggle={(event) => setShowAdvancedIdentity(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer list-none font-medium marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            <span className="inline-flex items-center gap-2">
+              <span aria-hidden="true" className="text-muted-foreground transition-transform group-open:rotate-90">›</span>
+              {t("liveAvatar.identity.advancedLabel", { defaultValue: "고급 JWT 위임 · 선택 사항" })}
+            </span>
+          </summary>
+          {showAdvancedIdentity && (
+            <div className="pt-4">
+              <LiveAvatarIdentityPanel />
+            </div>
+          )}
+        </details>
       </CardContent>
     </Card>
   );

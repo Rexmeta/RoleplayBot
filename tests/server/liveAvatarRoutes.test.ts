@@ -18,6 +18,7 @@ let app: express.Express;
 let deps: any;
 let externalRequest: ReturnType<typeof vi.fn>;
 let identityService: any;
+let projectConnection: any;
 const base = "/api/live-avatar";
 function api(method: "get" | "put" | "post", path: string, role = "user", user = "owner") {
   return request(app)[method](`${base}${path}`).set("x-role", role).set("x-user", user);
@@ -44,17 +45,70 @@ beforeEach(() => {
     signer: { status: vi.fn(() => ({ state: "unconfigured", audience: "avatarrouter-api", clientId: "roleplayx-avatarrouter", tokenLifetimeSeconds: 45 })) },
     check: vi.fn().mockResolvedValue({ accepted: true, checkedAt: "2026-10-27T00:00:00Z", limits: {} }),
   };
+  projectConnection = {
+    status: vi.fn(() => ({ authMode: "api-key", state: "unconfigured" })),
+    check: vi.fn().mockResolvedValue({ authenticated: true, authType: "api-key" }),
+  };
   app = express();
   app.use(express.json());
   app.use(base, createLiveAvatarRouter((req: any, res: any, next: any) => {
     if (!req.headers["x-user"]) return res.status(401).json({ error: "Sign in required" });
     req.user = { id: req.headers["x-user"], role: req.headers["x-role"] };
     next();
-  }, deps, identityService));
+  }, deps, identityService, projectConnection));
   app.use((error: any, _req: any, res: any, _next: any) => res.status(error.status ?? 500).json({ error: error.message }));
 });
 
 describe("live avatar policy routes", () => {
+  it.each(["https://avatar.example.test/api/v1", "https://avatar.example.test/wrong"])(
+    "uses only the server-configured destination in consent/availability metadata", async baseUrl => {
+      const previous = process.env.AVATAR_ROUTER_BASE_URL;
+      process.env.AVATAR_ROUTER_BASE_URL = baseUrl;
+      try {
+        const result = await api("get", "/conversations/pr/availability");
+        expect(result.body.origin).toBe(baseUrl.endsWith("/api/v1") ? "https://avatar.example.test" : "");
+        if (!baseUrl.endsWith("/api/v1")) expect(result.body.blockers).toContain("avatar_connection_invalid");
+        expect(result.body.available).toBe(false);
+        expect(externalRequest).not.toHaveBeenCalled();
+      } finally {
+        if (previous === undefined) delete process.env.AVATAR_ROUTER_BASE_URL;
+        else process.env.AVATAR_ROUTER_BASE_URL = previous;
+      }
+    },
+  );
+
+  it("returns safe API-key status without external calls or delegation", async () => {
+    const result = await api("get", "/connection", "admin");
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ authMode: "api-key", state: "unconfigured" });
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(projectConnection.check).not.toHaveBeenCalled();
+    expect(identityService.signer.status).not.toHaveBeenCalled();
+  });
+
+  it.each(["user", "operator"])("denies %s access to API-key connection setup/check", async role => {
+    expect((await api("get", "/connection", role)).status).toBe(403);
+    expect((await api("post", "/connection/check", role).send({})).status).toBe(403);
+    expect(projectConnection.status).not.toHaveBeenCalled();
+    expect(projectConnection.check).not.toHaveBeenCalled();
+  });
+
+  it.each([{ userId: "other" }, { "X-Avatar-User-ID": "other" }, { tenant_id: "other" }, { apiKey: "secret" }, { baseUrl: "https://evil.test/api/v1" }])(
+    "rejects browser connection/identity overrides", async body => {
+      expect((await api("post", "/connection/check", "admin").send(body)).status).toBe(400);
+      expect(projectConnection.check).not.toHaveBeenCalled();
+    },
+  );
+
+  it("checks the current admin only, ignoring spoofed request headers", async () => {
+    const result = await api("post", "/connection/check", "admin", "current")
+      .set("X-Avatar-User-ID", "other").send({});
+    expect(result.status).toBe(200);
+    expect(projectConnection.check).toHaveBeenCalledWith("current");
+    expect(identityService.check).not.toHaveBeenCalled();
+    expect(externalRequest).not.toHaveBeenCalled();
+  });
+
   it("exposes only public delegation status to administrators without checking upstream", async () => {
     const status = await api("get", "/identity", "admin");
     expect(status.status).toBe(200);

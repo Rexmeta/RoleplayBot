@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeAvatarRouterBaseUrl } from "./connectionConfig";
 import {
   AVATAR_ROUTER_ORIGIN,
   LIVE_AVATAR_CONTRACT_BLOCKERS,
@@ -47,7 +48,9 @@ export class AvatarRouterAdapter {
   }
 
   private async read(path: "/api/ready" | "/api/v1/providers"): Promise<unknown> {
-    const response = await this.request(`${AVATAR_ROUTER_ORIGIN}${path}`, {
+    const base = normalizeAvatarRouterBaseUrl(process.env.AVATAR_ROUTER_BASE_URL) ?? `${AVATAR_ROUTER_ORIGIN}/api/v1`;
+    const url = path === "/api/ready" ? `${base.slice(0, -3)}/ready` : `${base}/providers`;
+    const response = await this.request(url, {
       method: "GET", redirect: "error",
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(5_000),
