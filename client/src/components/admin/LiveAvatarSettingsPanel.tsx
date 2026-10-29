@@ -10,6 +10,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { liveAvatarBlockerText } from "@/lib/liveAvatarBlockers";
 import { LiveAvatarConnectionPanel } from "@/components/admin/LiveAvatarConnectionPanel";
 import { LiveAvatarIdentityPanel } from "@/components/admin/LiveAvatarIdentityPanel";
+import { LiveAvatarTestPanel } from "@/components/admin/LiveAvatarTestPanel";
 
 type LiveAvatarConfig = {
   enabled: boolean;
@@ -235,6 +236,7 @@ export function LiveAvatarSettingsPanel() {
         <div className="border-t pt-5">
           <LiveAvatarConnectionPanel />
         </div>
+        <LiveAvatarTestPanel />
         <details
           className="group border-t pt-5"
           onToggle={(event) => setShowAdvancedIdentity(event.currentTarget.open)}

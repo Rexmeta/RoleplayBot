@@ -91,6 +91,7 @@ const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
   { file: "server/routes/userPersonaImage.ts", prefix: "/api/user-personas" },
   { file: "server/routes/media.ts",            prefix: "/api/media" },
   { file: "server/routes/liveAvatar.ts",       prefix: "/api/live-avatar" },
+  { file: "server/routes/liveAvatarTest.ts",   prefix: "/api/live-avatar/test" },
 ];
 
 /**

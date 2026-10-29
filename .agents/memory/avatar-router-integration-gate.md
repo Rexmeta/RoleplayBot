@@ -15,6 +15,12 @@ Live avatar integration must use an isolated adapter and remain an optional serv
 
 **How to apply:** Preserve existing defaults and separate external session, audio transport, and failure handling from the existing avatar and voice paths.
 
+Treat the settings-page stock-avatar conversation test as an isolated administrator diagnostic, not evidence that the scenario live-avatar integration is ready. Opening settings must never create a paid session.
+
+**Why:** The user requested actual avatar conversation testing in settings while the earlier requirement to preserve existing functionality and defaults still applies.
+
+**How to apply:** Keep explicit cost/data-transfer consent on the test action, avoid automatic paid or media E2E during development, and preserve ordinary scenario gates until their own ownership and media paths are verified.
+
 The current contract makes project API keys the default; Base URL plus API key is enough for basic connection. Dedicated RS256 per-user/tenant delegation and pinned public JWKS remain optional advanced mode, not prerequisites. Bounded PCM clips are not continuous Gemini streaming.
 
 **Why:** A documented/locally tested bridge is not proof of deployment enrollment, tenant isolation or real media playback.

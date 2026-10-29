@@ -4,6 +4,8 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 
+// This suite covers existing settings/choice contracts. Paid diagnostics have their own tests.
+vi.mock("../../client/src/components/admin/LiveAvatarTestPanel", () => ({ LiveAvatarTestPanel: () => null }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_key: string, options?: any) => typeof options === "string" ? options : options?.defaultValue ?? _key }),
 }));

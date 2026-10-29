@@ -10,6 +10,7 @@ import { avatarRouterIdentityService, type AvatarRouterIdentityService } from ".
 import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 import { avatarRouterProjectConnection, type AvatarRouterProjectConnection } from "../services/liveAvatar/projectConnection";
 import { normalizeAvatarRouterBaseUrl } from "../services/liveAvatar/connectionConfig";
+import { createLiveAvatarTestRouter } from "./liveAvatarTest";
 
 const enabledSchema = z.object({ enabled: z.boolean() }).strict();
 const policySchema = z.object({ allowed: z.boolean() }).strict();
@@ -27,6 +28,7 @@ export default function createLiveAvatarRouter(
   const router = Router();
   router.use(isAuthenticated);
   router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+  router.use("/test", createLiveAvatarTestRouter());
   const getEnabled = async () =>
     (await deps.storage.getSystemSetting(LIVE_AVATAR_SETTINGS_CATEGORY, "enabled"))?.value === "true";
   const getAllowed = async (scenarioId: string) =>

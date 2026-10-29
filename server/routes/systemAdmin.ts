@@ -399,7 +399,7 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
     if (!category || !key) {
       throw createHttpError(400, "Category and key are required");
     }
-    if (category === "live_avatar" || category === "live_avatar_policy") {
+    if (category === "live_avatar" || category === "live_avatar_policy" || category === "live_avatar_test_attempt") {
       throw createHttpError(400, "Use the dedicated live avatar settings endpoint");
     }
 
@@ -440,7 +440,7 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
       if (!category || !key) {
         continue;
       }
-      if (category === "live_avatar" || category === "live_avatar_policy") {
+      if (category === "live_avatar" || category === "live_avatar_policy" || category === "live_avatar_test_attempt") {
         throw createHttpError(400, "Use the dedicated live avatar settings endpoint");
       }
 
