@@ -11,6 +11,7 @@ import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 import { avatarRouterProjectConnection, type AvatarRouterProjectConnection } from "../services/liveAvatar/projectConnection";
 import { normalizeAvatarRouterBaseUrl } from "../services/liveAvatar/connectionConfig";
 import { createLiveAvatarTestRouter } from "./liveAvatarTest";
+import { avatarRuntimePreflight, type AvatarRuntimePreflight } from "../services/liveAvatar/runtimePreflight";
 
 const enabledSchema = z.object({ enabled: z.boolean() }).strict();
 const policySchema = z.object({ allowed: z.boolean() }).strict();
@@ -24,6 +25,7 @@ export default function createLiveAvatarRouter(
   deps = { storage, fileManager, getOperatorAccessibleCategoryIds, adapter: new AvatarRouterAdapter() },
   identityService: AvatarRouterIdentityService = avatarRouterIdentityService,
   projectConnection: AvatarRouterProjectConnection = avatarRouterProjectConnection,
+  runtimePreflight: Pick<AvatarRuntimePreflight, "check"> = avatarRuntimePreflight,
 ) {
   const router = Router();
   router.use(isAuthenticated);
@@ -100,6 +102,18 @@ export default function createLiveAvatarRouter(
     if (!z.object({}).strict().safeParse(req.body ?? {}).success) throw createHttpError(400, "No connection parameters accepted");
     try {
       res.json(await projectConnection.check(req.user.id));
+    } catch (error) {
+      if (!(error instanceof AvatarIdentityError)) throw error;
+      res.status(error.status).json({ code: error.code, error: error.message });
+    }
+  }));
+
+  router.post("/runtime/preflight", isSystemAdmin, asyncHandler(async (req: any, res) => {
+    if (!z.object({}).strict().safeParse(req.body ?? {}).success) {
+      throw createHttpError(400, "No runtime parameters accepted");
+    }
+    try {
+      res.json(await runtimePreflight.check(req.user.id));
     } catch (error) {
       if (!(error instanceof AvatarIdentityError)) throw error;
       res.status(error.status).json({ code: error.code, error: error.message });

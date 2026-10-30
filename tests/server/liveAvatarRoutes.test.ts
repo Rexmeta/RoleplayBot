@@ -19,6 +19,7 @@ let deps: any;
 let externalRequest: ReturnType<typeof vi.fn>;
 let identityService: any;
 let projectConnection: any;
+let runtimePreflight: any;
 const base = "/api/live-avatar";
 function api(method: "get" | "put" | "post", path: string, role = "user", user = "owner") {
   return request(app)[method](`${base}${path}`).set("x-role", role).set("x-user", user);
@@ -49,17 +50,43 @@ beforeEach(() => {
     status: vi.fn(() => ({ authMode: "api-key", state: "unconfigured" })),
     check: vi.fn().mockResolvedValue({ authenticated: true, authType: "api-key" }),
   };
+  runtimePreflight = {
+    check: vi.fn().mockResolvedValue({ available: false, sessionCreated: false, externalMediaSent: false }),
+  };
   app = express();
   app.use(express.json());
   app.use(base, createLiveAvatarRouter((req: any, res: any, next: any) => {
     if (!req.headers["x-user"]) return res.status(401).json({ error: "Sign in required" });
     req.user = { id: req.headers["x-user"], role: req.headers["x-role"] };
     next();
-  }, deps, identityService, projectConnection));
+  }, deps, identityService, projectConnection, runtimePreflight));
   app.use((error: any, _req: any, res: any, _next: any) => res.status(error.status ?? 500).json({ error: error.message }));
 });
 
 describe("live avatar policy routes", () => {
+  it("runs free preflight only on explicit admin request with the current identity and no-store", async () => {
+    await api("get", "/config", "admin");
+    expect(runtimePreflight.check).not.toHaveBeenCalled();
+    const result = await api("post", "/runtime/preflight", "admin", "current").send({});
+    expect(result.status).toBe(200);
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(result.body.available).toBe(false);
+    expect(runtimePreflight.check).toHaveBeenCalledExactlyOnceWith("current");
+  });
+
+  it.each(["user", "operator"])("denies %s free runtime inspection", async role => {
+    expect((await api("post", "/runtime/preflight", role).send({})).status).toBe(403);
+    expect(runtimePreflight.check).not.toHaveBeenCalled();
+  });
+
+  it.each([{ userId: "other" }, { tenant: "other" }, { assetId: "untrusted" },
+    { baseUrl: "https://evil.test/api/v1" }, { consent: true }])(
+    "rejects preflight target, identity and paid-operation overrides", async body => {
+      expect((await api("post", "/runtime/preflight", "admin").send(body)).status).toBe(400);
+      expect(runtimePreflight.check).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["https://avatar.example.test/api/v1", "https://avatar.example.test/wrong"])(
     "uses only the server-configured destination in consent/availability metadata", async baseUrl => {
       const previous = process.env.AVATAR_ROUTER_BASE_URL;

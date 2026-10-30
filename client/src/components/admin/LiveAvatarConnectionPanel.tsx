@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, CircleHelp, KeyRound, Loader2, RefreshCw, 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
+import { LiveAvatarPreflightPanel } from "./LiveAvatarPreflightPanel";
 
 type ConnectionStatus = {
   authMode: "api-key";
@@ -131,6 +132,8 @@ export function LiveAvatarConnectionPanel() {
           </div>
         </>
       ) : null}
+
+      <LiveAvatarPreflightPanel configured={status?.state === "configured"} />
 
       {checkMutation.isError && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">

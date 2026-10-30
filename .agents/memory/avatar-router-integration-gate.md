@@ -56,3 +56,9 @@ Treat the issuer as a stable identity namespace, not a key-host address. A URN i
 **Why:** Remote ownership includes the exact issuer. Replacing a valid URN merely to match a hosting URL changes ownership identity, not just key discovery.
 
 **How to apply:** Preserve the enrolled issuer across key-host changes and configure the public key URL separately. Do not require a login migration or rewrite the issuer to obtain HTTPS keys.
+
+Keep free-only inspection separate from lifecycle recovery, even if both are called “preflight.”
+
+**Why:** A diagnostic preflight may reconcile an uncertain paid-create fence. Reusing it for a strictly read-only approval would silently widen the permitted action; project authentication alone also does not establish a logged-in user context.
+
+**How to apply:** Under read-only approval, perform only official authenticated reads without recovery writes or media credentials. Report project-only and per-user verification separately, and never infer persona ownership or runtime activation from a catalog candidate.
