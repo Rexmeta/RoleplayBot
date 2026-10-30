@@ -225,7 +225,9 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           {assets !== null && !loading && !error && (
             assets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
-                조회 가능한 아바타 자산이 없습니다. 준비 완료·재사용 가능 자산만 선택할 수 있습니다.
+                조회 가능한 프로젝트 소유 커스텀 자산이 없습니다. Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
+                기본 Lucy는 커스텀 자산 목록에 포함되지 않으며 별도의 관리자 Live 테스트에서 확인할 수 있습니다.
+                준비 완료·재사용 가능 자산만 초안에 선택할 수 있습니다.
               </div>
             ) : (
               <div className="space-y-2">

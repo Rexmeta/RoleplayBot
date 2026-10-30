@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { supportsCustomLiveContract } from "../../../shared/avatar/routerContract";
 import sharp from "sharp";
 import { z } from "zod";
 import { storage } from "../../storage";
@@ -31,10 +32,14 @@ export class PersonaAvatarCreationService {
     private readonly store: Store = storage,
   ) {}
 
-  private async context(userId: string) {
+  private async context(userId: string, requireCustomRuntime = false) {
     const auth = await this.connection.check(userId);
     if (!(["assets:read", "assets:write"] as const).every(s => auth.scopes.includes(s))) {
       throw new AvatarIdentityError("persona_avatar_asset_scopes_required", 403);
+    }
+    // Status/reconciliation remains available on older servers; only new writes are gated.
+    if (requireCustomRuntime && !supportsCustomLiveContract(auth.integration)) {
+      throw new AvatarIdentityError("persona_avatar_contract_upgrade_required", 409);
     }
     return createHash("sha256").update(`${auth.projectId}:${userId}`).digest("hex");
   }
@@ -91,7 +96,7 @@ export class PersonaAvatarCreationService {
       if (!["jpeg", "png", "webp"].includes(meta.format ?? "") || !meta.width || !meta.height ||
           meta.width > 4096 || meta.height > 4096 || (meta.pages ?? 1) > 1) throw new Error();
     } catch { throw new AvatarIdentityError("persona_avatar_image_invalid", 400); }
-    const key = await this.context(userId);
+    const key = await this.context(userId, true);
     if (locks.has(key)) throw new AvatarIdentityError("persona_avatar_creation_in_progress", 409);
     locks.add(key);
     try {

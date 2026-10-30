@@ -8,6 +8,7 @@ const endpoint = "/api/admin/personas/live-avatar/creation";
 
 function messageFor(error: unknown) {
   const message = error instanceof Error ? error.message : "";
+  if (/persona_avatar_contract_upgrade_required/.test(message)) return "연결된 AvatarRouter가 커스텀 재생 검증 계약을 제공하지 않습니다. API 0.5 이상과 기능 검색 응답을 게시한 뒤 다시 확인하세요. 이미지 전송·생성 요청은 실행되지 않았습니다.";
   if (/403|scope|forbidden/i.test(message)) return "커스텀 아바타 생성 권한을 확인하세요.";
   if (/fetch|network/i.test(message)) return "서버에 연결하지 못했습니다. 상태를 먼저 조회해 작업 결과를 확인하세요.";
   return message || "요청을 완료하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
@@ -131,6 +132,13 @@ export function PersonaAvatarCreationPanel({ onSubmitted }: { onSubmitted: () =>
       }
     } catch (cause) {
       if (!mounted.current) return;
+      // This exact code is returned before image ingestion or paid provisioning.
+      // Keep all ambiguous POST outcomes fenced; never generalize this to other 409s.
+      if (cause instanceof Error && /persona_avatar_contract_upgrade_required/.test(cause.message)) {
+        setError(messageFor(cause));
+        setNotice("서버 버전 확인 단계에서 중단했습니다. 기존 작업 상태는 변경하지 않았습니다.");
+        return;
+      }
       setState({ stage: "provisioning", uncertain: true });
       setError(messageFor(cause));
       setNotice("요청 결과가 불확실할 수 있습니다. 다시 제출하지 말고 먼저 상태를 조회하세요.");

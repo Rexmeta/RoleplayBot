@@ -47,6 +47,7 @@ beforeEach(async () => {
   };
   connection = { check: vi.fn(async () => ({
     projectId: "project-one", scopes: [...testScopes, "assets:read", "assets:write"],
+    integration: { apiVersion: "0.5.0", features: ["custom_live_validation", "client_playback_report"], customLiveProviders: ["tavus"] },
   })) };
   client = { call: vi.fn(async (_user, path, schema, body) => {
     if (body) expect([...records.values()].some(v => /ingesting|provisioning/.test(v))).toBe(true);
@@ -62,6 +63,13 @@ beforeEach(async () => {
 });
 
 describe("explicit persona avatar creation", () => {
+  it("blocks old contracts before image writes, while leaving status recovery available", async () => {
+    connection.check.mockResolvedValue({ projectId: "project-one", scopes: [...testScopes, "assets:read", "assets:write"] });
+    await expect(service.create("operator", input)).rejects.toMatchObject({ code: "persona_avatar_contract_upgrade_required", status: 409 });
+    expect(client.call).not.toHaveBeenCalled();
+    expect(store.upsertSystemSetting).not.toHaveBeenCalled();
+    expect(await service.status("operator")).toEqual({ stage: "idle", uncertain: false });
+  });
   it("reads idle status without writes or image transfer", async () => {
     expect(await service.status("operator")).toEqual({ stage: "idle", uncertain: false });
     expect(client.call).not.toHaveBeenCalled();
