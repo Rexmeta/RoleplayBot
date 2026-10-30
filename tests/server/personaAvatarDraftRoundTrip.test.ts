@@ -19,6 +19,21 @@ const draft = {
 };
 beforeEach(() => rows.clear());
 describe("persona draft storage compatibility", () => {
+  it("round-trips stock references without manufacturing an asset UUID or changing fallback media", async () => {
+    const stockDraft = {
+      kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", projectId: "project-one",
+      voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified",
+    };
+    const images = { base: "portrait.webp" };
+    await fileManager.createMBTIPersona({ id: "stock", mbti: "INTJ", images, avatarMode: "live", liveAvatar: stockDraft });
+    expect((await fileManager.getAllMBTIPersonas())[0]).toMatchObject({ liveAvatar: stockDraft, images });
+    await fileManager.updateMBTIPersona("stock", { motivation: "unchanged avatar" });
+    expect((await fileManager.getAllMBTIPersonas())[0]).toMatchObject({ liveAvatar: stockDraft, images });
+    expect(rows.get("stock").liveAvatar).not.toHaveProperty("assetId");
+    await fileManager.updateMBTIPersona("stock", { liveAvatar: null });
+    expect(rows.get("stock").liveAvatar).toBeNull();
+  });
+
   it("round-trips create, list and edit while preserving images and video slots", async () => {
     const media = { images: { base: "portrait.webp" }, videos: { enabled: true, clips: { male: { speaking_neutral: "clip.mp4" } } } };
     await fileManager.createMBTIPersona({ id: "manager", mbti: "ENTJ", ...media, avatarMode: "live", liveAvatar: draft });
