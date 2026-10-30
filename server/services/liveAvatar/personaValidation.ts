@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { supportsCustomLiveContract } from "../../../shared/avatar/routerContract";
 import { storage } from "../../storage";
 import { personaAvatarAssetSchema, isSelectablePersonaAvatar } from "../../../shared/avatar/personaAvatar";
 import { avatarTestReady } from "../../../shared/avatar/adminAvatarTest";
@@ -21,6 +22,9 @@ export class PersonaAvatarValidationService {
     const auth = await this.connection.check(userId);
     if (!(["assets:read", "assets:write"] as const).every(s => auth.scopes.includes(s))) {
       throw new AvatarIdentityError("persona_avatar_asset_scopes_required", 403);
+    }
+    if (!supportsCustomLiveContract(auth.integration)) {
+      throw new AvatarIdentityError("persona_avatar_contract_upgrade_required", 409);
     }
     const asset = await this.projectClient.call(userId, `/avatar-assets/${assetId}`, personaAvatarAssetSchema);
     if (asset.id !== assetId || asset.providerId !== "tavus" || !isSelectablePersonaAvatar(asset) ||

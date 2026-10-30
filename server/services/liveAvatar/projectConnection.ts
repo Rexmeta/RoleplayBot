@@ -15,6 +15,11 @@ const checkSchema = z.object({
   scopes: z.array(z.enum(scopes)).min(1).max(9),
   expiresAt: z.string().datetime({ offset: true }),
   userContext: z.literal(true),
+  integration: z.object({
+    apiVersion: z.string().max(40),
+    features: z.array(z.string().max(100)).max(30),
+    customLiveProviders: z.array(z.string().max(100)).max(30),
+  }).optional(),
 });
 type Input = { baseUrl?: string; apiKey?: string };
 export type AvatarProjectConnectionStatus = {

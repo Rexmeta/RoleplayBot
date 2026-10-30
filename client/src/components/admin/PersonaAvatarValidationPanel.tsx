@@ -147,7 +147,10 @@ export function PersonaAvatarValidationPanel({ assetId, assetName, onReported }:
     </div>
     <AvatarTestHeader test={test} />
     {test.preflight?.runtimeError && <p role="alert" className="text-xs text-amber-900">
-      현재 자산의 커스텀 런타임을 사용할 수 없어 새 세션 생성이 차단되었습니다. 기존 세션의 상태 확인과 종료는 계속할 수 있습니다.
+      {test.preflight.runtimeError === "persona_avatar_contract_upgrade_required"
+        ? "연결된 AvatarRouter의 커스텀 재생 검증 계약이 이전 버전이거나 확인되지 않았습니다. 최신 API와 기능 검색 응답을 게시해야 합니다."
+        : "현재 자산의 커스텀 런타임을 사용할 수 없어 새 세션 생성이 차단되었습니다."}
+      {" 기존 세션의 상태 확인과 종료는 계속할 수 있습니다."}
     </p>}
     {test.creationUncertain && !test.preflight && <div role="alert" className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs">
       <AlertTriangle className="h-4 w-4 shrink-0" />세션 생성 결과가 불확실합니다. 상태를 새로고침하여 원격 조정 결과를 확인하세요.
