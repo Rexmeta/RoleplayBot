@@ -43,10 +43,10 @@ describe("persona avatar settings", () => {
   it("loads only on explicit action and saves a project-bound unverified draft", async () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
-    await screen.findByRole("combobox");
+    await screen.findByLabelText("초안에 연결할 자산");
     expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: id } });
-    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(saved);
+    fireEvent.change(screen.getByLabelText("초안에 연결할 자산"), { target: { value: id } });
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
     expect(screen.getByText(/현재 자산 상태: 준비 완료 · Live 검증: 미검증/)).toBeTruthy();
     expect(screen.getByText(/미리보기 URL은 제공되지 않습니다/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "초안 연결 해제" }));
@@ -57,7 +57,7 @@ describe("persona avatar settings", () => {
     api.mockResolvedValue({ json: async () => response([row({ id: "22345678-1234-4234-8234-123456789abc", status: "processing" })]) });
     render(<Harness initial={saved} />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
-    await screen.findByRole("combobox");
+    await screen.findByLabelText("초안에 연결할 자산");
     expect(screen.getByRole("option", { name: /처리 중 · 선택 불가/ }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByText(/새로 조회한 목록에서 저장된 자산을 찾지 못했습니다/)).toBeTruthy();
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(saved);
@@ -95,5 +95,45 @@ describe("persona avatar settings", () => {
     expect(change).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("radio", { name: "Live" }));
     expect(change).toHaveBeenCalledWith("live");
+  });
+
+  it("selects stock Lucy separately, replaces custom references and never starts validation or a session", async () => {
+    api.mockResolvedValue({ json: async () => ({ ...response(), stockAvatars: [
+      { id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy", description: "Stock",
+        kind: "configured", configured: true, languages: ["en"] },
+      { id: "mock-orbit", providerId: "mock", name: "Orbit", description: "Mock",
+        kind: "mock", configured: true, languages: [] },
+    ] }) });
+    render(<Harness initial={saved} />);
+    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+    await screen.findByLabelText("기본 아바타");
+    expect(screen.getByRole("option", { name: /Orbit.*선택 불가/ }).hasAttribute("disabled")).toBe(true);
+    // An existing custom draft mounts its read-only preflight before we switch.
+    api.mockClear();
+    fireEvent.change(screen.getByLabelText("기본 아바타"), { target: { value: "tavus-stock-lucy" } });
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({
+      kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", voiceMode: "roleplayx",
+      validationStatus: "unverified", activation: "draft", projectId: "project-one",
+    });
+    expect(screen.getByText(/기본 아바타 ID: tavus-stock-lucy/)).toBeTruthy();
+    expect((screen.getByLabelText("초안에 연결할 자산") as HTMLSelectElement).value).toBe("");
+    expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
+    expect(api).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("초안에 연결할 자산"), { target: { value: id } });
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
+  });
+
+  it("retains a saved stock selection when removed after refresh, and supports unlink", async () => {
+    const stockDraft: PersonaLiveAvatar = {
+      kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", voiceMode: "roleplayx",
+      activation: "draft", validationStatus: "unverified", projectId: "project-one",
+    };
+    render(<Harness initial={stockDraft} />);
+    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+    await screen.findByText(/새로 조회한 목록에서 저장된 자산을 찾지 못했습니다/);
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(stockDraft);
+    expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "초안 연결 해제" }));
+    expect(screen.getByTestId("draft").textContent).toBe("null");
   });
 });

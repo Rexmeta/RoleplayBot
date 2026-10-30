@@ -3,6 +3,7 @@ import { storage } from "../../storage";
 import {
   personaAvatarAssetSchema, personaAvatarModeSchema, personaLiveAvatarSchema,
   isSelectablePersonaAvatar, isLiveValidatedPersonaAvatar,
+  personaStockAvatarSchema, isSelectableStockAvatar,
 } from "../../../shared/avatar/personaAvatar";
 import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
@@ -24,8 +25,10 @@ export class PersonaAvatarCatalog {
   async list(userId: string) {
     const auth = await this.authorize(userId);
     const assets = await this.client.call(userId, "/avatar-assets", z.array(personaAvatarAssetSchema).max(500));
+    const stockAvatars = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500));
     return {
       projectId: auth.projectId, runtimeAvailable: false as const,
+      stockAvatars,
       assets: assets.filter(a => a.providerId === "tavus" || a.providerId === "anam")
         .map(a => ({ ...a, liveValidated: isLiveValidatedPersonaAvatar(a) })),
     };
@@ -61,6 +64,20 @@ export class PersonaAvatarCatalog {
     if (parsed.data.projectId && parsed.data.projectId !== auth.projectId) {
       throw new AvatarIdentityError("persona_avatar_project_mismatch", 409);
     }
+    if (parsed.data.kind === "stock") {
+      const reference = parsed.data;
+      const stock = (await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500)))
+        .find(avatar => avatar.id === reference.avatarId && avatar.providerId === reference.providerId);
+      if (!stock || !isSelectableStockAvatar(stock)) {
+        throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
+      }
+      return {
+        ...result, liveAvatar: {
+          kind: "stock", avatarId: stock.id, providerId: stock.providerId, projectId: auth.projectId,
+          voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified",
+        },
+      };
+    }
     const asset = await this.client.call(userId, `/avatar-assets/${parsed.data.assetId}`, personaAvatarAssetSchema);
     if (asset.id !== parsed.data.assetId || asset.providerId !== parsed.data.providerId) {
       throw new AvatarIdentityError("persona_avatar_asset_mismatch", 409);
@@ -68,6 +85,7 @@ export class PersonaAvatarCatalog {
     if (!isSelectablePersonaAvatar(asset)) throw new AvatarIdentityError("persona_avatar_asset_not_ready", 409);
     return {
       ...result, liveAvatar: {
+        ...(parsed.data.kind === "custom" ? { kind: "custom" } : {}),
         assetId: asset.id, providerId: asset.providerId, projectId: auth.projectId,
         voiceMode: "roleplayx", activation: "draft",
         validationStatus: isLiveValidatedPersonaAvatar(asset) ? "live_verified" : "unverified",

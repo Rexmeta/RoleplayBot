@@ -1,5 +1,29 @@
 # 선택형 AvatarRouter 연동
 
+## 페르소나의 기본/커스텀 아바타 초안 선택
+
+관리자 페르소나 편집의 Live 탭에서 **아바타 목록 조회**를 누르면, 로그인한 관리자의
+프로젝트·사용자 연결을 통해 두 목록을 읽는다. 자동 생성·유료 세션 시작은 하지 않는다.
+
+- **기본 아바타**: `/avatars`의 stock 참조. 현재 `configured: true`인 Tavus
+  `tavus-stock-lucy`만 초안 선택 가능하다. mock 또는 다른 configured 참조는 비활성화한다.
+  저장 형태: `{ kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", ... }`.
+- **커스텀 자산**: `/avatar-assets`의 UUID 자산. 기존 준비 완료·재사용 가능 조건과
+  프로젝트/사용자 소유권 검사를 유지한다.
+  새 선택 저장 형태: `{ kind: "custom", assetId: "<UUID>", providerId: "tavus", ... }`.
+- 기존 `kind` 없이 `assetId` UUID만 있는 저장값은 커스텀 초안으로 계속 읽는다.
+  기존 값을 일괄 변환하거나 가짜 자산 UUID를 만들지 않는다. JSON 초안 컬럼을 그대로
+  사용하므로 데이터베이스 마이그레이션이 필요하지 않다.
+- 두 종류를 전환하면 이전 종류의 ID 필드는 제거된다. `assetId`와 `avatarId`를 함께
+  보내거나 stock ID를 UUID 자산으로 보내면 서버가 거부한다.
+
+서버는 선택 시 해당 목록을 다시 확인하며 브라우저의 검증 상태를 신뢰하지 않는다.
+stock 선택은 `validationStatus: "unverified"`이며 모든 선택은 `activation: "draft"`,
+`voiceMode: "roleplayx"`다. 기본 아바타에는 커스텀 자산 검증 패널을 연결하지 않는다.
+목록에서 사라지거나 사용 불가가 된 기존 선택은 다른 아바타로 자동 대체하지 않는다.
+기존 로그인·시나리오 선택·이미지/비디오 fallback·유료 작업의 명시적 동의·정리 방어는
+바뀌지 않는다. 실제 학습자 Live 연결은 별도 단계이며 이 선택만으로 활성화되지 않는다.
+
 ## 현재 구현 범위와 제한
 
 기존 대화 엔진·음성 재생·이미지 및 클립 아바타는 그대로 사용한다.

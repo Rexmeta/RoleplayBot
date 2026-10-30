@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
-import type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
-import { isLiveValidatedPersonaAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
+import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar } from '@shared/avatar/personaAvatar';
+import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
 import { PersonaAvatarCreationPanel } from '@/components/admin/PersonaAvatarCreationPanel';
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 export type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
@@ -28,7 +28,7 @@ type AvatarAsset = {
   };
 };
 
-type AssetResponse = { projectId: string; assets: AvatarAsset[]; runtimeAvailable: false };
+type AssetResponse = { projectId: string; assets: AvatarAsset[]; stockAvatars: PersonaStockAvatar[]; runtimeAvailable: false };
 
 type Props = {
   mode: PersonaAvatarMode;
@@ -64,6 +64,7 @@ function errorMessage(error: unknown): string {
 
 export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false }: Props) {
   const [assets, setAssets] = useState<AvatarAsset[] | null>(null);
+  const [stockAvatars, setStockAvatars] = useState<PersonaStockAvatar[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -88,6 +89,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
       const result: AssetResponse = personaAvatarCatalogSchema.parse(await response.json());
       if (!mountedRef.current || requestRef.current !== requestId) return;
       setAssets(result.assets);
+      setStockAvatars(result.stockAvatars);
       setProjectId(result.projectId);
     } catch (cause) {
       if (!mountedRef.current || requestRef.current !== requestId) return;
@@ -97,8 +99,11 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
     }
   };
 
-  const selectedAsset = assets?.find(asset => asset.id === liveAvatar?.assetId);
-  const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset);
+  const customAssetId = liveAvatar && liveAvatar.kind !== 'stock' ? liveAvatar.assetId : null;
+  const stockAvatarId = liveAvatar?.kind === 'stock' ? liveAvatar.avatarId : null;
+  const selectedAsset = assets?.find(asset => asset.id === customAssetId);
+  const selectedStock = stockAvatars?.find(avatar => avatar.id === stockAvatarId && avatar.providerId === liveAvatar?.providerId);
+  const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset && !selectedStock);
   const selectableAssets = (assets ?? []).filter(asset =>
     asset.status === 'ready' &&
     asset.capabilities.reusable &&
@@ -114,11 +119,23 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
     const asset = selectableAssets.find(candidate => candidate.id === assetId);
     if (!asset) return;
     onLiveAvatarChange({
+      kind: 'custom',
       assetId: asset.id,
       providerId: asset.providerId,
       voiceMode: 'roleplayx',
       validationStatus: isLiveValidatedPersonaAvatar(asset) ? 'live_verified' : 'unverified',
       activation: 'draft',
+      ...(projectId ? { projectId } : {}),
+    });
+  };
+
+  const chooseStock = (avatarId: string) => {
+    if (!avatarId) return onLiveAvatarChange(null);
+    const avatar = stockAvatars?.find(candidate => candidate.id === avatarId && isSelectableStockAvatar(candidate));
+    if (!avatar) return;
+    onLiveAvatarChange({
+      kind: 'stock', avatarId: avatar.id, providerId: 'tavus',
+      voiceMode: 'roleplayx', validationStatus: 'unverified', activation: 'draft',
       ...(projectId ? { projectId } : {}),
     });
   };
@@ -193,7 +210,9 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold text-slate-800">저장된 초안 선택</p>
-                  <p className="mt-1 break-all text-slate-600">자산 ID: {liveAvatar.assetId} · 제공자: {liveAvatar.providerId}</p>
+                  <p className="mt-1 break-all text-slate-600">
+                    {liveAvatar.kind === 'stock' ? `기본 아바타 ID: ${liveAvatar.avatarId}` : `자산 ID: ${liveAvatar.assetId}`} · 제공자: {liveAvatar.providerId}
+                  </p>
                   <p className="mt-1 text-slate-600">
                     Live 검증: {liveAvatar.validationStatus === 'live_verified' ? '검증됨' : '미검증'} · 활성화: 초안
                   </p>
@@ -205,6 +224,11 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               {selectedMissing && (
                 <p className="mt-2 text-amber-800">
                   새로 조회한 목록에서 저장된 자산을 찾지 못했습니다. 삭제·실패·목록 접근 불가일 수 있습니다. 다른 자산으로 자동 변경하지 않았습니다.
+                </p>
+              )}
+              {selectedStock && (
+                <p className="mt-2 text-slate-600">
+                  기본 아바타: {selectedStock.name} · {isSelectableStockAvatar(selectedStock) ? '초안 선택 가능' : '현재 선택 불가'}
                 </p>
               )}
               {selectedAsset && (
@@ -222,6 +246,27 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             </div>
           )}
 
+          {stockAvatars !== null && !loading && !error && (
+            <div className="space-y-2">
+              <label htmlFor="live-avatar-stock" className="text-sm font-semibold text-slate-700">기본 아바타</label>
+              <select
+                id="live-avatar-stock"
+                value={selectedStock ? stockAvatarId ?? '' : ''}
+                onChange={event => chooseStock(event.target.value)}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800"
+              >
+                <option value="">기본 아바타 선택</option>
+                {stockAvatars.map(avatar => (
+                  <option key={avatar.id} value={avatar.id} disabled={!isSelectableStockAvatar(avatar)}>
+                    {avatar.name} · {avatar.providerId}{!isSelectableStockAvatar(avatar) ? ' · 선택 불가' : ''}
+                  </option>
+                ))}
+              </select>
+              {stockAvatars.length === 0 && <p className="text-xs text-slate-500">조회 가능한 기본 아바타가 없습니다.</p>}
+              <p className="text-xs text-slate-500">기본 아바타는 커스텀 자산과 별도로 저장됩니다. 선택·저장은 무료이며 세션을 시작하지 않습니다. 실제 Live 사용은 별도 비용 동의가 필요합니다.</p>
+            </div>
+          )}
+
           {assets !== null && !loading && !error && (
             assets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
@@ -232,7 +277,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 <label htmlFor="live-avatar-asset" className="text-sm font-semibold text-slate-700">초안에 연결할 자산</label>
                 <select
                   id="live-avatar-asset"
-                  value={selectedAsset ? liveAvatar?.assetId ?? '' : ''}
+                  value={selectedAsset ? customAssetId ?? '' : ''}
                   onChange={event => chooseAsset(event.target.value)}
                   className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
@@ -264,7 +309,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           </div>
 
           <PersonaAvatarCreationPanel onSubmitted={() => void loadAssets()} />
-          {assets !== null && liveAvatar?.providerId === 'tavus' && (
+          {assets !== null && liveAvatar?.providerId === 'tavus' && liveAvatar.kind !== 'stock' && (
               <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={selectedAsset?.name ?? '저장된 Tavus 자산'} onReported={() => void loadAssets()} />
             )}
 
