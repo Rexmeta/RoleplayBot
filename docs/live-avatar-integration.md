@@ -92,20 +92,42 @@ ROLEPLAYX_CLIENT_ID=roleplayx-avatarrouter
 
 ## 개발 화면 사용법
 
-### 페르소나 관리: 라이브 연결 초안
+### 페르소나 관리: 라이브 연결 초안과 Tavus 생성·재생 검증
 
 `/admin-management` → 페르소나 관리 → 생성 또는 수정 → **아바타 표시 방식**.
 
 - 이미지·비디오·Live 세 가지를 선택한다. 기존 레코드의 모드가 비어 있으면 `videos.enabled`로 표시만 추론하며 일괄 변환하지 않는다. 이미지/비디오를 명시적으로 선택하면 해당 enabled 값만 맞추고 기존 이미지·클립을 지우지 않는다.
 - **Live는 원하는 설정의 초안이다. 실제 활성화가 아니다.** 저장 후에도 기존 이미지/비디오·시나리오별 표시 정책을 유지한다. 목록에 Live 초안 배지와 기존 표시 설정을 구분하며, learner 런타임이나 시나리오 관리 화면은 변경하지 않는다.
-- **아바타 목록 조회**를 눌렀을 때만 기존 로그인 + admin/operator 역할의 서버가 `/auth/check`와 `/avatar-assets`를 GET한다. 프로젝트 키에 **`assets:read`** scope가 필요하다. 기존 세션 진단용 7개 scope만 있는 키로는 조회할 수 없으며 이 경우 명시적인 권한 오류를 보여준다.
-- Tavus·Anam 자산을 조회하며 상태·실제 Live 검증 여부를 구분한다. Ready + reusable + providerAvatarId가 있는 자산만 초안에 연결할 수 있다. `live_verified`와 `liveRendering=true`도 있어야 검증된 자산으로 표시하지만, 그 경우에도 이번 단계에서 activation은 항상 draft다.
+- **아바타 목록 조회** 또는 생성·보고 후의 목록 갱신 시 기존 로그인 + admin/operator 역할의 서버가 `/auth/check`와 `/avatar-assets`를 GET한다. 프로젝트 키에 **`assets:read`** scope가 필요하다. 기존 세션 진단용 7개 scope만 있는 키로는 조회할 수 없으며 이 경우 명시적인 권한 오류를 보여준다.
+- Tavus·Anam 자산을 조회하며 준비 상태와 Live 검증을 구분한다. Ready + reusable + providerAvatarId가 있는 자산만 초안에 연결할 수 있다. API 0.5의 `liveValidation`이 있으면 `runtimeSupported`, `status=validated`, `method=client_playback_report`, 검증 시각과 `liveRendering`을 확인한다. 이전 capability 라벨로 새 미검증 결과를 덮어쓰지 않는다. activation은 항상 draft다.
 - 서버는 자산 연결 시 소유 프로젝트와 자산·provider 일치를 재확인하고 브라우저가 주장한 validationStatus는 덮어쓴다. 자산 ID와 프로젝트 ID를 저장하며 타 프로젝트 자산으로 교체하지 않는다. 같은 초안의 변경 없는 저장은 공급자 장애 때도 가능하고 저장된 검증 값은 과거 확인 결과일 뿐이다. 조회 후 사라지거나 실패한 자산도 다른 것으로 자동 대체하지 않는다.
-- API 계약에 preview URL이 없으므로 미리보기 이미지를 만들어 표시하지 않는다. **커스텀 생성·실제 재생 검증은 비활성화**되어 있다. 이 단계에서는 이미지 등록/프로비저닝/유료 세션 POST가 없고 일반 시나리오의 라이브 차단도 해제하지 않는다.
+- API 계약에 preview URL이 없으므로 카탈로그 미리보기 이미지를 만들어 표시하지 않는다. 아래의 별도 생성·재생 검증은 관리자 명시 동작으로만 실행한다. 일반 시나리오의 라이브 차단은 해제하지 않는다.
 - Base URL + 프로젝트 키를 사용하며 새로운 로그인이나 JWT 위임 설정은 요구하지 않는다. 한 프로젝트의 공용 콘텐츠 관리 연결이고, 조직별 별도 외부 tenant 격리를 구현했다는 의미는 아니다.
 - 새 nullable 컬럼은 번호 SQL과 개발 시작 마이그레이션 양쪽에 추가한다. 운영 반영/배포는 별도 승인 대상이다.
 
-실제 시드 이미지 생성→커스텀 라이브 재생→시나리오 실행의 최종 수용 조건은 아직 미충족이다. AvatarRouter의 커스텀 live dispatch 차단 해제와 별도 승인된 E2E가 필요하다.
+#### 커스텀 생성 (API 0.5)
+
+사용자는 API 0.5가 배포되었음을 확인하고 페르소나의 생성·재생 검증 구현을 승인했다. 이는 개발자가 실제 유료 호출이나 이미지·음성을 전송해도 된다는 승인은 아니다.
+
+1. Live 영역의 **Tavus 커스텀 생성**에서 JPEG/PNG/WebP 이미지를 직접 선택한다. 기존 페르소나 이미지 URL을 임의로 가져오거나 외부 URL을 서버에 전달하지 않는다. 최대 4.5MB, 4096×4096, 단일 프레임을 서버에서도 검증한다.
+2. 이름·합성/실존 인물을 지정하고 이미지 권리·외부 전송·비용의 세 동의를 확인한다. 실존 인물은 동의 증빙 참조가 필요하다. 요청은 `POST /api/admin/personas/live-avatar/creation`이며 `assets:read`와 `assets:write`가 모두 필요하다.
+3. 서버가 이미지 등록 후 동의 상태를 확인한다. `pending_review` 이미지는 프로비저닝하지 않으며 실존 인물은 `verified`일 때만 진행한다. 운영자가 외부 검토를 마친 후 **작업 상태 조회**로 확인하고 같은 이미지로 명시적으로 재개한다. 합성 인물이라고 허위 신고하는 것을 독립적인 신원 검증으로 방지하는 기능은 아니다.
+4. Tavus 생성은 비동기 제출이다. 결과를 ready나 재생 성공으로 표시하지 않는다. 목록 갱신 후 준비 상태를 확인하고 자산을 직접 선택한다. 저장된 초안을 자동으로 다른 자산으로 교체하지 않는다.
+5. 이미지 등록·프로비저닝 전 DB에 작업 상태를 저장한다. 응답이 불확실하면 자동 재시도하지 않는다. **작업 상태 조회**는 GET만 사용해 이미지 해시/소유 자산을 대조한다. 원격 결과를 찾지 못하면 새 쓰기는 계속 차단하며 공급자 확인이 필요하다. 원본과 공급자 이미지 해시가 다르면 이미지 등록 결과도 자동 조정하지 못할 수 있다.
+6. **새 이미지로 생성 준비**는 제출 완료 후에만 다음 작업을 준비한다. 원본 base64와 동의 증빙 참조는 작업 fence에 저장하지 않는다. 이 fence는 일반 시스템 설정 API로 덮어쓸 수 없다.
+
+#### 커스텀 재생 검증
+
+1. 목록 조회 후 선택된 Tavus 초안에 별도 **Tavus 실제 재생 점검**을 표시한다. `assets:read/write`와 7개 세션 lifecycle scope, AI 구성, worker·한도·정리 상태를 확인한다. Anam은 이 단계의 세션 대상으로 허용하지 않는다.
+2. 비용 및 텍스트/녹음의 외부 AI 처리·생성 음성 전송에 동의한 뒤 세션을 명시적으로 생성한다. 서버는 현재 자산의 `providerAvatarId`를 읽어 `avatarAssetId`와 `purpose=validation`을 함께 전송한다. Stock 인물로 대체하지 않는다.
+3. 기존 stock 테스트와 같은 구독 전용 LiveKit 수신 및 OpenAI 턴 테스트를 사용한다. 이 경로는 기존 시나리오·Gemini 실시간 음성·평가와 연결하지 않는다. 마이크는 동의한 진단 STT에만 보내고 아바타로 직접 게시하지 않는다.
+4. 영상 트랙 구독만으로 검증하지 않는다. HTML video의 실제 프레임, 오디오 재생 준비, 해당 세션에서 성공한 테스트 턴, 운영자의 별도 영상 시청·음성 청취 확인이 모두 필요하다. 재연결·세션 전환 시 이전 증거를 폐기한다.
+5. **재생 확인 보고**를 눌러야만 `/avatar-assets/{id}/live-validation`을 호출한다. 이는 **신뢰한 클라이언트의 관찰 보고이지 공급자의 독립 인증이 아니다.** 서버는 현재 자산·provider ID와 running/unexpired 세션을 확인하고, AvatarRouter는 원 소유자·동일 revision·완료된 audio command를 추가로 검증한다. 아직 오디오 작업이 완료되지 않으면 보고가 거절될 수 있다.
+6. 검증 후 카탈로그만 갱신한다. Live 초안 저장과 학습자 활성화는 별개다. 상태 변경·삭제로 새 세션을 만들 수 없어도 소유 세션의 확인·종료는 유지한다. 페이지 이탈 종료는 best-effort이며 terminal 상태와 `cleanupPending=false`를 확인해야 종료 완료다.
+
+내부 API prefix는 `/api/admin/personas/live-avatar/assets/:assetId/validation`이다. 기존 로그인 + admin/operator 권한과 no-store를 사용한다. `/preflight`, `/sessions`, `/sessions/:id`, `/sessions/:id/connection`, `/sessions/:id/turn`, `/sessions/:id/interrupt`, `/sessions/:id/end`, `/report`가 있다. 브라우저가 보낸 프로젝트 키·tenant·user ID·provider ID는 받지 않는다.
+
+실제 커스텀 영상·음성 E2E와 시나리오 실행의 최종 수용 조건은 아직 미충족이다. 이 구현에서는 유료 세션이나 실제 미디어 전송을 실행하지 않았고, 일반 대화 라이브 연결도 계속 차단한다.
 
 ### 설정 화면의 실제 관리자 테스트
 

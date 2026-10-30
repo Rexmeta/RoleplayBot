@@ -24,12 +24,12 @@ function friendlyError(cause: unknown): string {
   return "요청을 완료하지 못했습니다. 상태를 확인하고 필요한 경우 세션을 복구하거나 종료하세요.";
 }
 
-async function get<T>(path: string): Promise<T> {
-  const response = await apiRequest("GET", `${endpoint}${path}?_=${Date.now()}`);
+async function get<T>(path: string, base = endpoint): Promise<T> {
+  const response = await apiRequest("GET", `${base}${path}?_=${Date.now()}`);
   return response.json() as Promise<T>;
 }
 
-export function useAdminAvatarTest() {
+export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
   const [preflight, setPreflight] = useState<AvatarTestPreflight | null>(null);
   const [session, setSession] = useState<AvatarTestSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,6 +58,7 @@ export function useAdminAvatarTest() {
     if (mountedRef.current) setSession(next);
   }, []);
   const room = useAvatarTestRoom({
+    endpoint,
     session,
     sessionRef,
     mountedRef,
@@ -70,6 +71,7 @@ export function useAdminAvatarTest() {
     !pollFailedRef.current && !stoppedRef.current && !stoppingRef.current);
   const mediaReady = isMediaReady();
   const conversation = useAvatarTestConversation({
+    endpoint,
     sessionRef,
     mountedRef,
     stoppedRef,
@@ -96,12 +98,12 @@ export function useAdminAvatarTest() {
       credentials: "include",
       keepalive: true,
     }).catch(() => undefined);
-  }, [conversation.cancelTurn, disconnectMedia, stopMicrophone]);
+  }, [conversation.cancelTurn, disconnectMedia, stopMicrophone, endpoint]);
 
   const loadPreflight = useCallback(async (initial = false) => {
     if (initial && mountedRef.current) setLoading(true);
     try {
-      const result = await get<AvatarTestPreflight>("/preflight");
+      const result = await get<AvatarTestPreflight>("/preflight", endpoint);
       if (!result?.limits || typeof result.ready !== "boolean" || typeof result.aiReady !== "boolean" ||
           typeof result.creationUncertain !== "boolean" || !Array.isArray(result.sessions) ||
           !Array.isArray(result.missingScopes)) throw new Error("invalid preflight response");
@@ -123,7 +125,7 @@ export function useAdminAvatarTest() {
     } finally {
       if (initial && mountedRef.current) setLoading(false);
     }
-  }, [setCurrentSession]);
+  }, [setCurrentSession, endpoint]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -149,7 +151,7 @@ export function useAdminAvatarTest() {
       if (pollBusyRef.current || !mountedRef.current || sessionRef.current?.id !== activeId || avatarTestTerminal(sessionRef.current)) return;
       pollBusyRef.current = true;
       try {
-        const fresh = await get<AvatarTestSession>(`/sessions/${encodeURIComponent(activeId)}`);
+        const fresh = await get<AvatarTestSession>(`/sessions/${encodeURIComponent(activeId)}`, endpoint);
         if (!mountedRef.current || sessionRef.current?.id !== activeId) return;
         setCurrentSession(fresh);
         pollFailedRef.current = false;
@@ -172,7 +174,7 @@ export function useAdminAvatarTest() {
     };
     const timer = window.setInterval(() => void poll(), 1500);
     return () => window.clearInterval(timer);
-  }, [session?.id, session?.status, session?.cleanupPending, disconnectMedia, setCurrentSession, stopMicrophone]);
+  }, [session?.id, session?.status, session?.cleanupPending, disconnectMedia, setCurrentSession, stopMicrophone, endpoint]);
 
   const refresh = async () => {
     setError("");
@@ -238,7 +240,7 @@ export function useAdminAvatarTest() {
       let ended: AvatarTestSession | null = null;
       for (let attempt = 0; attempt < 12; attempt += 1) {
         if (!mountedRef.current) return;
-        ended = await get<AvatarTestSession>(`/sessions/${encodeURIComponent(current.id)}`);
+        ended = await get<AvatarTestSession>(`/sessions/${encodeURIComponent(current.id)}`, endpoint);
         setCurrentSession(ended);
         if (avatarTestTerminal(ended)) break;
         await new Promise((resolve) => window.setTimeout(resolve, 1500));

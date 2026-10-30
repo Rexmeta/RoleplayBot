@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
 import type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
-import { personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
+import { isLiveValidatedPersonaAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
+import { PersonaAvatarCreationPanel } from '@/components/admin/PersonaAvatarCreationPanel';
+import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 export type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
 
 type AvatarAsset = {
@@ -17,6 +19,13 @@ type AvatarAsset = {
     validation: 'documentation_only' | 'provisioned' | 'live_verified';
   };
   liveValidated: boolean;
+  liveValidation?: {
+    status: 'unvalidated' | 'validated';
+    runtimeSupported: boolean;
+    method: 'client_playback_report' | null;
+    sessionId: string | null;
+    validatedAt: string | null;
+  };
 };
 
 type AssetResponse = { projectId: string; assets: AvatarAsset[]; runtimeAvailable: false };
@@ -108,7 +117,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
       assetId: asset.id,
       providerId: asset.providerId,
       voiceMode: 'roleplayx',
-      validationStatus: asset.liveValidated ? 'live_verified' : 'unverified',
+      validationStatus: isLiveValidatedPersonaAvatar(asset) ? 'live_verified' : 'unverified',
       activation: 'draft',
       ...(projectId ? { projectId } : {}),
     });
@@ -151,7 +160,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
             <p className="font-bold">Live 아바타는 이번 단계에서 초안으로만 저장됩니다.</p>
             <p className="mt-1 leading-relaxed">
-              실제 Live 렌더링은 아직 사용할 수 없습니다. 학습자 대화에는 기존 이미지/비디오 표시가 유지되며,
+              학습자 대화의 Live 렌더링은 아직 사용할 수 없습니다. 별도의 관리자 생성·재생 점검과 무관하게 기존 이미지/비디오 표시가 유지되며,
               Live 선택은 대화 동작을 변경하지 않습니다.
             </p>
           </div>
@@ -201,7 +210,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               {selectedAsset && (
                 <>
                   <p className="mt-2 text-slate-600">
-                    현재 자산 상태: {provisioningLabels[selectedAsset.status]} · Live 검증: {selectedAsset.liveValidated ? '검증됨' : '미검증'}
+                    현재 자산 상태: {provisioningLabels[selectedAsset.status]} · Live 검증: {isLiveValidatedPersonaAvatar(selectedAsset) ? '검증됨' : '미검증'}
                   </p>
                   {!selectableAssets.some(asset => asset.id === selectedAsset.id) && (
                     <p className="mt-1 text-amber-800">
@@ -247,20 +256,20 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           )}
 
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-            <p className="font-semibold text-slate-700">현재 단계에서 사용할 수 없는 작업</p>
+            <p className="font-semibold text-slate-700">관리자 생성·검증과 학습자 런타임 분리</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled title="상위 시스템의 커스텀 런타임이 준비되지 않았습니다.">
-                커스텀 아바타 생성 — 비활성화
-              </Button>
-              <Button type="button" variant="outline" disabled title="실제 Live 검증 및 승인이 아직 제공되지 않습니다.">
-                실제 Live 검증 — 비활성화
-              </Button>
+              <span className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">커스텀 생성은 관리자 요청 시에만 실행됩니다.</span>
             </div>
-            <p className="mt-2 text-xs text-slate-600">상위 커스텀 런타임 및 승인 절차가 준비되어야 합니다. 공급자 쓰기 요청은 보내지 않습니다.</p>
+            <p className="mt-2 text-xs text-slate-600">생성·검증은 학습자 대화에 영향을 주지 않으며, 페르소나 연결은 항상 초안으로만 저장됩니다.</p>
           </div>
 
+          <PersonaAvatarCreationPanel onSubmitted={() => void loadAssets()} />
+          {assets !== null && liveAvatar?.providerId === 'tavus' && (
+              <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={selectedAsset?.name ?? '저장된 Tavus 자산'} onReported={() => void loadAssets()} />
+            )}
+
           <div role="note" className="rounded-md border border-slate-200 bg-slate-100 p-3 text-sm text-slate-700">
-            런타임을 사용할 수 없습니다. 자산이 Live 검증됨으로 표시되어도 현재는 초안 기록일 뿐이며, 학습자 대화에서 Live 아바타를 제공하지 않습니다.
+            학습자 런타임은 비활성화 상태입니다. 관리자 재생 검증에 성공해도 페르소나 연결은 초안으로만 저장되며, 학습자 대화에서 Live 아바타를 제공하지 않습니다.
           </div>
         </div>
       )}

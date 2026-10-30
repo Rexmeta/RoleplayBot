@@ -19,6 +19,7 @@ import { videoJobStore } from "../utils/videoJobStore";
 import { hasVideoAvatarConfiguration, requireVideoAvatarManagementAccess } from "../services/videoAvatarAccess";
 import { personaAvatarCatalog } from "../services/liveAvatar/personaCatalog";
 import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
+import { createPersonaAvatarOperationsRouter } from "./personaAvatarOperations";
 
 const videoUpload = multer({
   storage: multer.memoryStorage(),
@@ -34,6 +35,7 @@ const videoUpload = multer({
 
 export default function createAdminPersonasRouter(isAuthenticated: any) {
   const router = Router();
+  router.use("/api/admin/personas/live-avatar", isAuthenticated, isOperatorOrAdmin, createPersonaAvatarOperationsRouter());
   const catalogError = (error: unknown, res: any) => {
     if (error instanceof AvatarIdentityError) {
       res.status(error.status).json({ code: error.code, error: error.code });

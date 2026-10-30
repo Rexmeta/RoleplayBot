@@ -20,6 +20,7 @@ export type AvatarTestLimits = {
   resetsAt: string;
 };
 export type AvatarTestPreflight = {
+  runtimeError?: string;
   ready: boolean;
   aiReady: boolean;
   creationUncertain: boolean;

@@ -25,6 +25,14 @@ export const personaAvatarAssetSchema = z.object({
     liveRendering: z.boolean(),
     validation: z.enum(["documentation_only", "provisioned", "live_verified"]),
   }),
+  imageAssetId: z.string().optional(),
+  liveValidation: z.object({
+    status: z.enum(["unvalidated", "validated"]),
+    runtimeSupported: z.boolean(),
+    method: z.enum(["client_playback_report"]).nullable(),
+    sessionId: z.string().nullable(),
+    validatedAt: z.string().nullable(),
+  }).optional(),
 });
 export type PersonaAvatarAsset = z.infer<typeof personaAvatarAssetSchema> & { liveValidated: boolean };
 export const personaAvatarCatalogSchema = z.object({
@@ -42,6 +50,11 @@ export function isSelectablePersonaAvatar(asset: z.infer<typeof personaAvatarAss
 }
 
 export function isLiveValidatedPersonaAvatar(asset: z.infer<typeof personaAvatarAssetSchema>): boolean {
+  if (asset.liveValidation) {
+    return isSelectablePersonaAvatar(asset) && asset.capabilities.liveRendering &&
+      asset.liveValidation.runtimeSupported && asset.liveValidation.status === "validated" &&
+      asset.liveValidation.method === "client_playback_report" && Boolean(asset.liveValidation.validatedAt);
+  }
   return isSelectablePersonaAvatar(asset) && asset.capabilities.liveRendering &&
     asset.capabilities.validation === "live_verified";
 }

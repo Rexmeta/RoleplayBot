@@ -20,7 +20,9 @@ export class AvatarProjectClient {
     if (!base || !key) throw new AvatarIdentityError("avatar_connection_unconfigured", 503);
     if (!/^ar_sk_[\x21-\x7e]{14,1018}$/.test(key)) throw new AvatarIdentityError("avatar_connection_invalid", 503);
     const catalogRead = body === undefined && /^\/avatar-assets(?:\/[a-fA-F0-9-]{36})?$/.test(path);
-    if (!catalogRead && !/^\/(?:live-limits|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:connection|audio|interrupt|end))?)?)$/.test(path)) {
+    const assetWrite = body !== undefined && /^\/(?:assets\/images|avatar-assets(?:\/[a-fA-F0-9-]{36}\/live-validation)?)$/.test(path);
+    const imageRead = body === undefined && path === "/assets/images";
+    if (!catalogRead && !assetWrite && !imageRead && !/^\/(?:live-limits|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:connection|audio|interrupt|end))?)?)$/.test(path)) {
       throw new AvatarIdentityError("avatar_test_path_invalid", 400);
     }
     const identity = await resolveAvatarIdentity(this.store, userId);
@@ -34,7 +36,7 @@ export class AvatarProjectClient {
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
       });
       if (!response.ok) {
-        const status = [401, 403, 404, 409, 429, 503].includes(response.status) ? response.status : 502;
+        const status = [400, 401, 403, 404, 409, 413, 415, 422, 429, 503].includes(response.status) ? response.status : 502;
         throw new AvatarIdentityError(`avatar_test_upstream_${status}`, status);
       }
       if (!response.headers.get("content-type")?.includes("application/json") ||

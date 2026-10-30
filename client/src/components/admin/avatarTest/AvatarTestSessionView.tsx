@@ -5,7 +5,7 @@ import { useAdminAvatarTest } from "./useAdminAvatarTest";
 
 type TestState = ReturnType<typeof useAdminAvatarTest>;
 
-export function AvatarTestSessionView({ test }: { test: TestState }) {
+export function AvatarTestSessionView({ test, assistantName = "Lucy" }: { test: TestState; assistantName?: string }) {
   const { session } = test;
   if (!session) return null;
   const inputDisabled = !test.mediaConnected || !test.ready || !test.audioConfirmed || test.turnBusy ||
@@ -63,7 +63,7 @@ export function AvatarTestSessionView({ test }: { test: TestState }) {
           <p className="mt-1 max-w-xs text-xs text-muted-foreground">실제 영상 트랙 구독 및 오디오 재생 가능 상태가 확인되기 전에는 입력이 비활성화됩니다.</p>
         </div> : test.conversation.map((item, index) =>
           <div key={`${index}-${item.role}`} className={`max-w-[90%] rounded-lg px-3 py-2 text-sm ${item.role === "user" ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">{item.role === "user" ? "관리자" : "Lucy"}</p>
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">{item.role === "user" ? "관리자" : assistantName}</p>
             <p className="whitespace-pre-wrap break-words">{item.content}</p>
           </div>)}
         {test.turnBusy && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />응답 생성 중… 중지 버튼은 계속 사용할 수 있습니다.</div>}

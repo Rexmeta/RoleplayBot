@@ -2,9 +2,9 @@ import { MutableRefObject, useCallback, useRef, useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { AvatarTestMessage, AvatarTestSession, AvatarTestTurnInput, avatarTestReady } from "@shared/avatar/adminAvatarTest";
 
-const endpoint = "/api/live-avatar/test";
 type TurnResponse = { userText: string; replyText: string };
 type Options = {
+  endpoint?: string;
   sessionRef: MutableRefObject<AvatarTestSession | null>;
   mountedRef: MutableRefObject<boolean>;
   stoppedRef: MutableRefObject<boolean>;
@@ -13,7 +13,7 @@ type Options = {
   onError: (message: string) => void;
 };
 
-async function postTurn(sessionId: string, payload: AvatarTestTurnInput): Promise<TurnResponse> {
+async function postTurn(sessionId: string, payload: AvatarTestTurnInput, endpoint: string): Promise<TurnResponse> {
   const response = await apiRequest("POST", `${endpoint}/sessions/${encodeURIComponent(sessionId)}/turn`, payload);
   return response.json() as Promise<TurnResponse>;
 }
@@ -26,7 +26,7 @@ function friendlyTurnError(cause: unknown): string {
   return "테스트 턴을 완료하지 못했습니다. 상태를 확인하고 다시 시도하세요.";
 }
 
-export function useAvatarTestConversation({ sessionRef, mountedRef, stoppedRef, stoppingRef, isMediaReady, onError }: Options) {
+export function useAvatarTestConversation({ endpoint = "/api/live-avatar/test", sessionRef, mountedRef, stoppedRef, stoppingRef, isMediaReady, onError }: Options) {
   const [audioConfirmed, setAudioConfirmed] = useState(false);
   const [message, setMessage] = useState("");
   const [conversation, setConversation] = useState<AvatarTestMessage[]>([]);
@@ -91,7 +91,7 @@ export function useAvatarTestConversation({ sessionRef, mountedRef, stoppedRef, 
       const result = await postTurn(current.id, {
         ...input,
         history: conversation.slice(-10).map((item) => ({ role: item.role, content: item.content.slice(0, 600) })),
-      });
+      }, endpoint);
       if (generation !== turnGenerationRef.current || sessionRef.current?.id !== current.id || stoppedRef.current) return;
       setConversation((items) => [...items, { role: "user", content: result.userText }, { role: "assistant", content: result.replyText }]);
       setMessage("");

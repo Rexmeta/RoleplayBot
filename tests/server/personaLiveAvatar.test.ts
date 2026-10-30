@@ -110,14 +110,14 @@ describe("persona project catalog and inactive drafts", () => {
 
 describe("project client catalog transport boundary", () => {
   const identity = { getUser: async () => ({ id: "admin", isActive: true }), getOrganization: vi.fn(), getCompany: vi.fn() };
-  it("allows only catalog GETs and does not leak extra asset fields", async () => {
+  it("allows catalog reads, rejects arbitrary asset mutations and strips extra fields", async () => {
     const request = vi.fn(async () => new Response(JSON.stringify([{ id, extra: "hidden" }]), { headers: { "content-type": "application/json" } }));
     const client = new AvatarProjectClient(identity, request as any, () => ({
       baseUrl: "https://avatar-router.replit.app/api/v1", apiKey: "ar_sk_test_key_not_real_123456",
     }));
     expect(await client.call("admin", "/avatar-assets", z.array(z.object({ id: z.string() })))).toEqual([{ id }]);
     expect(request.mock.calls[0][1]).toMatchObject({ method: "GET", redirect: "error", credentials: "omit" });
-    for (const path of ["/avatar-assets", `/avatar-assets/${id}`, "/assets/images"]) {
+    for (const path of [`/avatar-assets/${id}`, `/assets/images/${id}`, "/developer/keys", "/avatar-assets/../sessions"]) {
       await expect(client.call("admin", path, z.unknown(), {})).rejects.toMatchObject({ code: "avatar_test_path_invalid" });
     }
     expect(request).toHaveBeenCalledTimes(1);

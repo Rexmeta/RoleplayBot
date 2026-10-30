@@ -92,6 +92,7 @@ const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
   { file: "server/routes/media.ts",            prefix: "/api/media" },
   { file: "server/routes/liveAvatar.ts",       prefix: "/api/live-avatar" },
   { file: "server/routes/liveAvatarTest.ts",   prefix: "/api/live-avatar/test" },
+  { file: "server/routes/personaAvatarOperations.ts", prefix: "/api/admin/personas/live-avatar" },
 ];
 
 /**
@@ -325,7 +326,7 @@ function isCovered(normalizedPath: string, canonical: Set<string>): boolean {
     // Guard against trivial prefixes like "/api" matching everything.
     if (
       normalizedPath.length > "/api/".length - 1 &&
-      route.startsWith(normalizedPath + "/")
+      new RegExp(`^${clientRegexSource}/`).test(route)
     ) {
       return true;
     }
@@ -339,6 +340,11 @@ function isCovered(normalizedPath: string, canonical: Set<string>): boolean {
 // ---------------------------------------------------------------------------
 
 describe("Stale API route detector", () => {
+  it("matches dynamic endpoint prefixes without allowing unrelated subpaths", () => {
+    const routes = new Set(["/api/admin/personas/live-avatar/assets/:assetId/validation/preflight"]);
+    expect(isCovered("/api/admin/personas/live-avatar/assets/__SEG__/validation", routes)).toBe(true);
+    expect(isCovered("/api/admin/personas/live-avatar/assets/__SEG__/other", routes)).toBe(false);
+  });
   const canonicalRoutes = buildCanonicalRoutes();
   const clientFiles = collectSourceFiles(join(CWD, "client", "src"));
 

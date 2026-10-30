@@ -4,14 +4,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { AvatarTestSession, avatarTestReady } from "@shared/avatar/adminAvatarTest";
 
 type Connection = { url: string; token: string; expiresAt: string };
-const endpoint = "/api/live-avatar/test";
 
-async function fetchConnection(sessionId: string): Promise<Connection> {
+async function fetchConnection(sessionId: string, endpoint: string): Promise<Connection> {
   const response = await apiRequest("GET", `${endpoint}/sessions/${encodeURIComponent(sessionId)}/connection?_=${Date.now()}`);
   return response.json() as Promise<Connection>;
 }
 
 type Options = {
+  endpoint?: string;
   session: AvatarTestSession | null;
   sessionRef: MutableRefObject<AvatarTestSession | null>;
   mountedRef: MutableRefObject<boolean>;
@@ -21,7 +21,7 @@ type Options = {
   onError: (message: string) => void;
 };
 
-export function useAvatarTestRoom({ session, sessionRef, mountedRef, stoppedRef, stoppingRef, pollFailedRef, onError }: Options) {
+export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session, sessionRef, mountedRef, stoppedRef, stoppingRef, pollFailedRef, onError }: Options) {
   const [connecting, setConnecting] = useState(false);
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [mediaConnected, setMediaConnected] = useState(false);
@@ -86,7 +86,7 @@ export function useAvatarTestRoom({ session, sessionRef, mountedRef, stoppedRef,
     void (async () => {
       let room: Room | null = null;
       try {
-        const connection = await fetchConnection(activeId);
+        const connection = await fetchConnection(activeId, endpoint);
         if (generationRef.current !== generation || !mountedRef.current || sessionRef.current?.id !== activeId ||
             !avatarTestReady(sessionRef.current) || stoppedRef.current || stoppingRef.current || pollFailedRef.current) return;
         tokenRef.current = connection.token;
@@ -173,7 +173,7 @@ export function useAvatarTestRoom({ session, sessionRef, mountedRef, stoppedRef,
     return () => {
       if (sessionRef.current?.id !== activeId || !avatarTestReady(sessionRef.current)) generationRef.current += 1;
     };
-  }, [session?.id, isReady, connectionAttempt]);
+  }, [session?.id, isReady, connectionAttempt, endpoint]);
 
   useEffect(() => {
     if (!videoTrack || !videoHost.current) return;
