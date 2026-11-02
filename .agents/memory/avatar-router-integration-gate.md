@@ -27,6 +27,19 @@ The user confirmed on 2026-11-02 that both administrator-page and persona-page l
 
 **How to apply:** Diagnose learner configuration, discovery, ownership, and media routing separately; do not restart provisioning or treat diagnostic success as learner playback verification.
 
+A reconciliation-required status identifies an unresolved paid-create outcome,
+not the root cause of a scenario-only failure. When administrator/persona playback
+works, compare actual creation payloads, renderer events, and media connection
+requests before attributing the problem to a generally unavailable provider.
+
+**Why:** The user repeatedly confirmed that administrator/persona tests work.
+Presenting cleanup as the explanation for the scenario failure confuses a required
+recovery action with an established diagnosis.
+
+**How to apply:** Separate the proven failure stage from its still-unconfirmed
+cause; operator cleanup may unblock another attempt but does not prove it fixes
+the original scenario path.
+
 Saved persona live configuration is a reference, not permission to auto-create a paid session. Scenario runtime must remain opt-in and preserve existing image/video and dialogue behavior until the learner explicitly selects live playback.
 
 **Why:** The user requested both selected-avatar testing in persona editing and functioning scenario live avatars, while preserving existing behavior remains an explicit requirement.
