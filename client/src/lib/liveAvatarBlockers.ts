@@ -24,6 +24,16 @@ const descriptions: Record<string, string> = {
   avatar_runtime_limits_unavailable: "외부 아바타 서비스의 남은 이용 시간이 부족하여 새 라이브 연결을 시작할 수 없습니다.",
   avatar_connection_unconfigured: "관리자가 AvatarRouter 서버 연결을 설정해야 합니다.",
   avatar_connection_check_failed: "AvatarRouter 인증 상태를 확인하지 못했습니다.",
+  avatar_connection_rejected: "AvatarRouter가 프로젝트 API 키 인증을 거부했습니다. 관리자가 연결 설정을 확인해야 합니다.",
+  avatar_connection_forbidden: "현재 프로젝트 또는 사용자에게 AvatarRouter 연결 권한이 없습니다.",
+  avatar_test_read_failed: "외부 서비스의 상태 응답을 읽거나 확인하지 못했습니다. 재생 검증 부족을 뜻하지는 않습니다. 상태를 다시 확인해 주세요.",
+  avatar_test_upstream_401: "외부 서비스 인증이 거부되었습니다. 관리자가 프로젝트 연결 설정을 확인해야 합니다.",
+  avatar_test_upstream_403: "외부 서비스 조회 권한이 부족합니다. 관리자가 프로젝트 권한을 확인해야 합니다.",
+  avatar_test_upstream_404: "외부 서비스에서 요청한 아바타 또는 연결 경로를 찾지 못했습니다.",
+  avatar_test_upstream_409: "외부 서비스의 현재 세션 상태 때문에 요청을 진행할 수 없습니다. 기존 세션 상태를 다시 확인해 주세요.",
+  avatar_test_upstream_429: "외부 서비스의 조회 요청이 많습니다. 잠시 후 상태를 다시 확인해 주세요.",
+  avatar_test_upstream_502: "외부 서비스 상태 조회에 실패했습니다. 잠시 후 상태를 다시 확인해 주세요.",
+  avatar_test_upstream_503: "외부 서비스가 일시적으로 응답하지 않습니다. 잠시 후 상태를 다시 확인해 주세요.",
   avatar_connection_timeout: "외부 아바타 서비스의 연결 확인 응답이 지연되고 있습니다. 잠시 후 기존 세션 상태를 다시 확인해 주세요.",
   avatar_connection_upstream_unavailable: "외부 아바타 서비스가 일시적으로 응답하지 않습니다. 잠시 후 다시 확인해 주세요.",
   avatar_connection_rate_limited: "외부 아바타 서비스의 조회 요청이 많습니다. 잠시 후 다시 확인해 주세요.",
@@ -31,7 +41,7 @@ const descriptions: Record<string, string> = {
 
 export function liveAvatarBlockerText(code: string, t: TFunction): string {
   return t(`liveAvatar.blockers.${code}`, {
-    defaultValue: descriptions[code] ?? "외부 서비스 연결에 필요한 검증이 완료되지 않았습니다.",
+    defaultValue: descriptions[code] ?? "라이브 아바타 시작 조건을 확인하지 못했습니다. 재생 검증 부족으로 단정할 수 없으므로 상태를 다시 확인해 주세요.",
   });
 }
 

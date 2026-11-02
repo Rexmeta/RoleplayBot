@@ -480,9 +480,21 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
               {!voiceMode && <p className="text-sm text-muted-foreground">라이브 아바타는 실시간 음성 대화에서만 사용할 수 있습니다.</p>}
               {availability.blockers.length > 0 && (
                 <ul className="list-inside list-disc space-y-1 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
-                  {availability.blockers.map((blocker, index) => <li key={`${index}-${blocker}`}>{liveAvatarBlockerText(blocker, t)}</li>)}
+                  {availability.blockers.map((blocker, index) => <li key={`${index}-${blocker}`}>
+                    {liveAvatarBlockerText(blocker, t)}
+                    {/^[a-z][a-z0-9_]{0,95}$/.test(blocker) && <code className="ml-1 break-all text-xs">({blocker})</code>}
+                  </li>)}
                 </ul>
               )}
+              {!availability.available && <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">상태 확인은 새 유료 세션을 생성하지 않습니다. 이전 세션의 생성·종료 결과가 미확인인 경우에는 중복 과금을 막기 위한 차단이 유지됩니다.</p>
+                <Button type="button" size="sm" variant="outline" disabled={availabilityQuery.isFetching || recoveryPending} onClick={() => {
+                  void availabilityQuery.refetch();
+                  void recoverSession();
+                }}>
+                  {availabilityQuery.isFetching || recoveryPending ? "연결 상태 확인 중…" : "연결 상태 다시 확인"}
+                </Button>
+              </div>}
             </>
           ) : null}
 

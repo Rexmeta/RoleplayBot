@@ -38,6 +38,40 @@ function setup(voiceMode = true, portraitHost?: HTMLElement | null) {
 afterEach(() => { cleanup(); api.mockReset(); });
 
 describe("LiveAvatarChoice", () => {
+  it.each([
+    ["avatar_provider_cleanup_required", "이전 세션이 남아 있습니다"],
+    ["avatar_test_read_failed", "상태 응답을 읽거나 확인하지 못했습니다"],
+    ["avatar_future_runtime_condition", "라이브 아바타 시작 조건을 확인하지 못했습니다"],
+  ])("explains %s and refreshes free reads without bypassing the paid-start gate", async (blocker, explanation) => {
+    let blocked = true;
+    api.mockImplementation(async (method: string, path: string) => {
+      if (method === "GET" && path.endsWith("/availability")) {
+        return jsonResponse(blocked ? { ...availability, available: false, blockers: [blocker] } : availability);
+      }
+      if (method === "GET" && path.endsWith("/session")) return jsonResponse({ session: null, creationUncertain: false });
+      return jsonResponse({});
+    });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
+    await screen.findByText(new RegExp(explanation));
+    expect(screen.getByText(`(${blocker})`)).toBeTruthy();
+    expect(screen.queryByText("외부 서비스 연결에 필요한 검증이 완료되지 않았습니다.")).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox"));
+    const start = screen.getByRole("button", { name: "실시간 아바타 시작" });
+    expect(start.hasAttribute("disabled")).toBe(true);
+    const refresh = await screen.findByRole("button", { name: "연결 상태 다시 확인" });
+    await waitFor(() => expect(refresh.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(refresh);
+    await screen.findByRole("button", { name: "연결 상태 다시 확인" });
+    expect(start.hasAttribute("disabled")).toBe(true);
+    expect(api.mock.calls.some(([method]) => method === "POST")).toBe(false);
+    blocked = false;
+    fireEvent.click(screen.getByRole("button", { name: "연결 상태 다시 확인" }));
+    await screen.findByText("사용 가능");
+    await waitFor(() => expect(start.hasAttribute("disabled")).toBe(false));
+    expect(api.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
+
   it("keeps paid creation locked after an auth timeout and refreshes both availability and recovery on retry", async () => {
     let recoveryCalls = 0, availabilityCalls = 0;
     api.mockImplementation(async (method: string, path: string) => {
