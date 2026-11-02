@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest } from "@/lib/queryClient";
-import { liveAvatarBlockerText } from "@/lib/liveAvatarBlockers";
+import { liveAvatarBlockerText, liveAvatarConnectionError } from "@/lib/liveAvatarBlockers";
 import { AvatarTestSession, avatarTestReady, avatarTestTerminal } from "@shared/avatar/adminAvatarTest";
 import { useAvatarTestRoom } from "@/components/admin/avatarTest/useAvatarTestRoom";
 
@@ -28,6 +28,8 @@ type Availability = {
 
 export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = null, actorId, optionsRequest = 0 }: Props) {
   const { t } = useTranslation();
+  const tRef = useRef(t);
+  tRef.current = t;
   const endpoint = `/api/live-avatar/conversations/${encodeURIComponent(conversationId)}`;
   const [requested, setRequested] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -141,7 +143,8 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
       if (mountedRef.current && recoveryConversationRef.current === recoveryConversationId && currentActorRef.current === recoveryActorId) {
         setRecoveryFailed(true);
         setCreationLocked(true);
-        setError(cause instanceof Error ? `기존 세션 복구에 실패했습니다: ${cause.message}` : "기존 세션 복구에 실패했습니다.");
+        const detail = liveAvatarConnectionError(cause, tRef.current) ?? (cause instanceof Error ? cause.message : "");
+        setError(detail ? `기존 세션 복구에 실패했습니다: ${detail}` : "기존 세션 복구에 실패했습니다.");
       }
     } finally {
       if (mountedRef.current && recoveryConversationRef.current === recoveryConversationId && currentActorRef.current === recoveryActorId) setRecoveryPending(false);
@@ -453,7 +456,10 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
               ? "기존 요청의 생성 결과를 확인 중입니다. 중복 생성을 막기 위해 새 세션은 잠겨 있습니다."
               : "요청 결과가 불확실하여 중복 세션 생성을 잠갔습니다. 기존 세션 상태를 복구하세요."}
           </p>}
-          {(recoveryFailed || creationLocked || creationUncertain) && <Button type="button" size="sm" variant="outline" disabled={recoveryPending} onClick={() => void recoverSession()}>
+          {(recoveryFailed || creationLocked || creationUncertain) && <Button type="button" size="sm" variant="outline" disabled={recoveryPending} onClick={() => {
+            void availabilityQuery.refetch();
+            void recoverSession();
+          }}>
             {recoveryPending ? "복구 확인 중…" : "기존 세션 상태 다시 확인"}
           </Button>}
           {session && (

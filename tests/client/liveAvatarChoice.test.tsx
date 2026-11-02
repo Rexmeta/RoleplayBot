@@ -38,6 +38,36 @@ function setup(voiceMode = true, portraitHost?: HTMLElement | null) {
 afterEach(() => { cleanup(); api.mockReset(); });
 
 describe("LiveAvatarChoice", () => {
+  it("keeps paid creation locked after an auth timeout and refreshes both availability and recovery on retry", async () => {
+    let recoveryCalls = 0, availabilityCalls = 0;
+    api.mockImplementation(async (method: string, path: string) => {
+      if (method === "GET" && path.endsWith("/availability")) {
+        availabilityCalls++;
+        return jsonResponse(availabilityCalls === 1
+          ? { ...availability, available: false, blockers: ["avatar_connection_timeout"] } : availability);
+      }
+      if (method === "GET" && path.endsWith("/session")) {
+        recoveryCalls++;
+        if (recoveryCalls === 1) throw new Error('504: {"code":"avatar_connection_timeout","error":"avatar_connection_timeout"}');
+        return jsonResponse({ session: null, creationUncertain: false });
+      }
+      return jsonResponse({});
+    });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
+    await screen.findByText(/기존 세션 복구에 실패했습니다: 외부 아바타 서비스의 연결 확인 응답이 지연/);
+    expect(screen.queryByText(/504:/)).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox"));
+    const start = screen.getByRole("button", { name: "실시간 아바타 시작" });
+    expect(start.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "기존 세션 상태 다시 확인" }));
+    await screen.findByText("사용 가능");
+    await waitFor(() => expect(start.hasAttribute("disabled")).toBe(false));
+    expect(recoveryCalls).toBe(2);
+    expect(availabilityCalls).toBe(2);
+    expect(api.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
+
   it("retires a session created after an actor switch without attaching it or creating a replacement", async () => {
     let completeCreate!: (response: any) => void;
     api.mockImplementation((method: string, path: string) => {

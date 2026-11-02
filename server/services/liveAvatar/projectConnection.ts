@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { storage } from "../../storage";
 import { AvatarIdentityError, resolveAvatarIdentity, type AvatarIdentityStore } from "./delegatedIdentity";
 import { normalizeAvatarRouterBaseUrl } from "./connectionConfig";
@@ -22,12 +23,15 @@ const checkSchema = z.object({
   }).optional(),
 });
 type Input = { baseUrl?: string; apiKey?: string };
+type CheckedConnection = z.infer<typeof checkSchema> & { checkedAt: string };
 export type AvatarProjectConnectionStatus = {
   authMode: "api-key"; state: "configured" | "unconfigured" | "invalid"; baseUrl?: string;
 };
 
 /** Project authentication only. It neither maps local tenants nor enables paid sessions. */
 export class AvatarRouterProjectConnection {
+  // Share concurrent reads only: never cache authorization across later requests.
+  private readonly checking = new Map<string, Promise<CheckedConnection>>();
   constructor(
     private readonly store: AvatarIdentityStore,
     private readonly input: () => Input = () => ({
@@ -59,16 +63,45 @@ export class AvatarRouterProjectConnection {
     }
   }
 
-  /** Only explicit authenticated admin action calls this free auth endpoint. */
+  /** Free authentication read, shared by diagnostics and owned runtime checks. */
   async check(authenticatedUserId: string) {
     const config = this.configuration();
     if (!config) throw new AvatarIdentityError("avatar_connection_unconfigured", 503);
     const identity = await resolveAvatarIdentity(this.store, authenticatedUserId);
+    const key = createHash("sha256").update(JSON.stringify([
+      config.baseUrl, config.apiKey, identity.subject, identity.tenantId,
+    ])).digest("hex");
+    const current = this.checking.get(key);
+    if (current) return structuredClone(await current);
+    const pending = this.requestCheck(config, identity.subject);
+    this.checking.set(key, pending);
+    try {
+      return structuredClone(await pending);
+    } finally {
+      if (this.checking.get(key) === pending) this.checking.delete(key);
+    }
+  }
+
+  private async requestCheck(config: { baseUrl: string; apiKey: string }, subject: string): Promise<CheckedConnection> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await this.requestOnce(config, subject);
+      } catch (error) {
+        // Only this free GET is retryable. Session creation and audio writes are not.
+        if (error instanceof AvatarIdentityError && error.code === "avatar_connection_timeout" && attempt === 0) continue;
+        throw error;
+      }
+    }
+    throw new AvatarIdentityError("avatar_connection_check_failed", 502);
+  }
+
+  private async requestOnce(config: { baseUrl: string; apiKey: string }, subject: string): Promise<CheckedConnection> {
+    const timeout = AbortSignal.timeout(10_000);
     try {
       const response = await this.request(`${config.baseUrl}/auth/check`, {
         method: "GET", redirect: "error", credentials: "omit",
-        headers: { Accept: "application/json", Authorization: `Bearer ${config.apiKey}`, "X-Avatar-User-ID": identity.subject },
-        signal: AbortSignal.timeout(5000),
+        headers: { Accept: "application/json", Authorization: `Bearer ${config.apiKey}`, "X-Avatar-User-ID": subject },
+        signal: timeout,
       });
       if (!response.ok) {
         const code = response.status === 401 ? "avatar_connection_rejected" :
@@ -96,6 +129,9 @@ export class AvatarRouterProjectConnection {
       return { ...result, checkedAt: new Date().toISOString() };
     } catch (error) {
       if (error instanceof AvatarIdentityError) throw error;
+      const timedOut = (timeout.aborted && timeout.reason?.name === "TimeoutError") ||
+        (error instanceof Error && error.name === "TimeoutError");
+      if (timedOut) throw new AvatarIdentityError("avatar_connection_timeout", 504);
       throw new AvatarIdentityError("avatar_connection_check_failed", 502);
     }
   }

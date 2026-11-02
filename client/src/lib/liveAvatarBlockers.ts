@@ -21,10 +21,27 @@ const descriptions: Record<string, string> = {
   avatar_runtime_unavailable: "라이브 아바타 연결 상태를 확인하지 못했습니다. 다시 조회하세요.",
   avatar_connection_unconfigured: "관리자가 AvatarRouter 서버 연결을 설정해야 합니다.",
   avatar_connection_check_failed: "AvatarRouter 인증 상태를 확인하지 못했습니다.",
+  avatar_connection_timeout: "외부 아바타 서비스의 연결 확인 응답이 지연되고 있습니다. 잠시 후 기존 세션 상태를 다시 확인해 주세요.",
+  avatar_connection_upstream_unavailable: "외부 아바타 서비스가 일시적으로 응답하지 않습니다. 잠시 후 다시 확인해 주세요.",
+  avatar_connection_rate_limited: "외부 아바타 서비스의 조회 요청이 많습니다. 잠시 후 다시 확인해 주세요.",
 };
 
 export function liveAvatarBlockerText(code: string, t: TFunction): string {
   return t(`liveAvatar.blockers.${code}`, {
     defaultValue: descriptions[code] ?? "외부 서비스 연결에 필요한 검증이 완료되지 않았습니다.",
   });
+}
+
+/** API errors are status-prefixed JSON; translate known connection codes, not raw transport text. */
+export function liveAvatarConnectionError(cause: unknown, t: TFunction): string | null {
+  if (!(cause instanceof Error)) return null;
+  const start = cause.message.indexOf("{");
+  if (start < 0) return null;
+  try {
+    const { code } = JSON.parse(cause.message.slice(start));
+    return typeof code === "string" && code.startsWith("avatar_connection_") && descriptions[code]
+      ? liveAvatarBlockerText(code, t) : null;
+  } catch {
+    return null;
+  }
 }

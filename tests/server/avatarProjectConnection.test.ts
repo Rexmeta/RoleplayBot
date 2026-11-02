@@ -22,9 +22,91 @@ beforeEach(() => {
   input = { baseUrl, apiKey: key };
   service = new AvatarRouterProjectConnection(store, () => input, fetcher);
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("server project API-key connection", () => {
+  it("coalesces concurrent checks but revalidates each caller and never caches a later authorization", async () => {
+    let complete!: (response: Response) => void;
+    fetcher.mockImplementation(() => new Promise<Response>(resolve => { complete = resolve; }));
+    const first = service.check("one");
+    const second = service.check("one");
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    expect(store.getUser).toHaveBeenCalledTimes(2);
+    complete(json(result));
+    const checked = await Promise.all([first, second]);
+    expect(checked[0]).toEqual(checked[1]);
+    expect(checked[0]).not.toBe(checked[1]);
+    fetcher.mockImplementation(async () => json(result));
+    await service.check("one");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    store.getUser.mockResolvedValue({ id: "one", isActive: false });
+    await expect(service.check("one")).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("does not share an in-flight check across users or a changed project credential", async () => {
+    const complete: Array<(response: Response) => void> = [];
+    fetcher.mockImplementation(() => new Promise<Response>(resolve => complete.push(resolve)));
+    const first = service.check("one");
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    const second = service.check("two");
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    input.apiKey = "ar_sk_another_synthetic_fixture_not_a_real_credential";
+    const rotated = service.check("one");
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+    complete.forEach(resolve => resolve(json(result)));
+    await Promise.all([first, second, rotated]);
+    expect(fetcher.mock.calls[0][1].headers.Authorization).not.toBe(fetcher.mock.calls[2][1].headers.Authorization);
+  });
+
+  it("allows a six-second response instead of aborting it at the former five-second deadline", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(ms => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException("delayed", "TimeoutError")), ms);
+      return controller.signal;
+    });
+    fetcher.mockImplementation((_url, options) => new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => resolve(json(result)), 6000);
+      options.signal.addEventListener("abort", () => { clearTimeout(timer); reject(options.signal.reason); }, { once: true });
+    }));
+    const checked = service.check("one");
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(await checked).toMatchObject(result);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries only a timed-out free auth GET once and clears exhausted failures for later recovery", async () => {
+    fetcher.mockRejectedValueOnce(new DOMException("delayed", "TimeoutError"))
+      .mockResolvedValueOnce(json(result));
+    expect(await service.check("one")).toMatchObject(result);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    fetcher.mockReset().mockRejectedValue(new DOMException("delayed", "TimeoutError"));
+    await expect(service.check("one")).rejects.toMatchObject({ code: "avatar_connection_timeout", status: 504 });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls.every(([url, options]) => url === `${baseUrl}/auth/check` && options.method === "GET")).toBe(true);
+    fetcher.mockImplementation(async () => json(result));
+    expect(await service.check("one")).toMatchObject(result);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it("also recognizes a deadline while reading a response body, whose stream reports AbortError", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(ms => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException("delayed", "TimeoutError")), ms);
+      return controller.signal;
+    });
+    fetcher.mockImplementationOnce(async (_url, options) => new Response(new ReadableStream({
+      start(controller) {
+        options.signal.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")), { once: true });
+      },
+    }), { headers: { "content-type": "application/json" } })).mockResolvedValueOnce(json(result));
+    const checked = service.check("one");
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await checked).toMatchObject(result);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it("requires only Base URL and API key, without JWT trust enrollment or implicit requests", () => {
     expect(service.status()).toEqual({ authMode: "api-key", state: "configured", baseUrl });
     expect(JSON.stringify(service.status())).not.toContain(key);

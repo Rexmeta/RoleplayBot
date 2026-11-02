@@ -67,7 +67,10 @@ The provider accepts bounded clips, not a continuous Gemini audio stream.
 PCM is buffered into one-second clips, paced and sent at most once, with bounded
 memory and short final-tail padding. Client playback of the same PCM is suppressed
 only while the ready renderer owns audio. Transcript processing stays unchanged.
-Timeouts are not retried, because the provider may already have accepted a write.
+Paid-create and audio-write timeouts are not retried, because the provider may
+already have accepted a write. The free authentication GET alone gets one bounded
+timeout retry. Concurrent same-identity/configuration checks share that in-flight
+read, without caching authorization for later requests or bypassing account checks.
 Uncertain paid creates remain durably fenced and are reconciled by session reads.
 
 Interruption, actor changes, reconnect, transport failure, or expiry stop the live

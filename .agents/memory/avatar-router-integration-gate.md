@@ -68,3 +68,14 @@ Keep free-only inspection separate from lifecycle recovery, even if both are cal
 **Why:** A diagnostic preflight may reconcile an uncertain paid-create fence. Reusing it for a strictly read-only approval would silently widen the permitted action; project authentication alone also does not establish a logged-in user context.
 
 **How to apply:** Under read-only approval, perform only official authenticated reads without recovery writes or media credentials. Report project-only and per-user verification separately, and never infer persona ownership or runtime activation from a catalog candidate.
+
+Retry permission is operation-specific: bounded retries of free authentication reads
+must not be generalized to paid creation or audio writes, or implemented by falling
+back to a previously successful authorization.
+
+**Why:** Transient connection-check delays can prevent recovery even with a valid
+saved persona, but avoiding that interruption must not duplicate charges or bypass
+current account, project-key, or ownership validation.
+
+**How to apply:** Share only concurrent identical authentication reads, revalidate
+each caller, and retain uncertain-create fencing when a real session request fails.
