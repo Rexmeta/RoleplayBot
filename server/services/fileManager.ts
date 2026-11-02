@@ -5,6 +5,7 @@ import { NpcBehaviorHarness } from '../../shared/schema/scenarios';
 import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbtiLoader';
 import { storage } from '../storage';
 import { assertSafePathSegment, assertSafeJoinedPath } from '../utils/htmlEscape';
+import type { PersonaAvatarMode, PersonaLiveAvatar } from '../../shared/avatar/personaAvatar';
 
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
@@ -637,6 +638,23 @@ export class FileManagerService {
       console.error('Failed to read personas directory:', error);
       return [];
     }
+  }
+
+  /** Saved avatar settings are authoring data, not the bundled 16-type MBTI templates. */
+  async getPersonaAvatarSettings(personaRef: string): Promise<{
+    avatarMode: PersonaAvatarMode | null;
+    liveAvatar: PersonaLiveAvatar | null;
+  } | null> {
+    const id = personaRef.trim().replace(/\.json$/i, '').toLowerCase();
+    if (!id) return null;
+    const persona = USE_DATABASE
+      ? await storage.getMbtiPersona(id)
+      : (await this.getAllMBTIPersonas()).find(p => String(p.id ?? p.mbti).toLowerCase() === id);
+    if (!persona) return null;
+    return {
+      avatarMode: persona.avatarMode ?? null,
+      liveAvatar: persona.liveAvatar ? structuredClone(persona.liveAvatar) : null,
+    };
   }
 
   // ⚡ 최적화: 특정 MBTI 유형만 로드 (성능 개선)

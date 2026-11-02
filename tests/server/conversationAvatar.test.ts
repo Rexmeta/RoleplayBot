@@ -47,7 +47,7 @@ describe("selected conversation avatar resolution", () => {
     const deps: any = {
       storage: { ...store, getPersonaRun: vi.fn(async () => personaRun), getScenarioRun: vi.fn(async () => scenarioRun) },
       fileManager: { getAllScenarios: vi.fn(async () => [{ id: "scenario", personas: [actor] }]),
-        getPersonaByMBTI: vi.fn(async () => profile) },
+        getPersonaAvatarSettings: vi.fn(async () => profile), getPersonaByMBTI: vi.fn(async () => null) },
       client: { call: vi.fn(async (_u, _p, schema) => schema.parse([
         { id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy", description: "stock",
           languages: ["ko"], kind: "configured", configured: true },
@@ -60,7 +60,22 @@ describe("selected conversation avatar resolution", () => {
     const { deps } = fixture();
     expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual(target);
     expect(deps.client.call.mock.calls.map((c: any) => c[1])).toEqual(["/avatars"]);
+    expect(deps.fileManager.getPersonaAvatarSettings).toHaveBeenCalledWith("ENTJ.json");
+    expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
     expect(store.upsertSystemSetting).not.toHaveBeenCalled();
+  });
+  it("resolves a non-MBTI saved persona reference such as cc even when its actor id is istj", async () => {
+    const { deps, actor, personaRun } = fixture();
+    actor.id = "istj"; actor.personaRef = "cc"; actor.mbti = "CC";
+    personaRun.personaId = "istj"; personaRun.activePersonaIndex = 0;
+    expect(await inspectConversationAvatarSelection("owner", "conversation", deps)).toMatchObject({
+      configured: true, personaId: "istj",
+    });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({
+      avatarId: "tavus-stock-lucy", personaId: "istj",
+    });
+    expect(deps.fileManager.getPersonaAvatarSettings).toHaveBeenCalledWith("cc");
+    expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
   });
   it("discovers a configured live actor without provider checks, recovery, or writes even when policy is OFF", async () => {
     const { deps } = fixture();

@@ -28,6 +28,9 @@ editing a master persona does not retroactively change existing runs.
 New ledger persona snapshots preserve the saved avatar mode and reference along
 with dialogue behavior. Older snapshots missing that reference are not enriched
 from a later master edit; start a new run (and update published content if needed).
+Native runs without a bound snapshot read avatar settings from the saved persona
+identified by `personaRef`, including custom IDs outside the sixteen MBTI templates.
+The scenario actor ID and bundled behavior-template loader are not the media source.
 The legacy stored `activation: draft` marker represents a saved reference; actual
 runtime authorization is always computed server-side from the run and current
 provider metadata, not granted by a browser-supplied activation field.

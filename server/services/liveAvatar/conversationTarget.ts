@@ -45,7 +45,7 @@ async function selectedAvatarReference(
   if (!actor) throw new AvatarIdentityError("avatar_persona_not_found", 409);
   const profile = boundRun.scenarioSnapshot
     ? actor[RUNTIME_PERSONA_PROFILE_KEY] ?? actor
-    : actor.personaRef ? await deps.fileManager.getPersonaByMBTI(actor.personaRef.replace(/\.json$/i, "")) : actor;
+    : actor.personaRef ? await deps.fileManager.getPersonaAvatarSettings(actor.personaRef) : actor;
   const mode = actor.avatarMode ?? profile?.avatarMode;
   const reference = personaLiveAvatarSchema.safeParse(actor.liveAvatar ?? profile?.liveAvatar);
   if (mode !== "live" || !reference.success) throw new AvatarIdentityError("avatar_persona_not_selected", 409);

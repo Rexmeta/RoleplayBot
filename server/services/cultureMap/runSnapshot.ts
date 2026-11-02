@@ -14,7 +14,9 @@ export async function captureCultureRunSnapshot(scenario: any, language: string 
   const personas = await Promise.all(scenario.personas.map(async (actor: any) => {
     const type = actor.mbti ?? actor.personaRef?.replace(/\.json$/i, "");
     const profile = actor[RUNTIME_PERSONA_PROFILE_KEY] ?? (type ? await fileManager.getPersonaByMBTI(type) : null);
-    return { ...actor, [RUNTIME_PERSONA_PROFILE_KEY]: profile ?? actor };
+    const avatarSettings = !actor[RUNTIME_PERSONA_PROFILE_KEY] && (actor.personaRef || type)
+      ? await fileManager.getPersonaAvatarSettings(actor.personaRef || type) : null;
+    return { ...actor, [RUNTIME_PERSONA_PROFILE_KEY]: { ...(profile ?? actor), ...avatarSettings } };
   }));
   const criteria = scenario[EVALUATION_CRITERIA_SNAPSHOT_KEY]
     ?? await loadEvaluationCriteria(scenario, language as "ko" | "en" | "ja" | "zh");

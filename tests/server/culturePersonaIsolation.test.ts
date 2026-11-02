@@ -34,6 +34,21 @@ describe("Persona CRUD and scenario authoring remain independent", () => {
     expect(store.deleteMbtiPersona).toHaveBeenCalledWith("entj");
     expect(store.createScenario).not.toHaveBeenCalled();
   });
+  it("reads saved live settings for cc and edited standard personas from the database, not bundled MBTI files", async () => {
+    const liveAvatar = {
+      kind: "stock", providerId: "tavus", avatarId: "tavus-stock-lucy",
+      voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified",
+    };
+    store.getMbtiPersona.mockResolvedValue({ id: "cc", avatarMode: "live", liveAvatar });
+    const settings = await fileManager.getPersonaAvatarSettings("CC.json");
+    expect(store.getMbtiPersona).toHaveBeenCalledWith("cc");
+    expect(settings).toEqual({ avatarMode: "live", liveAvatar });
+    expect(settings?.liveAvatar).not.toBe(liveAvatar);
+    store.getMbtiPersona.mockResolvedValue({ id: "istj", avatarMode: "live", liveAvatar });
+    expect(await fileManager.getPersonaAvatarSettings("istj.json")).toEqual({ avatarMode: "live", liveAvatar });
+    store.getMbtiPersona.mockResolvedValue(undefined);
+    expect(await fileManager.getPersonaAvatarSettings("missing")).toBeNull();
+  });
   it("preserves two Actor snapshots using one Persona template on scenario DB writes", async () => {
     const culture = {
       enabled: true, snapshotVersion: 1, profileId: "99dc1794-e6b9-4f84-8c70-d43cc57878d4",

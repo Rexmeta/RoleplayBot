@@ -30,7 +30,11 @@ export async function enrollNewWebRun(
   const personas = await Promise.all((scenario.personas ?? [scenarioPersona]).map(async (persona: any) => {
     const type = persona.mbti ?? persona.personaRef?.replace(".json", "");
     const profile = snapshotBound ? null : type ? await fileManager.getPersonaByMBTI(type) : null;
-    return { ...persona, [RUNTIME_PERSONA_PROFILE_KEY]: buildRuntimePersonaProfile(persona, profile, snapshotBound) };
+    const avatarSettings = !snapshotBound && (persona.personaRef || type)
+      ? await fileManager.getPersonaAvatarSettings(persona.personaRef || type) : null;
+    return { ...persona, [RUNTIME_PERSONA_PROFILE_KEY]: {
+      ...buildRuntimePersonaProfile(persona, profile, snapshotBound), ...avatarSettings,
+    } };
   }));
   const scenarioSnapshot = { ...scenario, personas, [EVALUATION_CRITERIA_SNAPSHOT_KEY]: rubricSnapshot };
   return initializeLedger(runId, personaId, language === "ko", {

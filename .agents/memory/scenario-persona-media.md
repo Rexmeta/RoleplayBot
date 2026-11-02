@@ -25,3 +25,15 @@ buffers, so a failed or slow clip leaves an empty box with no visible error.
   do not hand those Korean-keyed maps to the client renderers, which key expressions in English.
 - Avatar clips are stored as storage keys (`videos/...`), not URLs; the client converts them to
   `/objects?key=...`. Byte-range requests must be supported or browsers will not play them.
+
+Live avatar settings belong to the saved persona selected by `personaRef`, not to the
+scenario actor's ID or to the bundled standard MBTI behavior templates. User-created
+persona IDs are not restricted to the sixteen MBTI types.
+
+**Why:** The user requires a persona's configured Live avatar to carry into scenarios
+that select that persona, without repeating setup. Scenario actor identity and selected
+persona reference can differ; template-only reads can incorrectly report a saved avatar as absent.
+
+**How to apply:** Resolve native runtime media from the selected persona's saved settings.
+Keep immutable published/run snapshots authoritative, and do not change dialogue behavior
+template resolution as a side effect of fixing media selection.
