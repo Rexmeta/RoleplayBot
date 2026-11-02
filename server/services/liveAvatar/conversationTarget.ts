@@ -25,6 +25,58 @@ export async function ownedAvatarConversation(userId: string, conversationId: st
   return { personaRun, scenarioRun };
 }
 
+/** Local-only inspection: no provider requests, credentials, media, or session recovery. */
+async function selectedAvatarReference(
+  conversationId: string,
+  personaRun: any,
+  scenarioRun: any,
+  deps: typeof conversationTargetDeps,
+) {
+  const ledger = await deps.ledgerRuntimeBinding(conversationId);
+  const boundRun = ledger ? { ...scenarioRun, scenarioSnapshot: ledger.scenarioSnapshot,
+    evaluationHarnessSnapshot: ledger.evaluationHarnessSnapshot } : scenarioRun;
+  const live = boundRun.scenarioSnapshot ? null :
+    (await deps.fileManager.getAllScenarios()).find(s => s.id === scenarioRun.scenarioId);
+  const scenario = resolveRuntimeScenario(boundRun, live);
+  const activeIndex = personaRun.activePersonaIndex;
+  const activeActor = scenario && Number.isInteger(activeIndex) && activeIndex >= 0
+    ? scenario.personas?.[activeIndex] : null;
+  const actor = activeActor ?? (scenario && findRuntimePersona(scenario, personaRun.personaId));
+  if (!actor) throw new AvatarIdentityError("avatar_persona_not_found", 409);
+  const profile = boundRun.scenarioSnapshot
+    ? actor[RUNTIME_PERSONA_PROFILE_KEY] ?? actor
+    : actor.personaRef ? await deps.fileManager.getPersonaByMBTI(actor.personaRef.replace(/\.json$/i, "")) : actor;
+  const mode = actor.avatarMode ?? profile?.avatarMode;
+  const reference = personaLiveAvatarSchema.safeParse(actor.liveAvatar ?? profile?.liveAvatar);
+  if (mode !== "live" || !reference.success) throw new AvatarIdentityError("avatar_persona_not_selected", 409);
+  return { selected: reference.data, personaId: actor.id ?? personaRun.personaId };
+}
+
+export async function inspectConversationAvatarSelection(userId: string, conversationId: string, deps = conversationTargetDeps) {
+  const { personaRun, scenarioRun } = await ownedAvatarConversation(userId, conversationId, deps);
+  const [global, policy] = await Promise.all([
+    deps.storage.getSystemSetting("live_avatar", "enabled"),
+    deps.storage.getSystemSetting("live_avatar_policy", scenarioRun.scenarioId),
+  ]);
+  const enabled = global?.value === "true", allowed = policy?.value === "true";
+  const blockers: string[] = [
+    ...(!enabled ? ["globally_disabled"] : []),
+    ...(!allowed ? ["scenario_not_allowed"] : []),
+  ];
+  let configured = false;
+  let personaId = personaRun.personaId;
+  try {
+    const selection = await selectedAvatarReference(conversationId, personaRun, scenarioRun, deps);
+    personaId = selection.personaId;
+    configured = true;
+  } catch (error) {
+    if (!(error instanceof AvatarIdentityError)) throw error;
+    blockers.push(error.code);
+  }
+  if (personaRun.status === "completed" || scenarioRun.status === "completed") blockers.push("avatar_conversation_ended");
+  return { configured, enabled, allowed, blockers, personaId };
+}
+
 /** Resolve only the run's selected actor. Published snapshots never borrow mutable persona settings. */
 export async function resolveConversationAvatar(userId: string, conversationId: string, deps = conversationTargetDeps) {
   const { personaRun, scenarioRun } = await ownedAvatarConversation(userId, conversationId, deps);
@@ -38,21 +90,7 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
   if (global?.value !== "true" || policy?.value !== "true") {
     throw new AvatarIdentityError(global?.value !== "true" ? "globally_disabled" : "scenario_not_allowed", 409);
   }
-  const ledger = await deps.ledgerRuntimeBinding(conversationId);
-  const boundRun = ledger ? { ...scenarioRun, scenarioSnapshot: ledger.scenarioSnapshot,
-    evaluationHarnessSnapshot: ledger.evaluationHarnessSnapshot } : scenarioRun;
-  const live = boundRun.scenarioSnapshot ? null :
-    (await deps.fileManager.getAllScenarios()).find(s => s.id === scenarioRun.scenarioId);
-  const scenario = resolveRuntimeScenario(boundRun, live);
-  const actor = scenario && findRuntimePersona(scenario, personaRun.personaId);
-  if (!actor) throw new AvatarIdentityError("avatar_persona_not_found", 409);
-  const profile = boundRun.scenarioSnapshot
-    ? actor[RUNTIME_PERSONA_PROFILE_KEY] ?? actor
-    : actor.personaRef ? await deps.fileManager.getPersonaByMBTI(actor.personaRef.replace(/\.json$/i, "")) : actor;
-  const mode = actor.avatarMode ?? profile?.avatarMode;
-  const reference = personaLiveAvatarSchema.safeParse(actor.liveAvatar ?? profile?.liveAvatar);
-  if (mode !== "live" || !reference.success) throw new AvatarIdentityError("avatar_persona_not_selected", 409);
-  const selected = reference.data;
+  const { selected, personaId } = await selectedAvatarReference(conversationId, personaRun, scenarioRun, deps);
   const auth = await deps.connection.check(userId);
   if (![...testScopes, "assets:read"].every(scope => auth.scopes.includes(scope as any))) {
     throw new AvatarIdentityError("avatar_conversation_scopes_missing", 403);
@@ -66,7 +104,7 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
       throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
     }
     return { projectId: auth.projectId, avatarId: selected.avatarId, assetId: null,
-      personaId: personaRun.personaId };
+      personaId };
   }
   if (selected.providerId !== "tavus" || !supportsCustomLiveContract(auth.integration)) {
     throw new AvatarIdentityError("persona_avatar_custom_runtime_unavailable", 409);
@@ -77,5 +115,5 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
     throw new AvatarIdentityError("persona_avatar_playback_validation_required", 409);
   }
   return { projectId: auth.projectId, avatarId: asset.providerAvatarId!, assetId: asset.id,
-    personaId: personaRun.personaId };
+    personaId };
 }

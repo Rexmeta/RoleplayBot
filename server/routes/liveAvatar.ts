@@ -27,7 +27,7 @@ export default function createLiveAvatarRouter(
   identityService: AvatarRouterIdentityService = avatarRouterIdentityService,
   projectConnection: AvatarRouterProjectConnection = avatarRouterProjectConnection,
   runtimePreflight: Pick<AvatarRuntimePreflight, "check"> = avatarRuntimePreflight,
-  runtimeSessions: Pick<ConversationAvatarSessions, "availability" | "create" | "session" | "connection" | "mediaReady" | "stop" | "recover"> = conversationAvatarSessions,
+  runtimeSessions: Pick<ConversationAvatarSessions, "selection" | "availability" | "create" | "session" | "connection" | "mediaReady" | "stop" | "recover"> = conversationAvatarSessions,
 ) {
   const router = Router();
   router.use(isAuthenticated);
@@ -148,6 +148,15 @@ export default function createLiveAvatarRouter(
       updatedBy: req.user.id,
     });
     res.json(parsed.data);
+  }));
+
+  router.get("/conversations/:conversationId/selection", asyncHandler(async (req: any, res) => {
+    await ownedConversation(req.params.conversationId, req.user.id);
+    try { res.json(await runtimeSessions.selection(req.user.id, req.params.conversationId)); }
+    catch (error) {
+      if (!(error instanceof AvatarIdentityError)) throw error;
+      res.status(error.status).json({ code: error.code, error: error.code });
+    }
   }));
 
   router.get("/conversations/:conversationId/availability", asyncHandler(async (req: any, res) => {

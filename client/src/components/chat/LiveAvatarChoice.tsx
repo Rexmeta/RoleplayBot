@@ -11,7 +11,13 @@ import { liveAvatarBlockerText } from "@/lib/liveAvatarBlockers";
 import { AvatarTestSession, avatarTestReady, avatarTestTerminal } from "@shared/avatar/adminAvatarTest";
 import { useAvatarTestRoom } from "@/components/admin/avatarTest/useAvatarTestRoom";
 
-type Props = { conversationId: string; voiceMode: boolean; portraitHost?: HTMLElement | null };
+type Props = {
+  conversationId: string;
+  voiceMode: boolean;
+  portraitHost?: HTMLElement | null;
+  actorId?: string | number;
+  optionsRequest?: number;
+};
 type Availability = {
   enabled: boolean;
   allowed: boolean;
@@ -20,7 +26,7 @@ type Availability = {
   blockers: string[];
 };
 
-export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = null }: Props) {
+export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = null, actorId, optionsRequest = 0 }: Props) {
   const { t } = useTranslation();
   const endpoint = `/api/live-avatar/conversations/${encodeURIComponent(conversationId)}`;
   const [requested, setRequested] = useState(false);
@@ -49,6 +55,10 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
   const pollBusyRef = useRef(false);
   const recoveryConversationRef = useRef(conversationId);
   recoveryConversationRef.current = conversationId;
+  const currentActorRef = useRef(actorId);
+  currentActorRef.current = actorId;
+  const previousActorRef = useRef(actorId);
+  const retiredSessionIdRef = useRef<string | null>(null);
 
   const assignSession = useCallback((value: AvatarTestSession | null) => {
     sessionRef.current = value;
@@ -67,7 +77,7 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
   });
 
   const availabilityQuery = useQuery<Availability>({
-    queryKey: ["/api/live-avatar/conversations", conversationId, "availability"],
+    queryKey: ["/api/live-avatar/conversations", conversationId, "availability", actorId],
     enabled: Boolean(conversationId && requested),
     staleTime: 0,
     refetchOnMount: "always",
@@ -98,6 +108,7 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
 
   const recoverSession = useCallback(async () => {
     const recoveryConversationId = conversationId;
+    const recoveryActorId = actorId;
     setRecoveryPending(true);
     setRecoveryFailed(false);
     setError("");
@@ -107,27 +118,35 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
         session: AvatarTestSession | null;
         creationUncertain: boolean;
       };
-      if (!mountedRef.current || recoveryConversationRef.current !== recoveryConversationId) return;
+      if (!mountedRef.current || recoveryConversationRef.current !== recoveryConversationId || currentActorRef.current !== recoveryActorId) return;
       setCreationUncertain(recovery.creationUncertain);
-      setCreationLocked(recovery.creationUncertain);
       if (recovery.session && !(avatarTestTerminal(recovery.session) && !recovery.session.cleanupPending)) {
+        if (recovery.session.id === retiredSessionIdRef.current) {
+          setCreationLocked(true);
+          assignSession(null);
+          setError("이전 배우의 라이브 세션 종료를 확인하고 있습니다. 중복 연결을 막기 위해 새 시작은 잠겨 있습니다.");
+          return;
+        }
+        setCreationLocked(recovery.creationUncertain);
         stoppedRef.current = false;
         setEndAccepted(false);
         assignSession(recovery.session);
       } else {
+        if (recovery.session?.id === retiredSessionIdRef.current) retiredSessionIdRef.current = null;
+        setCreationLocked(recovery.creationUncertain);
         assignSession(null);
         stoppedRef.current = false;
       }
     } catch (cause) {
-      if (mountedRef.current && recoveryConversationRef.current === recoveryConversationId) {
+      if (mountedRef.current && recoveryConversationRef.current === recoveryConversationId && currentActorRef.current === recoveryActorId) {
         setRecoveryFailed(true);
         setCreationLocked(true);
         setError(cause instanceof Error ? `기존 세션 복구에 실패했습니다: ${cause.message}` : "기존 세션 복구에 실패했습니다.");
       }
     } finally {
-      if (mountedRef.current && recoveryConversationRef.current === recoveryConversationId) setRecoveryPending(false);
+      if (mountedRef.current && recoveryConversationRef.current === recoveryConversationId && currentActorRef.current === recoveryActorId) setRecoveryPending(false);
     }
-  }, [conversationId, endpoint, assignSession]);
+  }, [conversationId, actorId, endpoint, assignSession]);
 
   const stopMedia = useCallback(async (keepalive = false) => {
     const current = sessionRef.current;
@@ -206,6 +225,34 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
     assignSession(null);
     room.disconnectMedia();
   }, [conversationId, assignSession, room.disconnectMedia]);
+
+  useEffect(() => {
+    if (previousActorRef.current === actorId) return;
+    previousActorRef.current = actorId;
+    setRequested(false);
+    setConsent(false);
+    setRecoveryPending(false);
+    setRecoveryFailed(false);
+    setError("");
+    setFallbackWarning("");
+    setEndAccepted(false);
+    const current = sessionRef.current;
+    if (current && !avatarTestTerminal(current)) {
+      retiredSessionIdRef.current = current.id;
+      void stopMedia(true);
+    }
+    else {
+      stoppedRef.current = true;
+      room.disconnectMedia();
+    }
+  }, [actorId, room.disconnectMedia, stopMedia]);
+
+  useEffect(() => {
+    if (optionsRequest <= 0) return;
+    setRequested(true);
+    setConsent(false);
+    void recoverSession();
+  }, [optionsRequest, recoverSession]);
 
   useEffect(() => {
     if (voiceMode) return;
@@ -292,8 +339,18 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
     setCreating(true);
     setError("");
     stoppedRef.current = false;
+    const startingActorId = actorId;
     try {
       const created = await (await apiRequest("POST", `${endpoint}/sessions`, { service: "avatar-router", consent: true })).json() as AvatarTestSession;
+      if (currentActorRef.current !== startingActorId) {
+        retiredSessionIdRef.current = created.id;
+        stoppedRef.current = true;
+        setCreationLocked(true);
+        assignSession(created);
+        setError("페르소나가 변경되어 이전 아바타 세션을 종료하고 있습니다. 정리가 완료된 뒤 현재 페르소나로 다시 시작하세요.");
+        endKeepalive(created);
+        return;
+      }
       if (!mountedRef.current) {
         sessionRef.current = created;
         endKeepalive(created);

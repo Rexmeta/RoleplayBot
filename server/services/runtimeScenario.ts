@@ -79,6 +79,8 @@ export function buildRuntimePersonaProfile(
     : (liveMbtiPersona ?? scenarioPersona);
   const communicationPatterns = profile.communication_patterns ?? profile.communicationPatterns ?? {};
   const background = profile.background ?? {};
+  const avatarMode = scenarioPersona.avatarMode ?? profile.avatarMode;
+  const liveAvatar = scenarioPersona.liveAvatar ?? profile.liveAvatar;
   return {
     id: scenarioPersona.id,
     name: scenarioPersona.name,
@@ -88,5 +90,9 @@ export function buildRuntimePersonaProfile(
     responseStyle: communicationPatterns.opening_style ?? scenarioPersona.responseStyle ?? scenarioPersona.entryLine ?? '상황에 맞는 방식으로 대화 시작',
     goals: communicationPatterns.win_conditions ?? scenarioPersona.goals ?? [scenarioPersona.goal ?? '목표 달성'],
     background: background.personal_values?.join?.(', ') ?? background.personalValues?.join?.(', ') ?? scenarioPersona.background ?? scenarioPersona.experience ?? '전문성',
+    // The ledger's scenario snapshot is also the runtime source for live media.
+    // Do not drop the saved selection when reducing a persona to its runtime profile.
+    ...(avatarMode !== undefined ? { avatarMode } : {}),
+    ...(liveAvatar !== undefined ? { liveAvatar: structuredClone(liveAvatar) } : {}),
   };
 }

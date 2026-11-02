@@ -69,6 +69,22 @@ describe('imported scenario runtime snapshots', () => {
     expect(findRuntimePersona(runtime!, 'native-persona')?.id).toBe('native-persona');
   });
 
+  it('freezes live media references for new ledger snapshots without borrowing a changed master', () => {
+    const actor = { id: 'buyer', name: 'Buyer' };
+    const selected = { kind: 'stock', providerId: 'tavus', avatarId: 'tavus-stock-lucy' };
+    const runtime = buildRuntimePersonaProfile(actor, { avatarMode: 'live', liveAvatar: selected });
+    selected.avatarId = 'changed-master';
+    expect(runtime.avatarMode).toBe('live');
+    expect(runtime.liveAvatar.avatarId).toBe('tavus-stock-lucy');
+    const bound = buildRuntimePersonaProfile({
+      ...actor, [RUNTIME_PERSONA_PROFILE_KEY]: runtime,
+    }, { avatarMode: 'image', liveAvatar: null }, true);
+    expect(bound).toMatchObject({ avatarMode: 'live', liveAvatar: { avatarId: 'tavus-stock-lucy' } });
+    expect(buildRuntimePersonaProfile({
+      ...actor, [RUNTIME_PERSONA_PROFILE_KEY]: { name: 'old snapshot' },
+    }, { avatarMode: 'live', liveAvatar: selected }, true)).not.toHaveProperty('avatarMode');
+  });
+
   it('rejects legacy imported versions that cannot provide their historical rubric', () => {
     expect(() => assertImportedSnapshotComplete({
       id: 'legacy-import',

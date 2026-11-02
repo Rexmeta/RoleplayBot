@@ -56,6 +56,8 @@ beforeEach(() => {
     check: vi.fn().mockResolvedValue({ available: false, sessionCreated: false, externalMediaSent: false }),
   };
   runtimeSessions = {
+    selection: vi.fn(async () => ({ configured: true, enabled: false, allowed: false,
+      blockers: ["globally_disabled", "scenario_not_allowed"], personaId: "actor" })),
     availability: vi.fn(async () => ({ enabled: true, allowed: true, available: false,
       contractReady: true, blockers: ["persona_avatar_playback_validation_required"] })),
     create: vi.fn(async () => { throw new AvatarIdentityError("persona_avatar_playback_validation_required", 409); }),
@@ -264,7 +266,22 @@ describe("live avatar policy routes", () => {
     expect((await api("put", "/scenarios/missing/policy", "admin").send({ allowed: true })).status).toBe(404);
   });
 
+  it("discovers only the owned conversation's local selection with global OFF and no external or paid work", async () => {
+    const result = await api("get", "/conversations/conversation/selection");
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ configured: true, enabled: false, allowed: false, personaId: "actor" });
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(runtimeSessions.selection).toHaveBeenCalledWith("owner", "conversation");
+    expect(runtimeSessions.availability).not.toHaveBeenCalled();
+    expect(runtimeSessions.create).not.toHaveBeenCalled();
+    expect(runtimeSessions.recover).not.toHaveBeenCalled();
+    expect(projectConnection.check).not.toHaveBeenCalled();
+    expect(externalRequest).not.toHaveBeenCalled();
+    expect(deps.storage.upsertSystemSetting).not.toHaveBeenCalled();
+  });
+
   it.each(["user", "admin", "operator"])("forbids %s from starting external sessions for another owner", async role => {
+    expect((await api("get", "/conversations/conversation/selection", role, "other")).status).toBe(403);
     expect((await api("get", "/conversations/pr/availability", role, "other")).status).toBe(403);
     expect((await api("post", "/conversations/pr/sessions", role, "other").send({ service: "avatar-router", consent: true })).status).toBe(403);
     expect(externalRequest).not.toHaveBeenCalled();

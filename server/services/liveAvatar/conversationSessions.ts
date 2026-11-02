@@ -4,7 +4,7 @@ import { storage } from "../../storage";
 import { AvatarIdentityError } from "./delegatedIdentity";
 import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
-import { ownedAvatarConversation, resolveConversationAvatar } from "./conversationTarget";
+import { inspectConversationAvatarSelection, ownedAvatarConversation, resolveConversationAvatar } from "./conversationTarget";
 import { testConnectionSchema, testLimitsSchema, testSessionSchema } from "./testContracts";
 import { avatarTestReady, avatarTestTerminal } from "../../../shared/avatar/adminAvatarTest";
 import { ConversationAvatarAudio } from "./conversationAudio";
@@ -23,6 +23,7 @@ const CATEGORY = "live_avatar_conversation";
 const deps = {
   store: storage, client: new AvatarProjectClient(storage), connection: avatarRouterProjectConnection,
   owned: ownedAvatarConversation, resolve: resolveConversationAvatar,
+  selection: inspectConversationAvatarSelection,
 };
 
 /** Local ownership binding survives restarts; remote create/audio writes are never retried. */
@@ -31,6 +32,9 @@ export class ConversationAvatarSessions {
   private media = new Map<string, { record: Record; userId: string; audio: ConversationAvatarAudio;
     expires: number; notify?: (message: any) => void; expiryTimer?: ReturnType<typeof setTimeout> }>();
   constructor(private d = deps) {}
+  selection(userId: string, conversationId: string) {
+    return this.d.selection(userId, conversationId);
+  }
   private key(userId: string, projectId: string) {
     return createHash("sha256").update(`${projectId}:${userId}`).digest("hex");
   }

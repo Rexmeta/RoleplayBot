@@ -21,6 +21,12 @@ Treat the settings-page stock-avatar conversation test as an isolated administra
 
 **How to apply:** Keep explicit cost/data-transfer consent on the test action, avoid automatic paid or media E2E during development, and preserve ordinary scenario gates until their own ownership and media paths are verified.
 
+The user confirmed on 2026-11-02 that both administrator-page and persona-page live-avatar tests connect successfully, while learner scenario playback was still not applied.
+
+**Why:** Success in the diagnostic path does not establish that the learner path selects, starts, and renders the same avatar.
+
+**How to apply:** Diagnose learner configuration, discovery, ownership, and media routing separately; do not restart provisioning or treat diagnostic success as learner playback verification.
+
 Saved persona live configuration is a reference, not permission to auto-create a paid session. Scenario runtime must remain opt-in and preserve existing image/video and dialogue behavior until the learner explicitly selects live playback.
 
 **Why:** The user requested both selected-avatar testing in persona editing and functioning scenario live avatars, while preserving existing behavior remains an explicit requirement.

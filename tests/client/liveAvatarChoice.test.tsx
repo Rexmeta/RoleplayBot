@@ -38,6 +38,32 @@ function setup(voiceMode = true, portraitHost?: HTMLElement | null) {
 afterEach(() => { cleanup(); api.mockReset(); });
 
 describe("LiveAvatarChoice", () => {
+  it("retires a session created after an actor switch without attaching it or creating a replacement", async () => {
+    let completeCreate!: (response: any) => void;
+    api.mockImplementation((method: string, path: string) => {
+      if (method === "GET" && path.endsWith("/session")) return Promise.resolve(jsonResponse({ session: null, creationUncertain: false }));
+      if (method === "GET" && path.endsWith("/availability")) return Promise.resolve(jsonResponse(availability));
+      if (method === "POST" && path.endsWith("/sessions")) return new Promise(resolve => { completeCreate = resolve; });
+      return Promise.resolve(jsonResponse({}));
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const ui = (actorId: string) => <QueryClientProvider client={client}>
+      <LiveAvatarChoice conversationId="conversation-1" voiceMode actorId={actorId} optionsRequest={1} />
+    </QueryClientProvider>;
+    const view = render(ui("first"));
+    await screen.findByText("사용 가능");
+    fireEvent.click(screen.getByRole("checkbox"));
+    const start = screen.getByRole("button", { name: "실시간 아바타 시작" });
+    await waitFor(() => expect(start.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(start);
+    view.rerender(ui("second"));
+    await act(async () => completeCreate(jsonResponse(session)));
+    await screen.findByText(/페르소나가 변경되어 이전 아바타 세션을 종료하고 있습니다/);
+    expect(api.mock.calls.filter(([method, path]) => method === "POST" && path.endsWith("/sessions"))).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "실시간 아바타 종료" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "실시간 아바타 시작" })).toBeNull();
+  });
+
   it("does not create a session automatically and keeps start gated until consent", async () => {
     api.mockResolvedValue(jsonResponse(availability));
     setup();

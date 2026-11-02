@@ -13,8 +13,10 @@ for its prompts, evaluation, transcripts, or default image/video playback.
 3. For custom assets, complete the video/audio test and save the playback report.
    Provisioning success alone does not authorize custom conversation playback.
 4. Enable the global live-avatar setting and the scenario's live permission.
-5. Start a new scenario conversation, select realtime voice, open its top menu,
-   open the live-avatar options, consent to external audio transfer/cost, and start.
+5. Start a new scenario conversation and select realtime voice. A visible live-avatar
+   entry appears on the portrait for a configured actor; it opens the existing
+   options directly. Consent to external audio transfer/cost, then start.
+   The top menu remains an alternative entry. No paid session starts on discovery.
 
 Live video replaces the portrait only when media is playable. Closing the menu
 does not unmount the media consumer. Existing image/video remains visible while
@@ -23,6 +25,9 @@ than silently substituting stock Lucy.
 
 Published runs resolve the persona configuration from their bound snapshot;
 editing a master persona does not retroactively change existing runs.
+New ledger persona snapshots preserve the saved avatar mode and reference along
+with dialogue behavior. Older snapshots missing that reference are not enriched
+from a later master edit; start a new run (and update published content if needed).
 The legacy stored `activation: draft` marker represents a saved reference; actual
 runtime authorization is always computed server-side from the run and current
 provider metadata, not granted by a browser-supplied activation field.
@@ -31,6 +36,8 @@ provider metadata, not granted by a browser-supplied activation field.
 
 Prefix: `/api/live-avatar/conversations/:conversationId`
 
+- `GET /selection`: owned actor's local configuration/policy discovery. No provider
+  requests, credentials, session recovery, writes, or media transfer.
 - `GET /availability`: policy/selected-target check, no session creation.
 - `GET /session`: recover an existing owned binding; reconcile uncertain creates
   by reads, never repeat a remote create.

@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../server/storage", () => ({ storage: {} }));
 vi.mock("../../server/services/fileManager", () => ({ fileManager: {} }));
 vi.mock("../../server/services/conversationLedger/transcript", () => ({ ledgerRuntimeBinding: vi.fn() }));
-import { resolveConversationAvatar } from "../../server/services/liveAvatar/conversationTarget";
+import { inspectConversationAvatarSelection, resolveConversationAvatar } from "../../server/services/liveAvatar/conversationTarget";
+import { buildRuntimePersonaProfile } from "../../server/services/runtimeScenario";
 import { ConversationAvatarSessions } from "../../server/services/liveAvatar/conversationSessions";
 import { ConversationAvatarAudio } from "../../server/services/liveAvatar/conversationAudio";
 import { AvatarIdentityError } from "../../server/services/liveAvatar/delegatedIdentity";
@@ -42,7 +43,7 @@ describe("selected conversation avatar resolution", () => {
     const scenarioRun: any = { scenarioId: "scenario", userId: "owner", status: "active" };
     const personaRun: any = { personaId: "actor", scenarioRunId: "run", status: "active" };
     const actor: any = { id: "actor", personaRef: "ENTJ.json" };
-    const profile: any = { avatarMode: "live", liveAvatar: reference };
+    const profile: any = { avatarMode: "live", liveAvatar: { ...reference } };
     const deps: any = {
       storage: { ...store, getPersonaRun: vi.fn(async () => personaRun), getScenarioRun: vi.fn(async () => scenarioRun) },
       fileManager: { getAllScenarios: vi.fn(async () => [{ id: "scenario", personas: [actor] }]),
@@ -60,6 +61,58 @@ describe("selected conversation avatar resolution", () => {
     expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual(target);
     expect(deps.client.call.mock.calls.map((c: any) => c[1])).toEqual(["/avatars"]);
     expect(store.upsertSystemSetting).not.toHaveBeenCalled();
+  });
+  it("discovers a configured live actor without provider checks, recovery, or writes even when policy is OFF", async () => {
+    const { deps } = fixture();
+    deps.storage.getSystemSetting.mockResolvedValue({ value: "false" });
+    expect(await inspectConversationAvatarSelection("owner", "conversation", deps)).toEqual({
+      configured: true, enabled: false, allowed: false, personaId: "actor",
+      blockers: ["globally_disabled", "scenario_not_allowed"],
+    });
+    expect(deps.client.call).not.toHaveBeenCalled();
+    expect(connection.check).not.toHaveBeenCalled();
+    expect(store.upsertSystemSetting).not.toHaveBeenCalled();
+    await expect(inspectConversationAvatarSelection("other", "conversation", deps)).rejects.toMatchObject({ status: 403 });
+  });
+  it("keeps live selection in ledger-style reduced persona snapshots across current-master changes", async () => {
+    const { deps, actor, profile } = fixture();
+    const frozenProfile = buildRuntimePersonaProfile(actor, profile);
+    expect(frozenProfile).toMatchObject({ avatarMode: "live", liveAvatar: reference });
+    deps.ledgerRuntimeBinding.mockResolvedValue({
+      scenarioSnapshot: { personas: [{ ...actor, _runtimeProfile: frozenProfile }] },
+    });
+    profile.avatarMode = "image";
+    profile.liveAvatar.avatarId = "changed-master";
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual(target);
+    expect((await inspectConversationAvatarSelection("owner", "conversation", deps)).configured).toBe(true);
+    expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
+  });
+  it("does not retrofit live master configuration into older immutable snapshots that lack the selection", async () => {
+    const { deps, actor } = fixture();
+    deps.ledgerRuntimeBinding.mockResolvedValue({
+      scenarioSnapshot: { personas: [{ ...actor, _runtimeProfile: { name: "old profile" } }] },
+    });
+    expect(await inspectConversationAvatarSelection("owner", "conversation", deps)).toMatchObject({
+      configured: false, blockers: ["avatar_persona_not_selected"],
+    });
+    expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
+    expect(deps.client.call).not.toHaveBeenCalled();
+    expect(connection.check).not.toHaveBeenCalled();
+  });
+  it("uses the persisted active actor's immutable live selection rather than the conversation's original actor", async () => {
+    const { deps, actor, profile, personaRun, scenarioRun } = fixture();
+    personaRun.activePersonaIndex = 1;
+    scenarioRun.scenarioSnapshot = { personas: [
+      { ...actor, _runtimeProfile: { avatarMode: "image" } },
+      { id: "second-actor", _runtimeProfile: buildRuntimePersonaProfile({ id: "second-actor" }, profile) },
+    ] };
+    expect(await inspectConversationAvatarSelection("owner", "conversation", deps)).toMatchObject({
+      configured: true, personaId: "second-actor",
+    });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({
+      avatarId: "tavus-stock-lucy", personaId: "second-actor",
+    });
+    expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
   });
   it("rejects another owner, completed runs, non-live mode and disabled policy before provider reads", async () => {
     const { deps, scenarioRun, profile } = fixture();
