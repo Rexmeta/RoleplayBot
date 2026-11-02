@@ -12,13 +12,13 @@ export interface LiveAvatarConfig {
   enabled: boolean;
   service: "avatar-router";
   origin: string;
-  contractReady: false;
+  contractReady: boolean;
   blockers: string[];
 }
 
 export interface LiveAvatarAvailability extends LiveAvatarConfig {
   allowed: boolean;
-  available: false;
+  available: boolean;
 }
 
 export interface AvatarProviderDiagnostic {
@@ -59,14 +59,14 @@ export interface LiveAvatarTransport {
   close(): Promise<void>;
 }
 
-export function liveAvatarAvailability(enabled: boolean, allowed: boolean): LiveAvatarAvailability {
+export function liveAvatarAvailability(enabled: boolean, allowed: boolean, runtimeInstalled = false): LiveAvatarAvailability {
   return {
     enabled, allowed, service: "avatar-router", origin: AVATAR_ROUTER_ORIGIN,
-    contractReady: false, available: false,
+    contractReady: runtimeInstalled, available: runtimeInstalled && enabled && allowed,
     blockers: [
       ...(!enabled ? ["globally_disabled"] : []),
       ...(!allowed ? ["scenario_not_allowed"] : []),
-      ...LIVE_AVATAR_CONTRACT_BLOCKERS,
+      ...(runtimeInstalled ? [] : LIVE_AVATAR_CONTRACT_BLOCKERS),
     ],
   };
 }

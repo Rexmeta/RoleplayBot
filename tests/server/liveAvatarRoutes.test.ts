@@ -12,6 +12,7 @@ vi.mock("../../server/routes/routerHelpers", () => ({
 
 import createLiveAvatarRouter from "../../server/routes/liveAvatar";
 import { AvatarRouterAdapter } from "../../server/services/liveAvatar/avatarRouterAdapter";
+import { AvatarIdentityError } from "../../server/services/liveAvatar/delegatedIdentity";
 
 let settings: Map<string, string>;
 let app: express.Express;
@@ -20,6 +21,7 @@ let externalRequest: ReturnType<typeof vi.fn>;
 let identityService: any;
 let projectConnection: any;
 let runtimePreflight: any;
+let runtimeSessions: any;
 const base = "/api/live-avatar";
 function api(method: "get" | "put" | "post", path: string, role = "user", user = "owner") {
   return request(app)[method](`${base}${path}`).set("x-role", role).set("x-user", user);
@@ -53,17 +55,44 @@ beforeEach(() => {
   runtimePreflight = {
     check: vi.fn().mockResolvedValue({ available: false, sessionCreated: false, externalMediaSent: false }),
   };
+  runtimeSessions = {
+    availability: vi.fn(async () => ({ enabled: true, allowed: true, available: false,
+      contractReady: true, blockers: ["persona_avatar_playback_validation_required"] })),
+    create: vi.fn(async () => { throw new AvatarIdentityError("persona_avatar_playback_validation_required", 409); }),
+    recover: vi.fn(async () => ({ session: null, creationUncertain: false })),
+    session: vi.fn(async () => ({ id: "live-session" })),
+    connection: vi.fn(async () => ({ url: "wss://fixture.livekit.cloud" })),
+    mediaReady: vi.fn(async () => ({ ready: true })),
+    stop: vi.fn(async () => ({ id: "live-session", stopRequested: true })),
+  };
   app = express();
   app.use(express.json());
   app.use(base, createLiveAvatarRouter((req: any, res: any, next: any) => {
     if (!req.headers["x-user"]) return res.status(401).json({ error: "Sign in required" });
     req.user = { id: req.headers["x-user"], role: req.headers["x-role"] };
     next();
-  }, deps, identityService, projectConnection, runtimePreflight));
+  }, deps, identityService, projectConnection, runtimePreflight, runtimeSessions));
   app.use((error: any, _req: any, res: any, _next: any) => res.status(error.status ?? 500).json({ error: error.message }));
 });
 
 describe("live avatar policy routes", () => {
+  it("dispatches explicitly selected sessions and supports owned recovery/end even with policies later off", async () => {
+    settings.set("live_avatar/enabled", "true");
+    settings.set("live_avatar_policy/scenario", "true");
+    runtimeSessions.create.mockResolvedValue({ id: "live-session", rendererState: "queued" });
+    const created = await api("post", "/conversations/pr/sessions").send({ service: "avatar-router", consent: true });
+    expect(created.status).toBe(201);
+    expect(runtimeSessions.create).toHaveBeenCalledExactlyOnceWith("owner", "pr");
+    settings.set("live_avatar/enabled", "false");
+    expect((await api("get", "/conversations/pr/session")).status).toBe(200);
+    expect(runtimeSessions.recover).toHaveBeenCalledExactlyOnceWith("owner", "pr");
+    expect((await api("get", "/conversations/pr/sessions/live-session/connection")).status).toBe(200);
+    expect((await api("post", "/conversations/pr/sessions/live-session/end").send({})).status).toBe(200);
+    expect(runtimeSessions.stop).toHaveBeenCalledExactlyOnceWith("owner", "pr", "live-session", true);
+    expect((await api("post", "/conversations/pr/sessions/live-session/media-ready").send({ userId: "forged" })).status).toBe(400);
+    expect(runtimeSessions.mediaReady).not.toHaveBeenCalled();
+    expect((await api("post", "/conversations/pr/sessions/live-session/end", "admin", "another").send({})).status).toBe(403);
+  });
   it("runs free preflight only on explicit admin request with the current identity and no-store", async () => {
     await api("get", "/config", "admin");
     expect(runtimePreflight.check).not.toHaveBeenCalled();
@@ -175,7 +204,7 @@ describe("live avatar policy routes", () => {
     const result = await api("get", "/config");
     expect(result.status).toBe(200);
     expect(result.body.enabled).toBe(false);
-    expect(result.body.contractReady).toBe(false);
+    expect(result.body.contractReady).toBe(true);
     expect(result.headers["cache-control"]).toBe("no-store");
     expect(deps.storage.upsertSystemSetting).not.toHaveBeenCalled();
     expect(deps.fileManager.getAllScenarios).not.toHaveBeenCalled();
@@ -194,7 +223,7 @@ describe("live avatar policy routes", () => {
     expect((await api("put", "/config", "admin").send({ enabled: true, url: "http://localhost" })).status).toBe(400);
     const enabled = await api("put", "/config", "admin").send({ enabled: true });
     expect(enabled.status).toBe(200);
-    expect(enabled.body).toMatchObject({ enabled: true, service: "avatar-router", contractReady: false });
+    expect(enabled.body).toMatchObject({ enabled: true, service: "avatar-router", contractReady: true });
     expect((await api("get", "/config")).body.enabled).toBe(true);
     expect(externalRequest).not.toHaveBeenCalled();
   });
@@ -254,11 +283,12 @@ describe("live avatar policy routes", () => {
       settings.set("live_avatar/enabled", String(enabled));
       settings.set("live_avatar_policy/scenario", String(allowed));
       const available = await api("get", "/conversations/pr/availability");
-      expect(available.body).toMatchObject({ enabled, allowed, available: false, contractReady: false });
+      expect(available.body).toMatchObject({ enabled, allowed, available: false, contractReady: true });
       const selected = await api("post", "/conversations/pr/sessions").send({ service: "avatar-router", consent: true });
       expect(selected.status).toBe(409);
-      expect(selected.body.code).toBe("live_avatar_contract_unverified");
-      expect(selected.body.blockers).toContain("tenant_mapping_unverified");
+      expect(selected.body.code).toBe(enabled && allowed ?
+        "persona_avatar_playback_validation_required" : "live_avatar_policy_disabled");
+      if (!enabled || !allowed) expect(runtimeSessions.create).not.toHaveBeenCalled();
       expect(externalRequest).not.toHaveBeenCalled();
     },
   );

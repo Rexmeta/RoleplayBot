@@ -15,7 +15,7 @@ import { LiveAvatarTestPanel } from "@/components/admin/LiveAvatarTestPanel";
 type LiveAvatarConfig = {
   enabled: boolean;
   service: "avatar-router";
-  contractReady: false;
+  contractReady: boolean;
   blockers: string[];
   origin: string;
 };
@@ -134,9 +134,13 @@ export function LiveAvatarSettingsPanel() {
             <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
               <div>
-                <p className="font-medium">{t("liveAvatar.contract.title", { defaultValue: "외부 연동 계약 미검증" })}</p>
+                <p className="font-medium">{config.contractReady
+                  ? t("liveAvatar.runtime.title", { defaultValue: "선택형 라이브 아바타 연결" })
+                  : t("liveAvatar.contract.title", { defaultValue: "외부 연동 계약 미검증" })}</p>
                 <p className="mt-1 text-muted-foreground">
-                  {t("liveAvatar.contract.description", { defaultValue: "현재 서버 간 연동 계약이 확인되지 않아 실시간 세션은 시작할 수 없습니다. 전역 허용은 기능 노출 설정이며 실제 연결 가능 상태를 의미하지 않습니다." })}
+                  {config.contractReady
+                    ? t("liveAvatar.runtime.description", { defaultValue: "전역 허용과 시나리오 허용, 페르소나의 Live 선택을 모두 확인합니다. 커스텀 아바타는 수정 화면에서 재생 검증을 완료해야 합니다. 실제 세션은 사용자가 음성 대화에서 동의하고 시작할 때만 생성됩니다." })
+                    : t("liveAvatar.contract.description", { defaultValue: "현재 서버 간 연동 계약이 확인되지 않아 실시간 세션은 시작할 수 없습니다." })}
                 </p>
               </div>
             </div>

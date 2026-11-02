@@ -6,6 +6,12 @@ import { PersonaAvatarSettings } from "../../client/src/components/admin/Persona
 import type { PersonaLiveAvatar, PersonaAvatarMode } from "../../shared/avatar/personaAvatar";
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
+vi.mock("../../client/src/components/admin/PersonaAvatarValidationPanel", () => ({
+  PersonaAvatarValidationPanel: ({ assetId }: { assetId: string }) => <div data-testid="custom-avatar-test">Custom test: {assetId}</div>,
+}));
+vi.mock("../../client/src/components/admin/LiveAvatarTestPanel", () => ({
+  LiveAvatarTestPanel: () => <div data-testid="stock-avatar-test">Lucy test panel</div>,
+}));
 const id = "12345678-1234-4234-8234-123456789abc";
 const saved: PersonaLiveAvatar = {
   assetId: id, providerId: "tavus", voiceMode: "roleplayx",
@@ -32,7 +38,7 @@ describe("persona avatar settings", () => {
   it("offers three modes and never automatically calls remote endpoints", () => {
     render(<Harness />);
     expect(screen.getAllByRole("radio")).toHaveLength(3);
-    expect(screen.getByText("Live 아바타는 이번 단계에서 초안으로만 저장됩니다.")).toBeTruthy();
+    expect(screen.getByText("저장된 설정은 아바타 참조 정보입니다.")).toBeTruthy();
     expect(screen.getByRole("button", { name: /커스텀 아바타 생성/ }).hasAttribute("disabled")).toBe(true);
     expect(api).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("radio", { name: "이미지" }));
@@ -43,13 +49,13 @@ describe("persona avatar settings", () => {
   it("loads only on explicit action and saves a project-bound unverified draft", async () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
-    await screen.findByLabelText("초안에 연결할 자산");
+    await screen.findByLabelText("연결할 커스텀 자산");
     expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
-    fireEvent.change(screen.getByLabelText("초안에 연결할 자산"), { target: { value: id } });
+    fireEvent.change(screen.getByLabelText("연결할 커스텀 자산"), { target: { value: id } });
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
     expect(screen.getByText(/현재 자산 상태: 준비 완료 · Live 검증: 미검증/)).toBeTruthy();
     expect(screen.getByText(/미리보기 URL은 제공되지 않습니다/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "초안 연결 해제" }));
+    fireEvent.click(screen.getByRole("button", { name: "아바타 연결 해제" }));
     expect(screen.getByTestId("draft").textContent).toBe("null");
   });
 
@@ -57,7 +63,7 @@ describe("persona avatar settings", () => {
     api.mockResolvedValue({ json: async () => response([row({ id: "22345678-1234-4234-8234-123456789abc", status: "processing" })]) });
     render(<Harness initial={saved} />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
-    await screen.findByLabelText("초안에 연결할 자산");
+    await screen.findByLabelText("연결할 커스텀 자산");
     expect(screen.getByRole("option", { name: /처리 중 · 선택 불가/ }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByText(/새로 조회한 목록에서 저장된 자산을 찾지 못했습니다/)).toBeTruthy();
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(saved);
@@ -70,7 +76,7 @@ describe("persona avatar settings", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("assets:read");
     api.mockResolvedValue({ json: async () => response([]) });
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
-    await screen.findByText(/조회 가능한 아바타 자산이 없습니다/);
+    await screen.findByText(/조회 가능한 프로젝트 소유 커스텀 자산이 없습니다/);
     api.mockResolvedValue({ json: async () => ({ assets: "invalid" }) });
     fireEvent.click(screen.getByRole("button", { name: "목록 새로고침" }));
     await screen.findByRole("alert");
@@ -116,10 +122,10 @@ describe("persona avatar settings", () => {
       validationStatus: "unverified", activation: "draft", projectId: "project-one",
     });
     expect(screen.getByText(/기본 아바타 ID: tavus-stock-lucy/)).toBeTruthy();
-    expect((screen.getByLabelText("초안에 연결할 자산") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("연결할 커스텀 자산") as HTMLSelectElement).value).toBe("");
     expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
     expect(api).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("초안에 연결할 자산"), { target: { value: id } });
+    fireEvent.change(screen.getByLabelText("연결할 커스텀 자산"), { target: { value: id } });
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
   });
 
@@ -133,7 +139,32 @@ describe("persona avatar settings", () => {
     await screen.findByText(/새로 조회한 목록에서 저장된 자산을 찾지 못했습니다/);
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(stockDraft);
     expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "초안 연결 해제" }));
+    fireEvent.click(screen.getByRole("button", { name: "아바타 연결 해제" }));
     expect(screen.getByTestId("draft").textContent).toBe("null");
+  });
+
+  it("opens the selected saved custom Tavus test before the catalog has been loaded", () => {
+    render(<Harness initial={saved} />);
+    expect(api).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("custom-avatar-test")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
+    expect(screen.getByTestId("custom-avatar-test").textContent).toContain(id);
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("offers the existing Lucy-only stock test for an explicitly selected stock avatar", async () => {
+    api.mockResolvedValue({ json: async () => ({ ...response(), stockAvatars: [
+      { id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy", description: "Stock",
+        kind: "configured", configured: true, languages: ["en"] },
+    ] }) });
+    const stockDraft: PersonaLiveAvatar = {
+      kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", voiceMode: "roleplayx",
+      activation: "draft", validationStatus: "unverified",
+    };
+    render(<Harness initial={stockDraft} />);
+    expect(api).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
+    expect(screen.getByTestId("stock-avatar-test").textContent).toContain("Lucy");
+    expect(api).not.toHaveBeenCalled();
   });
 });

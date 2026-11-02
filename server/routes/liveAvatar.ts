@@ -12,6 +12,7 @@ import { avatarRouterProjectConnection, type AvatarRouterProjectConnection } fro
 import { normalizeAvatarRouterBaseUrl } from "../services/liveAvatar/connectionConfig";
 import { createLiveAvatarTestRouter } from "./liveAvatarTest";
 import { avatarRuntimePreflight, type AvatarRuntimePreflight } from "../services/liveAvatar/runtimePreflight";
+import { conversationAvatarSessions, type ConversationAvatarSessions } from "../services/liveAvatar/conversationSessions";
 
 const enabledSchema = z.object({ enabled: z.boolean() }).strict();
 const policySchema = z.object({ allowed: z.boolean() }).strict();
@@ -26,6 +27,7 @@ export default function createLiveAvatarRouter(
   identityService: AvatarRouterIdentityService = avatarRouterIdentityService,
   projectConnection: AvatarRouterProjectConnection = avatarRouterProjectConnection,
   runtimePreflight: Pick<AvatarRuntimePreflight, "check"> = avatarRuntimePreflight,
+  runtimeSessions: Pick<ConversationAvatarSessions, "availability" | "create" | "session" | "connection" | "mediaReady" | "stop" | "recover"> = conversationAvatarSessions,
 ) {
   const router = Router();
   router.use(isAuthenticated);
@@ -36,7 +38,7 @@ export default function createLiveAvatarRouter(
   const getAllowed = async (scenarioId: string) =>
     (await deps.storage.getSystemSetting(LIVE_AVATAR_POLICY_CATEGORY, scenarioId))?.value === "true";
   const availability = (enabled: boolean, allowed: boolean) => {
-    const state = liveAvatarAvailability(enabled, allowed);
+    const state = liveAvatarAvailability(enabled, allowed, true);
     try {
       const base = normalizeAvatarRouterBaseUrl(process.env.AVATAR_ROUTER_BASE_URL);
       if (base) state.origin = new URL(base).origin;
@@ -150,7 +152,13 @@ export default function createLiveAvatarRouter(
 
   router.get("/conversations/:conversationId/availability", asyncHandler(async (req: any, res) => {
     const { scenarioRun } = await ownedConversation(req.params.conversationId, req.user.id);
-    res.json(availability(await getEnabled(), await getAllowed(scenarioRun.scenarioId)));
+    const state = availability(await getEnabled(), await getAllowed(scenarioRun.scenarioId));
+    if (!state.enabled || !state.allowed) return res.json(state);
+    try { res.json({ ...state, ...await runtimeSessions.availability(req.user.id, req.params.conversationId) }); }
+    catch (error) {
+      if (!(error instanceof AvatarIdentityError)) throw error;
+      res.status(error.status).json({ code: error.code, error: error.code });
+    }
   }));
 
   router.post("/conversations/:conversationId/sessions", asyncHandler(async (req: any, res) => {
@@ -160,17 +168,35 @@ export default function createLiveAvatarRouter(
       throw createHttpError(409, "Conversation has ended");
     }
     const sessionAvailability = availability(await getEnabled(), await getAllowed(scenarioRun.scenarioId));
-    // Check policies before invoking even the disabled adapter.
+    // Explicit opt-in and policies are checked before any billable request.
     if (!sessionAvailability.enabled || !sessionAvailability.allowed) {
-      res.status(409).json({ code: "live_avatar_contract_unverified", blockers: sessionAvailability.blockers });
+      res.status(409).json({ code: "live_avatar_policy_disabled", blockers: sessionAvailability.blockers });
       return;
     }
     try {
-      await deps.adapter.openSession({ ownerId: req.user.id, conversationId: req.params.conversationId });
+      res.status(201).json(await runtimeSessions.create(req.user.id, req.params.conversationId));
     } catch (error) {
-      if (!(error instanceof LiveAvatarContractError)) throw error;
-      res.status(409).json({ code: error.code, error: error.message, blockers: sessionAvailability.blockers });
+      if (!(error instanceof AvatarIdentityError)) throw error;
+      res.status(error.status).json({ code: error.code, error: error.code });
     }
   }));
+  const lifecycle = (fn: (req: any) => Promise<unknown>) => asyncHandler(async (req: any, res) => {
+    await ownedConversation(req.params.conversationId, req.user.id);
+    if (req.method === "POST" && !z.object({}).strict().safeParse(req.body ?? {}).success) {
+      throw createHttpError(400, "No lifecycle parameters accepted");
+    }
+    try { res.json(await fn(req)); }
+    catch (error) {
+      if (!(error instanceof AvatarIdentityError)) throw error;
+      res.status(error.status).json({ code: error.code, error: error.code });
+    }
+  });
+  const prefix = "/conversations/:conversationId/sessions/:id";
+  router.get("/conversations/:conversationId/session", lifecycle(req => runtimeSessions.recover(req.user.id, req.params.conversationId)));
+  router.get(prefix, lifecycle(req => runtimeSessions.session(req.user.id, req.params.conversationId, req.params.id)));
+  router.get(`${prefix}/connection`, lifecycle(req => runtimeSessions.connection(req.user.id, req.params.conversationId, req.params.id)));
+  router.post(`${prefix}/media-ready`, lifecycle(req => runtimeSessions.mediaReady(req.user.id, req.params.conversationId, req.params.id)));
+  router.post(`${prefix}/interrupt`, lifecycle(req => runtimeSessions.stop(req.user.id, req.params.conversationId, req.params.id, false)));
+  router.post(`${prefix}/end`, lifecycle(req => runtimeSessions.stop(req.user.id, req.params.conversationId, req.params.id, true)));
   return router;
 }

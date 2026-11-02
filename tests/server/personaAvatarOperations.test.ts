@@ -220,7 +220,7 @@ describe("persona operations routes", () => {
       .send({ costConfirmed: true })).status).toBe(400);
     expect(create).not.toHaveBeenCalled();
   });
-  it("requires actual affirmative playback reports and uses fresh authenticated user", async () => {
+  it.each([sessionId, "test-session"])("requires affirmative playback reports for lifecycle session %s", async sessionId => {
     const report = vi.fn(async () => asset());
     const a = app({}, { report });
     for (const patch of [{ videoObserved: false }, { audioObserved: false }, { userId: "forged" }]) {

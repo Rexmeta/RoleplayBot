@@ -27,4 +27,4 @@
 - [Culture Map 독립성](culture-map-boundaries.md) — Persona 불변·Actor별 기본 OFF·시나리오 snapshot·검증된 국가 출처·평가 직접 가감 금지.
 - [테스트 워커·실행 환경](test-worker-resource-limits.md) — 미디어 timeout은 제한된 동시성으로 비교; Vitest 버전 변경 시 DOM 환경 적용을 확인한다.
 - [운영 변경 승인 경계](production-change-boundary.md) — 운영 환경 변경과 배포는 사용자의 명시적 승인이 있어야 한다.
-- [AvatarRouter integration gate](avatar-router-integration-gate.md) — 외부 이미지 전송은 신뢰 가능한 M2M tenant 인증과 권리 검토가 지원될 때까지 보류한다.
+- [AvatarRouter integration gate](avatar-router-integration-gate.md) — 선택형 persona 테스트·시나리오 실행의 동의·스냅샷·프로젝트 소유권 경계; 구현 승인은 유료 검증·배포 승인이 아니다.

@@ -4,7 +4,7 @@ import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 import { personaAvatarCreation } from "../services/liveAvatar/personaCreation";
 import { personaAvatarValidation } from "../services/liveAvatar/personaValidation";
 import { personaAvatarCreationInput } from "../../shared/avatar/personaAvatarCreation";
-import { testTurnSchema } from "../services/liveAvatar/testContracts";
+import { testTurnSchema, testSessionSchema } from "../services/liveAvatar/testContracts";
 
 /** Mounted behind existing login + operator/admin guard. No provider credentials from browsers. */
 export function createPersonaAvatarOperationsRouter(
@@ -53,7 +53,7 @@ export function createPersonaAvatarOperationsRouter(
   }
   router.post("/assets/:assetId/validation/report", handle(async (req, res) => {
     const input = valid(z.object({
-      sessionId: z.string().uuid(), videoObserved: z.literal(true), audioObserved: z.literal(true),
+      sessionId: testSessionSchema.shape.id, videoObserved: z.literal(true), audioObserved: z.literal(true),
     }).strict(), req, res);
     if (input) res.json(await validation.report(req.user.id, req.params.assetId, input.sessionId));
   }));

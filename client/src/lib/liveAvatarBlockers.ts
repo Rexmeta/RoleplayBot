@@ -10,6 +10,17 @@ const descriptions: Record<string, string> = {
   media_transport_unverified: "이 앱의 라이브 영상·음성 수신이 검증되지 않았습니다.",
   custom_avatar_live_unverified: "이 페르소나 이미지의 라이브 아바타 사용이 검증되지 않았습니다.",
   avatar_router_diagnostics_failed: "AvatarRouter 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+  avatar_persona_not_selected: "현재 대화의 페르소나에 Live 아바타가 설정되지 않았습니다. 설정 저장 후 새 대화를 시작하세요.",
+  avatar_persona_not_found: "현재 대화에 연결된 페르소나를 찾지 못했습니다.",
+  avatar_conversation_ended: "이미 종료된 대화에서는 라이브 아바타를 시작할 수 없습니다.",
+  avatar_conversation_scopes_missing: "API 키에 아바타 조회 또는 라이브 세션 사용 권한이 부족합니다.",
+  persona_avatar_project_mismatch: "저장된 아바타와 현재 API 키의 프로젝트가 다릅니다.",
+  persona_stock_avatar_unavailable: "선택한 기본 아바타를 현재 프로젝트에서 사용할 수 없습니다.",
+  persona_avatar_playback_validation_required: "페르소나 수정 화면에서 선택한 커스텀 아바타의 실제 재생을 확인하고 보고를 저장하세요.",
+  persona_avatar_custom_runtime_unavailable: "선택한 제공자 또는 커스텀 라이브 계약을 현재 사용할 수 없습니다.",
+  avatar_runtime_unavailable: "라이브 아바타 연결 상태를 확인하지 못했습니다. 다시 조회하세요.",
+  avatar_connection_unconfigured: "관리자가 AvatarRouter 서버 연결을 설정해야 합니다.",
+  avatar_connection_check_failed: "AvatarRouter 인증 상태를 확인하지 못했습니다.",
 };
 
 export function liveAvatarBlockerText(code: string, t: TFunction): string {

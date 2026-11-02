@@ -115,6 +115,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
+  const [liveAvatarPortraitHost, setLiveAvatarPortraitHost] = useState<HTMLDivElement | null>(null);
   const [isSilenceIdle, setIsSilenceIdle] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState<number>(0);
@@ -924,7 +925,7 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   return (
     <>
       <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)}>
-        <LiveAvatarChoice key={conversationId} conversationId={conversationId} voiceMode={inputMode === 'realtime-voice'} />
+        <LiveAvatarChoice key={conversationId} conversationId={conversationId} voiceMode={inputMode === 'realtime-voice'} portraitHost={liveAvatarPortraitHost} />
       </TopMenuPanel>
 
       <div className="chat-window relative">
@@ -1140,6 +1141,12 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       isTransitioning={isTransitioning} isSessionEnding={isSessionEnding}
                       isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
                   )}
+                  <div
+                    ref={setLiveAvatarPortraitHost}
+                    data-testid="live-avatar-portrait-host"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-[5] overflow-hidden"
+                  />
 
                   {latestPersonaSwitch && (
                     <div className="absolute top-16 left-0 right-0 z-[14] flex justify-center animate-in slide-in-from-top-2 duration-300 px-4">

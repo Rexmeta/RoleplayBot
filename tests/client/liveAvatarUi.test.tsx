@@ -158,21 +158,22 @@ describe("optional live avatar UI", () => {
     expect((screen.getByRole("button", { name: "실시간 아바타 시작" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("does not trust server availability without an installed media consumer", async () => {
+  it("allows live only after positive availability and explicit consent", async () => {
     api.mockResolvedValue(response({ ...config, enabled: true, allowed: true, contractReady: true, available: true, blockers: [] }));
     view(<LiveAvatarChoice conversationId="pr" voiceMode />);
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
-    await screen.findByText("현재 사용할 수 없음");
+    await screen.findByText("사용 가능");
     fireEvent.click(screen.getByRole("checkbox"));
-    expect((screen.getByRole("button", { name: "실시간 아바타 시작" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(calls.filter(call => call.method === "POST")).toHaveLength(0);
+    expect((screen.getByRole("button", { name: "실시간 아바타 시작" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 시작" }));
+    await waitFor(() => expect(api.mock.calls.some(([method, url]) => method === "POST" && url.endsWith("/sessions"))).toBe(true));
   });
 
   it("shows availability errors instead of claiming success", async () => {
     api.mockRejectedValue(new Error("403: access denied"));
     view(<LiveAvatarChoice conversationId="pr" voiceMode />);
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("확인하지 못했습니다");
+    expect(await screen.findByText(/실시간 사용 가능 상태를 확인하지 못했습니다/)).toBeTruthy();
     expect(screen.queryByText("사용 가능")).toBeNull();
   });
 

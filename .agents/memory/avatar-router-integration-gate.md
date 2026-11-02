@@ -21,17 +21,17 @@ Treat the settings-page stock-avatar conversation test as an isolated administra
 
 **How to apply:** Keep explicit cost/data-transfer consent on the test action, avoid automatic paid or media E2E during development, and preserve ordinary scenario gates until their own ownership and media paths are verified.
 
-Persona-level live configuration stays draft-only during the persona generation/validation phase. Custom-runtime support alone does not authorize activating learner conversations, paid sessions, or replacing existing image/video behavior.
+Saved persona live configuration is a reference, not permission to auto-create a paid session. Scenario runtime must remain opt-in and preserve existing image/video and dialogue behavior until the learner explicitly selects live playback.
 
-**Why:** The user chose to implement the RoleplayX persona side first despite AvatarRouter's custom live-dispatch blocker. Preserving existing behavior was an explicit requirement.
+**Why:** The user requested both selected-avatar testing in persona editing and functioning scenario live avatars, while preserving existing behavior remains an explicit requirement.
 
-**How to apply:** Keep desired live configuration separate from activation. Show the draft restriction clearly, distinguish provisioned/ready from live verification, and do not treat a successful catalog lookup or saved asset reference as completed live integration.
+**How to apply:** Require global/scenario permission, the run's own selected persona reference, current provider readiness, and explicit cost/audio-transfer consent. Custom provisioning/ready status is not playback validation. Keep old snapshot-bound conversations immutable.
 
-The user approved adding persona-level custom generation and playback validation as a separate phase, not enabling learner conversation runtime or executing paid/media E2E during development.
+Implementation approval is not permission to execute paid/media E2E during development or publish production changes. A client playback report is an operator observation, not independent provider certification.
 
-**Why:** The user explicitly chose “생성·재생 검증까지 구현” after the external custom-runtime contract became available. Existing dialogue, voice and evaluation must remain unchanged.
+**Why:** External image/audio transfer, likeness rights, provider charges and production changes have separate consent boundaries.
 
-**How to apply:** Build explicit operator-triggered generation and validation paths while retaining draft-only persona activation. Implementation approval is not permission to run provider charges, transmit actual images/audio during development, or publish production changes. A client playback report is not independent provider certification.
+**How to apply:** Keep generation and validation operator-triggered, require transfer/rights/cost confirmations, and do not claim actual end-to-end media success from mocked tests or API authentication alone.
 
 The current contract makes project API keys the default; Base URL plus API key is enough for basic connection. Dedicated RS256 per-user/tenant delegation and pinned public JWKS remain optional advanced mode, not prerequisites. Bounded PCM clips are not continuous Gemini streaming.
 

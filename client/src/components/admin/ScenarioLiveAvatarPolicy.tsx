@@ -10,7 +10,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type Props = { scenarioId?: string };
 type Policy = { allowed: boolean };
-type Config = { enabled: boolean; service: "avatar-router"; contractReady: false; blockers: string[]; origin: string };
+type Config = { enabled: boolean; service: "avatar-router"; contractReady: boolean; blockers: string[]; origin: string };
 
 export function ScenarioLiveAvatarPolicy({ scenarioId }: Props) {
   const { t } = useTranslation();
@@ -92,7 +92,7 @@ export function ScenarioLiveAvatarPolicy({ scenarioId }: Props) {
               <div>
                 <p className="font-medium">{t("liveAvatar.policy.allowToggle", { defaultValue: "이 시나리오에서 허용" })}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {t("liveAvatar.policy.allowHint", { defaultValue: "허용 여부만 저장합니다. 외부 계약 검증 전에는 실시간 세션이 시작되지 않습니다." })}
+                  {t("liveAvatar.policy.permissionHint", { defaultValue: "시나리오 허용만 저장하며 세션은 생성하지 않습니다. 전역 허용, 페르소나의 Live 설정과 사용자 동의가 모두 있어야 시작할 수 있습니다." })}
                 </p>
               </div>
               <Switch

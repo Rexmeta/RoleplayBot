@@ -5,6 +5,7 @@ import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar } from '@
 import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
 import { PersonaAvatarCreationPanel } from '@/components/admin/PersonaAvatarCreationPanel';
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
+import { LiveAvatarTestPanel } from '@/components/admin/LiveAvatarTestPanel';
 export type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
 
 type AvatarAsset = {
@@ -68,6 +69,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [testEntryOpen, setTestEntryOpen] = useState(false);
   const mountedRef = useRef(false);
   const requestRef = useRef(0);
 
@@ -104,6 +106,9 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const selectedAsset = assets?.find(asset => asset.id === customAssetId);
   const selectedStock = stockAvatars?.find(avatar => avatar.id === stockAvatarId && avatar.providerId === liveAvatar?.providerId);
   const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset && !selectedStock);
+  const selectedTavusCustom = Boolean(liveAvatar && liveAvatar.kind !== 'stock' && liveAvatar.providerId === 'tavus');
+  const selectedLucy = liveAvatar?.kind === 'stock' && liveAvatar.providerId === 'tavus' && liveAvatar.avatarId === 'tavus-stock-lucy';
+  const hasSelectedTest = Boolean(selectedTavusCustom || selectedLucy);
   const selectableAssets = (assets ?? []).filter(asset =>
     asset.status === 'ready' &&
     asset.capabilities.reusable &&
@@ -175,10 +180,9 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
       {mode === 'live' && (
         <div className="mt-4 space-y-4">
           <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-            <p className="font-bold">Live 아바타는 이번 단계에서 초안으로만 저장됩니다.</p>
+            <p className="font-bold">저장된 설정은 아바타 참조 정보입니다.</p>
             <p className="mt-1 leading-relaxed">
-              학습자 대화의 Live 렌더링은 아직 사용할 수 없습니다. 별도의 관리자 생성·재생 점검과 무관하게 기존 이미지/비디오 표시가 유지되며,
-              Live 선택은 대화 동작을 변경하지 않습니다.
+              실제 대화 사용은 전역 및 시나리오 허용, 서비스 준비 상태, 사용자 동의가 모두 필요합니다. 설정 저장이나 관리자 테스트만으로 대화가 시작되거나 유료 세션이 생성되지는 않습니다.
             </p>
           </div>
 
@@ -209,16 +213,16 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-slate-800">저장된 초안 선택</p>
+                   <p className="font-semibold text-slate-800">저장된 아바타 참조</p>
                   <p className="mt-1 break-all text-slate-600">
                     {liveAvatar.kind === 'stock' ? `기본 아바타 ID: ${liveAvatar.avatarId}` : `자산 ID: ${liveAvatar.assetId}`} · 제공자: {liveAvatar.providerId}
                   </p>
                   <p className="mt-1 text-slate-600">
-                    Live 검증: {liveAvatar.validationStatus === 'live_verified' ? '검증됨' : '미검증'} · 활성화: 초안
+                     Live 검증: {liveAvatar.validationStatus === 'live_verified' ? '검증됨' : '미검증'} · legacy 활성화 표식: draft
                   </p>
                 </div>
                 <Button type="button" variant="link" className="h-auto p-0" onClick={() => onLiveAvatarChange(null)}>
-                  초안 연결 해제
+                   아바타 연결 해제
                 </Button>
               </div>
               {selectedMissing && (
@@ -228,7 +232,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               )}
               {selectedStock && (
                 <p className="mt-2 text-slate-600">
-                  기본 아바타: {selectedStock.name} · {isSelectableStockAvatar(selectedStock) ? '초안 선택 가능' : '현재 선택 불가'}
+                  기본 아바타: {selectedStock.name} · {isSelectableStockAvatar(selectedStock) ? '선택 가능' : '현재 선택 불가'}
                 </p>
               )}
               {selectedAsset && (
@@ -238,7 +242,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                   </p>
                   {!selectableAssets.some(asset => asset.id === selectedAsset.id) && (
                     <p className="mt-1 text-amber-800">
-                      이 자산은 현재 초안 선택 조건을 충족하지 않습니다. 연결은 유지했으며 다른 자산으로 자동 변경하지 않았습니다.
+                       이 자산은 현재 선택 조건을 충족하지 않습니다. 연결은 유지했으며 다른 자산으로 자동 변경하지 않았습니다.
                     </p>
                   )}
                 </>
@@ -272,11 +276,11 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
                 조회 가능한 프로젝트 소유 커스텀 자산이 없습니다. Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
                 기본 Lucy는 커스텀 자산 목록에 포함되지 않으며 별도의 관리자 Live 테스트에서 확인할 수 있습니다.
-                준비 완료·재사용 가능 자산만 초안에 선택할 수 있습니다.
+                준비 완료·재사용 가능 자산만 선택할 수 있습니다.
               </div>
             ) : (
               <div className="space-y-2">
-                <label htmlFor="live-avatar-asset" className="text-sm font-semibold text-slate-700">초안에 연결할 자산</label>
+                <label htmlFor="live-avatar-asset" className="text-sm font-semibold text-slate-700">연결할 커스텀 자산</label>
                 <select
                   id="live-avatar-asset"
                   value={selectedAsset ? customAssetId ?? '' : ''}
@@ -303,21 +307,31 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           )}
 
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-            <p className="font-semibold text-slate-700">관리자 생성·검증과 학습자 런타임 분리</p>
+            <p className="font-semibold text-slate-700">저장 설정과 실제 대화 실행은 별도입니다</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <span className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">커스텀 생성은 관리자 요청 시에만 실행됩니다.</span>
             </div>
-            <p className="mt-2 text-xs text-slate-600">생성·검증은 학습자 대화에 영향을 주지 않으며, 페르소나 연결은 항상 초안으로만 저장됩니다.</p>
+            <p className="mt-2 text-xs text-slate-600">activation: 'draft'는 기존 저장 데이터와의 호환을 위한 legacy 참조 표식입니다. 실제 실행 여부는 대화 시점의 권한·준비 상태·동의로 결정됩니다.</p>
           </div>
 
           <PersonaAvatarCreationPanel onSubmitted={() => void loadAssets()} />
-          {assets !== null && liveAvatar?.providerId === 'tavus' && liveAvatar.kind !== 'stock' && (
+          {liveAvatar && <div className="space-y-2">
+            {hasSelectedTest ? (
+              <Button type="button" variant="outline" onClick={() => setTestEntryOpen(open => !open)}>
+                {testEntryOpen ? '선택 아바타 테스트 닫기' : '선택 아바타 테스트'}
+              </Button>
+            ) : (
+              <p role="note" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                {liveAvatar.kind !== 'stock'
+                  ? `${liveAvatar.providerId} 제공자는 이 관리자 재생 테스트에서 지원되지 않습니다.`
+                  : '선택한 기본 아바타는 이 관리자 테스트에서 지원되지 않습니다. 현재 Lucy만 테스트할 수 있습니다.'}
+              </p>
+            )}
+            {testEntryOpen && liveAvatar.kind !== 'stock' && selectedTavusCustom && (
               <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={selectedAsset?.name ?? '저장된 Tavus 자산'} onReported={() => void loadAssets()} />
             )}
-
-          <div role="note" className="rounded-md border border-slate-200 bg-slate-100 p-3 text-sm text-slate-700">
-            학습자 런타임은 비활성화 상태입니다. 관리자 재생 검증에 성공해도 페르소나 연결은 초안으로만 저장되며, 학습자 대화에서 Live 아바타를 제공하지 않습니다.
-          </div>
+            {testEntryOpen && selectedLucy && <LiveAvatarTestPanel />}
+          </div>}
         </div>
       )}
     </section>
