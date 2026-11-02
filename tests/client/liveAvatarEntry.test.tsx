@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { LiveAvatarEntry } from "../../client/src/components/chat/LiveAvatarEntry";
+import { LiveAvatarEntry, useLiveAvatarSelection, type LiveAvatarPlaybackState } from "../../client/src/components/chat/LiveAvatarEntry";
 import { LiveAvatarChoice } from "../../client/src/components/chat/LiveAvatarChoice";
 import { TopMenuPanel } from "../../client/src/components/chat/TopMenuPanel";
 
@@ -25,13 +25,16 @@ vi.mock("../../client/src/components/admin/avatarTest/useAvatarTestRoom", () => 
 function Harness({ voiceMode = true }: { voiceMode?: boolean }) {
   const [open, setOpen] = useState(false);
   const [request, setRequest] = useState(0);
+  const selection = useLiveAvatarSelection("conversation", "actor");
+  const [playbackState, setPlaybackState] = useState<LiveAvatarPlaybackState>("idle");
   return <>
     <div data-testid="visible-portrait">
-      <LiveAvatarEntry conversationId="conversation" actorId="actor" optionsOpen={open}
+      <LiveAvatarEntry conversationId="conversation" actorId="actor" optionsOpen={open} playbackState={playbackState}
         onOpenOptions={() => { setOpen(true); setRequest(n => n + 1); }} />
     </div>
     <TopMenuPanel isOpen={open} onToggle={() => setOpen(v => !v)} onClose={() => setOpen(false)}>
-      <LiveAvatarChoice conversationId="conversation" actorId="actor" voiceMode={voiceMode} optionsRequest={request} />
+      {selection.data?.configured && <LiveAvatarChoice conversationId="conversation" actorId="actor" voiceMode={voiceMode} optionsRequest={request}
+        onPlaybackStateChange={setPlaybackState} />}
     </TopMenuPanel>
   </>;
 }
@@ -109,7 +112,48 @@ describe("visible learner live-avatar entry", () => {
     setup();
     await waitFor(() => expect(api).toHaveBeenCalled());
     expect(screen.getByTestId("visible-portrait").children).toHaveLength(0);
+    fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
+    expect(screen.queryByLabelText("실시간 아바타 선택")).toBeNull();
+    expect(screen.queryByRole("button", { name: "실시간 아바타 옵션 보기" })).toBeNull();
     expect(api.mock.calls.every(([method, path]) => method === "GET" && path.endsWith("/selection"))).toBe(true);
+  });
+
+  it("does not label a saved selection as playing and shows real renderer startup after explicit Start", async () => {
+    mockFlow();
+    setup();
+    await screen.findByText("라이브 아바타 연결 대기");
+    expect(screen.queryByText("라이브 아바타 재생 중")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "라이브 아바타 옵션 열기" }));
+    await screen.findByText("사용 가능");
+    fireEvent.click(screen.getByRole("checkbox"));
+    const start = screen.getByRole("button", { name: "실시간 아바타 시작" });
+    await waitFor(() => expect(start.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(start);
+    await screen.findByText("라이브 아바타 영상 준비 중");
+    fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
+    expect(screen.getByText("라이브 아바타 영상 준비 중").closest("[inert]")).toBeNull();
+    expect(screen.queryByText("라이브 아바타 재생 중")).toBeNull();
+  });
+
+  it("keeps provider reconciliation failures visible outside the menu without automatically creating again", async () => {
+    mockFlow();
+    const original = api.getMockImplementation()!;
+    api.mockImplementation(async (method: string, path: string) => {
+      if (method === "GET" && path.endsWith("/session")) return json({
+        session: { id: "failed-session", providerId: "tavus", avatarId: "tavus-stock-lucy", mode: "live",
+          status: "expired", rendererState: "reconciliation_required", cleanupPending: true, stopRequested: false,
+          errorCode: "LIVE_CREATE_RECONCILIATION_REQUIRED", expiresAt: new Date().toISOString() },
+        creationUncertain: false,
+      });
+      return original(method, path);
+    });
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "라이브 아바타 옵션 열기" }));
+    await screen.findByText("라이브 아바타 연결 실패");
+    expect(screen.getByText(/외부 아바타 제공자가 생성 결과를 확정하지 못했습니다/)).toBeTruthy();
+    fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
+    expect(screen.getByText("라이브 아바타 연결 실패").closest("[inert]")).toBeNull();
+    expect(api.mock.calls.some(([method, path]) => method === "POST" && path.endsWith("/sessions"))).toBe(false);
   });
 
   it("shows the voice-only restriction for text conversations rather than creating a live session", async () => {

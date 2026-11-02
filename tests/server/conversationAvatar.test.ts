@@ -200,6 +200,41 @@ describe("owned conversation session lifecycle", () => {
     expect(writes[0][3]).toEqual({ providerId: "tavus", avatarId: "tavus-stock-lucy", mode: "live", costConfirmed: true });
     expect([...records.values()].join("")).not.toMatch(/pcmBase64|token/);
   });
+  it.each([
+    ["LIVE_CREATE_RECONCILIATION_REQUIRED", "LIVE_CREATE_RECONCILIATION_REQUIRED"],
+    ["LIVE_CONNECTION_FAILED", "LIVE_CONNECTION_FAILED"],
+    ["private-provider-detail-not-for-the-browser", "AVATAR_PROVIDER_ERROR"],
+  ])("exposes only safe provider failure codes during owned recovery: %s", async (upstream, code) => {
+    const { service } = createService();
+    await service.create("owner", "conversation");
+    const original = client.call.getMockImplementation();
+    client.call.mockImplementation(async (...args: any[]) => {
+      if (args[1] === "/sessions/live-session" && !args[3]) {
+        return args[2].parse({ ...session({ status: "expired", cleanupPending: true }), error: upstream });
+      }
+      return original(...args);
+    });
+    const recovery = await service.recover("owner", "conversation");
+    expect(recovery.session).toMatchObject({ errorCode: code, cleanupPending: true });
+    expect(recovery.session).not.toHaveProperty("error");
+    expect(client.call.mock.calls.filter((c: any) => c[1] === "/sessions" && c[3])).toHaveLength(1);
+  });
+  it.each([
+    [{ workerReady: false }, "avatar_renderer_not_ready"],
+    [{ cleanupPending: 1 }, "avatar_provider_cleanup_required"],
+    [{ userRemainingSeconds: 0 }, "avatar_runtime_limits_unavailable"],
+  ])("does not report availability merely because persona setup succeeded: %s", async (override, blocker) => {
+    const { service } = createService();
+    const original = client.call.getMockImplementation();
+    client.call.mockImplementation(async (...args: any[]) => {
+      if (args[1] === "/live-limits") return {
+        ...await original(...args), ...override,
+      };
+      return original(...args);
+    });
+    expect(await service.availability("owner", "conversation")).toMatchObject({ available: false, blockers: [blocker] });
+    expect(client.call.mock.calls.some((c: any) => Boolean(c[3]))).toBe(false);
+  });
   it("persists ambiguous creates across restart and recovers by read without a second paid call", async () => {
     let { service, d } = createService();
     const original = client.call.getMockImplementation();

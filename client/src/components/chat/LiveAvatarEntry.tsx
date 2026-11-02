@@ -8,8 +8,10 @@ type Props = {
   actorId: string | number;
   optionsOpen: boolean;
   onOpenOptions: () => void;
+  playbackState?: LiveAvatarPlaybackState;
 };
 
+export type LiveAvatarPlaybackState = "idle" | "starting" | "connecting" | "playing" | "failed" | "stopping";
 type Selection = {
   configured: boolean;
   enabled: boolean;
@@ -18,8 +20,8 @@ type Selection = {
   personaId: string;
 };
 
-export function LiveAvatarEntry({ conversationId, actorId, optionsOpen, onOpenOptions }: Props) {
-  const selectionQuery = useQuery<Selection>({
+export function useLiveAvatarSelection(conversationId: string, actorId: string | number) {
+  return useQuery<Selection>({
     queryKey: ["/api/live-avatar/conversations", conversationId, "selection", actorId],
     enabled: Boolean(conversationId),
     staleTime: 30_000,
@@ -29,12 +31,25 @@ export function LiveAvatarEntry({ conversationId, actorId, optionsOpen, onOpenOp
       `/api/live-avatar/conversations/${encodeURIComponent(conversationId)}/selection`,
     )).json(),
   });
+}
+
+export function LiveAvatarEntry({ conversationId, actorId, optionsOpen, onOpenOptions, playbackState = "idle" }: Props) {
+  const selectionQuery = useLiveAvatarSelection(conversationId, actorId);
 
   useEffect(() => {
     if (optionsOpen) void selectionQuery.refetch();
   }, [optionsOpen, selectionQuery.refetch]);
 
-  if (!selectionQuery.data?.configured && !selectionQuery.isError) return null;
+  if (!selectionQuery.data?.configured) return null;
+
+  const statusLabels: Record<LiveAvatarPlaybackState, [string, string]> = {
+    idle: ["라이브 아바타 연결 대기", "아직 영상 미연결 · 눌러서 동의 후 연결 시작"],
+    starting: ["라이브 아바타 영상 준비 중", "외부 서비스가 영상을 준비하고 있습니다."],
+    connecting: ["라이브 아바타 연결 중", "실제 영상·음성 수신을 확인하고 있습니다."],
+    playing: ["라이브 아바타 재생 중", "실제 영상·음성 연결됨 · 눌러서 옵션 열기"],
+    failed: ["라이브 아바타 연결 실패", "기존 이미지·음성 유지 · 눌러서 오류 확인"],
+    stopping: ["라이브 아바타 종료 확인 중", "중복 연결을 막기 위해 종료 상태를 확인합니다."],
+  };
 
   return (
     <div className="absolute right-3 top-16 z-[16] max-w-[min(19rem,calc(100%-1.5rem))]">
@@ -60,11 +75,11 @@ export function LiveAvatarEntry({ conversationId, actorId, optionsOpen, onOpenOp
             {selectionQuery.isError
               ? "라이브 아바타 설정 확인 실패"
               : selectionQuery.data?.enabled && selectionQuery.data?.allowed
-                ? "라이브 아바타 설정됨"
+                 ? statusLabels[playbackState][0]
                 : "라이브 아바타 사용 조건 확인 필요"}
           </span>
           <span className="mt-0.5 block text-[11px] text-white/75">
-            {selectionQuery.isError ? "눌러서 다시 확인" : "눌러서 옵션과 사용 가능 상태 확인"}
+            {selectionQuery.isError ? "눌러서 다시 확인" : statusLabels[playbackState][1]}
           </span>
         </span>
       </button>

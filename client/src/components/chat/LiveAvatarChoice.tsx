@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { liveAvatarBlockerText, liveAvatarConnectionError } from "@/lib/liveAvatarBlockers";
 import { AvatarTestSession, avatarTestReady, avatarTestTerminal } from "@shared/avatar/adminAvatarTest";
 import { useAvatarTestRoom } from "@/components/admin/avatarTest/useAvatarTestRoom";
+import type { LiveAvatarPlaybackState } from "./LiveAvatarEntry";
 
 type Props = {
   conversationId: string;
@@ -17,6 +18,7 @@ type Props = {
   portraitHost?: HTMLElement | null;
   actorId?: string | number;
   optionsRequest?: number;
+  onPlaybackStateChange?: (state: LiveAvatarPlaybackState) => void;
 };
 type Availability = {
   enabled: boolean;
@@ -26,7 +28,19 @@ type Availability = {
   blockers: string[];
 };
 
-export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = null, actorId, optionsRequest = 0 }: Props) {
+function providerSessionError(session: AvatarTestSession): string {
+  if (session.errorCode === "LIVE_CREATE_RECONCILIATION_REQUIRED") {
+    return "외부 아바타 제공자가 생성 결과를 확정하지 못했습니다 (LIVE_CREATE_RECONCILIATION_REQUIRED). 영상은 연결되지 않았으며 중복 과금을 막기 위해 자동으로 다시 생성하지 않습니다.";
+  }
+  if (session.errorCode === "LIVE_CONNECTION_FAILED") {
+    return "외부 아바타 제공자의 영상 연결이 실패했습니다 (LIVE_CONNECTION_FAILED). 기존 이미지·음성은 유지됩니다.";
+  }
+  return session.status === "expired"
+    ? "라이브 아바타 세션 시간이 만료되어 영상 연결을 종료했습니다. 기존 이미지·음성은 유지됩니다."
+    : "외부 아바타 영상 연결이 실패했습니다. 기존 이미지·음성은 유지됩니다.";
+}
+
+export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = null, actorId, optionsRequest = 0, onPlaybackStateChange }: Props) {
   const { t } = useTranslation();
   const tRef = useRef(t);
   tRef.current = t;
@@ -291,8 +305,12 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
         const fresh = await (await apiRequest("GET", `${endpoint}/sessions/${encodeURIComponent(activeId)}`)).json() as AvatarTestSession;
         if (!mountedRef.current || sessionRef.current?.id !== activeId) return;
         assignSession(fresh);
-        pollFailedRef.current = false;
-        setPollFailed(false);
+        if (fresh.errorCode || ["failed", "expired"].includes(fresh.status)) {
+          if (!stoppedRef.current) failAndEnd(providerSessionError(fresh));
+        } else {
+          pollFailedRef.current = false;
+          setPollFailed(false);
+        }
         if (avatarTestTerminal(fresh)) {
           stoppedRef.current = true;
           endRequestedRef.current.delete(activeId);
@@ -381,6 +399,26 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
   const errorText = (cause: unknown) => cause instanceof Error ? cause.message : t("liveAvatar.errors.unknown", { defaultValue: "알 수 없는 오류가 발생했습니다." });
   const activeSession = Boolean(session && !avatarTestTerminal(session));
   const mediaPlaybackReady = Boolean(mediaReady && room.mediaConnected && room.videoTrack && !stoppedRef.current);
+  const playbackState: LiveAvatarPlaybackState = error || pollFailed || session?.errorCode || session?.status === "failed" || session?.status === "expired" ? "failed"
+    : stopping || session?.cleanupPending ? "stopping"
+    : mediaPlaybackReady ? "playing"
+    : activeSession ? avatarTestReady(session!) ? "connecting" : "starting"
+    : "idle";
+
+  useEffect(() => { onPlaybackStateChange?.(playbackState); }, [onPlaybackStateChange, playbackState]);
+  useEffect(() => () => { onPlaybackStateChange?.("idle"); }, [onPlaybackStateChange]);
+
+  useEffect(() => {
+    if (!session || avatarTestReady(session) || avatarTestTerminal(session) || stoppedRef.current) return;
+    const id = session.id;
+    const timer = window.setTimeout(() => {
+      const current = sessionRef.current;
+      if (current?.id === id && !avatarTestReady(current) && !stoppedRef.current) {
+        failAndEnd("외부 아바타 영상 준비가 60초 내 완료되지 않았습니다. 연결 종료를 요청했으며 기존 이미지·음성은 유지됩니다. 자동으로 유료 세션을 다시 만들지 않습니다.");
+      }
+    }, Math.max(0, Math.min(60_000, Date.parse(session.expiresAt) - Date.now())));
+    return () => window.clearTimeout(timer);
+  }, [session?.id, failAndEnd]);
 
   return (
     <section className="space-y-3 rounded-lg border bg-card p-4" aria-label={t("liveAvatar.choice.title", { defaultValue: "실시간 아바타 선택" })}>
@@ -491,6 +529,7 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
                   room.audioBlocked ? "오디오 재생 허용이 필요합니다." : room.connecting ? "아바타 미디어 연결 중…" :
                     `세션 ${session.status} · ${session.rendererState || "renderer 확인 중"}`}
               </p>
+              {session.errorCode && <p role="alert" className="text-sm text-destructive">{providerSessionError(session)}</p>}
               {room.audioBlocked && <Button type="button" variant="outline" onClick={() => void room.startAudio()}>오디오 재생 허용</Button>}
               {(activeSession || session.cleanupPending) && <Button type="button" variant="destructive" disabled={stopping} onClick={() => void stopMedia()}>
                 {stopping ? "종료 요청 중…" : session.cleanupPending || endAccepted ? "종료 상태 재확인" : "실시간 아바타 종료"}

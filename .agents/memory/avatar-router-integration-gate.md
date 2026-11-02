@@ -79,3 +79,22 @@ current account, project-key, or ownership validation.
 
 **How to apply:** Share only concurrent identical authentication reads, revalidate
 each caller, and retain uncertain-create fencing when a real session request fails.
+
+Learner live controls must appear only for an actor whose selected saved persona
+has Live configured. A saved selection must not be presented as actual playback.
+
+**Why:** The user requires persona-based activation, not a universal scenario
+option, and reported that successful setup was being confused with loaded video.
+
+**How to apply:** Gate both portrait and menu controls using the selected actor,
+and report actual provider/media state independently of saved configuration.
+
+An unknown paid provider-create outcome requires AvatarRouter's trusted operator
+reconciliation, not an application-key retry or manual clearing of the warning.
+
+**Why:** The provider may have created a billable conversation without returning
+its ID. The external operator boundary exists to prevent duplicate billing and
+unverified claims of completed cleanup.
+
+**How to apply:** Preserve the original binding and fence; use provider-confirmed
+conversation evidence through the operator workflow before permitting new work.

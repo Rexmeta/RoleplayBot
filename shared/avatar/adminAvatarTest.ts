@@ -9,6 +9,7 @@ export type AvatarTestSession = {
   stopRequested: boolean;
   cleanupPending: boolean;
   expiresAt: string;
+  errorCode?: string | null;
 };
 export type AvatarTestLimits = {
   userRemainingSeconds: number;

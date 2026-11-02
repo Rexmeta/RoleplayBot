@@ -80,6 +80,21 @@ bounded by the provider's current limits (at most 120 seconds), not auto-renewed
 
 ## Verification boundary
 
+Only the selected actor's saved Live configuration exposes learner live controls;
+image/video-only actors have no live options in the top menu. A saved selection
+is not a connected renderer. The portrait entry reports connection waiting,
+provider startup, media connection, actual playback, failure, or cleanup.
+Provider startup has a 60-second bound (or earlier session expiry); failure
+requests end without repeating paid creation.
+
+Availability also checks renderer readiness, pending cleanup, and remaining
+session budgets. Provider failures expose only allowlisted diagnostic codes.
+`LIVE_CREATE_RECONCILIATION_REQUIRED` requires a trusted AvatarRouter operator
+to reconcile the original Tavus conversation in Studio's **Live reconciliation**
+flow and confirm cleanup. Do not clear the marker, invent a provider ID, or
+re-create the paid session to work around it. Project API keys cannot authorize
+operator reconciliation.
+
 Mocked lifecycle/media tests and compilation do not establish actual provider
 playback, device routing, latency, or lip-sync quality. No paid session or actual
 image/audio transfer is authorized merely by implementing this feature. Actual

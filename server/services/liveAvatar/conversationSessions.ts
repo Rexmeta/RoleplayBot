@@ -12,7 +12,13 @@ import { ConversationAvatarAudio } from "./conversationAudio";
 const sessionSchema = testSessionSchema.extend({
   avatarId: z.string().min(1).max(160), avatarAssetId: z.string().uuid().nullable().optional(),
   purpose: z.enum(["validation", "conversation"]).optional(),
-});
+  error: z.unknown().optional(),
+}).transform(({ error, ...session }) => ({
+  ...session,
+  // Relay known diagnostic codes only, never arbitrary upstream errors or secrets.
+  errorCode: error === "LIVE_CREATE_RECONCILIATION_REQUIRED" || error === "LIVE_CONNECTION_FAILED"
+    ? error : error ? "AVATAR_PROVIDER_ERROR" : null,
+}));
 const recordSchema = z.object({
   conversationId: z.string(), personaId: z.string(), projectId: z.string(),
   avatarId: z.string(), assetId: z.string().nullable(), sessionId: testSessionSchema.shape.id.nullable(),
@@ -56,7 +62,15 @@ export class ConversationAvatarSessions {
     ]);
     const enabled = global?.value === "true", allowed = policy?.value === "true";
     let blockers: string[] = [];
-    try { await this.d.resolve(userId, conversationId); }
+    try {
+      await this.d.resolve(userId, conversationId);
+      const limits = await this.d.client.call(userId, "/live-limits", testLimitsSchema);
+      if (!limits.workerReady) blockers.push("avatar_renderer_not_ready");
+      if (limits.cleanupPending > 0) blockers.push("avatar_provider_cleanup_required");
+      if (limits.userRemainingSeconds < limits.sessionSeconds || limits.globalRemainingSeconds < limits.sessionSeconds) {
+        blockers.push("avatar_runtime_limits_unavailable");
+      }
+    }
     catch (error) {
       blockers = [error instanceof AvatarIdentityError ? error.code : "avatar_runtime_unavailable"];
     }
