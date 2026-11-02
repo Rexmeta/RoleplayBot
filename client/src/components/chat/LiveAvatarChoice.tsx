@@ -69,6 +69,9 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
   const availabilityQuery = useQuery<Availability>({
     queryKey: ["/api/live-avatar/conversations", conversationId, "availability"],
     enabled: Boolean(conversationId && requested),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     queryFn: async () =>
       (await apiRequest("GET", `${endpoint}/availability`)).json(),
   });

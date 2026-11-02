@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Activity, AlertTriangle, CheckCircle2, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { liveAvatarBlockerText } from "@/lib/liveAvatarBlockers";
 import { LiveAvatarConnectionPanel } from "@/components/admin/LiveAvatarConnectionPanel";
 import { LiveAvatarIdentityPanel } from "@/components/admin/LiveAvatarIdentityPanel";
@@ -40,10 +40,14 @@ const configKey = ["/api/live-avatar/config"];
 
 export function LiveAvatarSettingsPanel() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
   const [showAdvancedIdentity, setShowAdvancedIdentity] = useState(false);
   const configQuery = useQuery<LiveAvatarConfig>({
     queryKey: configKey,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     queryFn: async () => (await apiRequest("GET", "/api/live-avatar/config")).json(),
   });
   const saveConfig = useMutation({
@@ -101,12 +105,14 @@ export function LiveAvatarSettingsPanel() {
           <>
             <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/20 p-4">
               <div className="space-y-1">
-                <p className="font-medium">{t("liveAvatar.settings.globalToggle", { defaultValue: "실시간 아바타 전역 허용" })}</p>
+                <label htmlFor="live-avatar-global-enabled" className="cursor-pointer font-medium">{t("liveAvatar.settings.globalToggle", { defaultValue: "실시간 아바타 전역 허용" })}</label>
                 <p className="text-sm text-muted-foreground">
                   {t("liveAvatar.settings.globalToggleHint", { defaultValue: "꺼져 있어도 시나리오별 정책은 저장할 수 있습니다." })}
                 </p>
               </div>
               <Switch
+                id="live-avatar-global-enabled"
+                type="button"
                 checked={currentEnabled}
                 disabled={saving}
                 aria-label={t("liveAvatar.settings.globalToggle", { defaultValue: "실시간 아바타 전역 허용" })}
@@ -116,6 +122,15 @@ export function LiveAvatarSettingsPanel() {
                 }}
               />
             </div>
+            <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+              {saving
+                ? "라이브 아바타 설정을 저장하는 중입니다…"
+                : saveConfig.isSuccess
+                  ? config.enabled
+                    ? "저장되었습니다. 라이브 아바타 전역 사용이 허용되었습니다."
+                    : "저장되었습니다. 라이브 아바타 전역 사용이 차단되었습니다."
+                  : "이 스위치는 즉시 저장됩니다. 켜기만 해서는 유료 세션이 시작되지 않습니다."}
+            </p>
             {saveConfig.isError && (
               <p role="alert" className="text-sm text-destructive">
                 {t("liveAvatar.errors.configSave", { defaultValue: "설정을 저장하지 못했습니다." })} {errorText(saveConfig.error)}

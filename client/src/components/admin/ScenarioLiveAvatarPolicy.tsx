@@ -23,6 +23,9 @@ export function ScenarioLiveAvatarPolicy({ scenarioId }: Props) {
   });
   const configQuery = useQuery<Config>({
     queryKey: configKey,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     queryFn: async () => (await apiRequest("GET", "/api/live-avatar/config")).json(),
   });
   const [allowed, setAllowed] = useState(false);

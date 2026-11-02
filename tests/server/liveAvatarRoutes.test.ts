@@ -225,6 +225,10 @@ describe("live avatar policy routes", () => {
     expect(enabled.status).toBe(200);
     expect(enabled.body).toMatchObject({ enabled: true, service: "avatar-router", contractReady: true });
     expect((await api("get", "/config")).body.enabled).toBe(true);
+    const disabled = await api("put", "/config", "admin").send({ enabled: false });
+    expect(disabled.status).toBe(200);
+    expect(disabled.body.enabled).toBe(false);
+    expect((await api("get", "/config")).body.enabled).toBe(false);
     expect(externalRequest).not.toHaveBeenCalled();
   });
 

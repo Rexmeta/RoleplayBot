@@ -2,7 +2,7 @@
 import React from "react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // This suite covers existing settings/choice contracts. Paid diagnostics have their own tests.
 vi.mock("../../client/src/components/admin/LiveAvatarTestPanel", () => ({ LiveAvatarTestPanel: () => null }));
@@ -199,6 +199,49 @@ describe("optional live avatar UI", () => {
     await screen.findByText(/먼저/);
     expect(calls.some(call => call.url.endsWith("/policy"))).toBe(false);
     expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  it("saves ON and OFF in the mounted query client and preserves the saved state on reopening", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const original = api.getMockImplementation()!;
+    let enabled = false;
+    api.mockImplementation(async (method, url, body) => {
+      if (url === "/api/live-avatar/config") {
+        calls.push({ method, url, body });
+        if (method === "PUT") enabled = (body as { enabled: boolean }).enabled;
+        return response({ ...config, enabled });
+      }
+      return original(method, url, body);
+    });
+    const panel = () => <QueryClientProvider client={client}><LiveAvatarSettingsPanel /></QueryClientProvider>;
+    const first = render(panel());
+    fireEvent.click(await screen.findByRole("switch", { name: "실시간 아바타 전역 허용" }));
+    await screen.findByText("저장되었습니다. 라이브 아바타 전역 사용이 허용되었습니다.");
+    expect(client.getQueryData(["/api/live-avatar/config"])).toMatchObject({ enabled: true });
+    first.unmount();
+    render(panel());
+    const toggle = await screen.findByRole("switch", { name: "실시간 아바타 전역 허용" });
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle);
+    await screen.findByText("저장되었습니다. 라이브 아바타 전역 사용이 차단되었습니다.");
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(calls.filter(call => call.method === "PUT").map(call => call.body)).toEqual([
+      { enabled: true }, { enabled: false },
+    ]);
+    expect(calls.some(call => call.method === "POST")).toBe(false);
+    client.clear();
+  });
+
+  it("refreshes cached OFF state when reopening administrator settings", async () => {
+    queryClient.setQueryData(["/api/live-avatar/config"], config);
+    const original = api.getMockImplementation()!;
+    api.mockImplementation(async (method, url, body) => url === "/api/live-avatar/config"
+      ? response({ ...config, enabled: true })
+      : original(method, url, body));
+    view(<LiveAvatarSettingsPanel />);
+    const toggle = await screen.findByRole("switch", { name: "실시간 아바타 전역 허용" });
+    await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("true"));
+    expect(screen.getByText("전역 사용")).toBeTruthy();
   });
 
   it("stores scenario permission while global OFF, without changing video-avatar content", async () => {

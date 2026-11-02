@@ -1830,6 +1830,7 @@ export default function SystemAdminPage() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6 mt-6">
+            <LiveAvatarSettingsPanel />
             <Card>
               <CardHeader>
                 <CardTitle>{t('systemAdmin.settings.aiModelStatus')}</CardTitle>
@@ -2001,8 +2002,6 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
-
-            <LiveAvatarSettingsPanel />
 
             <Card>
               <CardHeader>
