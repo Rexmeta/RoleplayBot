@@ -70,8 +70,16 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [testEntryOpen, setTestEntryOpen] = useState(false);
+  const [selectedKind, setSelectedKind] = useState<'stock' | 'custom'>(liveAvatar ? (liveAvatar.kind === 'stock' ? 'stock' : 'custom') : 'stock');
+  const [creationBusy, setCreationBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [creationOpen, setCreationOpen] = useState(false);
   const mountedRef = useRef(false);
   const requestRef = useRef(0);
+
+  useEffect(() => {
+    if (liveAvatar) setSelectedKind(liveAvatar.kind === 'stock' ? 'stock' : 'custom');
+  }, [liveAvatar]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -117,6 +125,8 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   );
 
   const chooseAsset = (assetId: string) => {
+    if (testBusy) return;
+    setTestEntryOpen(false);
     if (!assetId) {
       onLiveAvatarChange(null);
       return;
@@ -135,6 +145,8 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   };
 
   const chooseStock = (avatarId: string) => {
+    if (testBusy) return;
+    setTestEntryOpen(false);
     if (!avatarId) return onLiveAvatarChange(null);
     const avatar = stockAvatars?.find(candidate => candidate.id === avatarId && isSelectableStockAvatar(candidate));
     if (!avatar) return;
@@ -143,6 +155,18 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
       voiceMode: 'roleplayx', validationStatus: 'unverified', activation: 'draft',
       ...(projectId ? { projectId } : {}),
     });
+  };
+
+  const chooseKind = (kind: 'stock' | 'custom') => {
+    if (testBusy || creationBusy) return;
+    setSelectedKind(kind);
+    setTestEntryOpen(false);
+    if (liveAvatar && (kind === 'stock') !== (liveAvatar.kind === 'stock')) onLiveAvatarChange(null);
+  };
+  const changeMode = (nextMode: PersonaAvatarMode) => {
+    if ((testBusy || creationBusy) && nextMode !== 'live') return;
+    if (nextMode !== 'live') setTestEntryOpen(false);
+    onModeChange(nextMode);
   };
 
   return (
@@ -163,8 +187,8 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             type="button"
             role="radio"
             aria-checked={mode === value}
-            disabled={!videoManagementAllowed && (value === 'video' || (value === 'image' && activeVideoEnabled))}
-            onClick={() => onModeChange(value)}
+            disabled={!videoManagementAllowed && (value === 'video' || (value === 'image' && activeVideoEnabled)) || ((testBusy || creationBusy) && value !== 'live')}
+            onClick={() => changeMode(value)}
             className={`min-h-11 rounded-md border px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               mode === value
                 ? 'border-indigo-600 bg-indigo-50 text-indigo-800 ring-1 ring-indigo-600'
@@ -179,6 +203,37 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
 
       {mode === 'live' && (
         <div className="mt-4 space-y-4">
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold text-slate-700">아바타 종류</legend>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="아바타 종류">
+              {([
+                ['stock', '기본 아바타'],
+                ['custom', '커스텀 아바타'],
+              ] as const).map(([kind, label]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedKind === kind}
+                  disabled={testBusy || creationBusy}
+                  onClick={() => chooseKind(kind)}
+                  className={`min-h-11 rounded-md border px-4 py-2 text-left text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
+                    selectedKind === kind
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-800 ring-1 ring-indigo-600'
+                      : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {(testBusy || creationBusy) && (
+              <p className="text-xs text-amber-800" role="status">
+                {testBusy ? '테스트 세션 또는 정리 작업이 진행 중이거나 확인이 필요해 종류와 대상을 잠시 제한합니다.' : '커스텀 생성 작업이 진행 중이거나 결과 확인이 필요해 종류 변경을 잠시 제한합니다.'}
+              </p>
+            )}
+          </fieldset>
+
           <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
             <p className="font-bold">저장된 설정은 아바타 참조 정보입니다.</p>
             <p className="mt-1 leading-relaxed">
@@ -209,53 +264,42 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             </div>
           )}
 
-          {liveAvatar && (
+          {liveAvatar && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                   <p className="font-semibold text-slate-800">저장된 아바타 참조</p>
+                    <p className="font-semibold text-slate-800">연결된 아바타</p>
                   <p className="mt-1 break-all text-slate-600">
                     {liveAvatar.kind === 'stock' ? `기본 아바타 ID: ${liveAvatar.avatarId}` : `자산 ID: ${liveAvatar.assetId}`} · 제공자: {liveAvatar.providerId}
                   </p>
-                  <p className="mt-1 text-slate-600">
-                     Live 검증: {liveAvatar.validationStatus === 'live_verified' ? '검증됨' : '미검증'} · legacy 활성화 표식: draft
-                  </p>
+                  <p className="mt-1 text-slate-600">Live 검증: {liveAvatar.validationStatus === 'live_verified' ? '검증됨' : '미검증'}</p>
                 </div>
-                <Button type="button" variant="link" className="h-auto p-0" onClick={() => onLiveAvatarChange(null)}>
+                 <Button type="button" variant="link" className="h-auto p-0" disabled={testBusy} onClick={() => { setTestEntryOpen(false); onLiveAvatarChange(null); }}>
                    아바타 연결 해제
                 </Button>
               </div>
-              {selectedMissing && (
-                <p className="mt-2 text-amber-800">
-                  새로 조회한 목록에서 저장된 자산을 찾지 못했습니다. 삭제·실패·목록 접근 불가일 수 있습니다. 다른 자산으로 자동 변경하지 않았습니다.
-                </p>
-              )}
-              {selectedStock && (
-                <p className="mt-2 text-slate-600">
-                  기본 아바타: {selectedStock.name} · {isSelectableStockAvatar(selectedStock) ? '선택 가능' : '현재 선택 불가'}
-                </p>
-              )}
-              {selectedAsset && (
-                <>
-                  <p className="mt-2 text-slate-600">
-                    현재 자산 상태: {provisioningLabels[selectedAsset.status]} · Live 검증: {isLiveValidatedPersonaAvatar(selectedAsset) ? '검증됨' : '미검증'}
-                  </p>
-                  {!selectableAssets.some(asset => asset.id === selectedAsset.id) && (
-                    <p className="mt-1 text-amber-800">
-                       이 자산은 현재 선택 조건을 충족하지 않습니다. 연결은 유지했으며 다른 자산으로 자동 변경하지 않았습니다.
-                    </p>
-                  )}
-                </>
-              )}
             </div>
           )}
 
-          {stockAvatars !== null && !loading && !error && (
+          {selectedKind === 'stock' && liveAvatar?.kind === 'stock' && selectedStock && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-semibold text-slate-800">선택한 기본 아바타</p>
+              <p className="mt-1 text-slate-600">{selectedStock.name} · {isSelectableStockAvatar(selectedStock) ? '선택 가능' : '현재 선택 불가'}</p>
+            </div>
+          )}
+          {selectedKind === 'stock' && liveAvatar?.kind === 'stock' && selectedMissing && (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              새로 조회한 목록에서 저장된 기본 아바타를 찾지 못했습니다. 다른 아바타로 자동 변경하지 않았습니다.
+            </p>
+          )}
+
+          {selectedKind === 'stock' && stockAvatars !== null && !loading && !error && (
             <div className="space-y-2">
               <label htmlFor="live-avatar-stock" className="text-sm font-semibold text-slate-700">기본 아바타</label>
               <select
                 id="live-avatar-stock"
                 value={selectedStock ? stockAvatarId ?? '' : ''}
+                disabled={testBusy}
                 onChange={event => chooseStock(event.target.value)}
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800"
               >
@@ -271,7 +315,24 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             </div>
           )}
 
-          {assets !== null && !loading && !error && (
+          {selectedKind === 'custom' && liveAvatar?.kind !== 'stock' && selectedAsset && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-semibold text-slate-800">선택한 커스텀 아바타</p>
+              <p className="mt-1 text-slate-600">
+                현재 자산 상태: {provisioningLabels[selectedAsset.status]} · Live 검증: {isLiveValidatedPersonaAvatar(selectedAsset) ? '검증됨' : '미검증'}
+              </p>
+              {!selectableAssets.some(asset => asset.id === selectedAsset.id) && (
+                <p className="mt-1 text-amber-800">이 자산은 현재 선택 조건을 충족하지 않습니다. 연결은 유지했으며 다른 자산으로 자동 변경하지 않았습니다.</p>
+              )}
+            </div>
+          )}
+          {selectedKind === 'custom' && liveAvatar?.kind !== 'stock' && selectedMissing && (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              새로 조회한 목록에서 저장된 자산을 찾지 못했습니다. 삭제·실패·목록 접근 불가일 수 있습니다. 다른 자산으로 자동 변경하지 않았습니다.
+            </p>
+          )}
+
+          {selectedKind === 'custom' && assets !== null && !loading && !error && (
             assets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
                 조회 가능한 프로젝트 소유 커스텀 자산이 없습니다. Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
@@ -284,6 +345,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 <select
                   id="live-avatar-asset"
                   value={selectedAsset ? customAssetId ?? '' : ''}
+                  disabled={testBusy}
                   onChange={event => chooseAsset(event.target.value)}
                   className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
@@ -306,18 +368,26 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             )
           )}
 
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-            <p className="font-semibold text-slate-700">저장 설정과 실제 대화 실행은 별도입니다</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">커스텀 생성은 관리자 요청 시에만 실행됩니다.</span>
-            </div>
-            <p className="mt-2 text-xs text-slate-600">activation: 'draft'는 기존 저장 데이터와의 호환을 위한 legacy 참조 표식입니다. 실제 실행 여부는 대화 시점의 권한·준비 상태·동의로 결정됩니다.</p>
-          </div>
-
-          <PersonaAvatarCreationPanel onSubmitted={() => void loadAssets()} />
-          {liveAvatar && <div className="space-y-2">
+          {selectedKind === 'custom' && (
+            <section className="rounded-md border border-slate-200 bg-white p-3" aria-labelledby="persona-create-disclosure">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 id="persona-create-disclosure" className="text-sm font-semibold text-slate-800">새 커스텀 아바타가 필요한가요?</h4>
+                  <p className="mt-1 text-xs text-slate-600">생성 양식은 직접 열고, 확인 항목을 모두 완료한 경우에만 제출됩니다.</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" disabled={creationBusy} aria-expanded={creationOpen}
+                  onClick={() => setCreationOpen(open => !open)}>
+                  {creationOpen ? '생성 양식 닫기' : '생성 양식 열기'}
+                </Button>
+              </div>
+              <div className={creationOpen ? 'mt-3' : ''} hidden={!creationOpen} aria-hidden={!creationOpen}>
+                <PersonaAvatarCreationPanel onSubmitted={() => void loadAssets()} onActivityChange={setCreationBusy} />
+              </div>
+            </section>
+          )}
+          {liveAvatar && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && <div className="space-y-2">
             {hasSelectedTest ? (
-              <Button type="button" variant="outline" onClick={() => setTestEntryOpen(open => !open)}>
+              <Button type="button" variant="outline" disabled={testBusy} onClick={() => setTestEntryOpen(open => !open)}>
                 {testEntryOpen ? '선택 아바타 테스트 닫기' : '선택 아바타 테스트'}
               </Button>
             ) : (
@@ -328,9 +398,9 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               </p>
             )}
             {testEntryOpen && liveAvatar.kind !== 'stock' && selectedTavusCustom && (
-              <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={selectedAsset?.name ?? '저장된 Tavus 자산'} onReported={() => void loadAssets()} />
+                <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={selectedAsset?.name ?? '저장된 Tavus 자산'} onReported={() => void loadAssets()} onActivityChange={setTestBusy} />
             )}
-            {testEntryOpen && selectedLucy && <LiveAvatarTestPanel />}
+            {testEntryOpen && selectedLucy && <LiveAvatarTestPanel onActivityChange={setTestBusy} />}
           </div>}
         </div>
       )}

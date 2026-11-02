@@ -1,13 +1,17 @@
 // @vitest-environment happy-dom
 import React, { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { PersonaAvatarSettings } from "../../client/src/components/admin/PersonaAvatarSettings";
 import type { PersonaLiveAvatar, PersonaAvatarMode } from "../../shared/avatar/personaAvatar";
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
 vi.mock("../../client/src/components/admin/PersonaAvatarValidationPanel", () => ({
-  PersonaAvatarValidationPanel: ({ assetId }: { assetId: string }) => <div data-testid="custom-avatar-test">Custom test: {assetId}</div>,
+  PersonaAvatarValidationPanel: ({ assetId, onActivityChange }: { assetId: string; onActivityChange?: (active: boolean) => void }) => <div data-testid="custom-avatar-test">
+    Custom test: {assetId}
+    <button onClick={() => onActivityChange?.(true)}>Mock session start</button>
+    <button onClick={() => onActivityChange?.(false)}>Mock session end</button>
+  </div>,
 }));
 vi.mock("../../client/src/components/admin/LiveAvatarTestPanel", () => ({
   LiveAvatarTestPanel: () => <div data-testid="stock-avatar-test">Lucy test panel</div>,
@@ -37,9 +41,10 @@ afterEach(cleanup);
 describe("persona avatar settings", () => {
   it("offers three modes and never automatically calls remote endpoints", () => {
     render(<Harness />);
-    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(within(screen.getByRole("radiogroup", { name: "아바타 표시 방식" })).getAllByRole("radio")).toHaveLength(3);
     expect(screen.getByText("저장된 설정은 아바타 참조 정보입니다.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /커스텀 아바타 생성/ }).hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByRole("button", { name: /커스텀 아바타 생성/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /^기본 아바타/ }).getAttribute("aria-checked")).toBe("true");
     expect(api).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("radio", { name: "이미지" }));
     expect(screen.getByRole("radio", { name: "이미지" }).getAttribute("aria-checked")).toBe("true");
@@ -48,6 +53,7 @@ describe("persona avatar settings", () => {
 
   it("loads only on explicit action and saves a project-bound unverified draft", async () => {
     render(<Harness />);
+    fireEvent.click(screen.getByRole("radio", { name: /^커스텀 아바타/ }));
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
     await screen.findByLabelText("연결할 커스텀 자산");
     expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
@@ -72,6 +78,7 @@ describe("persona avatar settings", () => {
   it("shows explicit scope, empty and malformed response errors instead of fake success", async () => {
     api.mockRejectedValue(new Error("403: avatar_assets_read_scope_missing"));
     render(<Harness />);
+    fireEvent.click(screen.getByRole("radio", { name: /^커스텀 아바타/ }));
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
     expect((await screen.findByRole("alert")).textContent).toContain("assets:read");
     api.mockResolvedValue({ json: async () => response([]) });
@@ -112,6 +119,10 @@ describe("persona avatar settings", () => {
     ] }) });
     render(<Harness initial={saved} />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+    await screen.findByLabelText("연결할 커스텀 자산");
+    expect(screen.queryByLabelText("기본 아바타")).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /^기본 아바타/ }));
+    expect(screen.getByTestId("draft").textContent).toBe("null");
     await screen.findByLabelText("기본 아바타");
     expect(screen.getByRole("option", { name: /Orbit.*선택 불가/ }).hasAttribute("disabled")).toBe(true);
     // An existing custom draft mounts its read-only preflight before we switch.
@@ -122,9 +133,12 @@ describe("persona avatar settings", () => {
       validationStatus: "unverified", activation: "draft", projectId: "project-one",
     });
     expect(screen.getByText(/기본 아바타 ID: tavus-stock-lucy/)).toBeTruthy();
-    expect((screen.getByLabelText("연결할 커스텀 자산") as HTMLSelectElement).value).toBe("");
+    expect(screen.queryByLabelText("연결할 커스텀 자산")).toBeNull();
     expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
     expect(api).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: /^커스텀 아바타/ }));
+    expect(screen.getByTestId("draft").textContent).toBe("null");
+    expect(screen.queryByLabelText("기본 아바타")).toBeNull();
     fireEvent.change(screen.getByLabelText("연결할 커스텀 자산"), { target: { value: id } });
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
   });
@@ -136,7 +150,7 @@ describe("persona avatar settings", () => {
     };
     render(<Harness initial={stockDraft} />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
-    await screen.findByText(/새로 조회한 목록에서 저장된 자산을 찾지 못했습니다/);
+    await screen.findByText(/새로 조회한 목록에서 저장된 기본 아바타를 찾지 못했습니다/);
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(stockDraft);
     expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "아바타 연결 해제" }));
@@ -149,6 +163,41 @@ describe("persona avatar settings", () => {
     expect(screen.queryByTestId("custom-avatar-test")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
     expect(screen.getByTestId("custom-avatar-test").textContent).toContain(id);
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("shows only the chosen kind and opens custom creation explicitly without starting requests", () => {
+    render(<Harness />);
+    expect(screen.queryByRole("button", { name: "생성 양식 열기" })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "커스텀 아바타" }));
+    expect(screen.getByRole("radio", { name: "커스텀 아바타" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.queryByRole("button", { name: /커스텀 아바타 생성/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "생성 양식 열기" }));
+    expect(screen.getByRole("button", { name: /커스텀 아바타 생성/ }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "생성 양식 닫기" }));
+    expect(screen.queryByRole("button", { name: /커스텀 아바타 생성/ })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "기본 아바타" }));
+    expect(screen.queryByRole("button", { name: "생성 양식 열기" })).toBeNull();
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("keeps active test controls visible until cleanup, then resets the test when switching kind", () => {
+    render(<Harness initial={saved} />);
+    fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mock session start" }));
+    expect(screen.getByRole("radio", { name: "기본 아바타" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("radio", { name: "이미지" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "선택 아바타 테스트 닫기" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("radio", { name: "기본 아바타" }));
+    expect(screen.getByTestId("custom-avatar-test")).toBeTruthy();
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(saved);
+    fireEvent.click(screen.getByRole("button", { name: "Mock session end" }));
+    fireEvent.click(screen.getByRole("radio", { name: "기본 아바타" }));
+    expect(screen.queryByTestId("custom-avatar-test")).toBeNull();
+    expect(screen.getByTestId("draft").textContent).toBe("null");
+    fireEvent.click(screen.getByRole("radio", { name: "커스텀 아바타" }));
+    expect(screen.queryByTestId("custom-avatar-test")).toBeNull();
+    expect(screen.queryByRole("button", { name: "선택 아바타 테스트" })).toBeNull();
     expect(api).not.toHaveBeenCalled();
   });
 

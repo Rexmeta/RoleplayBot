@@ -1,11 +1,18 @@
+import { useEffect, useRef } from "react";
 import { AlertTriangle, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AvatarTestHeader, AvatarTestPreflightView } from "@/components/admin/avatarTest/AvatarTestPreflightView";
 import { AvatarTestSessionView } from "@/components/admin/avatarTest/AvatarTestSessionView";
 import { useAdminAvatarTest } from "@/components/admin/avatarTest/useAdminAvatarTest";
 
-export function LiveAvatarTestPanel() {
+export function LiveAvatarTestPanel({ onActivityChange }: { onActivityChange?: (active: boolean) => void } = {}) {
   const test = useAdminAvatarTest();
+  const onActivityChangeRef = useRef(onActivityChange);
+  onActivityChangeRef.current = onActivityChange;
+  useEffect(() => {
+    onActivityChangeRef.current?.(test.loading || test.creating || test.creationUncertain || test.stopping ||
+      Boolean(test.stopWarning) || Boolean(test.session && !test.terminal));
+  }, [test.loading, test.creating, test.creationUncertain, test.stopping, test.stopWarning, test.session, test.terminal]);
   return <section className="space-y-4 border-t pt-5" aria-labelledby="avatar-test-title">
     <header>
       <h3 id="avatar-test-title" className="flex items-center gap-2 font-semibold">

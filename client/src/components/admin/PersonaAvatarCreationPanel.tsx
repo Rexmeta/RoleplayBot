@@ -43,7 +43,7 @@ const stageLabels: Record<PersonaAvatarCreationState["stage"], string> = {
   provisioning: "제공자 작업 중", submitted: "제출 완료",
 };
 
-export function PersonaAvatarCreationPanel({ onSubmitted }: { onSubmitted: () => void }) {
+export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { onSubmitted: () => void; onActivityChange?: (active: boolean) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const [likeness, setLikeness] = useState<"synthetic" | "real_person">("synthetic");
@@ -59,6 +59,8 @@ export function PersonaAvatarCreationPanel({ onSubmitted }: { onSubmitted: () =>
   const [notice, setNotice] = useState("");
   const mounted = useRef(false);
   const fileSequence = useRef(0);
+  const onActivityChangeRef = useRef(onActivityChange);
+  onActivityChangeRef.current = onActivityChange;
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; fileSequence.current++; };
@@ -107,6 +109,9 @@ export function PersonaAvatarCreationPanel({ onSubmitted }: { onSubmitted: () =>
   const canSubmit = Boolean(name.trim() && imageBase64 && rightsConfirmed && transferConfirmed && costConfirmed &&
     (likeness !== "real_person" || consentReference.trim()) && !busy && !blocked && !pendingReview &&
     (!state || state.stage === "idle" || resumeReady));
+  useEffect(() => {
+    onActivityChangeRef.current?.(busy || Boolean(state?.uncertain) || state?.stage === "ingesting" || state?.stage === "provisioning");
+  }, [busy, state]);
 
   const submit = async () => {
     if (!canSubmit) return;

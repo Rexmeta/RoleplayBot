@@ -10,7 +10,7 @@ import { avatarTestReady } from "@shared/avatar/adminAvatarTest";
 const validationEndpoint = (assetId: string) =>
   `/api/admin/personas/live-avatar/assets/${encodeURIComponent(assetId)}/validation`;
 
-export function PersonaAvatarValidationPanel({ assetId, assetName, onReported }: { assetId: string; assetName: string; onReported: () => void }) {
+export function PersonaAvatarValidationPanel({ assetId, assetName, onReported, onActivityChange }: { assetId: string; assetName: string; onReported: () => void; onActivityChange?: (active: boolean) => void }) {
   const test = useAdminAvatarTest(validationEndpoint(assetId));
   const mountedRef = useRef(false);
   const [videoObserved, setVideoObserved] = useState(false);
@@ -26,11 +26,18 @@ export function PersonaAvatarValidationPanel({ assetId, assetName, onReported }:
     !test.pollFailed && Date.parse(session.expiresAt) > Date.now());
   const playbackReady = Boolean(test.mediaConnected && test.audioPlaybackReady && test.videoTrack && sessionRunning);
   const successfulTurn = turnObserved;
+  const onActivityChangeRef = useRef(onActivityChange);
+  onActivityChangeRef.current = onActivityChange;
 
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  useEffect(() => {
+    onActivityChangeRef.current?.(test.loading || test.creating || test.creationUncertain || test.stopping ||
+      Boolean(test.stopWarning) || Boolean(session && !test.terminal));
+  }, [test.loading, test.creating, test.creationUncertain, test.stopping, test.stopWarning, session, test.terminal]);
 
   useEffect(() => {
     generationRef.current += 1;
