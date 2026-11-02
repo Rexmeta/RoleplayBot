@@ -38,7 +38,9 @@ recovery action with an established diagnosis.
 
 **How to apply:** Separate the proven failure stage from its still-unconfirmed
 cause; operator cleanup may unblock another attempt but does not prove it fixes
-the original scenario path.
+the original scenario path. Preserve sanitized initial-failure evidence separately
+from cleanup failures; a generic cleanup-task error cannot identify the original
+provider, transport, database, or lease failure.
 
 Saved persona live configuration is a reference, not permission to auto-create a paid session. Scenario runtime must remain opt-in and preserve existing image/video and dialogue behavior until the learner explicitly selects live playback.
 
