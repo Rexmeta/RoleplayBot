@@ -13,7 +13,7 @@ export class AvatarProjectClient {
     }),
   ) {}
 
-  async call<T>(userId: string, path: string, schema: z.ZodType<T, z.ZodTypeDef, any>, body?: object, signal?: AbortSignal): Promise<T> {
+  async call<T>(userId: string, path: string, schema: z.ZodType<T>, body?: object, signal?: AbortSignal): Promise<T> {
     const input = this.input();
     const base = normalizeAvatarRouterBaseUrl(input.baseUrl);
     const key = input.apiKey;

@@ -362,7 +362,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       const result = simulationHarnessSchema.safeParse(raw);
       if (!result.success) {
         const fieldErrors: Record<string, string> = {};
-        result.error.errors.forEach(e => { const path = e.path.join('.'); fieldErrors[path] = e.message; });
+        result.error.issues.forEach(e => { const path = e.path.join('.'); fieldErrors[path] = e.message; });
         return { valid: false, fieldErrors };
       }
       const h = result.data;
@@ -1150,7 +1150,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     if (parsedFlowGraph) {
       const result = flowGraphSchema.safeParse(parsedFlowGraph);
       if (!result.success) {
-        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        const msg = result.error.issues[0]?.message ?? '스키마 검증 실패';
         toast({ title: 'flowGraph 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
@@ -1160,7 +1160,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     if (parsedPSR) {
       const result = personaSwitchRulesSchema.safeParse(parsedPSR);
       if (!result.success) {
-        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        const msg = result.error.issues[0]?.message ?? '스키마 검증 실패';
         toast({ title: 'personaSwitchRules 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
@@ -1171,7 +1171,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     if (evaluationHarnessValue) {
       const result = evaluationHarnessSchema.safeParse(evaluationHarnessValue);
       if (!result.success) {
-        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        const msg = result.error.issues[0]?.message ?? '스키마 검증 실패';
         toast({ title: 'evaluationHarness 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
@@ -1182,7 +1182,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     if (parsedTR) {
       const result = terminationRulesSchema.safeParse(parsedTR);
       if (!result.success) {
-        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        const msg = result.error.issues[0]?.message ?? '스키마 검증 실패';
         toast({ title: 'terminationRules 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
@@ -1202,7 +1202,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
           }
           const result = simulationHarnessSchema.safeParse(raw);
           if (!result.success) {
-            const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+            const msg = result.error.issues[0]?.message ?? '스키마 검증 실패';
             setHarnessRawJsonError(`시뮬레이션 정책 구조 오류: ${msg}`);
             toast({ title: '시뮬레이션 정책 구조 오류', description: msg, variant: 'destructive' });
             return null;
@@ -1222,7 +1222,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
         if (Object.keys(preferredSignals).length > 0) built.preferredSignals = preferredSignals;
         const result = simulationHarnessSchema.safeParse(built);
         if (!result.success) {
-          const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+          const msg = result.error.issues[0]?.message ?? '스키마 검증 실패';
           toast({ title: '시뮬레이션 정책 구조 오류', description: msg, variant: 'destructive' });
           return null;
         }
@@ -1234,7 +1234,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     if (playerConstraintsValue) {
       const result = playerConstraintsSchema.safeParse(playerConstraintsValue);
       if (!result.success) {
-        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        const msg = result.error.issues[0]?.message ?? '스키마 검증 실패';
         toast({ title: 'playerConstraints 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }
@@ -1245,7 +1245,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     if (difficultyProfileValue) {
       const result = difficultyProfileSchema.safeParse(difficultyProfileValue);
       if (!result.success) {
-        const msg = result.error.errors[0]?.message ?? '스키마 검증 실패';
+        const msg = result.error.issues[0]?.message ?? '스키마 검증 실패';
         toast({ title: 'difficultyProfile 구조 오류', description: msg, variant: 'destructive' });
         return null;
       }

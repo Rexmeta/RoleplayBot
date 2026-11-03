@@ -510,7 +510,7 @@ export const scenarioOverrideDataSchema: z.ZodType<ScenarioOverrideData> = z.obj
   terminology: z.record(z.string(), z.string()).optional(),
   policyConstraints: z.array(z.string()).optional(),
   forbiddenPhrases: z.array(z.string()).optional(),
-  evaluationWeights: z.record(z.enum(['clarity', 'empathy', 'logic', 'ownership', 'actionPlan']), z.number().min(0).max(10)).optional(),
+  evaluationWeights: z.partialRecord(z.enum(['clarity', 'empathy', 'logic', 'ownership', 'actionPlan']), z.number().min(0).max(10)).optional(),
   customIncidents: z.array(z.string()).optional(),
 });
 

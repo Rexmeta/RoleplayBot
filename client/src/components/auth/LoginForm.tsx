@@ -43,7 +43,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     formState: { errors },
     setValue,
     watch,
-  } = useForm<LoginFormData>({
+  } = useForm<z.input<typeof loginSchema>, unknown, LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",

@@ -507,7 +507,7 @@ const createSessionSchema = z.object({
   externalSessionId: z.string().optional(),
   difficulty: z.number().int().min(1).max(5).default(4),
   language: z.enum(SUPPORTED_LANGUAGES).default("ko"),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 router.post("/sessions", requireScope("sessions:create"), async (req: any, res) => {

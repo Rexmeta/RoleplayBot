@@ -45,7 +45,7 @@ export class AdminAvatarTestService {
     },
   ) {}
 
-  private get sessionSchema(): z.ZodType<AvatarTestSession, z.ZodTypeDef, any> {
+  private get sessionSchema(): z.ZodType<AvatarTestSession> {
     return this.custom ? anyTavusSessionSchema.extend({
       avatarAssetId: z.literal(this.custom.assetId), purpose: z.literal("validation"),
     }) : testSessionSchema;

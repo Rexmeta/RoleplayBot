@@ -259,7 +259,7 @@ export const contentXScenarioV1Schema = z.object({
 
 export const assessmentScenarioPackageV1Schema = z.object({
   schemaVersion: z.literal("1.0", {
-    errorMap: () => ({ message: "Unsupported schemaVersion; expected 1.0" }),
+    error: "Unsupported schemaVersion; expected 1.0",
   }),
   packageKey: keySchema,
   version: z.string().min(1).max(40).regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/, "Must be a semantic version"),

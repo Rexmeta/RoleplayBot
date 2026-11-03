@@ -8,7 +8,7 @@ const utteranceId = { utteranceId: identity };
 const metadata = z.object({
   emotion: z.string().max(100).optional(),
   emotionReason: z.string().max(1000).optional(),
-  userAffect: z.record(z.unknown()).refine(value => JSON.stringify(value).length <= 12000).optional(),
+  userAffect: z.record(z.string(), z.unknown()).refine(value => JSON.stringify(value).length <= 12000).optional(),
 }).strict();
 const reason = z.enum([
   "connection_lost", "capture_gap", "overlapping_capture", "capture_timeout",

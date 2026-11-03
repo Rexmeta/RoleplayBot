@@ -19,7 +19,7 @@ export function createPersonaAvatarOperationsRouter(
       else res.status(502).json({ code: "persona_avatar_operation_failed", error: "persona_avatar_operation_failed" });
     }
   };
-  const valid = <T>(schema: z.ZodType<T, z.ZodTypeDef, any>, req: any, res: any): T | undefined => {
+  const valid = <T>(schema: z.ZodType<T>, req: any, res: any): T | undefined => {
     const result = schema.safeParse(req.body ?? {});
     if (result.success) return result.data;
     res.status(400).json({ code: "persona_avatar_invalid_input" });

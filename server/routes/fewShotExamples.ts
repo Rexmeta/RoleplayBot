@@ -97,7 +97,7 @@ async function processBulkRows(
   for (let i = 0; i < rows.length; i++) {
     const result = bulkRowSchema.safeParse(rows[i]);
     if (!result.success) {
-      errors.push({ row: i + 1, message: result.error.errors.map((e) => e.message).join("; ") });
+      errors.push({ row: i + 1, message: result.error.issues.map((e) => e.message).join("; ") });
       continue;
     }
     const { context, transcript, score, rationale } = result.data;
