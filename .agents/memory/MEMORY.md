@@ -28,3 +28,4 @@
 - [테스트 워커·실행 환경](test-worker-resource-limits.md) — 미디어 timeout은 제한된 동시성으로 비교; Vitest 버전 변경 시 DOM 환경 적용을 확인한다.
 - [운영 변경 승인 경계](production-change-boundary.md) — 운영 환경 변경과 배포는 사용자의 명시적 승인이 있어야 한다.
 - [AvatarRouter integration gate](avatar-router-integration-gate.md) — 선택형 persona 테스트·시나리오 실행의 동의·스냅샷·프로젝트 소유권 경계; 구현 승인은 유료 검증·배포 승인이 아니다.
+- [Vite Zod optimizer cache](vite-zod-optimizer-cache.md) — Zod 메이저 업그레이드 뒤 브라우저가 구버전 최적화 번들을 계속 제공할 수 있어 런타임 API 불일치 확인이 필요하다.
