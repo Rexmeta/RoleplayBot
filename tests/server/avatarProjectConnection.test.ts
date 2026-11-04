@@ -108,7 +108,10 @@ describe("server project API-key connection", () => {
   });
 
   it("requires only Base URL and API key, without JWT trust enrollment or implicit requests", () => {
-    expect(service.status()).toEqual({ authMode: "api-key", state: "configured", baseUrl });
+    expect(service.status()).toEqual({
+      authMode: "api-key", state: "configured", baseUrl,
+      keyFingerprint: expect.stringMatching(/^[0-9a-f]{12}$/),
+    });
     expect(JSON.stringify(service.status())).not.toContain(key);
     expect(fetcher).not.toHaveBeenCalled();
     expect(store.getUser).not.toHaveBeenCalled();

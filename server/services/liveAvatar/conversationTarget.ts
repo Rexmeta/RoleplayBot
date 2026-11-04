@@ -80,6 +80,7 @@ export async function inspectConversationAvatarSelection(userId: string, convers
 /** Resolve only the run's selected actor. Published snapshots never borrow mutable persona settings. */
 export async function resolveConversationAvatar(userId: string, conversationId: string, deps = conversationTargetDeps) {
   const { personaRun, scenarioRun } = await ownedAvatarConversation(userId, conversationId, deps);
+  if (personaRun.mode === "tavus_full") throw new AvatarIdentityError("tavus_full_pipeline_active", 409);
   if (personaRun.status === "completed" || scenarioRun.status === "completed") {
     throw new AvatarIdentityError("avatar_conversation_ended", 409);
   }

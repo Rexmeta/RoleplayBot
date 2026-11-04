@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
+    // FFmpeg/media tests otherwise contend for this workspace's limited CPU.
+    maxWorkers: 2,
     environment: 'node',
     exclude: [
       '**/node_modules/**',

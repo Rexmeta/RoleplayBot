@@ -656,6 +656,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
     const personaRunId = req.params.id;
 
     let { personaRun, scenarioRun } = await verifyPersonaRunOwnership(personaRunId, userId);
+    if (personaRun.mode === "tavus_full") throw createHttpError(409, "tavus_full_pipeline_active");
     const ledgerEnabled = usesLedger(personaRun);
     if (ledgerEnabled) {
       const [bound] = await db.select().from(conversationLedgerRuns)
@@ -1672,6 +1673,7 @@ ${userNameLine}
     const personaRunId = req.params.id;
 
     const { personaRun } = await verifyPersonaRunOwnership(personaRunId, userId);
+    if (personaRun.mode === "tavus_full") throw createHttpError(409, "tavus_full_pipeline_active");
     if (usesLedger(personaRun)) throw createHttpError(409, "ledger_full_snapshot_write_forbidden");
 
     const { messages } = req.body;
@@ -2024,6 +2026,10 @@ ${userNameLine}
       throw createHttpError(403, "Unauthorized access");
     }
 
+    if (personaRun.mode === "tavus_full" && personaRun.status !== "completed") {
+      throw createHttpError(409, "tavus_transcript_pending");
+    }
+
     if (force) {
       const existingFeedback = await storage.getFeedbackByConversationId(personaRunId);
       if (existingFeedback) {
@@ -2049,6 +2055,7 @@ ${userNameLine}
     const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
     const conversation = {
       id: personaRunId,
+      ...(personaRun.mode === "tavus_full" ? { mode: "realtime_voice" } : {}),
       messages: chatMessages.map((msg: any) => ({
         sender: msg.sender,
         message: msg.message,

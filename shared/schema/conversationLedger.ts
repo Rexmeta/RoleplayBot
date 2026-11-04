@@ -47,6 +47,7 @@ export const conversationLedgerUtterances = pgTable("conversation_ledger_utteran
   reason: text("reason"),
   metadata: jsonb("metadata").notNull().default({}).$type<{
     emotion?: string; emotionReason?: string; userAffect?: Record<string, unknown>;
+    sourceTimestamp?: string;
   }>(),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, table => [

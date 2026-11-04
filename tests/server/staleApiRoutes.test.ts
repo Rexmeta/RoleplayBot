@@ -76,6 +76,7 @@ const SERVER_FILES_ABSOLUTE: string[] = [
  * /api/subscriptions, becomes the canonical path /api/subscriptions/plans.
  */
 const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
+  { file: "server/routes/tavus.ts",           prefix: "/api/tavus" },
   { file: "server/routes/bookmarks.ts",       prefix: "/api/bookmarks" },
   { file: "server/routes/scenarios.ts",        prefix: "/api/scenarios" },
   { file: "server/routes/conversations.ts",    prefix: "/api/conversations" },

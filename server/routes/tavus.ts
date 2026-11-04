@@ -1,0 +1,45 @@
+import { Router } from "express";
+import { z } from "zod";
+import { TavusError } from "../services/tavus/client";
+import { tavusSessions } from "../services/tavus/sessions";
+import { isSystemAdmin } from "../middleware/authMiddleware";
+
+export default function createTavusRouter(isAuthenticated: any, service = tavusSessions) {
+  const router = Router();
+  router.use(isAuthenticated);
+  router.use((req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    // Cookie-authenticated lifecycle writes must originate in this application.
+    const origin = req.headers.origin;
+    if (req.method !== "GET" && origin) {
+      try {
+        const parsed = new URL(origin);
+        // The HTTPS proxy may connect to Express over HTTP. Compare the public host, not req.protocol.
+        if (!["https:", "http:"].includes(parsed.protocol) || parsed.host !== req.get("host")) {
+          return res.status(403).json({ code: "tavus_origin_forbidden" });
+        }
+      } catch {
+        return res.status(403).json({ code: "tavus_origin_forbidden" });
+      }
+    }
+    next();
+  });
+  const handle = (fn: (req: any) => Promise<unknown>) => async (req: any, res: any, next: any) => {
+    try { res.json(await fn(req)); }
+    catch (error) {
+      if (error instanceof TavusError) res.status(error.status).json({ code: error.code, error: error.code });
+      else next(error);
+    }
+  };
+  router.get("/config", handle(() => service.config()));
+  router.post("/pal", isSystemAdmin, handle(async () => ({ palId: await service.ensurePal() })));
+  router.get("/conversations/:id/session", handle(req => service.session(req.user.id, req.params.id)));
+  router.post("/conversations/:id/start", handle(req => {
+    const parsed = z.object({ consent: z.literal(true) }).strict().safeParse(req.body);
+    if (!parsed.success) throw new TavusError("tavus_consent_required", 400);
+    return service.start(req.user.id, req.params.id, true);
+  }));
+  router.post("/conversations/:id/end", handle(req => service.end(req.user.id, req.params.id)));
+  router.post("/conversations/:id/sync", handle(req => service.sync(req.user.id, req.params.id)));
+  return router;
+}

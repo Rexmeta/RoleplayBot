@@ -13,6 +13,8 @@ import { registerObjectStorageRoutes } from "./replit_integrations/object_storag
 import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "./services/videoAvatarAccess";
 import { normalizeVoiceLanguage } from "./services/voice/transcriptionIntegrity";
 import createLiveAvatarRouter from "./routes/liveAvatar";
+import createTavusRouter from "./routes/tavus";
+import { startTavusWorker } from "./services/tavus/sessions";
 import { avatarRouterIdentityService } from "./services/liveAvatar/identityService";
 
 import createUserRouter from "./routes/user";
@@ -60,6 +62,8 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     }
   });
   app.use("/api/live-avatar", createLiveAvatarRouter(isAuthenticated));
+  app.use("/api/tavus", createTavusRouter(isAuthenticated));
+  startTavusWorker();
 
   // Seed model_translation setting if not present
   try {
@@ -470,6 +474,12 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     if (!scenarioRun || scenarioRun.userId !== userId) {
       ws.send(JSON.stringify({ type: 'error', error: 'Unauthorized access' }));
       ws.close();
+      return;
+    }
+
+    if (personaRun.mode === "tavus_full") {
+      ws.send(JSON.stringify({ type: "error", error: "tavus_full_pipeline_active" }));
+      ws.close(1008, "Tavus handles this conversation");
       return;
     }
 
