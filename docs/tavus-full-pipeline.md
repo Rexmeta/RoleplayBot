@@ -1,9 +1,34 @@
 # Tavus Full Pipeline
 
+## Current status: AvatarRouter contract required
+
+**RoleplayX must connect through the existing AvatarRouter, never directly to Tavus.**
+The direct provider HTTP implementation has been removed. The Full Pipeline mode
+is disabled with `avatar_router_full_pipeline_contract_required`; configuring a
+direct Tavus key cannot enable it. Existing text, Gemini Live, and AvatarRouter
+renderer integration remain separate and unchanged.
+
+The published AvatarRouter API 0.5 contract currently documents `/sessions`,
+`/connection`, `/audio`, `/interrupt`, and `/end`. Its integration guide explicitly
+states that this renderer is not a new LLM, transcription or TTS engine. It does
+not document a Full Pipeline PAL/context/conversation/final-transcript contract:
+
+- https://avatar-router.replit.app/roleplayx/openapi.yaml
+- https://avatar-router.replit.app/roleplayx/integration-guide.md
+
+Do not guess routes or forward Tavus `/v2` requests to the router. When its Full
+Pipeline contract is supplied, implement it through the existing server-only
+AvatarProjectClient with verified local ownership and project/user identity.
+Do not replace the requested independent pipeline with Gemini-to-avatar audio.
+No external writes or paid sessions were executed to investigate this contract.
+
+The sections below describe the retained orchestration/UI scaffolding and intended
+behavior, **not a currently operational router Full Pipeline integration**.
+
 ## Scope and isolation
 
 The optional Tavus mode is independent of the existing text and Gemini Live modes.
-It does not stream Gemini audio through Tavus or AvatarRouter. Tavus provides STT,
+It must not stream Gemini audio through Tavus or AvatarRouter. Tavus would provide STT,
 LLM, TTS, avatar video, lip sync and interruption handling in a hosted Daily room.
 The Tavus branch unmounts the normal chat component, so its realtime hook cannot
 open a Gemini WebSocket. The server also rejects native speech/text/ledger writes
@@ -15,15 +40,14 @@ migration was needed.
 
 ## Server configuration
 
-- `TAVUS_API_KEY`: server-only secret. Never use a `VITE_` prefix.
-- `TAVUS_PAL_ID`: optional existing **Full Pipeline** PAL to reuse.
-- `TAVUS_DEFAULT_FACE_ID`: required when creating the initial shared PAL rather
-  than selecting an existing PAL. Use a face available in the Tavus account.
+Reuse the already configured AvatarRouter Base URL and server-only project API
+key. Do not add or request a separate Tavus API key in RoleplayX.
 
-With a face configured, the first explicitly consented start creates the common
-PAL through `POST /v2/pals`, with `pipeline_mode: "full"`. Its ID is persisted in
-the existing settings store. All subsequent runs reuse it. An administrator can
-also explicitly initialize it through `POST /api/tavus/pal`.
+The router must support one shared PAL with `pipeline_mode: "full"`, dynamic
+persona/scenario context, authenticated conversation creation, end, and retrieval
+of the authoritative final transcript. Its exact endpoint/payload contract is
+required before this scaffolding can be enabled. PAL initialization through
+`POST /api/tavus/pal` is currently blocked as well.
 
 Do not patch the shared PAL per persona or scenario. Per-run role, communication
 style, goals, background, language and scenario context are included in

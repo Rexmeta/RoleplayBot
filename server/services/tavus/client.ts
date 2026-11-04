@@ -19,26 +19,14 @@ export const conversationSchema = z.object({
   })).nullable().optional(),
 });
 
-/** Fixed provider origin, server-only credentials, bounded requests, NO paid-create retries. */
+/**
+ * Fail closed until AvatarRouter publishes its Full Pipeline contract.
+ * Direct Tavus credentials/requests are deliberately not supported here.
+ * The existing AvatarProjectClient remains the sole external avatar boundary.
+ */
 export class TavusClient {
-  constructor(private readonly request = fetch, private readonly env = process.env) {}
-
-  async call<T>(path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
-    if (!this.env.TAVUS_API_KEY) throw new TavusError("tavus_not_configured", 503);
-    let response: Response;
-    try {
-      response = await this.request(`https://tavusapi.com/v2${path}`, {
-        method: body === undefined ? "GET" : "POST",
-        headers: { "x-api-key": this.env.TAVUS_API_KEY, "Content-Type": "application/json" },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: AbortSignal.timeout(20000), redirect: "error",
-      });
-    } catch { throw new TavusError("tavus_request_uncertain", 502); }
-    // Never echo upstream bodies: they may contain credentials, context or room tokens.
-    if (!response.ok) throw new TavusError(`tavus_upstream_${response.status}`, 502);
-    if (path.endsWith("/end")) return schema.parse({});
-    try { return schema.parse(await response.json()); }
-    catch { throw new TavusError("tavus_invalid_response", 502); }
+  async call<T>(_path: string, _schema: z.ZodType<T>, _body?: unknown): Promise<T> {
+    throw new TavusError("avatar_router_full_pipeline_contract_required", 503);
   }
 }
 

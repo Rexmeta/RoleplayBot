@@ -7,6 +7,9 @@ vi.mock("../../server/services/tavus/context", () => ({
 vi.mock("../../server/services/tavus/importTranscript", () => ({
   importTavusTranscript: vi.fn(), reserveTavusRun: vi.fn(),
 }));
+vi.mock("../../server/services/liveAvatar/projectConnection", () => ({
+  avatarRouterProjectConnection: { status: () => ({ state: "configured" }) },
+}));
 
 import { TavusSessions } from "../../server/services/tavus/sessions";
 import { TavusClient, TavusError, conversationJoinUrl, createdPalSchema } from "../../server/services/tavus/client";
@@ -33,7 +36,8 @@ beforeEach(() => {
         return value;
       }),
     },
-    env: { TAVUS_API_KEY: "not-a-real-key", TAVUS_DEFAULT_FACE_ID: "stock-face" },
+    env: { TAVUS_DEFAULT_FACE_ID: "stock-face" },
+    availability: vi.fn(() => ({ available: true, blockers: [] })),
     owner: vi.fn(async (userId: string) => {
       if (userId !== "owner") throw new TavusError("tavus_conversation_forbidden", 403);
       return { run: { status: "active" }, scenarioRun: { status: "active" } };
@@ -59,6 +63,11 @@ beforeEach(() => {
 });
 
 describe("Tavus Full Pipeline sessions", () => {
+  it("keeps the real adapter unavailable until the router Full Pipeline contract exists", async () => {
+    expect(await new TavusSessions().config()).toEqual({
+      available: false, blockers: ["avatar_router_full_pipeline_contract_required"],
+    });
+  });
   it("creates ONE shared full PAL and passes per-run contexts rather than creating per-persona PALs", async () => {
     const one = await service.start("owner", "run1", true);
     await service.start("owner", "run2", true);
@@ -72,7 +81,6 @@ describe("Tavus Full Pipeline sessions", () => {
       properties: { languages: ["ko"], participant_left_timeout: 20, enable_recording: false },
     });
     expect(one).toEqual({ state: "active", conversationUrl: "https://tavus.daily.co/room?t=short-lived-room-token" });
-    expect(JSON.stringify(one)).not.toContain("not-a-real-key");
   });
 
   it("requires explicit consent and current owner before any provider call", async () => {
@@ -88,11 +96,11 @@ describe("Tavus Full Pipeline sessions", () => {
     expect(deps.resolve).not.toHaveBeenCalled();
   });
 
-  it("reports missing config instead of falling back to Gemini", async () => {
-    deps.env = {};
+  it("reports the missing router contract instead of falling back to direct Tavus or Gemini", async () => {
+    deps.availability.mockReturnValue({ available: false, blockers: ["avatar_router_full_pipeline_contract_required"] });
     service = new TavusSessions(deps);
     expect(await service.config()).toEqual({
-      available: false, blockers: ["tavus_api_key_missing", "tavus_pal_or_face_missing"],
+      available: false, blockers: ["avatar_router_full_pipeline_contract_required"],
     });
     await expect(service.start("owner", "run", true)).rejects.toMatchObject({ code: "tavus_not_configured" });
     expect(deps.client.call).not.toHaveBeenCalled();
@@ -163,20 +171,20 @@ describe("Tavus Full Pipeline sessions", () => {
 });
 
 describe("Tavus HTTP boundary", () => {
-  it("uses only server x-api-key, official origin, and a single POST", async () => {
-    const request = vi.fn(async () => new Response(JSON.stringify({ pal_id: "p1" }), { status: 200 }));
-    const client = new TavusClient(request as any, { TAVUS_API_KEY: "private-test-key" });
-    expect(await client.call("/pals", createdPalSchema, { pipeline_mode: "full" })).toEqual({ pal_id: "p1" });
-    expect(request).toHaveBeenCalledTimes(1);
-    expect(request.mock.calls[0]).toMatchObject([
-      "https://tavusapi.com/v2/pals", { method: "POST", headers: { "x-api-key": "private-test-key" }, redirect: "error" },
-    ]);
-  });
-
-  it("does not echo upstream error bodies", async () => {
-    const client = new TavusClient(vi.fn(async () => new Response("secret provider diagnostics", { status: 401 })) as any,
-      { TAVUS_API_KEY: "private-test-key" });
-    await expect(client.call("/pals", createdPalSchema)).rejects.toMatchObject({ message: "tavus_upstream_401" });
+  it("never makes direct provider requests for reads, PAL creation, conversations or end", async () => {
+    const request = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("must not call"));
+    try {
+      const client = new TavusClient();
+      for (const [path, body] of [
+        ["/pals", { pipeline_mode: "full" }], ["/pals/shared", undefined],
+        ["/conversations", {}], ["/conversations/session/end", {}],
+      ] as const) {
+        await expect(client.call(path, createdPalSchema, body)).rejects.toMatchObject({
+          code: "avatar_router_full_pipeline_contract_required", status: 503,
+        });
+      }
+      expect(request).not.toHaveBeenCalled();
+    } finally { request.mockRestore(); }
   });
 
   it("rejects insecure room URLs and URL credentials", () => {

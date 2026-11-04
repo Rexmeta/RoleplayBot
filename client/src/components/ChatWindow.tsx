@@ -866,6 +866,16 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     }
   };
 
+  // Keep this hook above every loading/error/ending exit so native chat calls
+  // the same hooks before and after its conversation query resolves.
+  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; blockers: string[] }>({
+    queryKey: ["/api/tavus/config"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/tavus/config");
+      return response.json();
+    },
+  });
+
   if (error) return (
     <div className="text-center py-8">
       <p className="text-red-600">대화를 불러올 수 없습니다.</p>
@@ -942,14 +952,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     onRequestInputPermission: realtimeVoice.requestInputDevicePermission,
     isSwitchingMode,
   };
-
-  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; blockers: string[] }>({
-    queryKey: ["/api/tavus/config"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/tavus/config");
-      return response.json();
-    },
-  });
 
   return (
     <>
@@ -1262,7 +1264,9 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       >
                         <span className="block text-sm font-semibold">{tavusText("entry", "Try Tavus Full Pipeline", "Tavus 전체 파이프라인 사용")}</span>
                         <span className="mt-1 block text-xs text-white/70">
-                          {tavusConfig?.available
+                          {tavusConfig?.blockers?.includes("avatar_router_full_pipeline_contract_required")
+                            ? tavusText("routerContractRequired", "Requires AvatarRouter Full Pipeline API support", "아바타 라우터의 Full Pipeline API 지원이 필요합니다")
+                            : tavusConfig?.available
                             ? tavusText("entryAvailable", "Join a provider-hosted avatar conversation", "외부 제공자의 아바타 대화에 참여합니다")
                             : tavusConfigError
                               ? tavusText("availabilityError", "Availability could not be checked", "사용 가능 여부를 확인할 수 없습니다")

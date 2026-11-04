@@ -29,4 +29,4 @@
 - [운영 변경 승인 경계](production-change-boundary.md) — 운영 환경 변경과 배포는 사용자의 명시적 승인이 있어야 한다.
 - [AvatarRouter integration gate](avatar-router-integration-gate.md) — 선택형 persona 테스트·시나리오 실행의 동의·스냅샷·프로젝트 소유권 경계; 구현 승인은 유료 검증·배포 승인이 아니다.
 - [Vite Zod optimizer cache](vite-zod-optimizer-cache.md) — Zod 메이저 업그레이드 뒤 브라우저가 구버전 최적화 번들을 계속 제공할 수 있어 런타임 API 불일치 확인이 필요하다.
-- [Tavus Full Pipeline 원칙](tavus-full-pipeline-boundaries.md) — Gemini 중계 없는 독립 모드·공통 PAL 하나·동적 컨텍스트·기존 평가 어댑터를 유지한다.
+- [Tavus Full Pipeline 원칙](tavus-full-pipeline-boundaries.md) — 기존 AvatarRouter 경유 필수·직접 Tavus 호출 금지·Gemini 중계 없는 독립 모드·공통 PAL 하나.

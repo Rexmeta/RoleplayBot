@@ -5,6 +5,7 @@ import { resolveTavusContext, resolveTavusOwner, ROLEPLAY_PAL_PROMPT } from "./c
 import { TavusStore } from "./store";
 import { adaptTavusTranscript, transcriptHash, type TavusMessage } from "./transcriptAdapter";
 import { importTavusTranscript, reserveTavusRun } from "./importTranscript";
+import { avatarRouterProjectConnection } from "../liveAvatar/projectConnection";
 
 type State = "creating" | "create_unknown" | "active" | "ending" | "transcript_pending" | "completed";
 export interface TavusSession {
@@ -18,24 +19,24 @@ export const tavusDeps = {
   client: new TavusClient(), store: new TavusStore(), resolve: resolveTavusContext,
   owner: resolveTavusOwner,
   reserve: reserveTavusRun, importTranscript: importTavusTranscript, env: process.env,
+  availability: () => ({
+    available: false,
+    blockers: [
+      ...(avatarRouterProjectConnection.status().state === "configured" ? [] : ["avatar_connection_unconfigured"]),
+      "avatar_router_full_pipeline_contract_required",
+    ],
+  }),
 };
 
 export class TavusSessions {
   constructor(private readonly deps = tavusDeps) {}
 
   async config() {
-    const saved = await this.deps.store.read<PalRecord>("pal");
-    const blockers = [
-      ...(!this.deps.env.TAVUS_API_KEY ? ["tavus_api_key_missing"] : []),
-      ...(!this.deps.env.TAVUS_PAL_ID && !this.deps.env.TAVUS_DEFAULT_FACE_ID && saved?.state !== "ready"
-        ? ["tavus_pal_or_face_missing"] : []),
-      ...(!this.deps.env.TAVUS_PAL_ID && saved && saved.state !== "ready" ? ["tavus_pal_setup_pending"] : []),
-    ];
-    return { available: blockers.length === 0, blockers };
+    return this.deps.availability();
   }
 
   async ensurePal() {
-    if (!this.deps.env.TAVUS_API_KEY) throw new TavusError("tavus_not_configured", 503);
+    if (!(await this.config()).available) throw new TavusError("avatar_router_full_pipeline_contract_required", 503);
     if (this.deps.env.TAVUS_PAL_ID) {
       const pal = await this.deps.client.call(`/pals/${encodeURIComponent(this.deps.env.TAVUS_PAL_ID)}`, palSchema);
       return pal.pal_id;
@@ -195,9 +196,10 @@ export function startTavusWorker() {
   workerStarted = true;
   let busy = false;
   const timer = setInterval(async () => {
-    if (busy || !process.env.TAVUS_API_KEY) return;
+    if (busy) return;
     busy = true;
     try {
+      if (!(await tavusSessions.config()).available) return;
       const pending = await tavusDeps.store.pendingSessions();
       for (const session of pending) {
         try { await tavusSessions.sync(session.userId, session.runId); }
