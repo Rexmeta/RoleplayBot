@@ -7,7 +7,10 @@ import DailyAvatarRoom from "./DailyAvatarRoom";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = { state: SessionState; error?: string; expiresAt?: string; evaluationAvailable?: false };
-type Config = { available: boolean; blockers?: string[] };
+type Config = {
+  available: boolean; blockers?: string[];
+  runtime?: { userRemainingSeconds: number; globalRemainingSeconds: number; sessionSeconds: number; resetsAt: string } | null;
+};
 type Connection = { transport: "daily"; pipeline: "tavus_full"; url: string; token: string; expiresAt?: string };
 type Props = {
   scenario: ComplexScenario;
@@ -26,16 +29,18 @@ function errorDetails(error: unknown) {
   const match = raw.match(/^(\d{3}):\s*([\s\S]*)$/);
   let message = match?.[2] || raw;
   let code = match?.[1] || "REQUEST_FAILED";
+  let creationAttempted: false | undefined;
   try {
     const parsed = JSON.parse(message);
     code = String(parsed.code || code);
     message = String(parsed.message || parsed.error || message);
+    if (parsed.creationAttempted === false) creationAttempted = false;
   } catch { /* Keep the server's plain-text message. */ }
   message = message
     .replace(/(authorization\s*:\s*bearer\s+)[^\s,;]+/gi, "$1[redacted]")
     .replace(/([?&]token=)[^&\s]+/gi, "$1[redacted]")
     .replace(/((?:access[_-]?token|token)\s*[:=]\s*)["']?[^"',\s}]+/gi, "$1[redacted]");
-  return { code, message };
+  return { code, message, creationAttempted };
 }
 
 export default function TavusChatWindow({
@@ -44,6 +49,19 @@ export default function TavusChatWindow({
   const { t, i18n } = useTranslation();
   const text = (key: string, english: string, korean: string) =>
     t(`chat.tavus.${key}`, { defaultValue: i18n.language?.startsWith("ko") ? korean : english });
+  const reasonText = (code: string) => {
+    switch (code) {
+      case "avatar_runtime_worker_unavailable": return text("workerUnavailable", "AvatarRouter's worker is not ready. The router operator must check worker health.", "AvatarRouter 작업 서버가 준비되지 않았습니다. 라우터 운영자의 서버 상태 확인이 필요합니다.");
+      case "avatar_runtime_cleanup_pending": return text("cleanupPending", "A previous avatar session is still being cleaned up. Check again after cleanup finishes; if it persists, contact the router operator.", "이전 아바타 세션을 정리 중입니다. 정리가 끝난 뒤 다시 확인하세요. 계속되면 라우터 운영자의 확인이 필요합니다.");
+      case "avatar_runtime_user_budget_insufficient": return text("userBudget", "Your remaining avatar time is shorter than one session. Wait for the budget reset or ask the router operator to review the limit.", "사용자 잔여 시간이 한 세션에 필요한 시간보다 적습니다. 한도 초기화를 기다리거나 라우터 운영자에게 한도 확인을 요청하세요.");
+      case "avatar_runtime_global_budget_insufficient": return text("globalBudget", "The project's remaining avatar time is insufficient. Wait for the budget reset or ask the router operator to review the limit.", "프로젝트 잔여 아바타 시간이 부족합니다. 한도 초기화를 기다리거나 라우터 운영자에게 한도 확인을 요청하세요.");
+      case "avatar_runtime_creation_blocked": return text("creationBlocked", "AvatarRouter is blocking new sessions because of service capacity or cleanup restrictions. The router operator must check admission status.", "AvatarRouter가 서비스 용량 또는 정리 제한으로 새 세션 생성을 차단했습니다. 라우터 운영자의 생성 허용 상태 확인이 필요합니다.");
+      default: return code;
+    }
+  };
+  const displayError = (details: { code: string; message: string }) =>
+    reasonText(details.code) !== details.code ? reasonText(details.code) :
+      details.code === details.message ? details.code : `${details.code}: ${details.message}`;
   const [session, setSession] = useState<Session>({ state: "idle" });
   const [config, setConfig] = useState<Config | null>(null);
   const [consent, setConsent] = useState(false);
@@ -133,6 +151,11 @@ export default function TavusChatWindow({
       const next = await requestSession("GET");
       if (!mountedRef.current) return;
       updateSession(next);
+      if (sessionStateRef.current === "idle") {
+        const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`);
+        const nextConfig = await response.json() as Config;
+        if (mountedRef.current) setConfig(nextConfig);
+      }
       if (next.state === "active") void checkConnection();
       if (next.state === "ended") {
         setConnection(null);
@@ -227,8 +250,14 @@ export default function TavusChatWindow({
       if (next.state === "active") void checkConnection();
     } catch (cause) {
       if (mountedRef.current) {
-        updateSession({ state: "create_unknown" });
-        setError(errorDetails(cause));
+        const details = errorDetails(cause);
+        if (details.creationAttempted === false) {
+          startedRef.current = false;
+          updateSession({ state: "idle" });
+          // Disable stale admission until the user explicitly refreshes it.
+          setConfig(current => ({ ...current, available: false, blockers: [details.code] }));
+        } else updateSession({ state: "create_unknown" });
+        setError(details);
       } else endKeepalive();
     } finally {
       if (mountedRef.current) setStarting(false);
@@ -336,7 +365,14 @@ export default function TavusChatWindow({
             </div>
             {config && !config.available && <div className="rounded-xl border border-[#ead7b3] bg-[#fff9ec] p-3 text-xs leading-5 text-[#725a32]" role="status" data-testid="tavus-blockers">
               <p className="font-semibold">{text("unavailable", "This pipeline is not available yet.", "현재 파이프라인을 사용할 수 없습니다.")}</p>
-              {blockers.length > 0 && <ul className="mt-1 list-disc pl-4">{blockers.map((blocker, index) => <li key={`${blocker}-${index}`}>{blocker}</li>)}</ul>}
+              {blockers.length > 0 && <ul className="mt-1 list-disc pl-4">{blockers.map((blocker, index) => <li key={`${blocker}-${index}`}>{reasonText(blocker)}</li>)}</ul>}
+              {session.state === "idle" && <button type="button" onClick={() => void refreshStatus()} disabled={statusChecking || busy} className="mt-2 rounded-lg border border-[#d8c69f] px-3 py-2 font-semibold disabled:opacity-50" data-testid="tavus-availability-retry">{statusChecking ? text("checking", "Checking…", "확인 중…") : text("retryAvailability", "Check availability again", "실행 가능 상태 다시 확인")}</button>}
+            </div>}
+            {config?.runtime && <div className="rounded-xl border border-[#d8e2e1] p-3 text-xs leading-5 text-[#53696d]" data-testid="tavus-runtime-limits">
+              <p>{text("requiredSeconds", "Required per session", "세션당 필요 시간")}: {config.runtime.sessionSeconds}s</p>
+              <p>{text("userRemaining", "Your remaining time", "사용자 잔여 시간")}: {config.runtime.userRemainingSeconds}s</p>
+              <p>{text("globalRemaining", "Project remaining time", "프로젝트 잔여 시간")}: {config.runtime.globalRemainingSeconds}s</p>
+              <p>{text("resetsAt", "Budget resets at", "한도 초기화 시각")}: {Number.isNaN(Date.parse(config.runtime.resetsAt)) ? config.runtime.resetsAt : new Date(config.runtime.resetsAt).toLocaleString(i18n.language)}</p>
             </div>}
             {loading ? <div className="space-y-2" aria-label={text("loading", "Loading", "불러오는 중")}><div className="h-3 animate-pulse rounded bg-[#e3ebea]" /><div className="h-3 w-4/5 animate-pulse rounded bg-[#e3ebea]" /></div> : null}
             {!started && <div className="border-t border-[#dce5e5] pt-4">
@@ -357,7 +393,7 @@ export default function TavusChatWindow({
               <CheckCircle2 className="h-4 w-4 shrink-0" /><span>{text("evaluationUnavailable", "Session closed. Transcript and evaluation are not available yet.", "세션이 종료되었습니다. 대화 기록과 평가는 아직 제공되지 않습니다.")}</span>
             </div>}
             {(error || connectionError) && <div className="rounded-xl border border-[#efd5d0] bg-[#fff7f4] p-3 text-[#8f4137]" role="alert" data-testid="tavus-error">
-              <div className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 text-xs leading-5"><p className="font-semibold">{error ? `${error.code}: ${error.message}` : `${connectionError?.code}: ${connectionError?.message}`}</p>
+              <div className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 text-xs leading-5"><p className="font-semibold">{error ? displayError(error) : connectionError ? displayError(connectionError) : ""}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {connectionError && <button type="button" onClick={() => { connectionAttemptedRef.current = false; setConnection(null); void checkConnection(); }} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white" data-testid="tavus-connection-retry">{text("retryConnection", "Retry connection details", "연결 정보 다시 확인")}</button>}
                   <button type="button" onClick={() => void refreshStatus()} disabled={statusChecking || busy} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white disabled:opacity-50" data-testid="tavus-status-retry">{statusChecking ? text("checking", "Checking…", "확인 중…") : text("retryStatus", "Check status", "상태 확인")}</button>

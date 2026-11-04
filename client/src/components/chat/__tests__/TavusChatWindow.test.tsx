@@ -101,4 +101,50 @@ describe("TavusChatWindow Daily pipeline", () => {
     fireEvent.click(screen.getByTestId("tavus-end-retry"));
     expect(await screen.findByTestId("tavus-evaluation-unavailable")).toBeTruthy();
   });
+  it("shows actionable admission reasons and refreshes availability without creating a session", async () => {
+    let blocked = true;
+    apiRequestMock.mockImplementation(async (_method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({
+        available: !blocked, blockers: blocked ? ["avatar_runtime_worker_unavailable"] : [],
+        runtime: { userRemainingSeconds: 80, globalRemainingSeconds: 900, sessionSeconds: 120, resetsAt: "tomorrow" },
+      });
+      return response({ state: "idle" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="capacity" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    expect(await screen.findByText(/worker is not ready/)).toBeTruthy();
+    expect(screen.getByTestId("tavus-runtime-limits").textContent).toContain("80s");
+    fireEvent.click(screen.getByTestId("tavus-consent"));
+    expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(true);
+    blocked = false;
+    fireEvent.click(screen.getByTestId("tavus-availability-retry"));
+    await waitFor(() => expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(false));
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
+  it("allows manual retry only after an explicit pre-create refusal and a fresh free check", async () => {
+    let attempts = 0;
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, blockers: [] });
+      if (url.endsWith("/connection")) return response(connection);
+      if (method === "POST" && url.endsWith("/start")) {
+        attempts++;
+        if (attempts === 1) throw new Error('409: {"code":"avatar_runtime_cleanup_pending","creationAttempted":false}');
+        return response(active);
+      }
+      return response({ state: "idle" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="safe-retry" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    fireEvent.click(await screen.findByTestId("tavus-consent"));
+    fireEvent.click(screen.getByTestId("tavus-start"));
+    await screen.findByTestId("tavus-error");
+    expect(screen.getByTestId("tavus-session-status").textContent).toContain("Ready when you are");
+    expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(true);
+    expect(attempts).toBe(1);
+    expect(screen.queryByTestId("tavus-end-retry")).toBeNull();
+    fireEvent.click(screen.getByTestId("tavus-availability-retry"));
+    await waitFor(() => expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(false));
+    expect(attempts).toBe(1);
+    fireEvent.click(screen.getByTestId("tavus-start"));
+    expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
 });

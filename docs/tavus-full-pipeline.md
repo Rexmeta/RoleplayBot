@@ -37,6 +37,11 @@ Contexts above the router's 12,000-character limit fail explicitly, not truncate
 All routes require login and return `Cache-Control: no-store`:
 
 - `GET /api/tavus/config?runId=...` — features, actor policy and limitations.
+- Availability also performs a free `/live-limits` read under the verified user
+  identity. It returns safe capacity values and separate worker, cleanup, user
+  budget, project budget and router admission blockers. It is not a reservation.
+  `selectable` describes feature/actor eligibility independently of transient
+  runtime admission, so eligible learners can still open diagnostics when blocked.
 - `GET /api/tavus/conversations/:id/session` — safe state, deadline, no room token.
 - `POST /api/tavus/conversations/:id/start` — strict `{ "consent": true }`.
 - `GET /api/tavus/conversations/:id/connection` — owner-only private Daily details.
@@ -63,6 +68,13 @@ Existing settings storage with transaction advisory locks persists a pre-create
 fence before the non-idempotent paid request. Never automatically retry session
 creation. Unknown outcomes remain blocked for trusted router reconciliation.
 The returned router ID is retained before later readiness checks.
+
+Confirmed admission refusals before the create fence return
+`creationAttempted: false`. Only this explicit server assurance lets the UI return
+to idle and offer a free availability refresh, followed by a manual start.
+Network errors and failures after the fence remain uncertain, never automatically
+retried. Admission gates are not bypassed, budgets are not reset, and pending
+cleanup is never cleared locally to permit a start.
 
 End/page exit requests server-side cleanup and tears down Daily media. End
 acknowledgement is not provider termination: polling/background recovery continues

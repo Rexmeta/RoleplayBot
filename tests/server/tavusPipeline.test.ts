@@ -13,9 +13,13 @@ import { TavusSessions } from "../../server/services/tavus/sessions";
 import { TavusError, TavusClient, createdPalSchema } from "../../server/services/tavus/client";
 import { dailyConnectionSchema } from "../../server/services/tavus/routerContracts";
 
-let rows: Map<string, any>, deps: any, service: TavusSessions, remote: any;
+let rows: Map<string, any>, deps: any, service: TavusSessions, remote: any, limits: any;
 beforeEach(() => {
   rows = new Map();
+  limits = {
+    workerReady: true, creationAllowed: true, cleanupPending: 0, userRemainingSeconds: 600,
+    globalRemainingSeconds: 3600, sessionSeconds: 120, providerCredits: "unknown", resetsAt: "tomorrow",
+  };
   remote = { id: "s1", providerId: "tavus", avatarId: "selected-face", mode: "live", pipeline: "tavus_full",
     status: "active", rendererState: "queued", cleanupPending: false, stopRequested: false,
     expiresAt: new Date(Date.now() + 120000).toISOString() };
@@ -32,17 +36,14 @@ beforeEach(() => {
     }),
     selection: vi.fn(async () => ({ blockers: [] })),
     connection: { check: vi.fn(async () => ({
-      projectId: "project", scopes: ["sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
+      projectId: "project", scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
       integration: { features: ["tavus_full_pipeline", "daily_private_connection"] },
     })) },
     target: vi.fn(async () => ({ projectId: "project", avatarId: "selected-face", assetId: null })),
     resolve: vi.fn(async () => ({ context: "snapshot-bound character and situation", language: "ko" })),
     reserve: vi.fn(async () => undefined),
     client: { call: vi.fn(async (_user: string, path: string, schema: any, body: any) => {
-      if (path === "/live-limits") return schema.parse({
-        workerReady: true, creationAllowed: true, cleanupPending: 0, userRemainingSeconds: 600,
-        globalRemainingSeconds: 3600, sessionSeconds: 120, providerCredits: "unknown", resetsAt: "tomorrow",
-      });
+      if (path === "/live-limits") return schema.parse(limits);
       if (path === "/sessions" && body) expect(rows.get("run:run").state).toBe("creating");
       if (path.endsWith("/full-connection")) return schema.parse({
         transport: "daily", pipeline: "tavus_full", url: "https://room.tavus.daily.co/abc",
@@ -54,13 +55,51 @@ beforeEach(() => {
   service = new TavusSessions(deps);
 });
 describe("AvatarRouter Full Pipeline", () => {
-  it("discovers features and actor policy without a paid create", async () => {
+  it("discovers features, actor policy and current limits without a paid create", async () => {
     expect(await service.config("owner", "run")).toMatchObject({
       available: true, maxSeconds: 120, evaluationAvailable: false, palStrategy: "per_session",
     });
-    expect(deps.client.call).not.toHaveBeenCalled();
+    expect(deps.client.call.mock.calls.map((call: any[]) => call[1])).toEqual(["/live-limits"]);
     deps.selection.mockResolvedValue({ blockers: ["avatar_persona_not_selected"] });
-    expect(await service.config("owner", "run")).toMatchObject({ available: false, blockers: ["avatar_persona_not_selected"] });
+    expect(await service.config("owner", "run")).toMatchObject({ available: false, selectable: false, blockers: ["avatar_persona_not_selected"] });
+  });
+  it.each([
+    [{ workerReady: false }, "avatar_runtime_worker_unavailable"],
+    [{ cleanupPending: 1 }, "avatar_runtime_cleanup_pending"],
+    [{ userRemainingSeconds: 119 }, "avatar_runtime_user_budget_insufficient"],
+    [{ globalRemainingSeconds: 119 }, "avatar_runtime_global_budget_insufficient"],
+    [{ creationAllowed: false }, "avatar_runtime_creation_blocked"],
+  ])("explains admission refusal %j before any paid create or local reservation", async (change, code) => {
+    Object.assign(limits, change);
+    expect(await service.config("owner", "run")).toMatchObject({ available: false, selectable: true, blockers: [code], runtime: change });
+    await expect(service.start("owner", "run", true)).rejects.toMatchObject({
+      code, status: 409, details: { creationAttempted: false, blockers: [code] },
+    });
+    expect(rows.size).toBe(0);
+    expect(deps.reserve).not.toHaveBeenCalled();
+    expect(deps.client.call.mock.calls.every((call: any[]) => call[1] === "/live-limits")).toBe(true);
+    Object.assign(limits, { workerReady: true, cleanupPending: 0, userRemainingSeconds: 600,
+      globalRemainingSeconds: 3600, creationAllowed: true });
+    expect(await service.start("owner", "run", true)).toMatchObject({ state: "creating" });
+  });
+  it("preserves all blockers, ignores untrusted upstream reason text, and accepts exact budget boundaries", async () => {
+    Object.assign(limits, { workerReady: false, cleanupPending: 2, userRemainingSeconds: 0,
+      globalRemainingSeconds: 0, creationAllowed: false, blockingReasons: ["private-project-secret"] });
+    const config = await service.config("owner", "run");
+    expect(config.blockers).toHaveLength(5);
+    expect(JSON.stringify(config)).not.toContain("private-project-secret");
+    Object.assign(limits, { workerReady: true, cleanupPending: 0, userRemainingSeconds: 120,
+      globalRemainingSeconds: 120 });
+    delete limits.creationAllowed;
+    expect(await service.config("owner", "run")).toMatchObject({ available: true });
+  });
+  it("fails closed on unreadable limits without marking a paid request as attempted", async () => {
+    deps.client.call.mockRejectedValue(new Error("unreadable"));
+    await expect(service.start("owner", "run", true)).rejects.toMatchObject({
+      details: { creationAttempted: false },
+    });
+    expect(rows.size).toBe(0);
+    expect(deps.reserve).not.toHaveBeenCalled();
   });
   it("blocks an older router and missing session scopes", async () => {
     deps.connection.check.mockResolvedValue({ projectId: "project", scopes: [], integration: { features: [] } });
@@ -99,6 +138,7 @@ describe("AvatarRouter Full Pipeline", () => {
       return call(...args);
     });
     await expect(service.start("owner", "run", true)).rejects.toThrow("timeout");
+    expect(rows.get("run:run").lastError).toBe("tavus_create_uncertain");
     expect(await service.start("owner", "run", true)).toMatchObject({ state: "create_unknown" });
     expect(deps.client.call.mock.calls.filter((c: any[]) => c[1] === "/sessions")).toHaveLength(1);
   });

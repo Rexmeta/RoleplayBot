@@ -28,7 +28,10 @@ export default function createTavusRouter(isAuthenticated: any, service = tavusS
   const handle = (fn: (req: any) => Promise<unknown>) => async (req: any, res: any, next: any) => {
     try { res.json(await fn(req)); }
     catch (error) {
-      if (error instanceof TavusError || error instanceof AvatarIdentityError) res.status(error.status).json({ code: error.code, error: error.code });
+      if (error instanceof TavusError || error instanceof AvatarIdentityError) res.status(error.status).json({
+        code: error.code, error: error.code,
+        ...(error instanceof TavusError && error.details ? error.details : {}),
+      });
       else next(error);
     }
   };

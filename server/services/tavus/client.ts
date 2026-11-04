@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export class TavusError extends Error {
-  constructor(public readonly code: string, public readonly status = 409) { super(code); }
+  constructor(public readonly code: string, public readonly status = 409,
+    public readonly details?: { creationAttempted: false; blockers?: string[] }) { super(code); }
 }
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/);

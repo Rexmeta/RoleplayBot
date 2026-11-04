@@ -8,7 +8,7 @@ import { AvatarProjectClient } from "../liveAvatar/projectClient";
 import { avatarRouterProjectConnection } from "../liveAvatar/projectConnection";
 import { resolveConversationAvatar, inspectConversationAvatarSelection } from "../liveAvatar/conversationTarget";
 import { AvatarIdentityError } from "../liveAvatar/delegatedIdentity";
-import { testLimitsSchema } from "../liveAvatar/testContracts";
+import { inspectTavusLimits, tavusLimitsSchema } from "./runtimeLimits";
 import { dailyConnectionSchema, routerSessionSchema } from "./routerContracts";
 
 type State = "creating" | "create_unknown" | "active" | "ending" | "ended";
@@ -18,7 +18,7 @@ export interface TavusSession {
   expiresAt?: string; lastError?: string;
 }
 const requiredFeatures = ["tavus_full_pipeline", "daily_private_connection"];
-const requiredScopes = ["sessions:create", "sessions:read", "sessions:connect", "sessions:end"];
+const requiredScopes = ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"];
 export const tavusDeps = {
   client: new AvatarProjectClient(storage), store: new TavusStore(),
   connection: avatarRouterProjectConnection, resolve: resolveTavusContext, owner: resolveTavusOwner,
@@ -31,6 +31,8 @@ export class TavusSessions {
 
   async config(userId?: string, runId?: string) {
     const blockers: string[] = [];
+    let runtime: ReturnType<typeof inspectTavusLimits>["limits"] | null = null;
+    let selectable = false;
     if (!userId) blockers.push("avatar_authenticated_user_required");
     else try {
       const auth = await this.deps.connection.check(userId);
@@ -40,10 +42,16 @@ export class TavusSessions {
         const selection = await this.deps.selection(userId, runId);
         blockers.push(...selection.blockers);
       }
+      selectable = blockers.length === 0;
+      if (selectable) {
+        const inspected = inspectTavusLimits(await this.deps.client.call(userId, "/live-limits", tavusLimitsSchema));
+        runtime = inspected.limits;
+        blockers.push(...inspected.blockers);
+      }
     } catch (error) {
       blockers.push(error instanceof AvatarIdentityError || error instanceof TavusError ? error.code : "avatar_router_unavailable");
     }
-    return { available: blockers.length === 0, blockers, maxSeconds: 120,
+    return { available: blockers.length === 0, selectable, blockers, runtime, maxSeconds: 120,
       evaluationAvailable: false, palStrategy: "per_session" };
   }
 
@@ -105,16 +113,17 @@ export class TavusSessions {
     if (session) return this.session(userId, runId);
     if (run.status !== "active" || scenarioRun.status === "completed") throw new TavusError("tavus_fresh_run_required");
     const config = await this.config(userId, runId);
-    if (!config.available) throw new TavusError(config.blockers[0] ?? "tavus_not_configured", 503);
+    if (!config.available) {
+      // No identities, provider credentials or raw router payloads in diagnostics.
+      console.warn("[tavus] start preflight blocked", { blockers: config.blockers, runtime: config.runtime });
+      throw new TavusError(config.blockers[0] ?? "tavus_not_configured",
+        config.runtime ? 409 : 503, { creationAttempted: false, blockers: config.blockers });
+    }
     const target = await this.deps.target(userId, runId);
     const binding = await this.deps.resolve(userId, runId);
     if (binding.context.length > 12000) throw new TavusError("tavus_context_too_large", 422);
-    const limits = await this.deps.client.call(userId, "/live-limits",
-      testLimitsSchema.extend({ creationAllowed: testLimitsSchema.shape.workerReady.optional() }));
-    if (limits.creationAllowed === false || !limits.workerReady || limits.cleanupPending ||
-        limits.userRemainingSeconds < limits.sessionSeconds || limits.globalRemainingSeconds < limits.sessionSeconds) {
-      throw new TavusError("avatar_runtime_limits_unavailable", 409);
-    }
+    // Config just checked admission. The router rechecks atomically on POST;
+    // no reservation or playback success is inferred from the free GET.
     const token = randomUUID();
     const pending = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => current ?? {
       state: "creating", token, userId, runId, createdAt: new Date().toISOString(),

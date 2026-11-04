@@ -83,6 +83,18 @@ describe("Tavus authenticated routes", () => {
       .set("x-user", "owner").set("x-role", "admin").send({}).expect(200);
     expect(result.body).toEqual({ palId: "pal-1" });
   });
+  it("marks only confirmed pre-create refusals as safe to retry", async () => {
+    service.start.mockRejectedValueOnce(new TavusError("avatar_runtime_worker_unavailable", 409, {
+      creationAttempted: false, blockers: ["avatar_runtime_worker_unavailable"],
+    }));
+    const blocked = await request(app()).post("/api/tavus/conversations/run/start")
+      .set("x-user", "owner").send({ consent: true }).expect(409);
+    expect(blocked.body).toMatchObject({ code: "avatar_runtime_worker_unavailable", creationAttempted: false });
+    service.start.mockRejectedValueOnce(new TavusError("tavus_create_uncertain", 502));
+    const uncertain = await request(app()).post("/api/tavus/conversations/run/start")
+      .set("x-user", "owner").send({ consent: true }).expect(502);
+    expect(uncertain.body).not.toHaveProperty("creationAttempted");
+  });
   it("routes end and sync to the actual run owner without arbitrary provider IDs", async () => {
     await request(app()).post("/api/tavus/conversations/run/end").set("x-user", "owner").send({}).expect(200);
     await request(app()).post("/api/tavus/conversations/run/sync").set("x-user", "owner").send({}).expect(200);

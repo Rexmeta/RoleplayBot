@@ -868,7 +868,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
   // Keep this hook above every loading/error/ending exit so native chat calls
   // the same hooks before and after its conversation query resolves.
-  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; blockers: string[] }>({
+  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; selectable?: boolean; blockers: string[] }>({
     queryKey: ["/api/tavus/config", conversationId],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`);
@@ -1258,7 +1258,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       <button
                         type="button"
                         onClick={onSelectTavus}
-                        disabled={!tavusConfig?.available}
+                        disabled={!(tavusConfig?.selectable ?? tavusConfig?.available)}
                         data-testid="tavus-mode-entry"
                         className="rounded-xl border border-white/25 bg-slate-950/75 px-4 py-3 text-left text-white shadow-lg backdrop-blur-md transition hover:bg-slate-900/90 disabled:cursor-not-allowed disabled:opacity-90"
                       >
@@ -1268,6 +1268,8 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                             ? tavusText("routerContractRequired", "Requires AvatarRouter Full Pipeline API support", "아바타 라우터의 Full Pipeline API 지원이 필요합니다")
                             : tavusConfig?.available
                             ? tavusText("entryAvailable", "Join a provider-hosted avatar conversation", "외부 제공자의 아바타 대화에 참여합니다")
+                            : tavusConfig?.selectable
+                              ? tavusText("entryCheckRuntime", "View runtime status and admission restrictions", "실행 상태 및 차단 사유 확인")
                             : tavusConfigError
                               ? tavusText("availabilityError", "Availability could not be checked", "사용 가능 여부를 확인할 수 없습니다")
                               : tavusConfig
@@ -1838,7 +1840,7 @@ export default function ChatWindow(props: ChatWindowProps) {
         try {
           const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(props.conversationId)}`);
           const config = await response.json();
-          if (!cancelled) setMode(config.available && !props.initialMessages?.length ? "choice" : "standard");
+          if (!cancelled) setMode((config.selectable ?? config.available) && !props.initialMessages?.length ? "choice" : "standard");
         } catch {
           if (!cancelled) setMode("standard");
         }
