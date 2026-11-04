@@ -1,6 +1,6 @@
 # Tavus Full Pipeline
 
-## Current status: AvatarRouter contract required
+## Current status: AvatarRouter Full Pipeline contract extensions required
 
 **RoleplayX must connect through the existing AvatarRouter, never directly to Tavus.**
 The direct provider HTTP implementation has been removed. The Full Pipeline mode
@@ -8,16 +8,29 @@ is disabled with `avatar_router_full_pipeline_contract_required`; configuring a
 direct Tavus key cannot enable it. Existing text, Gemini Live, and AvatarRouter
 renderer integration remain separate and unchanged.
 
-The published AvatarRouter API 0.5 contract currently documents `/sessions`,
-`/connection`, `/audio`, `/interrupt`, and `/end`. Its integration guide explicitly
-states that this renderer is not a new LLM, transcription or TTS engine. It does
-not document a Full Pipeline PAL/context/conversation/final-transcript contract:
+The published AvatarRouter API 0.6 now documents `pipeline: "tavus_full"`,
+per-session prompt/context/language/voice configuration, and
+`GET /sessions/{id}/full-connection` for private Daily access. It explicitly
+rejects external PCM and renderer interrupts for this pipeline. However, its
+contract creates and deletes a PAL for each session, limits sessions to 120
+seconds, and does not provide authoritative final-transcript retrieval.
+
+After reviewing these differences, the user chose to retain the original
+requirements rather than enable a reduced implementation. Required router
+extensions before enabling this mode:
+
+- Reuse one shared Full Pipeline PAL without mutating it for each role.
+- Support the scenario target duration, subject to the application's 30-minute cap,
+  rather than the current fixed 120-second maximum.
+- Expose authoritative final transcripts with session/project/user ownership so
+  the existing evaluation adapter can import confirmed evidence.
 
 - https://avatar-router.replit.app/roleplayx/openapi.yaml
 - https://avatar-router.replit.app/roleplayx/integration-guide.md
+- https://avatar-router.replit.app/roleplayx/tavus-full-pipeline.md
 
-Do not guess routes or forward Tavus `/v2` requests to the router. When its Full
-Pipeline contract is supplied, implement it through the existing server-only
+Do not guess routes or forward Tavus `/v2` requests to the router. When a compatible
+Full Pipeline contract is supplied, implement it through the existing server-only
 AvatarProjectClient with verified local ownership and project/user identity.
 Do not replace the requested independent pipeline with Gemini-to-avatar audio.
 No external writes or paid sessions were executed to investigate this contract.
