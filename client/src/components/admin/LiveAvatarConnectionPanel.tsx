@@ -11,6 +11,7 @@ type ConnectionStatus = {
   authMode: "api-key";
   state: "unconfigured" | "invalid" | "configured";
   baseUrl?: string;
+  keyFingerprint?: string;
 };
 
 type ConnectionCheckResult = {
@@ -95,6 +96,12 @@ export function LiveAvatarConnectionPanel() {
             <div className="min-w-0 rounded-md border bg-background/70 p-3">
               <p className="text-xs text-muted-foreground">{t("liveAvatar.connection.baseUrl", { defaultValue: "서버 Base URL" })}</p>
               <p className="mt-1 break-all font-medium">{status.baseUrl || "—"}</p>
+            </div>
+            <div className="min-w-0 rounded-md border bg-background/70 p-3">
+              <p className="text-xs text-muted-foreground">
+                {t("liveAvatar.connection.keyFingerprint", { defaultValue: "키 지문 (SHA-256 앞 12자리)" })}
+              </p>
+              <p className="mt-1 break-all font-mono font-medium">{status.keyFingerprint || "—"}</p>
             </div>
           </div>
 

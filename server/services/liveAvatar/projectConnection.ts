@@ -25,7 +25,7 @@ const checkSchema = z.object({
 type Input = { baseUrl?: string; apiKey?: string };
 type CheckedConnection = z.infer<typeof checkSchema> & { checkedAt: string };
 export type AvatarProjectConnectionStatus = {
-  authMode: "api-key"; state: "configured" | "unconfigured" | "invalid"; baseUrl?: string;
+  authMode: "api-key"; state: "configured" | "unconfigured" | "invalid"; baseUrl?: string; keyFingerprint?: string;
 };
 
 /** Project authentication only. It neither maps local tenants nor enables paid sessions. */
@@ -57,7 +57,10 @@ export class AvatarRouterProjectConnection {
     try {
       const config = this.configuration();
       return { authMode: "api-key", state: config ? "configured" : "unconfigured",
-        ...(config ? { baseUrl: config.baseUrl } : {}) };
+        ...(config ? {
+          baseUrl: config.baseUrl,
+          keyFingerprint: createHash("sha256").update(config.apiKey).digest("hex").slice(0, 12),
+        } : {}) };
     } catch {
       return { authMode: "api-key", state: "invalid" };
     }
