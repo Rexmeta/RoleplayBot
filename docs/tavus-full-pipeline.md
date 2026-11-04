@@ -1,168 +1,83 @@
-# Tavus Full Pipeline
+# Tavus Full Pipeline through AvatarRouter
 
-## Current status: AvatarRouter Full Pipeline contract extensions required
+## Current scope
 
-**RoleplayX must connect through the existing AvatarRouter, never directly to Tavus.**
-The direct provider HTTP implementation has been removed. The Full Pipeline mode
-is disabled with `avatar_router_full_pipeline_contract_required`; configuring a
-direct Tavus key cannot enable it. Existing text, Gemini Live, and AvatarRouter
-renderer integration remain separate and unchanged.
+The user approved enabling the currently available AvatarRouter API 0.6 behavior
+first. This supersedes the earlier decision to block activation until shared PAL,
+longer sessions and final-transcript support are available.
 
-The published AvatarRouter API 0.6 now documents `pipeline: "tavus_full"`,
-per-session prompt/context/language/voice configuration, and
-`GET /sessions/{id}/full-connection` for private Daily access. It explicitly
-rejects external PCM and renderer interrupts for this pipeline. However, its
-contract creates and deletes a PAL for each session, limits sessions to 120
-seconds, and does not provide authoritative final-transcript retrieval.
+- RoleplayX calls only the existing server-side `AvatarProjectClient`. No direct
+  Tavus requests or Tavus API key are used.
+- AvatarRouter creates/deletes a PAL for each session. The maximum 120 seconds
+  includes queue/startup time, not 120 seconds after browser connection.
+- Tavus owns STT/LLM/TTS/video/interruptions. The client joins a private Daily call
+  with microphone enabled and camera disabled; remote video/audio share that call.
+- Final transcript retrieval and automatic evaluation are **not available**.
+  The UI explicitly says so and never invokes the report completion callback.
+  Existing transcript adapters are retained for a future authoritative source;
+  browser captions are not imported as confirmed evidence.
+- Text, Gemini Live and the external-audio avatar renderer remain separate.
 
-After reviewing these differences, the user chose to retain the original
-requirements rather than enable a reduced implementation. Required router
-extensions before enabling this mode:
+## Availability and authorization
 
-- Reuse one shared Full Pipeline PAL without mutating it for each role.
-- Support the scenario target duration, subject to the application's 30-minute cap,
-  rather than the current fixed 120-second maximum.
-- Expose authoritative final transcripts with session/project/user ownership so
-  the existing evaluation adapter can import confirmed evidence.
+Reuse the configured AvatarRouter Base URL and server project key. Every external
+request uses freshly verified local identity and the router's user context header.
+`GET /auth/check` must advertise both `tavus_full_pipeline` and
+`daily_private_connection` with create/read/connect/end scopes.
+
+The existing global live-avatar setting, scenario policy and selected actor's live
+avatar configuration gate availability. Start also validates the selected asset,
+current project ownership and runtime budget/worker/cleanup limits. No stock face
+is silently substituted for an invalid or unavailable selected custom avatar.
+Published scenario/persona snapshots remain authoritative for per-session context.
+Contexts above the router's 12,000-character limit fail explicitly, not truncated.
+
+## APIs and learner flow
+
+All routes require login and return `Cache-Control: no-store`:
+
+- `GET /api/tavus/config?runId=...` — features, actor policy and limitations.
+- `GET /api/tavus/conversations/:id/session` — safe state, deadline, no room token.
+- `POST /api/tavus/conversations/:id/start` — strict `{ "consent": true }`.
+- `GET /api/tavus/conversations/:id/connection` — owner-only private Daily details.
+- `POST /api/tavus/conversations/:id/end` — requests router cleanup.
+- `POST /api/tavus/conversations/:id/sync` — safe status refresh, not transcription.
+- `POST /api/tavus/pal` — retained admin route rejects; router manages session PALs.
+
+Choose Tavus Full Pipeline before beginning a native text/Gemini conversation.
+Accept the displayed audio/context transfer and cost consent and click start.
+The router receives `POST /sessions` with `pipeline: "tavus_full"`, the validated
+selected avatar, system role prompt, scenario/persona context and session language.
+The mode selector does not mount/prewarm Gemini while choosing or running Tavus.
+Native audio/text/ledger writes reject runs reserved for `tavus_full`.
+
+Creation is asynchronous. Poll the bound session until active/running, no stop
+request and no cleanup warning. Only then retrieve `/full-connection`. Daily
+credentials remain in component memory only: not logs, localStorage, persisted
+settings or query caches. Room URL hosts must be HTTPS Daily subdomains.
+The UI distinguishes joining, waiting for media and browser audio playback blocks.
+
+## Recovery and verification boundaries
+
+Existing settings storage with transaction advisory locks persists a pre-create
+fence before the non-idempotent paid request. Never automatically retry session
+creation. Unknown outcomes remain blocked for trusted router reconciliation.
+The returned router ID is retained before later readiness checks.
+
+End/page exit requests server-side cleanup and tears down Daily media. End
+acknowledgement is not provider termination: polling/background recovery continues
+until the router confirms closed with no cleanup pending. The worker never creates
+sessions. No new tables or migrations are required in RoleplayX.
+
+Automated mocked tests cover ownership/consent, feature/actor gating, router
+payloads, uncertain-create fencing, Daily credential validation, cleanup state,
+client media teardown and suppression of unsupported evaluation.
+They do not certify actual paid Tavus creation, microphones, audiovisual playback,
+Korean recognition or persona fidelity. Paid tests and production changes require
+separate approval.
+
+Contract sources:
 
 - https://avatar-router.replit.app/roleplayx/openapi.yaml
-- https://avatar-router.replit.app/roleplayx/integration-guide.md
 - https://avatar-router.replit.app/roleplayx/tavus-full-pipeline.md
-
-Do not guess routes or forward Tavus `/v2` requests to the router. When a compatible
-Full Pipeline contract is supplied, implement it through the existing server-only
-AvatarProjectClient with verified local ownership and project/user identity.
-Do not replace the requested independent pipeline with Gemini-to-avatar audio.
-No external writes or paid sessions were executed to investigate this contract.
-
-The sections below describe the retained orchestration/UI scaffolding and intended
-behavior, **not a currently operational router Full Pipeline integration**.
-
-## Scope and isolation
-
-The optional Tavus mode is independent of the existing text and Gemini Live modes.
-It must not stream Gemini audio through Tavus or AvatarRouter. Tavus would provide STT,
-LLM, TTS, avatar video, lip sync and interruption handling in a hosted Daily room.
-The Tavus branch unmounts the normal chat component, so its realtime hook cannot
-open a Gemini WebSocket. The server also rejects native speech/text/ledger writes
-for a run reserved for Tavus.
-
-The current workspace includes GitHub `main` and additional work. No reset to
-`main`, removal of existing avatar features, dependency installation or schema
-migration was needed.
-
-## Server configuration
-
-Reuse the already configured AvatarRouter Base URL and server-only project API
-key. Do not add or request a separate Tavus API key in RoleplayX.
-
-The router must support one shared PAL with `pipeline_mode: "full"`, dynamic
-persona/scenario context, authenticated conversation creation, end, and retrieval
-of the authoritative final transcript. Its exact endpoint/payload contract is
-required before this scaffolding can be enabled. PAL initialization through
-`POST /api/tavus/pal` is currently blocked as well.
-
-Do not patch the shared PAL per persona or scenario. Per-run role, communication
-style, goals, background, language and scenario context are included in
-`conversational_context` on `POST /v2/conversations`. Published scenario/persona/
-evaluation snapshots remain authoritative. Unbound runs read existing DB
-scenario and persona records. Private evaluation rubrics are not sent to Tavus.
-The shared PAL has no participant memory tags, so one learner's conversation is
-not added to another's memory. Perception and recording are disabled by default.
-
-**Limit:** a shared PAL uses a shared TTS voice. Dynamic context can request
-different diction and behavior; it does not select a different physical voice.
-Actual role consistency and speaking style still require live verification.
-
-## Learner flow
-
-When Tavus is configured, a fresh conversation offers a pipeline choice before
-Gemini can preconnect. Select “Tavus Full Pipeline” there or in the existing chat
-avatar area **before sending messages or starting a Gemini call**. Existing transcripts are never overwritten
-or mixed with a new Tavus transcript; an already-used run requires a fresh run.
-Accept the explicit audio/context transfer and provider-charge consent, then
-start. There is no automatic paid start.
-
-The server creates a private room (`require_auth: true`, two participants) and
-returns the provider's room URL with a short-lived meeting token, not an API key.
-The iframe has microphone/camera/autoplay permissions. The room handles device
-selection, participant media and interruptions. The app calls the Tavus End
-Conversation API when ending or leaving.
-
-Calls have a maximum duration capped at 30 minutes (shorter scenario targets are
-honored), a 60-second absent-participant timeout, and a 20-second timeout after
-the last participant leaves. These provider-side limits also apply when browser
-cleanup cannot be delivered.
-
-## APIs
-
-All application endpoints require the existing login:
-
-- `GET /api/tavus/config`
-- `POST /api/tavus/pal` — system administrator only
-- `GET /api/tavus/conversations/:personaRunId/session`
-- `POST /api/tavus/conversations/:personaRunId/start` — `{ "consent": true }`
-- `POST /api/tavus/conversations/:personaRunId/end`
-- `POST /api/tavus/conversations/:personaRunId/sync`
-
-Only the actual run owner can start, read, stop or synchronize a room. An
-administrator role does not confer ownership of another learner's room token.
-Lifecycle responses are `no-store`. Upstream response bodies and room tokens
-are not written to logs.
-
-## Transcript and existing evaluation
-
-After Tavus ends the conversation, the server reads
-`GET /v2/conversations/{id}?verbose=true`. Only the
-`application.transcription_ready` event is eligible. `assistant` becomes `ai`,
-`user` remains `user`; system/tool entries are excluded. Original timestamps
-and repeated utterances are preserved. Interim browser captions are not trusted.
-If the final transcript is not ready, the UI waits and offers a synchronization
-retry; the application does not fabricate a transcript or evaluate missing text.
-
-For legacy runs, the adapter writes existing `chat_messages` with deterministic
-IDs. For ledger runs, it records provider `tavus` as an **imported text
-transcript**, closes an immutable ledger snapshot and submits the existing
-durable feedback job. This does **not** assert independent audio/STT verification
-or actual speaker playback. Provider source timestamps are retained in ledger
-metadata. Tavus-only feedback inputs use the existing voice-mode rules.
-
-Scoring providers, rubrics, weights and report generation are otherwise unchanged.
-Existing native simulation tool calls, live stage transitions and automatic
-multi-persona switching are not executed by Tavus: this initial PAL stays in the
-selected role. The adapter supplies final conversation evidence to the existing
-holistic evaluation; it does not invent native simulation scores.
-
-## Recovery and cost safety
-
-The existing settings table stores session bindings and a singleton PAL record.
-Database advisory locks and a committed pre-create fence prevent duplicate
-billable creates across repeated clicks/processes. HTTP creation is never
-automatically retried. An uncertain create remains blocked; check the provider
-dashboard before attempting recovery. If a timed-out provider create returned
-no ID, reconcile it externally; do not clear the fence and blindly create again.
-For uncertain PAL creation, identify the existing PAL and configure its
-`TAVUS_PAL_ID` instead of creating another.
-
-A background worker resumes safe end/read/transcript-import work after page exit
-or a process restart. It never creates a conversation. Known provider IDs are
-retained even if a room URL fails validation. Stable import/event IDs and
-transcript hashes prevent duplicate or changed evidence from being published.
-
-## Verification boundaries
-
-Automated tests cover context isolation, API contract, private-room URL handling,
-consent/ownership, singleton PAL reuse, duplicate/uncertain create fencing,
-end-before-evaluation, final-transcript gating, and client Gemini-hook isolation.
-They do not certify audiovisual synchronization, microphone quality,
-interruptions, Korean recognition or persona adherence on the real provider.
-Live tests require a configured key/face or PAL and explicit paid-test approval.
-No provider resources are created merely by starting the development server.
-
-Official contracts checked:
-
-- https://docs.tavus.io/api-reference/pals/create-pal
-- https://docs.tavus.io/api-reference/conversations/create-conversation
-- https://docs.tavus.io/api-reference/conversations/get-conversation
-- https://docs.tavus.io/api-reference/conversations/end-conversation
-- https://docs.tavus.io/sections/onboarding-guide/pal-strategies
+- https://avatar-router.replit.app/roleplayx/integration-guide.md

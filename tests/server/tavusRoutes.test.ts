@@ -13,6 +13,10 @@ let service: any;
 beforeEach(() => {
   service = {
     config: vi.fn(async () => ({ available: true, blockers: [] })),
+    connection: vi.fn(async (user: string) => {
+      if (user !== "owner") throw new TavusError("tavus_conversation_forbidden", 403);
+      return { transport: "daily", pipeline: "tavus_full", url: "https://room.daily.co/private", token: "ephemeral" };
+    }),
     session: vi.fn(async (user: string) => {
       if (user !== "owner") throw new TavusError("tavus_conversation_forbidden", 403);
       return { state: "idle" };
@@ -40,6 +44,15 @@ describe("Tavus authenticated routes", () => {
     await request(app()).get("/api/tavus/config").expect(401);
     await request(app()).get("/api/tavus/conversations/run/session").expect(401);
     expect(service.config).not.toHaveBeenCalled();
+  });
+  it("returns Daily credentials only through an authenticated no-store owner route", async () => {
+    await request(app()).get("/api/tavus/conversations/run/connection").expect(401);
+    await request(app()).get("/api/tavus/conversations/run/connection").set("x-user", "other").expect(403);
+    const result = await request(app()).get("/api/tavus/conversations/run/connection").set("x-user", "owner").expect(200);
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(service.connection).toHaveBeenCalledWith("owner", "run");
+    await request(app()).get("/api/tavus/config?runId=run").set("x-user", "owner").expect(200);
+    expect(service.config).toHaveBeenCalledWith("owner", "run");
   });
   it("does not expose another user's session or bypass ownership for admin", async () => {
     const result = await request(app()).get("/api/tavus/conversations/run/session")

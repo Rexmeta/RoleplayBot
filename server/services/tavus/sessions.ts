@@ -1,196 +1,181 @@
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
-import { TavusClient, TavusError, palSchema, createdPalSchema, createdConversationSchema, conversationSchema, conversationJoinUrl } from "./client";
+import { storage } from "../../storage";
+import { TavusError } from "./client";
 import { resolveTavusContext, resolveTavusOwner, ROLEPLAY_PAL_PROMPT } from "./context";
 import { TavusStore } from "./store";
-import { adaptTavusTranscript, transcriptHash, type TavusMessage } from "./transcriptAdapter";
-import { importTavusTranscript, reserveTavusRun } from "./importTranscript";
+import { reserveTavusRun } from "./importTranscript";
+import { AvatarProjectClient } from "../liveAvatar/projectClient";
 import { avatarRouterProjectConnection } from "../liveAvatar/projectConnection";
+import { resolveConversationAvatar, inspectConversationAvatarSelection } from "../liveAvatar/conversationTarget";
+import { AvatarIdentityError } from "../liveAvatar/delegatedIdentity";
+import { testLimitsSchema } from "../liveAvatar/testContracts";
+import { dailyConnectionSchema, routerSessionSchema } from "./routerContracts";
 
-type State = "creating" | "create_unknown" | "active" | "ending" | "transcript_pending" | "completed";
+type State = "creating" | "create_unknown" | "active" | "ending" | "ended";
 export interface TavusSession {
   state: State; token: string; userId: string; runId: string; createdAt: string;
-  conversationId?: string; conversationUrl?: string; messages?: TavusMessage[];
-  transcriptHash?: string; syncUntil?: number; lastError?: string;
+  sessionId?: string; projectId?: string; avatarId?: string; assetId?: string | null;
+  expiresAt?: string; lastError?: string;
 }
-interface PalRecord { state: "creating" | "create_unknown" | "ready"; token: string; palId?: string }
-
+const requiredFeatures = ["tavus_full_pipeline", "daily_private_connection"];
+const requiredScopes = ["sessions:create", "sessions:read", "sessions:connect", "sessions:end"];
 export const tavusDeps = {
-  client: new TavusClient(), store: new TavusStore(), resolve: resolveTavusContext,
-  owner: resolveTavusOwner,
-  reserve: reserveTavusRun, importTranscript: importTavusTranscript, env: process.env,
-  availability: () => ({
-    available: false,
-    blockers: [
-      ...(avatarRouterProjectConnection.status().state === "configured" ? [] : ["avatar_connection_unconfigured"]),
-      "avatar_router_full_pipeline_contract_required",
-    ],
-  }),
+  client: new AvatarProjectClient(storage), store: new TavusStore(),
+  connection: avatarRouterProjectConnection, resolve: resolveTavusContext, owner: resolveTavusOwner,
+  target: resolveConversationAvatar, selection: inspectConversationAvatarSelection, reserve: reserveTavusRun,
 };
 
+/** Router-only full pipeline. No provider PAL API, Gemini audio, or invented transcript API. */
 export class TavusSessions {
   constructor(private readonly deps = tavusDeps) {}
 
-  async config() {
-    return this.deps.availability();
+  async config(userId?: string, runId?: string) {
+    const blockers: string[] = [];
+    if (!userId) blockers.push("avatar_authenticated_user_required");
+    else try {
+      const auth = await this.deps.connection.check(userId);
+      if (!requiredFeatures.every(f => auth.integration?.features.includes(f))) blockers.push("avatar_router_full_pipeline_unavailable");
+      if (!requiredScopes.every(s => auth.scopes.includes(s as any))) blockers.push("avatar_full_pipeline_scopes_missing");
+      if (runId) {
+        const selection = await this.deps.selection(userId, runId);
+        blockers.push(...selection.blockers);
+      }
+    } catch (error) {
+      blockers.push(error instanceof AvatarIdentityError || error instanceof TavusError ? error.code : "avatar_router_unavailable");
+    }
+    return { available: blockers.length === 0, blockers, maxSeconds: 120,
+      evaluationAvailable: false, palStrategy: "per_session" };
   }
 
-  async ensurePal() {
-    if (!(await this.config()).available) throw new TavusError("avatar_router_full_pipeline_contract_required", 503);
-    if (this.deps.env.TAVUS_PAL_ID) {
-      const pal = await this.deps.client.call(`/pals/${encodeURIComponent(this.deps.env.TAVUS_PAL_ID)}`, palSchema);
-      return pal.pal_id;
-    }
-    const saved = await this.deps.store.read<PalRecord>("pal");
-    if (saved?.state === "ready") {
-      const pal = await this.deps.client.call(`/pals/${encodeURIComponent(saved.palId!)}`, palSchema);
-      return pal.pal_id;
-    }
-    if (!this.deps.env.TAVUS_DEFAULT_FACE_ID) throw new TavusError("tavus_pal_or_face_missing", 503);
-    const token = randomUUID();
-    const record = await this.deps.store.mutate<PalRecord>("pal", current =>
-      current ?? { state: "creating", token });
-    if (record.state === "ready") return record.palId!;
-    if (record.token !== token) throw new TavusError("tavus_pal_setup_pending");
-    try {
-      const created = await this.deps.client.call("/pals", createdPalSchema, {
-        pal_name: "RoleplayX Common Roleplay", pipeline_mode: "full",
-        default_face_id: this.deps.env.TAVUS_DEFAULT_FACE_ID, system_prompt: ROLEPLAY_PAL_PROMPT,
-        layers: {
-          perception: { perception_model: "off" },
-          stt: { stt_engine: "tavus-auto" },
-          conversational_flow: { turn_detection_model: "sparrow-2", pal_interruptibility: "high" },
-        },
-      });
-      await this.deps.store.mutate<PalRecord>("pal", () => ({ state: "ready", token, palId: created.pal_id }));
-      return created.pal_id;
-    } catch (error) {
-      await this.deps.store.mutate<PalRecord>("pal", () => ({ state: "create_unknown", token }));
-      throw error;
-    }
+  async ensurePal(): Promise<string> {
+    throw new TavusError("avatar_router_manages_session_pal", 409);
   }
 
   private async owned(userId: string, runId: string) {
-    const ownership = await this.deps.owner(userId, runId);
-    let session = await this.deps.store.read<TavusSession>(`run:${runId}`);
-    if (!session && ownership.run.mode === "tavus_full") {
-      session = { state: "create_unknown", token: "missing-binding", runId, userId,
-        createdAt: new Date().toISOString(), lastError: "tavus_session_binding_missing" };
-    }
+    const owner = await this.deps.owner(userId, runId);
+    const session = await this.deps.store.read<TavusSession>(`run:${runId}`);
     if (session && session.userId !== userId) throw new TavusError("tavus_conversation_forbidden", 403);
-    return { ...ownership, session };
+    if (!session && owner.run.mode === "tavus_full") throw new TavusError("tavus_session_binding_missing", 409);
+    return { ...owner, session };
   }
 
   private publicSession(session: TavusSession | null) {
-    return session ? {
-      state: session.state,
-      ...(session.state === "active" ? { conversationUrl: session.conversationUrl } : {}),
-      ...(session.messages ? { messages: session.messages } : {}),
-      ...(session.lastError ? { error: session.lastError } : {}),
-    } : { state: "idle" };
+    return { state: session?.state ?? "idle", evaluationAvailable: false,
+      ...(session?.expiresAt ? { expiresAt: session.expiresAt } : {}),
+      ...(session?.lastError ? { error: session.lastError } : {}) };
+  }
+
+  private async remote(userId: string, session: TavusSession) {
+    const auth = await this.deps.connection.check(userId);
+    if (!session.projectId || auth.projectId !== session.projectId) throw new TavusError("persona_avatar_project_mismatch", 409);
+    if (!session.sessionId) throw new TavusError("tavus_create_reconciliation_required", 409);
+    const remote = await this.deps.client.call(userId, `/sessions/${session.sessionId}`, routerSessionSchema);
+    if (remote.id !== session.sessionId || remote.avatarId !== session.avatarId ||
+        (remote.avatarAssetId ?? null) !== (session.assetId ?? null)) throw new TavusError("tavus_session_mismatch", 502);
+    return remote;
   }
 
   async session(userId: string, runId: string) {
     const { session } = await this.owned(userId, runId);
-    if (session?.state === "creating" && Date.now() - Date.parse(session.createdAt) > 60000) {
-      return this.publicSession(await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
-        current?.state === "creating" ? { ...current, state: "create_unknown" } : current!));
+    if (!session || session.state === "ended") return this.publicSession(session);
+    if (!session.sessionId) {
+      if (session.state === "creating" && Date.now() - Date.parse(session.createdAt) > 60000) {
+        return this.publicSession(await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
+          current?.state === "creating" && !current.sessionId ? { ...current, state: "create_unknown" } : current!));
+      }
+      return this.publicSession(session);
     }
-    return this.publicSession(session);
+    const remote = await this.remote(userId, session);
+    const closed = remote.rendererState === "closed" && !remote.cleanupPending && remote.status !== "active";
+    const state: State = closed ? "ended" :
+      session.state === "ending" || remote.stopRequested || remote.status !== "active" ||
+      Date.parse(remote.expiresAt) <= Date.now() ? "ending" :
+      remote.rendererState === "running" && !remote.cleanupPending ? "active" : "creating";
+    const saved = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({
+      ...current!, state: current?.state === "ended" ? "ended" :
+        current?.state === "ending" && state !== "ended" ? "ending" : state,
+      expiresAt: remote.expiresAt,
+    }));
+    return this.publicSession(saved);
   }
 
   async start(userId: string, runId: string, consent: boolean) {
     if (!consent) throw new TavusError("tavus_consent_required", 400);
-    const { session: existing } = await this.owned(userId, runId);
-    if (existing) return this.publicSession(existing); // no second paid creation, including unknown outcomes
+    const { session, run, scenarioRun } = await this.owned(userId, runId);
+    if (session) return this.session(userId, runId);
+    if (run.status !== "active" || scenarioRun.status === "completed") throw new TavusError("tavus_fresh_run_required");
+    const config = await this.config(userId, runId);
+    if (!config.available) throw new TavusError(config.blockers[0] ?? "tavus_not_configured", 503);
+    const target = await this.deps.target(userId, runId);
     const binding = await this.deps.resolve(userId, runId);
-    if (binding.run.status !== "active" || binding.scenarioRun.status === "completed") throw new TavusError("tavus_fresh_run_required");
-    if (!(await this.config()).available) throw new TavusError("tavus_not_configured", 503);
-    const palId = await this.ensurePal();
+    if (binding.context.length > 12000) throw new TavusError("tavus_context_too_large", 422);
+    const limits = await this.deps.client.call(userId, "/live-limits",
+      testLimitsSchema.extend({ creationAllowed: testLimitsSchema.shape.workerReady.optional() }));
+    if (limits.creationAllowed === false || !limits.workerReady || limits.cleanupPending ||
+        limits.userRemainingSeconds < limits.sessionSeconds || limits.globalRemainingSeconds < limits.sessionSeconds) {
+      throw new TavusError("avatar_runtime_limits_unavailable", 409);
+    }
     const token = randomUUID();
-    const pending = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
-      current ?? { state: "creating", token, userId, runId, createdAt: new Date().toISOString() });
+    const pending = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => current ?? {
+      state: "creating", token, userId, runId, createdAt: new Date().toISOString(),
+      projectId: target.projectId, avatarId: target.avatarId, assetId: target.assetId,
+    });
     if (pending.token !== token) return this.publicSession(pending);
-    // Durable create fence must commit before sending any billable request.
-    let reserved = false;
     try {
+      // Persist paid-create fence and reject native writes before the non-idempotent POST.
       await this.deps.reserve(runId);
-      reserved = true;
-      const result = await this.deps.client.call("/conversations", createdConversationSchema, {
-        pal_id: palId, conversational_context: binding.context,
-        conversation_name: `RoleplayX ${runId}`, dynamic_greeting: true,
-        require_auth: true, max_participants: 2,
-        properties: { languages: [binding.language], max_call_duration: Math.min(1800, Math.max(60,
-          Math.round((binding.scenario?.targetDurationMinutes ?? 30) * 60))),
-          participant_left_timeout: 20, participant_absent_timeout: 60, enable_closed_captions: true,
-          enable_recording: false },
+      const created = await this.deps.client.call(userId, "/sessions", routerSessionSchema, {
+        providerId: "tavus", avatarId: target.avatarId,
+        ...(target.assetId ? { avatarAssetId: target.assetId } : {}),
+        mode: "live", pipeline: "tavus_full", costConfirmed: true,
+        fullPipeline: { systemPrompt: ROLEPLAY_PAL_PROMPT, context: binding.context, languages: [binding.language] },
       });
-      // Persist provider identity BEFORE validating its room URL so cleanup is still possible.
-      await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
-        ({ ...current!, conversationId: result.conversation_id, state: "ending" }));
-      const conversationUrl = conversationJoinUrl(result);
-      const active = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
-        ({ ...current!, conversationUrl, state: "active" }));
-      return this.publicSession(active);
+      // Retain the ID even if a later identity check fails; never create again.
+      const bound = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({
+        ...current!, sessionId: created.id, expiresAt: created.expiresAt,
+      }));
+      if (bound.state === "ending") return await this.end(userId, runId);
+      return await this.session(userId, runId);
     } catch (error) {
       await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({
-        ...current!, state: current?.conversationId ? "ending" : "create_unknown",
-        lastError: error instanceof TavusError ? error.code : reserved ? "tavus_create_uncertain" : "tavus_fresh_run_required",
+        ...current!, state: current?.sessionId ? "ending" : "create_unknown",
+        lastError: error instanceof AvatarIdentityError || error instanceof TavusError ? error.code : "tavus_create_uncertain",
       }));
       throw error;
     }
   }
 
+  async connection(userId: string, runId: string) {
+    const state = await this.session(userId, runId);
+    if (state.state !== "active") throw new TavusError("tavus_session_not_ready", 409);
+    const { session } = await this.owned(userId, runId);
+    const result = await this.deps.client.call(userId, `/sessions/${session!.sessionId}/full-connection`, dailyConnectionSchema);
+    if (Date.parse(result.expiresAt) <= Date.now()) throw new TavusError("tavus_connection_expired", 409);
+    return result;
+  }
+
   async end(userId: string, runId: string) {
     const { session } = await this.owned(userId, runId);
-    if (!session || session.state === "completed" || session.state === "transcript_pending") return this.publicSession(session);
-    if (!session.conversationId) throw new TavusError("tavus_create_reconciliation_required");
-    await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({ ...current!, state: "ending" }));
-    // End is safe to retry; only creation is fenced against retries.
-    await this.deps.client.call(`/conversations/${session.conversationId}/end`, z.object({}), {});
-    const ended = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
-      ({ ...current!, state: current?.state === "completed" ? "completed" : "transcript_pending" }));
-    return this.publicSession(ended);
-  }
-
-  async sync(userId: string, runId: string) {
-    const { session } = await this.owned(userId, runId);
-    if (!session?.conversationId || session.state === "completed") return this.publicSession(session);
-    if (session.state === "ending") await this.end(userId, runId);
-    const now = Date.now(), token = randomUUID();
-    // Cross-worker import lease; deterministic import IDs also protect crash/retry recovery.
-    const claimed = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => {
-      if (!current || (current.syncUntil ?? 0) > now) return current!;
-      return { ...current, token, syncUntil: now + 120000 };
-    });
-    if (claimed.token !== token) return this.publicSession(claimed);
-    try {
-      const conversation = await this.deps.client.call(`/conversations/${session.conversationId}?verbose=true`, conversationSchema);
-      if (conversation.conversation_id !== session.conversationId) throw new TavusError("tavus_conversation_mismatch", 502);
-      const messages = adaptTavusTranscript(conversation);
-      if (messages !== null) {
-        const hash = transcriptHash(messages);
-        if (claimed.transcriptHash && claimed.transcriptHash !== hash) throw new TavusError("tavus_transcript_changed");
-        await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
-          ({ ...current!, transcriptHash: hash, state: "transcript_pending" }));
-        const binding = await this.deps.resolve(userId, runId);
-        await this.deps.importTranscript(binding, session.conversationId, messages);
-        await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
-          ({ ...current!, state: "completed", messages, conversationUrl: undefined, lastError: undefined }));
-      } else if (conversation.status === "ended") {
-        await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({ ...current!, state: "transcript_pending" }));
+    if (!session || session.state === "ended") return this.publicSession(session);
+    if (!session.sessionId) {
+      if (session.state === "creating" || session.state === "ending") {
+        const pending = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
+          ({ ...current!, state: "ending" }));
+        return this.publicSession(pending);
       }
-    } finally {
-      await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({ ...current!, syncUntil: 0 }));
+      throw new TavusError("tavus_create_reconciliation_required", 409);
     }
-    return this.publicSession(await this.deps.store.read<TavusSession>(`run:${runId}`));
+    await this.remote(userId, session);
+    await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({ ...current!, state: "ending" }));
+    // End is retryable; its acknowledgement is NOT confirmation of provider cleanup.
+    await this.deps.client.call(userId, `/sessions/${session.sessionId}/end`, routerSessionSchema, {});
+    return this.session(userId, runId);
   }
+
+  async sync(userId: string, runId: string) { return this.session(userId, runId); }
 }
-
 export const tavusSessions = new TavusSessions();
-
 let workerStarted = false;
-/** Recovers safe reads/end/import after page exit or process restart. Never creates paid sessions. */
 export function startTavusWorker() {
   if (workerStarted) return;
   workerStarted = true;
@@ -199,18 +184,14 @@ export function startTavusWorker() {
     if (busy) return;
     busy = true;
     try {
-      if (!(await tavusSessions.config()).available) return;
-      const pending = await tavusDeps.store.pendingSessions();
-      for (const session of pending) {
-        try { await tavusSessions.sync(session.userId, session.runId); }
-        catch (error) {
-          console.warn("[tavus] session synchronization deferred",
-            error instanceof TavusError ? error.code : "tavus_sync_failed");
-        }
+      for (const row of await tavusDeps.store.pendingSessions()) {
+        try {
+          const state = await tavusSessions.session(row.userId, row.runId);
+          if (state.state === "ending") await tavusSessions.end(row.userId, row.runId);
+        } catch { console.warn("[tavus] router cleanup/status deferred"); }
       }
-    } catch {
-      console.warn("[tavus] pending-session scan deferred");
-    } finally { busy = false; }
+    } catch { console.warn("[tavus] pending-session scan deferred"); }
+    finally { busy = false; }
   }, 30000);
   timer.unref();
 }

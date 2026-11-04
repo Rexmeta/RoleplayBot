@@ -869,9 +869,9 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   // Keep this hook above every loading/error/ending exit so native chat calls
   // the same hooks before and after its conversation query resolves.
   const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; blockers: string[] }>({
-    queryKey: ["/api/tavus/config"],
+    queryKey: ["/api/tavus/config", conversationId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/tavus/config");
+      const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`);
       return response.json();
     },
   });
@@ -1836,7 +1836,7 @@ export default function ChatWindow(props: ChatWindowProps) {
         // Only configured Tavus installations add an explicit pre-connect choice.
         // Do not mount/prewarm Gemini before the learner has selected a pipeline.
         try {
-          const response = await apiRequest("GET", "/api/tavus/config");
+          const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(props.conversationId)}`);
           const config = await response.json();
           if (!cancelled) setMode(config.available && !props.initialMessages?.length ? "choice" : "standard");
         } catch {

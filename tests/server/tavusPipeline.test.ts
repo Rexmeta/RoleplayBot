@@ -1,195 +1,151 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 vi.mock("../../server/services/tavus/store", () => ({ TavusStore: class {} }));
 vi.mock("../../server/services/tavus/context", () => ({
   resolveTavusContext: vi.fn(), resolveTavusOwner: vi.fn(), ROLEPLAY_PAL_PROMPT: "Stay in assigned role",
 }));
-vi.mock("../../server/services/tavus/importTranscript", () => ({
-  importTavusTranscript: vi.fn(), reserveTavusRun: vi.fn(),
+vi.mock("../../server/services/tavus/importTranscript", () => ({ reserveTavusRun: vi.fn() }));
+vi.mock("../../server/services/liveAvatar/projectConnection", () => ({ avatarRouterProjectConnection: {} }));
+vi.mock("../../server/services/liveAvatar/conversationTarget", () => ({
+  resolveConversationAvatar: vi.fn(), inspectConversationAvatarSelection: vi.fn(),
 }));
-vi.mock("../../server/services/liveAvatar/projectConnection", () => ({
-  avatarRouterProjectConnection: { status: () => ({ state: "configured" }) },
-}));
-
+vi.mock("../../server/storage", () => ({ storage: {} }));
 import { TavusSessions } from "../../server/services/tavus/sessions";
-import { TavusClient, TavusError, conversationJoinUrl, createdPalSchema } from "../../server/services/tavus/client";
+import { TavusError, TavusClient, createdPalSchema } from "../../server/services/tavus/client";
+import { dailyConnectionSchema } from "../../server/services/tavus/routerContracts";
 
-let rows: Map<string, any>, deps: any, service: TavusSessions;
-const finalConversation = {
-  conversation_id: "c1", status: "ended", events: [{
-    event_type: "application.transcription_ready",
-    properties: { transcript: [
-      { role: "assistant", content: "어떤 제안인가요?", timestamp: 1800000000 },
-      { role: "user", content: "납기를 먼저 협의하고 싶습니다.", timestamp: 1800000003 },
-    ] },
-  }],
-};
-
+let rows: Map<string, any>, deps: any, service: TavusSessions, remote: any;
 beforeEach(() => {
   rows = new Map();
+  remote = { id: "s1", providerId: "tavus", avatarId: "selected-face", mode: "live", pipeline: "tavus_full",
+    status: "active", rendererState: "queued", cleanupPending: false, stopRequested: false,
+    expiresAt: new Date(Date.now() + 120000).toISOString() };
   deps = {
     store: {
-      read: vi.fn(async (key: string) => rows.get(key) ?? null),
-      mutate: vi.fn(async (key: string, fn: any) => {
-        const value = fn(rows.get(key) ?? null);
-        rows.set(key, structuredClone(value));
-        return value;
+      read: vi.fn(async (k: string) => rows.get(k) ?? null),
+      mutate: vi.fn(async (k: string, fn: any) => {
+        const value = fn(rows.get(k) ?? null); rows.set(k, structuredClone(value)); return value;
       }),
     },
-    env: { TAVUS_DEFAULT_FACE_ID: "stock-face" },
-    availability: vi.fn(() => ({ available: true, blockers: [] })),
-    owner: vi.fn(async (userId: string) => {
-      if (userId !== "owner") throw new TavusError("tavus_conversation_forbidden", 403);
+    owner: vi.fn(async (id: string) => {
+      if (id !== "owner") throw new TavusError("tavus_conversation_forbidden", 403);
       return { run: { status: "active" }, scenarioRun: { status: "active" } };
     }),
-    resolve: vi.fn(async (userId: string, runId: string) => {
-      if (userId !== "owner") throw new TavusError("tavus_conversation_forbidden", 403);
-      return { run: { id: runId, status: "active" }, scenarioRun: { status: "active" },
-        context: "unique persona and scenario", language: "ko" };
-    }),
+    selection: vi.fn(async () => ({ blockers: [] })),
+    connection: { check: vi.fn(async () => ({
+      projectId: "project", scopes: ["sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
+      integration: { features: ["tavus_full_pipeline", "daily_private_connection"] },
+    })) },
+    target: vi.fn(async () => ({ projectId: "project", avatarId: "selected-face", assetId: null })),
+    resolve: vi.fn(async () => ({ context: "snapshot-bound character and situation", language: "ko" })),
     reserve: vi.fn(async () => undefined),
-    importTranscript: vi.fn(async () => undefined),
-    client: { call: vi.fn(async (path: string) => {
-      if (path === "/pals") return { pal_id: "p1" }; // create does NOT return pipeline_mode
-      if (path.startsWith("/pals/")) return { pal_id: "p1", pipeline_mode: "full" };
-      if (path === "/conversations") return {
-        conversation_id: "c1", conversation_url: "https://tavus.daily.co/room", meeting_token: "short-lived-room-token",
-      };
-      if (path.endsWith("/end")) return {};
-      return finalConversation;
+    client: { call: vi.fn(async (_user: string, path: string, schema: any, body: any) => {
+      if (path === "/live-limits") return schema.parse({
+        workerReady: true, creationAllowed: true, cleanupPending: 0, userRemainingSeconds: 600,
+        globalRemainingSeconds: 3600, sessionSeconds: 120, providerCredits: "unknown", resetsAt: "tomorrow",
+      });
+      if (path === "/sessions" && body) expect(rows.get("run:run").state).toBe("creating");
+      if (path.endsWith("/full-connection")) return schema.parse({
+        transport: "daily", pipeline: "tavus_full", url: "https://room.tavus.daily.co/abc",
+        token: "private-token", expiresAt: remote.expiresAt,
+      });
+      return schema.parse(remote);
     }) },
   };
   service = new TavusSessions(deps);
 });
-
-describe("Tavus Full Pipeline sessions", () => {
-  it("keeps the real adapter unavailable until the router Full Pipeline contract exists", async () => {
-    expect(await new TavusSessions().config()).toEqual({
-      available: false, blockers: ["avatar_router_full_pipeline_contract_required"],
+describe("AvatarRouter Full Pipeline", () => {
+  it("discovers features and actor policy without a paid create", async () => {
+    expect(await service.config("owner", "run")).toMatchObject({
+      available: true, maxSeconds: 120, evaluationAvailable: false, palStrategy: "per_session",
     });
+    expect(deps.client.call).not.toHaveBeenCalled();
+    deps.selection.mockResolvedValue({ blockers: ["avatar_persona_not_selected"] });
+    expect(await service.config("owner", "run")).toMatchObject({ available: false, blockers: ["avatar_persona_not_selected"] });
   });
-  it("creates ONE shared full PAL and passes per-run contexts rather than creating per-persona PALs", async () => {
-    const one = await service.start("owner", "run1", true);
-    await service.start("owner", "run2", true);
-    const creates = deps.client.call.mock.calls.filter((c: any[]) => c[0] === "/pals");
-    expect(creates).toHaveLength(1);
-    expect(creates[0][2]).toMatchObject({ pipeline_mode: "full", default_face_id: "stock-face" });
-    const calls = deps.client.call.mock.calls.filter((c: any[]) => c[0] === "/conversations");
-    expect(calls).toHaveLength(2);
-    expect(calls[0][2]).toMatchObject({
-      pal_id: "p1", conversational_context: "unique persona and scenario", require_auth: true,
-      properties: { languages: ["ko"], participant_left_timeout: 20, enable_recording: false },
-    });
-    expect(one).toEqual({ state: "active", conversationUrl: "https://tavus.daily.co/room?t=short-lived-room-token" });
+  it("blocks an older router and missing session scopes", async () => {
+    deps.connection.check.mockResolvedValue({ projectId: "project", scopes: [], integration: { features: [] } });
+    expect(await service.config("owner")).toMatchObject({ available: false });
+    await expect(service.start("owner", "run", true)).rejects.toMatchObject({ status: 503 });
+    expect(deps.client.call).not.toHaveBeenCalled();
   });
-
-  it("requires explicit consent and current owner before any provider call", async () => {
+  it("requires consent and owner before external writes", async () => {
     await expect(service.start("owner", "run", false)).rejects.toMatchObject({ code: "tavus_consent_required" });
     await expect(service.start("other", "run", true)).rejects.toMatchObject({ status: 403 });
     expect(deps.client.call).not.toHaveBeenCalled();
   });
-  it("reads ordinary session status and ends known rooms without resolving mutable scenario authoring", async () => {
-    deps.resolve.mockRejectedValue(new Error("scenario was edited or removed"));
-    expect(await service.session("owner", "ordinary-run")).toEqual({ state: "idle" });
-    rows.set("run:existing", { userId: "owner", runId: "existing", state: "active", conversationId: "c1" });
-    expect(await service.end("owner", "existing")).toEqual({ state: "transcript_pending" });
-    expect(deps.resolve).not.toHaveBeenCalled();
-  });
-
-  it("reports the missing router contract instead of falling back to direct Tavus or Gemini", async () => {
-    deps.availability.mockReturnValue({ available: false, blockers: ["avatar_router_full_pipeline_contract_required"] });
-    service = new TavusSessions(deps);
-    expect(await service.config()).toEqual({
-      available: false, blockers: ["avatar_router_full_pipeline_contract_required"],
+  it("uses the selected avatar and router-owned per-session PAL, never direct provider endpoints", async () => {
+    expect(await service.start("owner", "run", true)).toMatchObject({ state: "creating", evaluationAvailable: false });
+    expect(deps.client.call).toHaveBeenCalledWith("owner", "/sessions", expect.anything(), {
+      providerId: "tavus", avatarId: "selected-face", mode: "live", pipeline: "tavus_full", costConfirmed: true,
+      fullPipeline: { systemPrompt: "Stay in assigned role", context: "snapshot-bound character and situation", languages: ["ko"] },
     });
-    await expect(service.start("owner", "run", true)).rejects.toMatchObject({ code: "tavus_not_configured" });
-    expect(deps.client.call).not.toHaveBeenCalled();
+    expect(deps.reserve).toHaveBeenCalledTimes(1);
+    expect(deps.client.call.mock.calls.every((c: any[]) => !/pals|conversations|audio|interrupt/.test(c[1]))).toBe(true);
   });
-
-  it("does not create another billable conversation on repeated start", async () => {
+  it("does not duplicate creation and only releases Daily credentials after actual readiness", async () => {
     await service.start("owner", "run", true);
     await service.start("owner", "run", true);
-    expect(deps.client.call.mock.calls.filter((c: any[]) => c[0] === "/conversations")).toHaveLength(1);
+    await expect(service.connection("owner", "run")).rejects.toMatchObject({ code: "tavus_session_not_ready" });
+    remote.rendererState = "running";
+    expect(await service.connection("owner", "run")).toMatchObject({ transport: "daily", token: "private-token" });
+    expect(await service.session("owner", "run")).not.toHaveProperty("token");
+    expect(JSON.stringify([...rows.values()])).not.toContain("private-token");
+    expect(deps.client.call.mock.calls.filter((c: any[]) => c[1] === "/sessions")).toHaveLength(1);
   });
-
-  it("commits a create fence before request and never retries an uncertain create", async () => {
-    deps.client.call.mockImplementation(async (path: string) => {
-      if (path === "/pals") return { pal_id: "p1" };
-      expect(rows.get("run:run").state).toBe("creating");
-      throw new TavusError("tavus_request_uncertain", 502);
+  it("keeps an uncertain create fenced against repeated starts", async () => {
+    const call = deps.client.call.getMockImplementation();
+    deps.client.call.mockImplementation(async (...args: any[]) => {
+      if (args[1] === "/sessions") throw new Error("timeout");
+      return call(...args);
     });
-    await expect(service.start("owner", "run", true)).rejects.toMatchObject({ code: "tavus_request_uncertain" });
+    await expect(service.start("owner", "run", true)).rejects.toThrow("timeout");
     expect(await service.start("owner", "run", true)).toMatchObject({ state: "create_unknown" });
-    expect(deps.client.call.mock.calls.filter((c: any[]) => c[0] === "/conversations")).toHaveLength(1);
+    expect(deps.client.call.mock.calls.filter((c: any[]) => c[1] === "/sessions")).toHaveLength(1);
   });
-
-  it("ends before importing official final transcript and queues feedback only once", async () => {
-    await service.start("owner", "run", true);
-    expect(deps.importTranscript).not.toHaveBeenCalled();
-    expect(await service.end("owner", "run")).toEqual({ state: "transcript_pending" });
-    const final = await service.sync("owner", "run");
-    expect(final).toMatchObject({ state: "completed", messages: [
-      { sender: "ai", message: "어떤 제안인가요?" },
-      { sender: "user", message: "납기를 먼저 협의하고 싶습니다." },
-    ] });
-    expect(deps.importTranscript).toHaveBeenCalledTimes(1);
-    await service.sync("owner", "run");
-    await service.end("owner", "run");
-    expect(deps.importTranscript).toHaveBeenCalledTimes(1);
-    expect(deps.client.call.mock.calls.filter((c: any[]) => c[0].endsWith("/end"))).toHaveLength(1);
-    expect(final).not.toHaveProperty("conversationUrl");
-  });
-
-  it("waits for transcription_ready and does not evaluate interim or unavailable text", async () => {
-    await service.start("owner", "run", true);
-    await service.end("owner", "run");
-    deps.client.call.mockResolvedValue({ conversation_id: "c1", status: "ended", events: [] });
-    expect(await service.sync("owner", "run")).toEqual({ state: "transcript_pending" });
-    expect(deps.importTranscript).not.toHaveBeenCalled();
-  });
-
-  it("retains provider ID for cleanup if a returned room URL is untrusted", async () => {
-    deps.client.call.mockImplementation(async (path: string) => path === "/pals" ? { pal_id: "p1" } : {
-      conversation_id: "c1", conversation_url: "https://evil.example/room",
+  it("remembers an end request during creation and cleans up as soon as the ID arrives", async () => {
+    let accept!: (value: unknown) => void;
+    const deferred = new Promise(resolve => { accept = resolve; });
+    const original = deps.client.call.getMockImplementation();
+    deps.client.call.mockImplementation(async (...args: any[]) => {
+      if (args[1] === "/sessions") return deferred;
+      return original(...args);
     });
-    await expect(service.start("owner", "run", true)).rejects.toMatchObject({ code: "tavus_untrusted_room_url" });
-    expect(rows.get("run:run")).toMatchObject({ state: "ending", conversationId: "c1" });
+    const starting = service.start("owner", "run", true);
+    await vi.waitFor(() => expect(deps.client.call.mock.calls.some((c: any[]) => c[1] === "/sessions")).toBe(true));
+    expect(await service.end("owner", "run")).toMatchObject({ state: "ending" });
+    accept(remote);
+    expect(await starting).toMatchObject({ state: "ending" });
+    expect(deps.client.call).toHaveBeenCalledWith("owner", "/sessions/s1/end", expect.anything(), {});
   });
-
-  it("keeps cleanup pending on end failure", async () => {
+  it("does not treat end acknowledgement as cleanup or import nonexistent transcripts", async () => {
     await service.start("owner", "run", true);
-    deps.client.call.mockRejectedValue(new TavusError("tavus_upstream_503", 502));
-    await expect(service.end("owner", "run")).rejects.toMatchObject({ status: 502 });
-    expect(rows.get("run:run").state).toBe("ending");
+    remote.rendererState = "running";
+    expect(await service.end("owner", "run")).toMatchObject({ state: "ending" });
+    remote.status = "ended"; remote.rendererState = "closed"; remote.cleanupPending = false;
+    expect(await service.sync("owner", "run")).toMatchObject({ state: "ended", evaluationAvailable: false });
+    expect(deps.client.call.mock.calls.some((c: any[]) => /transcript|conversations/.test(c[1]))).toBe(false);
   });
-
-  it("validates an explicitly configured PAL as full rather than patching it", async () => {
-    deps.env.TAVUS_PAL_ID = "fixed-pal";
+  it("rejects project changes and unexpected remote identity", async () => {
     await service.start("owner", "run", true);
-    expect(deps.client.call.mock.calls.map((c: any[]) => c[0])).toEqual(["/pals/fixed-pal", "/conversations"]);
+    remote.avatarId = "different-face";
+    await expect(service.session("owner", "run")).rejects.toMatchObject({ code: "tavus_session_mismatch" });
+    deps.connection.check.mockResolvedValue({ projectId: "other-project" });
+    await expect(service.end("owner", "run")).rejects.toMatchObject({ code: "persona_avatar_project_mismatch" });
   });
-});
-
-describe("Tavus HTTP boundary", () => {
-  it("never makes direct provider requests for reads, PAL creation, conversations or end", async () => {
-    const request = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("must not call"));
-    try {
-      const client = new TavusClient();
-      for (const [path, body] of [
-        ["/pals", { pipeline_mode: "full" }], ["/pals/shared", undefined],
-        ["/conversations", {}], ["/conversations/session/end", {}],
-      ] as const) {
-        await expect(client.call(path, createdPalSchema, body)).rejects.toMatchObject({
-          code: "avatar_router_full_pipeline_contract_required", status: 503,
-        });
-      }
-      expect(request).not.toHaveBeenCalled();
-    } finally { request.mockRestore(); }
+  it("does not silently truncate oversized contexts or bypass budget restrictions", async () => {
+    deps.resolve.mockResolvedValue({ context: "x".repeat(12001), language: "ko" });
+    await expect(service.start("owner", "run", true)).rejects.toMatchObject({ code: "tavus_context_too_large" });
+    expect(rows.size).toBe(0);
   });
-
-  it("rejects insecure room URLs and URL credentials", () => {
-    for (const url of ["http://tavus.daily.co/x", "https://daily.co.evil.example/x", "https://user:pw@tavus.daily.co/x"]) {
-      expect(() => conversationJoinUrl({ conversation_id: "c", conversation_url: url })).toThrow("tavus_untrusted_room_url");
+  it("keeps the legacy direct Tavus adapter blocked", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    await expect(new TavusClient().call("/pals", createdPalSchema, {})).rejects.toMatchObject({ status: 503 });
+    expect(fetch).not.toHaveBeenCalled(); fetch.mockRestore();
+  });
+  it("rejects untrusted Daily URLs", () => {
+    for (const url of ["http://tavus.daily.co/x", "https://daily.co.evil.test/x", "https://u:p@tavus.daily.co/x"]) {
+      expect(dailyConnectionSchema.safeParse({ transport: "daily", pipeline: "tavus_full", url,
+        token: "private", expiresAt: remote.expiresAt }).success).toBe(false);
     }
   });
 });

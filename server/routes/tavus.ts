@@ -3,6 +3,7 @@ import { z } from "zod";
 import { TavusError } from "../services/tavus/client";
 import { tavusSessions } from "../services/tavus/sessions";
 import { isSystemAdmin } from "../middleware/authMiddleware";
+import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 
 export default function createTavusRouter(isAuthenticated: any, service = tavusSessions) {
   const router = Router();
@@ -27,13 +28,14 @@ export default function createTavusRouter(isAuthenticated: any, service = tavusS
   const handle = (fn: (req: any) => Promise<unknown>) => async (req: any, res: any, next: any) => {
     try { res.json(await fn(req)); }
     catch (error) {
-      if (error instanceof TavusError) res.status(error.status).json({ code: error.code, error: error.code });
+      if (error instanceof TavusError || error instanceof AvatarIdentityError) res.status(error.status).json({ code: error.code, error: error.code });
       else next(error);
     }
   };
-  router.get("/config", handle(() => service.config()));
+  router.get("/config", handle(req => service.config(req.user.id, typeof req.query.runId === "string" ? req.query.runId : undefined)));
   router.post("/pal", isSystemAdmin, handle(async () => ({ palId: await service.ensurePal() })));
   router.get("/conversations/:id/session", handle(req => service.session(req.user.id, req.params.id)));
+  router.get("/conversations/:id/connection", handle(req => service.connection(req.user.id, req.params.id)));
   router.post("/conversations/:id/start", handle(req => {
     const parsed = z.object({ consent: z.literal(true) }).strict().safeParse(req.body);
     if (!parsed.success) throw new TavusError("tavus_consent_required", 400);
