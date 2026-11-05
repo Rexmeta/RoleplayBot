@@ -79,13 +79,16 @@ export async function importTavusTranscript(
   }
   // Retain even AI-only final history, but never score a learner who did not speak.
   if (messages.some(message => message.sender === "user")) {
-    await enqueueFeedbackJob({
+    const job = await enqueueFeedbackJob({
       conversationId: runId,
       conversation: { id: runId, mode: "realtime_voice", messages,
         transcriptSource: { provider: "tavus", conversationId: providerConversationId, kind: "final_transcript" } },
       scenario: binding.scenario, persona: binding.persona, language: binding.language,
       evaluationHarnessSnapshot: binding.evaluationHarnessSnapshot,
     });
+    if (!["queued", "generating", "completed"].includes(job.status)) {
+      throw new TavusError("tavus_feedback_enqueue_failed", 503);
+    }
   }
   await storage.updatePersonaRun(runId, {
     status: "completed", completedAt: new Date(), turnCount: messages.filter(m => m.sender === "user").length,

@@ -26,6 +26,7 @@ export function useTavusTranscript<T extends TranscriptSession>({
   const [localState, setLocalState] = useState<TranscriptState | undefined>();
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [pollingPaused, setPollingPaused] = useState(false);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesError, setMessagesError] = useState<string | null>(null);
@@ -91,6 +92,7 @@ export function useTavusTranscript<T extends TranscriptSession>({
     const requestGeneration = generationRef.current;
     if (!isCurrent(requestGeneration, conversationId)) return;
     syncRequestInFlightRef.current = true;
+    setPollingPaused(false);
     setSyncing(true);
     if (isCurrent(requestGeneration, conversationId)) setSyncError(null);
     try {
@@ -125,6 +127,7 @@ export function useTavusTranscript<T extends TranscriptSession>({
     setLocalState(undefined);
     setSyncError(null);
     setSyncing(false);
+    setPollingPaused(false);
     setMessages([]);
     setMessagesError(null);
     setMessagesLoading(false);
@@ -144,7 +147,9 @@ export function useTavusTranscript<T extends TranscriptSession>({
   useEffect(() => {
     if (!isBoundToConversation) return;
     if (session.state !== "ended" || !evaluationAvailable) return;
-    if (["completed", "empty", "unavailable", "failed"].includes(effectiveState || "")) return;
+    // A previous session may predate the router's transcript capability. A fresh
+    // positive capability check permits one recovery attempt, never a caption fallback.
+    if (["completed", "empty", "failed"].includes(effectiveState || "")) return;
     if (autoSyncForIdRef.current === conversationId) return;
     autoSyncForIdRef.current = conversationId;
     void sync();
@@ -157,8 +162,8 @@ export function useTavusTranscript<T extends TranscriptSession>({
     let inFlight = false;
     const timer = window.setInterval(async () => {
       const requestGeneration = generationRef.current;
-      if (cancelled || inFlight || syncRequestInFlightRef.current || pollRequestInFlightRef.current || pollCountRef.current >= 12) {
-        if (pollCountRef.current >= 12) window.clearInterval(timer);
+      if (cancelled || inFlight || syncRequestInFlightRef.current || pollRequestInFlightRef.current || pollCountRef.current >= 60) {
+        if (pollCountRef.current >= 60) window.clearInterval(timer);
         return;
       }
       inFlight = true;
@@ -180,7 +185,10 @@ export function useTavusTranscript<T extends TranscriptSession>({
           setSyncing(false);
         }
       }
-      if (pollCountRef.current >= 12) window.clearInterval(timer);
+      if (pollCountRef.current >= 60) {
+        window.clearInterval(timer);
+        if (isCurrent(requestGeneration, conversationId)) setPollingPaused(true);
+      }
     }, 5000);
     return () => {
       cancelled = true;
@@ -202,5 +210,6 @@ export function useTavusTranscript<T extends TranscriptSession>({
     retrySync: sync,
     retryMessages: () => loadMessages(true),
     syncing: isBoundToConversation && (syncing || pollRequestInFlightRef.current),
+    pollingPaused: isBoundToConversation && pollingPaused,
   };
 }

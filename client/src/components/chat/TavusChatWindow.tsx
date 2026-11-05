@@ -113,6 +113,20 @@ export default function TavusChatWindow({
     onSessionUpdate: updateSession,
   });
   const browserCaptions = useBrowserCaptions(conversationId);
+  // "completed" means the authenticated transcript was saved AND the durable
+  // feedback job was accepted, not that the report itself has finished.
+  const feedbackQueued = session.state === "ended" && evaluationAvailable &&
+    transcript.transcriptState === "completed";
+  const feedbackOpenedForRef = useRef<string | null>(null);
+  const openFeedback = useCallback(() => {
+    if (!feedbackQueued || feedbackOpenedForRef.current === conversationId) return;
+    feedbackOpenedForRef.current = conversationId;
+    onChatComplete();
+  }, [conversationId, feedbackQueued, onChatComplete]);
+
+  useEffect(() => {
+    if (feedbackQueued) openFeedback();
+  }, [feedbackQueued, openFeedback]);
 
   useEffect(() => {
     if (session.state !== "active" || (!session.createdAt && !session.expiresAt)) return;
@@ -133,6 +147,7 @@ export default function TavusChatWindow({
   }, [conversationId]);
 
   const endKeepalive = useCallback(() => {
+    if (sessionStateRef.current === "ended") return;
     endRequestedRef.current = true;
     if (!conversationId || endKeepaliveSentRef.current) return;
     endKeepaliveSentRef.current = true;
@@ -431,7 +446,7 @@ export default function TavusChatWindow({
       <p className="text-sm leading-6 text-slate-600">{text("transcriptStarting", "Checking whether confirmed conversation history is available.", "확인된 대화 기록을 사용할 수 있는지 확인하고 있습니다.")}</p>
     </div>
   );
-  const feedbackReady = session.state === "ended" && evaluationAvailable && transcript.transcriptState === "completed";
+  const feedbackReady = feedbackQueued;
   const transcriptUnavailable = session.state === "ended" &&
     (!evaluationAvailable || transcript.transcriptState === "unavailable" || transcript.transcriptState === "empty");
   const apiDisplayError = error || connectionError || (transcript.syncError ? errorDetails(transcript.syncError) : null);
@@ -506,7 +521,7 @@ export default function TavusChatWindow({
             <button type="button" onClick={() => void end()} disabled={busy} className="rounded-lg bg-[#a94338] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#90372f] disabled:opacity-60" data-testid="tavus-end">{ending ? text("endingButton", "Ending…", "종료 중…") : text("end", "End session", "세션 종료")}</button>
           </div>}
           {session.state === "ended" && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
-            {feedbackReady && <button type="button" onClick={onChatComplete} className="rounded-lg bg-corporate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-corporate-700" data-testid="tavus-view-feedback">{text("viewFeedback", "View feedback", "피드백 보기")}</button>}
+            {feedbackReady && <button type="button" onClick={openFeedback} className="rounded-lg bg-corporate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-corporate-700" data-testid="tavus-view-feedback">{text("viewFeedback", "View feedback", "피드백 보기")}</button>}
             <button type="button" onClick={onExit} className="rounded-lg border border-[#ccd8db] px-4 py-2 text-sm font-semibold text-[#32484e] hover:bg-white" data-testid="tavus-close">{text("close", "Close session", "세션 닫기")}</button>
           </div>}
           {session.state === "active" && !connection && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-3 text-xs text-[#53696d]" data-testid="tavus-connection-pending">
@@ -517,9 +532,26 @@ export default function TavusChatWindow({
             <CheckCircle2 className="h-4 w-4 shrink-0" /><span>{transcript.transcriptState === "empty"
               ? text("evaluationEmpty", "Session closed. No learner utterance was available, so no feedback was queued.", "세션이 종료되었습니다. 학습자 발화가 없어 피드백이 생성되지 않았습니다.")
               : text("evaluationUnavailable", "Session closed. The router did not provide a final transcript, so feedback is unavailable.", "세션이 종료되었습니다. 라우터에서 최종 대화 기록을 제공하지 않아 피드백을 사용할 수 없습니다.")}</span>
+            {evaluationAvailable && transcript.transcriptState === "unavailable" &&
+              <button type="button" onClick={() => void transcript.retrySync()} disabled={transcript.syncing} className="shrink-0 underline disabled:opacity-50" data-testid="tavus-unavailable-retry">
+                {text("retryTranscript", "Check transcript status", "대화 기록 상태 확인")}
+              </button>}
           </div>}
+          {session.state === "ended" && evaluationAvailable &&
+            ["pending", "importing", "failed"].includes(transcript.transcriptState || "") && (
+            <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-3 text-xs leading-5 text-[#53696d]" role="status" data-testid="tavus-feedback-waiting">
+              {transcript.transcriptState === "failed"
+                ? text("feedbackDeferred", "Confirmed history could not be saved. Feedback has not been submitted. Retry the history check.", "확정 기록을 저장하지 못해 피드백 생성을 보류했습니다. 대화 기록 상태를 다시 확인해 주세요.")
+                : transcript.pollingPaused
+                  ? text("feedbackDelayed", "History is taking longer than five minutes. Background retrieval continues; check again to resume automatic opening.", "대화 기록 제공이 5분 이상 지연되고 있습니다. 백그라운드 조회는 계속되며, 상태를 다시 확인하면 자동 이동 대기를 재개합니다.")
+                  : text("feedbackWaiting", "Waiting for confirmed conversation history. Feedback will be generated and opened automatically after it is saved.", "확정 대화 기록을 기다리고 있습니다. 기록이 저장되면 피드백 리포트를 자동으로 생성하고 피드백 화면으로 이동합니다.")}
+              <button type="button" onClick={() => void transcript.retrySync()} disabled={transcript.syncing} className="ml-2 underline disabled:opacity-50">
+                {text("retryTranscript", "Check transcript status", "대화 기록 상태 확인")}
+              </button>
+            </div>
+          )}
           {feedbackReady && <div className="rounded-xl border border-[#d6e8df] bg-[#edf6f1] p-3 text-xs leading-5 text-[#397568]" role="status" data-testid="tavus-transcript-completed">
-            {text("transcriptCompleted", "Confirmed conversation history is saved and feedback is ready to view.", "확인된 대화 기록이 저장되었으며 피드백을 볼 수 있습니다.")}
+            {text("feedbackQueued", "Confirmed history is saved. Opening the feedback generation screen…", "확정 대화 기록이 저장되었습니다. 피드백 생성 화면으로 이동합니다…")}
           </div>}
           {apiDisplayError && <div className="rounded-xl border border-[#efd5d0] bg-[#fff7f4] p-3 text-[#8f4137]" role="alert" data-testid="tavus-error">
             <div className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 text-xs leading-5"><p className="break-words font-semibold">{displayError(apiDisplayError)}</p>

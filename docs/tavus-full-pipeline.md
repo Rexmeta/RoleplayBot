@@ -111,8 +111,18 @@ recovers pending/failed work after tab closure. The first accepted revision is
 pinned so retrying failed feedback publication cannot silently replace evidence.
 Successful import saves the existing chat history, enqueues the existing durable
 feedback job with scenario/persona/rubric snapshots, and completes the run through
-the existing scenario completion logic. Only then does the UI offer the original
-feedback navigation callback. Empty/no-learner transcripts do not produce scores.
+the existing scenario completion logic. A non-success enqueue status must not
+complete the run. Only then does the UI automatically invoke the original feedback
+navigation callback once per conversation, using the same generation/progress/
+error/report screen as voice live. Transcript completion means durable evaluation
+submission, not a finished report. Empty/no-learner transcripts do not produce scores.
+The foreground waits up to five minutes for delayed final transcripts; manual
+status checks and the background recovery worker remain available after that.
+A freshly advertised transcript capability also allows recovery of older sessions
+previously marked unavailable, without promoting browser captions into evidence.
+
+See [duration extension plan](tavus-duration-extension.md) for the coordinated
+router/provider/application changes needed beyond the current 120-second limit.
 
 Automated mocked tests cover ownership/consent, feature/actor gating, router
 payloads, uncertain-create fencing, Daily credential validation, cleanup state,

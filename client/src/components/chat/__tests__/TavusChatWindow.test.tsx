@@ -179,7 +179,7 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(attempts).toBe(2);
   });
 
-  it("syncs only after end, renders canonical messages, and opens feedback only on explicit click after completion", async () => {
+  it("syncs only after end, renders canonical messages, and automatically opens the shared feedback screen once", async () => {
     const onChatComplete = vi.fn();
     const canonicalMessage = {
       sender: "user",
@@ -208,13 +208,58 @@ describe("TavusChatWindow Daily pipeline", () => {
 
     const feedbackButton = await screen.findByTestId("tavus-view-feedback");
     expect(await screen.findByText("A confirmed server message")).toBeTruthy();
-    expect(onChatComplete).not.toHaveBeenCalled();
+    await waitFor(() => expect(onChatComplete).toHaveBeenCalledTimes(1));
     expect(apiRequestMock).toHaveBeenCalledWith("POST", "/api/tavus/conversations/run-completed/sync", {});
     expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/conversations/run-completed");
     expect(apiRequestMock.mock.calls.some(([method, url]) => method === "POST" && String(url).endsWith("/start"))).toBe(false);
 
     fireEvent.click(feedbackButton);
     expect(onChatComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for final history after user end before opening feedback, and never ends a closed room again on exit", async () => {
+    const onChatComplete = vi.fn();
+    let syncs = 0;
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, evaluationAvailable: true });
+      if (url.endsWith("/connection")) return response(connection);
+      if (url.endsWith("/start")) return response({ ...active, evaluationAvailable: true, transcriptState: "pending" });
+      if (url.endsWith("/end")) return response({ state: "ended", evaluationAvailable: true, transcriptState: "pending" });
+      if (method === "POST" && url.endsWith("/sync")) return response({
+        state: "ended", evaluationAvailable: true, transcriptState: ++syncs === 1 ? "pending" : "completed",
+      });
+      if (url === "/api/conversations/report-flow") return response({ messages: [] });
+      return response({ state: "idle" });
+    });
+    const view = render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="report-flow" onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    fireEvent.click(await screen.findByTestId("tavus-consent"));
+    fireEvent.click(screen.getByTestId("tavus-start"));
+    await screen.findByTestId("mock-daily-room");
+    expect(onChatComplete).not.toHaveBeenCalled();
+    expect(syncs).toBe(0);
+    fireEvent.click(screen.getByTestId("tavus-end"));
+    await screen.findByTestId("tavus-feedback-waiting");
+    await waitFor(() => expect(syncs).toBe(1));
+    expect(onChatComplete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("tavus-transcript-retry"));
+    await waitFor(() => expect(onChatComplete).toHaveBeenCalledTimes(1));
+    view.unmount();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("recovers an older unavailable session when fresh discovery advertises confirmed transcripts", async () => {
+    const onChatComplete = vi.fn();
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, evaluationAvailable: true });
+      if (method === "POST" && url.endsWith("/sync")) return response({
+        state: "ended", evaluationAvailable: true, transcriptState: "completed",
+      });
+      if (url === "/api/conversations/old-capability") return response({ messages: [] });
+      return response({ state: "ended", evaluationAvailable: false, transcriptState: "unavailable" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="old-capability" onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await waitFor(() => expect(onChatComplete).toHaveBeenCalledTimes(1));
+    expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && String(url).endsWith("/sync"))).toHaveLength(1);
   });
 
   it("ignores an older sync response after switching conversation IDs", async () => {
@@ -360,7 +405,7 @@ describe("TavusChatWindow Daily pipeline", () => {
 
     expect(await screen.findByText(/The updated interrupted thought · interrupted draft/)).toBeTruthy();
     expect(screen.queryByText("A partial thought")).toBeNull();
-    expect(screen.getByText(/interrupted AI text can remain/)).toBeTruthy();
+    expect(screen.getByText(/Unconfirmed captions are lost on reload/)).toBeTruthy();
   });
 
   it("replaces provisional browser captions with final canonical messages when history completes", async () => {
