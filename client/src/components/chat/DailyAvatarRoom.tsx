@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, LoaderCircle, RotateCw } from "lucide-react";
 import Daily from "@daily-co/daily-js";
+import { createBrowserCaptionReader, type BrowserCaption } from "./tavusBrowserCaptions";
 
 type Connection = { transport: "daily"; pipeline: "tavus_full"; url: string; token: string; expiresAt?: string };
-type Props = { connection: Connection; onError?: (message: string) => void };
+type Props = { connection: Connection; onError?: (message: string) => void; onCaption?: (caption: BrowserCaption) => void };
 type MediaParticipant = { session_id: string; local?: boolean; tracks?: { video?: { state?: string; persistentTrack?: MediaStreamTrack }; audio?: { state?: string; persistentTrack?: MediaStreamTrack } } };
 
-export default function DailyAvatarRoom({ connection, onError }: Props) {
+export default function DailyAvatarRoom({ connection, onError, onCaption }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const callRef = useRef<ReturnType<typeof Daily.createCallObject> | null>(null);
+  const onCaptionRef = useRef(onCaption);
+  onCaptionRef.current = onCaption;
   const [status, setStatus] = useState<"joining" | "joined" | "error">("joining");
   const [playbackFailed, setPlaybackFailed] = useState(false);
   const [remoteVideo, setRemoteVideo] = useState<MediaStreamTrack | null>(null);
@@ -27,6 +30,11 @@ export default function DailyAvatarRoom({ connection, onError }: Props) {
     let call: ReturnType<typeof Daily.createCallObject> | null = null;
     let leavePromise: Promise<unknown> | null = null;
     let destroyPromise: Promise<unknown> | null = null;
+    const captions = createBrowserCaptionReader();
+    const participantFor = (id: unknown) => {
+      if (!call || disposed || typeof id !== "string") return undefined;
+      return Object.values(call.participants()).find(participant => participant.session_id === id);
+    };
     const fail = (_event?: unknown) => {
       if (disposed) return;
       // Provider errors can include room URLs or credentials; never surface them.
@@ -66,6 +74,18 @@ export default function DailyAvatarRoom({ connection, onError }: Props) {
       call.on("participant-left", updateParticipants);
       call.on("track-started", onTrack);
       call.on("track-stopped", onTrack);
+      call.on("app-message", event => {
+        const sender = participantFor(event?.fromId);
+        if (!sender || sender.local) return;
+        const caption = captions.appMessage(event.data);
+        if (caption && !disposed) onCaptionRef.current?.(caption);
+      });
+      call.on("transcription-message", event => {
+        const participant = participantFor(event?.participantId);
+        if (!participant) return;
+        const caption = captions.dailyTranscription(event, participant.local ? "user" : "ai");
+        if (caption && !disposed) onCaptionRef.current?.(caption);
+      });
       call.on("error", () => fail("Daily room error."));
       call.on("left-meeting", () => {
         if (!disposed) fail("The room connection ended.");

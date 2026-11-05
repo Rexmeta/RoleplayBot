@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Mic2, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
-import { MessageList } from "./MessageList";
+import type { ConversationMessage } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import DailyAvatarRoom from "./DailyAvatarRoom";
 import TavusConversationLayout from "./TavusConversationLayout";
 import { useTavusTranscript, type TranscriptState } from "./useTavusTranscript";
+import { useBrowserCaptions } from "./tavusBrowserCaptions";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
@@ -111,7 +112,7 @@ export default function TavusChatWindow({
     evaluationAvailable,
     onSessionUpdate: updateSession,
   });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const browserCaptions = useBrowserCaptions(conversationId);
 
   useEffect(() => {
     if (session.state !== "active" || (!session.createdAt && !session.expiresAt)) return;
@@ -335,18 +336,22 @@ export default function TavusChatWindow({
     ? Math.max(0, Math.ceil((Date.parse(session.expiresAt) - clockNow) / 1000))
     : null;
   const roomStage = session.state === "active" && connection ? (
-    <DailyAvatarRoom connection={connection} onError={(message) => setConnectionError({ code: "DAILY_ROOM_ERROR", message })} />
+    <DailyAvatarRoom
+      connection={connection}
+      onCaption={browserCaptions.onCaption}
+      onError={(message) => setConnectionError({ code: "DAILY_ROOM_ERROR", message })}
+    />
   ) : (
     <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto px-6 py-8 text-center">
-      <div className="mb-4 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#f1f6f4] text-[#49756b] shadow-sm">
+      <div className="mb-4 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white/80 shadow-sm">
         {busy || loading ? <LoaderCircle className="h-7 w-7 animate-spin" /> : <Mic2 className="h-7 w-7" />}
       </div>
-      <h2 className="text-lg font-semibold text-[#253e43]">
+      <h2 className="text-lg font-semibold text-white">
         {session.state === "ended" ? text("closedTitle", "This session is closed", "이 세션은 종료되었습니다") :
           loading ? text("loading", "Checking session availability", "세션 상태를 확인하고 있습니다") :
             text("roomReady", "A private room, when you are ready", "원할 때 비공개 대화 공간을 시작할 수 있습니다")}
       </h2>
-      <p className="mt-2 max-w-md break-words text-sm leading-6 text-[#53696d]">
+      <p className="mt-2 max-w-md break-words text-sm leading-6 text-white/70">
         {session.state === "ended"
           ? text("closedDescription", "The room is closed. Confirmed history will appear in the conversation panel when available.", "대화 공간이 종료되었습니다. 확인된 기록은 제공되는 대로 대화 패널에 표시됩니다.")
           : text("roomDescription", "Your session-specific PAL connects through Daily. Nothing starts until you consent and choose to begin.", "이 세션 전용 PAL은 Daily를 통해 연결됩니다. 동의하고 시작을 선택하기 전에는 아무것도 시작되지 않습니다.")}
@@ -356,7 +361,7 @@ export default function TavusChatWindow({
   const historyContent = session.state !== "ended" ? (
     <div className="p-4 sm:p-5">
       <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-        {text("historyAfterEnd", "Confirmed conversation history becomes available after the session ends. Live captions are not shown here.", "확인된 대화 기록은 세션이 종료된 뒤 제공됩니다. 이곳에는 실시간 자막이 표시되지 않습니다.")}
+        {text("historyAfterEnd", "Confirmed history is available after the session ends. Provisional browser captions appear in the conversation panel while they are available.", "확정 대화 기록은 세션 종료 후 제공됩니다. 브라우저 임시 자막은 사용 가능한 동안 대화 패널에 표시됩니다.")}
       </p>
     </div>
   ) : transcript.transcriptState === "completed" || transcript.transcriptState === "empty" ? (
@@ -380,19 +385,9 @@ export default function TavusChatWindow({
         </button>
       </div>
       ) : transcript.messages.length > 0 ? (
-      <MessageList
-        messages={transcript.messages}
-        pendingAiMessage={false}
-        pendingUserMessage={false}
-        pendingUserText=""
-        isLoading={false}
-        personaName={persona.name}
-        personaImage={persona.image}
-        currentEmotion=""
-        getCharacterImage={() => null}
-        messagesEndRef={messagesEndRef}
-        scenarioPersonas={[persona]}
-      />
+      <p className="p-4 text-sm leading-6 text-slate-600">
+        {text("historyShownInPanel", "Confirmed messages are available in the conversation panel.", "확정된 메시지는 대화 패널에서 확인할 수 있습니다.")}
+      </p>
       ) : (
       <div className="p-4">
         <p className="text-sm leading-6 text-slate-600">{transcript.transcriptState === "empty"
@@ -440,6 +435,18 @@ export default function TavusChatWindow({
   const transcriptUnavailable = session.state === "ended" &&
     (!evaluationAvailable || transcript.transcriptState === "unavailable" || transcript.transcriptState === "empty");
   const apiDisplayError = error || connectionError || (transcript.syncError ? errorDetails(transcript.syncError) : null);
+  const canonicalTranscriptReady = session.state === "ended" &&
+    (transcript.transcriptState === "completed" || transcript.transcriptState === "empty") &&
+    !transcript.messagesLoading && !transcript.messagesError;
+  const provisionalMessages = browserCaptions.captions.map((caption) => ({
+    sender: caption.sender,
+    message: caption.interrupted
+      ? `${caption.message} · ${text("interruptedDraft", "interrupted draft", "중단된 임시 문장")}`
+      : caption.message,
+    timestamp: caption.timestamp,
+    utteranceId: caption.id,
+  })) as unknown as ConversationMessage[];
+  const transcriptMessages = canonicalTranscriptReady ? transcript.messages : provisionalMessages;
 
   return (
     <TavusConversationLayout
@@ -462,19 +469,22 @@ export default function TavusChatWindow({
         </button>
       }
       stage={roomStage}
+      transcriptMessages={transcriptMessages}
+      captionsAreProvisional={!canonicalTranscriptReady}
+      hasCaptionEvents={browserCaptions.captions.length > 0}
       sessionControls={
         <div className="space-y-4">
-          <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
+          {!started && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
             <p>{text("noticePal", "This is a session-specific PAL, not a persistent recording.", "이 세션 전용 PAL이며 지속적으로 저장되는 녹음이 아닙니다.")}</p>
             <p className="mt-2 font-medium text-[#40595e]">{text("noticeLimit", "Maximum duration: 120 seconds, including queue and startup time.", "최대 이용 시간: 대기 및 시작을 포함해 120초입니다.")}</p>
             <p className="mt-2">{text("noticeTranscript", "Confirmed history, when supported, becomes available after the session ends.", "지원되는 경우 확인된 대화 기록은 세션 종료 후 제공됩니다.")}</p>
-          </div>
-          {config && !config.available && <div className="rounded-xl border border-[#ead7b3] bg-[#fff9ec] p-3 text-xs leading-5 text-[#725a32]" role="status" data-testid="tavus-blockers">
+          </div>}
+          {!started && config && !config.available && <div className="rounded-xl border border-[#ead7b3] bg-[#fff9ec] p-3 text-xs leading-5 text-[#725a32]" role="status" data-testid="tavus-blockers">
             <p className="font-semibold">{text("unavailable", "This pipeline is not available yet.", "현재 파이프라인을 사용할 수 없습니다.")}</p>
             {blockers.length > 0 && <ul className="mt-1 list-disc pl-4">{blockers.map((blocker, index) => <li key={`${blocker}-${index}`}>{reasonText(blocker)}</li>)}</ul>}
             {session.state === "idle" && <button type="button" onClick={() => void refreshStatus()} disabled={statusChecking || busy} className="mt-2 rounded-lg border border-[#d8c69f] px-3 py-2 font-semibold disabled:opacity-50" data-testid="tavus-availability-retry">{statusChecking ? text("checking", "Checking…", "확인 중…") : text("retryAvailability", "Check availability again", "실행 가능 상태 다시 확인")}</button>}
           </div>}
-          {config?.runtime && <div className="rounded-xl border border-[#d8e2e1] p-3 text-xs leading-5 text-[#53696d]" data-testid="tavus-runtime-limits">
+          {!started && config?.runtime && <div className="rounded-xl border border-[#d8e2e1] bg-white/95 p-3 text-xs leading-5 text-[#53696d]" data-testid="tavus-runtime-limits">
             <p>{text("requiredSeconds", "Required per session", "세션당 필요 시간")}: {config.runtime.sessionSeconds}s</p>
             <p>{text("userRemaining", "Your remaining time", "사용자 잔여 시간")}: {config.runtime.userRemainingSeconds}s</p>
             <p>{text("globalRemaining", "Project remaining time", "프로젝트 잔여 시간")}: {config.runtime.globalRemainingSeconds}s</p>

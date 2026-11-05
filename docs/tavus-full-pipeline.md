@@ -62,10 +62,19 @@ request and no cleanup warning. Only then retrieve `/full-connection`. Daily
 credentials remain in component memory only: not logs, localStorage, persisted
 settings or query caches. Room URL hosts must be HTTPS Daily subdomains.
 The UI distinguishes joining, waiting for media and browser audio playback blocks.
-The optional live screen shares the native conversation's visual family and
-MessageList renderer. Confirmed messages are read from the existing conversation
-API, not a separate browser transcript store. Existing image/text/Gemini flows are
-unchanged. There are no fake realtime history entries while awaiting final evidence.
+The optional live screen reuses the current realtime voice screen's full-viewport
+stage, GoalsSidebar and TranscriptPanel, including visible-viewport bounds on mobile.
+The browser displays provisional Tavus accumulated utterance events (streaming or
+delayed full turns) and already-available Daily transcription events. It does not
+start an additional transcription service. PAL/replica duplicates share a row;
+out-of-order partials cannot overwrite a complete caption, and known interrupted
+partials are not expanded by a later full LLM response.
+These bounded, session-local captions are explicitly unverified, may be delayed
+or unavailable, and disappear on navigation/reload. They never write canonical
+messages, recognition evidence or feedback. Confirmed records replace, rather than
+append to, provisional captions once imported through the router. This display
+works independently of the router final-transcript feature. Existing image/text/
+Gemini flows are unchanged.
 
 ## Recovery and verification boundaries
 

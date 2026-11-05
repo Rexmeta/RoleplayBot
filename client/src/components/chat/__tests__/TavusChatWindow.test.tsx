@@ -1,15 +1,42 @@
 // @vitest-environment happy-dom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const { apiRequestMock, roomMock } = vi.hoisted(() => ({
   apiRequestMock: vi.fn(),
-  roomMock: vi.fn(() => <div data-testid="mock-daily-room" />),
+  roomMock: vi.fn((props: { onCaption?: (caption: { id: string; sender: "user" | "ai"; message: string; timestamp: string; interrupted: boolean }) => void }) => (
+    <div data-testid="mock-daily-room" data-caption-connected={String(typeof props.onCaption === "function")} />
+  )),
 }));
 
 vi.mock("@/lib/queryClient", () => ({ apiRequest: apiRequestMock }));
 vi.mock("../DailyAvatarRoom", () => ({ default: roomMock }));
+vi.mock("../RecognitionReview", () => ({
+  RecognitionReview: () => null,
+  useRecognitionEvidence: () => ({ data: undefined }),
+}));
+vi.mock("../tavusBrowserCaptions", async () => {
+  const React = await import("react");
+  return {
+    useBrowserCaptions: (conversationId: string) => {
+      const [captions, setCaptions] = React.useState<Array<{ id: string; sender: "user" | "ai"; message: string; timestamp: string; interrupted: boolean }>>([]);
+      React.useEffect(() => { setCaptions([]); }, [conversationId]);
+      const onCaption = React.useCallback((caption: { id: string; sender: "user" | "ai"; message: string; timestamp: string; interrupted: boolean }) => {
+        setCaptions(previous => {
+          const existingIndex = previous.findIndex(item => item.id === caption.id);
+          if (existingIndex >= 0) {
+            const updated = [...previous];
+            updated[existingIndex] = caption;
+            return updated;
+          }
+          return [...previous, caption].slice(-500);
+        });
+      }, [conversationId]);
+      return { captions, onCaption };
+    },
+  };
+});
 vi.mock("react-i18next", async importOriginal => ({
   ...(await importOriginal<typeof import("react-i18next")>()),
   useTranslation: () => ({
@@ -55,8 +82,9 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(await screen.findByTestId("tavus-start")).toBeTruthy();
     expect(screen.getByText(/120 seconds, including queue and startup time/)).toBeTruthy();
     expect(screen.getByText(/Confirmed history, when supported, becomes available after the session ends/)).toBeTruthy();
-    fireEvent.click(screen.getByTestId("tavus-history-toggle"));
-    expect(screen.getByTestId("tavus-history-toggle").getAttribute("aria-expanded")).toBe("true");
+    expect(screen.queryByText(/Live captions are not shown/)).toBeNull();
+    fireEvent.click(screen.getByTestId("button-toggle-transcript"));
+    expect(screen.getByTestId("button-toggle-transcript")).toBeTruthy();
     fireEvent.click(screen.getByTestId("tavus-consent"));
     fireEvent.click(screen.getByTestId("tavus-start"));
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
@@ -179,7 +207,7 @@ describe("TavusChatWindow Daily pipeline", () => {
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="run-completed" onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
 
     const feedbackButton = await screen.findByTestId("tavus-view-feedback");
-    expect(screen.getByText("A confirmed server message")).toBeTruthy();
+    expect(await screen.findByText("A confirmed server message")).toBeTruthy();
     expect(onChatComplete).not.toHaveBeenCalled();
     expect(apiRequestMock).toHaveBeenCalledWith("POST", "/api/tavus/conversations/run-completed/sync", {});
     expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/conversations/run-completed");
@@ -234,7 +262,7 @@ describe("TavusChatWindow Daily pipeline", () => {
 
     expect(await screen.findByTestId("tavus-transcript-pending")).toBeTruthy();
     expect(screen.queryByTestId("chat-messages")).toBeNull();
-    expect(screen.queryByText("A hard conversation")).toBeTruthy();
+    expect(screen.queryByText(/A hard conversation/)).toBeTruthy();
     expect(screen.queryByTestId("tavus-view-feedback")).toBeNull();
     expect(apiRequestMock.mock.calls.some(([, url]) => String(url) === "/api/conversations/run-pending")).toBe(false);
     fireEvent.click(screen.getByTestId("tavus-transcript-retry"));
@@ -310,5 +338,66 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(await screen.findByTestId("tavus-history-error")).toBeTruthy();
     fireEvent.click(screen.getByTestId("tavus-history-retry"));
     expect(await screen.findByText("Server-confirmed line")).toBeTruthy();
+  });
+
+  it("passes the browser caption callback through and replaces duplicate caption IDs in place", async () => {
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true });
+      if (url.endsWith("/session")) return response({ state: "active" });
+      if (url.endsWith("/connection")) return response(connection);
+      return response({ state: "active" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="caption-dedup" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
+    const roomProps = roomMock.mock.calls.at(-1)?.[0];
+    expect(typeof roomProps?.onCaption).toBe("function");
+    expect(screen.getByText(/Browser captions · unverified/)).toBeTruthy();
+
+    act(() => {
+      roomProps?.onCaption?.({ id: "draft-1", sender: "ai", message: "A partial thought", timestamp: "2025-04-10T10:00:00.000Z", interrupted: false });
+      roomProps?.onCaption?.({ id: "draft-1", sender: "ai", message: "The updated interrupted thought", timestamp: "2025-04-10T10:00:01.000Z", interrupted: true });
+    });
+
+    expect(await screen.findByText(/The updated interrupted thought · interrupted draft/)).toBeTruthy();
+    expect(screen.queryByText("A partial thought")).toBeNull();
+    expect(screen.getByText(/interrupted AI text can remain/)).toBeTruthy();
+  });
+
+  it("replaces provisional browser captions with final canonical messages when history completes", async () => {
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, evaluationAvailable: true });
+      if (url.endsWith("/connection")) return response(connection);
+      if (method === "POST" && url.endsWith("/start")) return response({ state: "active" });
+      if (method === "POST" && url.endsWith("/end")) return response({ state: "ended", evaluationAvailable: true });
+      if (url.endsWith("/session")) return response({ state: "idle" });
+      if (method === "POST" && url.endsWith("/sync")) return response({
+        state: "ended",
+        evaluationAvailable: true,
+        transcriptState: "completed",
+      });
+      if (url === "/api/conversations/caption-final") {
+        return response({ messages: [{ sender: "user", message: "Confirmed server utterance", timestamp: "2025-04-10T10:00:02.000Z" }] });
+      }
+      return response({ state: "ended", evaluationAvailable: true, transcriptState: "completed" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="caption-final" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    fireEvent.click(await screen.findByTestId("tavus-consent"));
+    fireEvent.click(screen.getByTestId("tavus-start"));
+    expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
+    act(() => {
+      roomMock.mock.calls.at(-1)?.[0].onCaption?.({
+        id: "provisional-1",
+        sender: "user",
+        message: "Unverified live draft",
+        timestamp: "2025-04-10T10:00:01.000Z",
+        interrupted: false,
+      });
+    });
+    expect(await screen.findByText("Unverified live draft")).toBeTruthy();
+
+    fireEvent.click(await screen.findByTestId("tavus-end"));
+    expect(await screen.findByText("Confirmed server utterance")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("Unverified live draft")).toBeNull());
+    expect(screen.queryByText(/Browser captions · unverified/)).toBeNull();
   });
 });
