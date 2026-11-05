@@ -27,3 +27,16 @@ export const dailyConnectionSchema = z.object({
   token: z.string().min(1).max(12000),
   expiresAt: z.string().datetime({ offset: true }),
 });
+
+const transcriptBase = z.object({ sessionId: z.string().min(1).max(160), source: z.literal("tavus") });
+export const routerTranscriptSchema = z.discriminatedUnion("status", [
+  transcriptBase.extend({ status: z.literal("pending") }),
+  transcriptBase.extend({ status: z.literal("unavailable") }),
+  transcriptBase.extend({
+    status: z.literal("ready"), final: z.literal(true), revision: z.string().regex(/^[a-f0-9]{64}$/),
+    messages: z.array(z.object({
+      role: z.enum(["user", "assistant"]), text: z.string().min(1).max(10000),
+      timestamp: z.string().datetime({ offset: true }),
+    })).max(1000),
+  }),
+]);

@@ -12,10 +12,10 @@ longer sessions and final-transcript support are available.
   includes queue/startup time, not 120 seconds after browser connection.
 - Tavus owns STT/LLM/TTS/video/interruptions. The client joins a private Daily call
   with microphone enabled and camera disabled; remote video/audio share that call.
-- Final transcript retrieval and automatic evaluation are **not available**.
-  The UI explicitly says so and never invokes the report completion callback.
-  Existing transcript adapters are retained for a future authoritative source;
-  browser captions are not imported as confirmed evidence.
+- Final transcript and existing feedback integration require the optional router
+  feature `tavus_final_transcript_v1`. When absent, live media still works and the UI
+  explicitly explains that confirmed history/feedback await the router extension.
+  Browser captions and unspoken full LLM responses are never used as final evidence.
 - Text, Gemini Live and the external-audio avatar renderer remain separate.
 
 ## Availability and authorization
@@ -46,7 +46,8 @@ All routes require login and return `Cache-Control: no-store`:
 - `POST /api/tavus/conversations/:id/start` — strict `{ "consent": true }`.
 - `GET /api/tavus/conversations/:id/connection` — owner-only private Daily details.
 - `POST /api/tavus/conversations/:id/end` — requests router cleanup.
-- `POST /api/tavus/conversations/:id/sync` — safe status refresh, not transcription.
+- `POST /api/tavus/conversations/:id/sync` — after confirmed closure, imports the
+  router-authenticated final transcript and durably queues existing feedback.
 - `POST /api/tavus/pal` — retained admin route rejects; router manages session PALs.
 
 Choose Tavus Full Pipeline before beginning a native text/Gemini conversation.
@@ -61,6 +62,10 @@ request and no cleanup warning. Only then retrieve `/full-connection`. Daily
 credentials remain in component memory only: not logs, localStorage, persisted
 settings or query caches. Room URL hosts must be HTTPS Daily subdomains.
 The UI distinguishes joining, waiting for media and browser audio playback blocks.
+The optional live screen shares the native conversation's visual family and
+MessageList renderer. Confirmed messages are read from the existing conversation
+API, not a separate browser transcript store. Existing image/text/Gemini flows are
+unchanged. There are no fake realtime history entries while awaiting final evidence.
 
 ## Recovery and verification boundaries
 
@@ -80,6 +85,25 @@ End/page exit requests server-side cleanup and tears down Daily media. End
 acknowledgement is not provider termination: polling/background recovery continues
 until the router confirms closed with no cleanup pending. The worker never creates
 sessions. No new tables or migrations are required in RoleplayX.
+
+## Confirmed history and feedback
+
+The AvatarRouter extension is maintained in Rexmeta/AvatarRouter and must be
+reviewed/published there separately; changing this project does not deploy it.
+It adds `GET /sessions/:id/transcript` (owner + tenant, sessions:read, no-store),
+which reads Tavus's authenticated verbose end-of-call record. It returns pending,
+unavailable, or ready with sessionId/source/final/revision/messages. Public API
+specification and integration guide are updated in that repository.
+
+RoleplayX only uses the endpoint when freshly advertised. It verifies the session
+binding and canonical SHA256 revision before import. Stable ledger/message IDs
+avoid duplicated utterances. A persisted lease serializes imports, and the worker
+recovers pending/failed work after tab closure. The first accepted revision is
+pinned so retrying failed feedback publication cannot silently replace evidence.
+Successful import saves the existing chat history, enqueues the existing durable
+feedback job with scenario/persona/rubric snapshots, and completes the run through
+the existing scenario completion logic. Only then does the UI offer the original
+feedback navigation callback. Empty/no-learner transcripts do not produce scores.
 
 Automated mocked tests cover ownership/consent, feature/actor gating, router
 payloads, uncertain-create fencing, Daily credential validation, cleanup state,

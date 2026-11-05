@@ -9,7 +9,10 @@ export class TavusStore {
   async pendingSessions(): Promise<Array<{ userId: string; runId: string; state: string }>> {
     const rows = await db.select({ value: systemSettings.value }).from(systemSettings)
       .where(and(eq(systemSettings.category, CATEGORY), like(systemSettings.key, "run:%"),
-        sql`${systemSettings.value}::jsonb->>'state' IN ('creating', 'active', 'ending')`))
+        sql`(${systemSettings.value}::jsonb->>'state' IN ('creating', 'active', 'ending') OR
+          (${systemSettings.value}::jsonb->>'state' = 'ended' AND
+           ${systemSettings.value}::jsonb->>'transcriptState' IN ('pending', 'importing', 'failed') AND
+           COALESCE((${systemSettings.value}::jsonb->>'transcriptRetryAt')::bigint, 0) <= ${Date.now()}))`))
       .orderBy(asc(systemSettings.updatedAt)).limit(20);
     return rows.map(row => JSON.parse(row.value));
   }

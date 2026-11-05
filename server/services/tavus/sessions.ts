@@ -1,21 +1,24 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { storage } from "../../storage";
 import { TavusError } from "./client";
 import { resolveTavusContext, resolveTavusOwner, ROLEPLAY_PAL_PROMPT } from "./context";
 import { TavusStore } from "./store";
-import { reserveTavusRun } from "./importTranscript";
+import { importTavusTranscript, reserveTavusRun } from "./importTranscript";
 import { AvatarProjectClient } from "../liveAvatar/projectClient";
 import { avatarRouterProjectConnection } from "../liveAvatar/projectConnection";
 import { resolveConversationAvatar, inspectConversationAvatarSelection } from "../liveAvatar/conversationTarget";
 import { AvatarIdentityError } from "../liveAvatar/delegatedIdentity";
 import { inspectTavusLimits, tavusLimitsSchema } from "./runtimeLimits";
-import { dailyConnectionSchema, routerSessionSchema } from "./routerContracts";
+import { dailyConnectionSchema, routerSessionSchema, routerTranscriptSchema } from "./routerContracts";
 
 type State = "creating" | "create_unknown" | "active" | "ending" | "ended";
 export interface TavusSession {
   state: State; token: string; userId: string; runId: string; createdAt: string;
   sessionId?: string; projectId?: string; avatarId?: string; assetId?: string | null;
   expiresAt?: string; lastError?: string;
+  transcriptState?: "unavailable" | "pending" | "importing" | "completed" | "empty" | "failed";
+  transcriptRevision?: string; transcriptLeaseToken?: string; transcriptLeaseUntil?: number;
+  transcriptRetryAt?: number; transcriptError?: string;
 }
 const requiredFeatures = ["tavus_full_pipeline", "daily_private_connection"];
 const requiredScopes = ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"];
@@ -23,6 +26,7 @@ export const tavusDeps = {
   client: new AvatarProjectClient(storage), store: new TavusStore(),
   connection: avatarRouterProjectConnection, resolve: resolveTavusContext, owner: resolveTavusOwner,
   target: resolveConversationAvatar, selection: inspectConversationAvatarSelection, reserve: reserveTavusRun,
+  importTranscript: importTavusTranscript,
 };
 
 /** Router-only full pipeline. No provider PAL API, Gemini audio, or invented transcript API. */
@@ -33,9 +37,11 @@ export class TavusSessions {
     const blockers: string[] = [];
     let runtime: ReturnType<typeof inspectTavusLimits>["limits"] | null = null;
     let selectable = false;
+    let evaluationAvailable = false;
     if (!userId) blockers.push("avatar_authenticated_user_required");
     else try {
       const auth = await this.deps.connection.check(userId);
+      evaluationAvailable = auth.integration?.features.includes("tavus_final_transcript_v1") === true;
       if (!requiredFeatures.every(f => auth.integration?.features.includes(f))) blockers.push("avatar_router_full_pipeline_unavailable");
       if (!requiredScopes.every(s => auth.scopes.includes(s as any))) blockers.push("avatar_full_pipeline_scopes_missing");
       if (runId) {
@@ -52,7 +58,7 @@ export class TavusSessions {
       blockers.push(error instanceof AvatarIdentityError || error instanceof TavusError ? error.code : "avatar_router_unavailable");
     }
     return { available: blockers.length === 0, selectable, blockers, runtime, maxSeconds: 120,
-      evaluationAvailable: false, palStrategy: "per_session" };
+      evaluationAvailable, palStrategy: "per_session" };
   }
 
   async ensurePal(): Promise<string> {
@@ -68,7 +74,11 @@ export class TavusSessions {
   }
 
   private publicSession(session: TavusSession | null) {
-    return { state: session?.state ?? "idle", evaluationAvailable: false,
+    return { state: session?.state ?? "idle",
+      evaluationAvailable: !!session?.transcriptState && session.transcriptState !== "unavailable",
+      transcriptState: session?.transcriptState ?? "unavailable",
+      ...(session?.transcriptError ? { transcriptError: session.transcriptError } : {}),
+      ...(session?.createdAt ? { createdAt: session.createdAt } : {}),
       ...(session?.expiresAt ? { expiresAt: session.expiresAt } : {}),
       ...(session?.lastError ? { error: session.lastError } : {}) };
   }
@@ -128,6 +138,7 @@ export class TavusSessions {
     const pending = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => current ?? {
       state: "creating", token, userId, runId, createdAt: new Date().toISOString(),
       projectId: target.projectId, avatarId: target.avatarId, assetId: target.assetId,
+      transcriptState: config.evaluationAvailable ? "pending" : "unavailable",
     });
     if (pending.token !== token) return this.publicSession(pending);
     try {
@@ -181,7 +192,65 @@ export class TavusSessions {
     return this.session(userId, runId);
   }
 
-  async sync(userId: string, runId: string) { return this.session(userId, runId); }
+  async sync(userId: string, runId: string) {
+    await this.session(userId, runId);
+    const { session } = await this.owned(userId, runId);
+    if (!session || session.state !== "ended" ||
+        session.transcriptState === "completed" || session.transcriptState === "empty") return this.publicSession(session);
+    // Discovery is fresh and independent of runtime budget/worker availability.
+    const auth = await this.deps.connection.check(userId);
+    if (auth.projectId !== session.projectId) throw new TavusError("persona_avatar_project_mismatch", 409);
+    if (!auth.integration?.features.includes("tavus_final_transcript_v1")) return this.publicSession(session);
+    const now = Date.now();
+    const token = randomUUID();
+    const claimed = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => {
+      if (!current || current.state !== "ended" || current.transcriptState === "completed" ||
+          current.transcriptState === "empty" || (current.transcriptLeaseUntil ?? 0) > now ||
+          (current.transcriptRetryAt ?? 0) > now) return current!;
+      return { ...current, transcriptState: "importing", transcriptLeaseToken: token,
+        transcriptLeaseUntil: now + 120000, transcriptError: undefined };
+    });
+    if (claimed.transcriptLeaseToken !== token) return this.publicSession(claimed);
+    try {
+      const transcript = await this.deps.client.call(userId, `/sessions/${session.sessionId}/transcript`, routerTranscriptSchema);
+      if (transcript.sessionId !== session.sessionId) throw new TavusError("tavus_transcript_session_mismatch", 502);
+      if (transcript.status !== "ready") {
+        const saved = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
+          current?.transcriptLeaseToken !== token ? current! : {
+            ...current, transcriptState: transcript.status === "pending" ? "pending" : "unavailable",
+            transcriptRetryAt: Date.now() + 30000, transcriptLeaseUntil: 0,
+            transcriptError: transcript.status === "unavailable" ? "tavus_final_transcript_unavailable" : undefined,
+          });
+        return this.publicSession(saved);
+      }
+      const revision = createHash("sha256").update(JSON.stringify(transcript.messages)).digest("hex");
+      if (revision !== transcript.revision || (claimed.transcriptRevision && claimed.transcriptRevision !== revision)) {
+        throw new TavusError("tavus_transcript_revision_mismatch", 502);
+      }
+      const messages = transcript.messages.map(message => ({
+        sender: message.role === "user" ? "user" as const : "ai" as const,
+        message: message.text, timestamp: message.timestamp,
+      }));
+      const bound = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
+        current?.transcriptLeaseToken !== token ? current! : { ...current, transcriptRevision: revision });
+      if (bound.transcriptLeaseToken !== token) return this.publicSession(bound);
+      const binding = await this.deps.resolve(userId, runId);
+      await this.deps.importTranscript(binding, session.sessionId!, messages);
+      const saved = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
+        current?.transcriptLeaseToken !== token ? current! : {
+          ...current, transcriptState: messages.some(message => message.sender === "user") ? "completed" : "empty",
+          transcriptRevision: revision, transcriptLeaseUntil: 0, transcriptRetryAt: 0, transcriptError: undefined,
+        });
+      return this.publicSession(saved);
+    } catch (error) {
+      const saved = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
+        current?.transcriptLeaseToken !== token ? current! : {
+          ...current, transcriptState: "failed", transcriptLeaseUntil: 0, transcriptRetryAt: Date.now() + 30000,
+          transcriptError: error instanceof TavusError || error instanceof AvatarIdentityError ? error.code : "tavus_transcript_sync_failed",
+        });
+      return this.publicSession(saved);
+    }
+  }
 }
 export const tavusSessions = new TavusSessions();
 let workerStarted = false;
@@ -197,6 +266,7 @@ export function startTavusWorker() {
         try {
           const state = await tavusSessions.session(row.userId, row.runId);
           if (state.state === "ending") await tavusSessions.end(row.userId, row.runId);
+          if (state.state === "ended") await tavusSessions.sync(row.userId, row.runId);
         } catch { console.warn("[tavus] router cleanup/status deferred"); }
       }
     } catch { console.warn("[tavus] pending-session scan deferred"); }

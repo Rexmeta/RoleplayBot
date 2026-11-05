@@ -3,7 +3,7 @@ vi.mock("../../server/services/tavus/store", () => ({ TavusStore: class {} }));
 vi.mock("../../server/services/tavus/context", () => ({
   resolveTavusContext: vi.fn(), resolveTavusOwner: vi.fn(), ROLEPLAY_PAL_PROMPT: "Stay in assigned role",
 }));
-vi.mock("../../server/services/tavus/importTranscript", () => ({ reserveTavusRun: vi.fn() }));
+vi.mock("../../server/services/tavus/importTranscript", () => ({ reserveTavusRun: vi.fn(), importTavusTranscript: vi.fn() }));
 vi.mock("../../server/services/liveAvatar/projectConnection", () => ({ avatarRouterProjectConnection: {} }));
 vi.mock("../../server/services/liveAvatar/conversationTarget", () => ({
   resolveConversationAvatar: vi.fn(), inspectConversationAvatarSelection: vi.fn(),
@@ -12,6 +12,7 @@ vi.mock("../../server/storage", () => ({ storage: {} }));
 import { TavusSessions } from "../../server/services/tavus/sessions";
 import { TavusError, TavusClient, createdPalSchema } from "../../server/services/tavus/client";
 import { dailyConnectionSchema } from "../../server/services/tavus/routerContracts";
+import { createHash } from "node:crypto";
 
 let rows: Map<string, any>, deps: any, service: TavusSessions, remote: any, limits: any;
 beforeEach(() => {
@@ -42,6 +43,7 @@ beforeEach(() => {
     target: vi.fn(async () => ({ projectId: "project", avatarId: "selected-face", assetId: null })),
     resolve: vi.fn(async () => ({ context: "snapshot-bound character and situation", language: "ko" })),
     reserve: vi.fn(async () => undefined),
+    importTranscript: vi.fn(async () => undefined),
     client: { call: vi.fn(async (_user: string, path: string, schema: any, body: any) => {
       if (path === "/live-limits") return schema.parse(limits);
       if (path === "/sessions" && body) expect(rows.get("run:run").state).toBe("creating");
@@ -187,5 +189,112 @@ describe("AvatarRouter Full Pipeline", () => {
       expect(dailyConnectionSchema.safeParse({ transport: "daily", pipeline: "tavus_full", url,
         token: "private", expiresAt: remote.expiresAt }).success).toBe(false);
     }
+  });
+});
+
+describe("router-authenticated final transcript recovery", () => {
+  let transcript: any;
+  async function endedSession() {
+    const check = deps.connection.check.getMockImplementation();
+    deps.connection.check.mockImplementation(async (...args: any[]) => {
+      const auth = await check(...args);
+      return { ...auth, integration: { ...auth.integration,
+        features: [...auth.integration.features, "tavus_final_transcript_v1"] } };
+    });
+    transcript = {
+      sessionId: "s1", source: "tavus", status: "ready", final: true,
+      messages: [
+        { role: "assistant", text: "안녕하세요", timestamp: "2026-11-04T01:00:00.000Z" },
+        { role: "user", text: "납기가 촉박합니다", timestamp: "2026-11-04T01:00:03.000Z" },
+      ],
+    };
+    transcript.revision = createHash("sha256").update(JSON.stringify(transcript.messages)).digest("hex");
+    const call = deps.client.call.getMockImplementation();
+    deps.client.call.mockImplementation(async (...args: any[]) => {
+      if (args[1].endsWith("/transcript")) return args[2].parse(transcript);
+      return call(...args);
+    });
+    await service.start("owner", "run", true);
+    remote.status = "ended"; remote.rendererState = "closed";
+  }
+  it("imports owned final evidence once and exposes completion only after durable feedback import succeeds", async () => {
+    await endedSession();
+    expect(await service.sync("owner", "run")).toMatchObject({
+      state: "ended", transcriptState: "completed", evaluationAvailable: true,
+    });
+    expect(deps.importTranscript).toHaveBeenCalledWith(
+      expect.objectContaining({ context: "snapshot-bound character and situation" }), "s1", [
+        { sender: "ai", message: "안녕하세요", timestamp: "2026-11-04T01:00:00.000Z" },
+        { sender: "user", message: "납기가 촉박합니다", timestamp: "2026-11-04T01:00:03.000Z" },
+      ],
+    );
+    await service.sync("owner", "run");
+    expect(deps.importTranscript).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(await service.session("owner", "run"))).not.toContain("납기가");
+    expect(await service.session("owner", "run")).not.toHaveProperty("transcriptRevision");
+  });
+  it("waits for actual closure and advertised transcript support without inventing an endpoint on an old router", async () => {
+    await service.start("owner", "run", true);
+    await service.sync("owner", "run");
+    remote.status = "ended"; remote.rendererState = "closed";
+    expect(await service.sync("owner", "run")).toMatchObject({ transcriptState: "unavailable" });
+    expect(deps.client.call.mock.calls.some((call: any[]) => call[1].endsWith("/transcript"))).toBe(false);
+    expect(deps.importTranscript).not.toHaveBeenCalled();
+  });
+  it("keeps pending and unavailable provider evidence out of reports", async () => {
+    await endedSession();
+    transcript = { sessionId: "s1", source: "tavus", status: "pending" };
+    expect(await service.sync("owner", "run")).toMatchObject({ transcriptState: "pending" });
+    rows.get("run:run").transcriptRetryAt = 0;
+    transcript.status = "unavailable";
+    expect(await service.sync("owner", "run")).toMatchObject({
+      transcriptState: "unavailable", transcriptError: "tavus_final_transcript_unavailable",
+    });
+    expect(deps.importTranscript).not.toHaveBeenCalled();
+  });
+  it.each(["foreign-session", "revision", "missing-final"])("rejects invalid %s transcript without evaluation", async invalid => {
+    await endedSession();
+    if (invalid === "foreign-session") transcript.sessionId = "other";
+    else if (invalid === "revision") transcript.revision = "0".repeat(64);
+    else delete transcript.final;
+    expect(await service.sync("owner", "run")).toMatchObject({ transcriptState: "failed" });
+    expect(deps.importTranscript).not.toHaveBeenCalled();
+  });
+  it("retries failed feedback import with the same immutable revision, but rejects changed evidence", async () => {
+    await endedSession();
+    deps.importTranscript.mockRejectedValueOnce(new Error("queue unavailable"));
+    expect(await service.sync("owner", "run")).toMatchObject({ transcriptState: "failed" });
+    rows.get("run:run").transcriptRetryAt = 0;
+    transcript.messages[0].text = "rewritten";
+    transcript.revision = createHash("sha256").update(JSON.stringify(transcript.messages)).digest("hex");
+    expect(await service.sync("owner", "run")).toMatchObject({
+      transcriptState: "failed", transcriptError: "tavus_transcript_revision_mismatch",
+    });
+    expect(deps.importTranscript).toHaveBeenCalledTimes(1);
+  });
+  it("serializes concurrent imports and resumes the same failed import safely", async () => {
+    await endedSession();
+    let release!: () => void;
+    deps.importTranscript.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
+    const first = service.sync("owner", "run");
+    await vi.waitFor(() => expect(deps.importTranscript).toHaveBeenCalledTimes(1));
+    expect(await service.sync("owner", "run")).toMatchObject({ transcriptState: "importing" });
+    release();
+    expect(await first).toMatchObject({ transcriptState: "completed" });
+    expect(deps.importTranscript).toHaveBeenCalledTimes(1);
+  });
+  it("does not invent feedback when no learner utterance was captured", async () => {
+    await endedSession();
+    transcript.messages = [];
+    transcript.revision = createHash("sha256").update("[]").digest("hex");
+    expect(await service.sync("owner", "run")).toMatchObject({ transcriptState: "empty" });
+    expect(deps.importTranscript).toHaveBeenCalledWith(expect.anything(), "s1", []);
+  });
+  it("imports AI-only confirmed messages for history without exposing feedback navigation", async () => {
+    await endedSession();
+    transcript.messages = transcript.messages.slice(0, 1);
+    transcript.revision = createHash("sha256").update(JSON.stringify(transcript.messages)).digest("hex");
+    expect(await service.sync("owner", "run")).toMatchObject({ transcriptState: "empty" });
+    expect(deps.importTranscript).toHaveBeenCalledTimes(1);
   });
 });

@@ -77,13 +77,16 @@ export async function importTavusTranscript(
       }
     });
   }
-  await enqueueFeedbackJob({
-    conversationId: runId,
-    conversation: { id: runId, mode: "realtime_voice", messages,
-      transcriptSource: { provider: "tavus", conversationId: providerConversationId, kind: "final_transcript" } },
-    scenario: binding.scenario, persona: binding.persona, language: binding.language,
-    evaluationHarnessSnapshot: binding.evaluationHarnessSnapshot,
-  });
+  // Retain even AI-only final history, but never score a learner who did not speak.
+  if (messages.some(message => message.sender === "user")) {
+    await enqueueFeedbackJob({
+      conversationId: runId,
+      conversation: { id: runId, mode: "realtime_voice", messages,
+        transcriptSource: { provider: "tavus", conversationId: providerConversationId, kind: "final_transcript" } },
+      scenario: binding.scenario, persona: binding.persona, language: binding.language,
+      evaluationHarnessSnapshot: binding.evaluationHarnessSnapshot,
+    });
+  }
   await storage.updatePersonaRun(runId, {
     status: "completed", completedAt: new Date(), turnCount: messages.filter(m => m.sender === "user").length,
   });

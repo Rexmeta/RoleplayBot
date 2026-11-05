@@ -79,4 +79,10 @@ describe("Tavus final transcript to existing evaluation", () => {
     await expect(importTavusTranscript(binding, "provider-room", messages)).rejects.toThrow("queue unavailable");
     expect(mocks.update).not.toHaveBeenCalled();
   });
+  it("retains AI-only final history without inventing learner evaluation", async () => {
+    await importTavusTranscript(binding, "provider-room", [messages[0]]);
+    expect(mocks.apply).toHaveBeenCalled();
+    expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(mocks.update).toHaveBeenCalledWith("run", expect.objectContaining({ status: "completed", turnCount: 0 }));
+  });
 });
