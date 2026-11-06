@@ -45,6 +45,7 @@ import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 import { isIOSWebKitAudioPlatform } from "@/lib/iosAudioSession";
 import TavusChatWindow from "@/components/chat/TavusChatWindow";
 import { apiRequest } from "@/lib/queryClient";
+import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "@/components/ScenarioOverrideSummary";
 
 const MAX_TURNS = 999;
 const SOFT_CLOSE_THRESHOLD = 0.8;
@@ -449,6 +450,18 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     enabled: !!conversationId,
     refetchOnWindowFocus: realtimeVoice.conversationPhase !== 'active',
   });
+  const scenarioRunId = (conversation as any)?.scenarioRunId as string | undefined;
+  const scenarioRunQuery = useQuery<any>({
+    queryKey: ["/api/scenario-runs", scenarioRunId],
+    enabled: !!scenarioRunId,
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/scenario-runs/${encodeURIComponent(scenarioRunId!)}`);
+      return response.json();
+    },
+  });
+  const runData = scenarioRunQuery.data?.scenarioRun ?? scenarioRunQuery.data;
+  const overrideMetadata = (runData?.scenarioSnapshot?._organizationOverride ??
+    runData?.scenarioSnapshot?.scenarioSnapshot?._organizationOverride ?? null) as OrganizationOverrideMetadata;
 
   const openLiveAvatarOptions = useCallback(() => {
     setIsTopMenuOpen(true);
@@ -956,6 +969,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   return (
     <>
       <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)}>
+        {inputMode === "realtime-voice" && scenarioRunQuery.isSuccess && <ScenarioOverrideSummary metadata={overrideMetadata} />}
         {liveAvatarSelection.data?.configured && <LiveAvatarChoice
           key={conversationId}
           conversationId={conversationId}
@@ -968,6 +982,15 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
       </TopMenuPanel>
 
       <div className="chat-window relative">
+        {scenarioRunId && (
+          <div className="mx-auto mb-3 max-w-5xl px-3 sm:px-4">
+            {scenarioRunQuery.isLoading
+              ? <div className="h-14 animate-pulse rounded-md bg-slate-100" aria-label="조직 설정 적용 기록 로딩 중" />
+              : scenarioRunQuery.isError
+              ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><span>실행의 조직 설정 적용 기록을 불러오지 못했습니다. 과거 실행으로 오인하지 않도록 기록 상태를 별도로 표시합니다.</span><Button size="sm" variant="outline" onClick={() => scenarioRunQuery.refetch()}>다시 시도</Button></div>
+              : <ScenarioOverrideSummary metadata={overrideMetadata} />}
+          </div>
+        )}
         {isInitialLoading && (
           <div className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${isOverlayFading ? 'opacity-0' : 'opacity-100'}`} data-testid="chat-loading-overlay">
             <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />

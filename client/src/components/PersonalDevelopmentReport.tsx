@@ -29,6 +29,7 @@ import { StrategyPanel } from "./report/StrategyPanel";
 import { RubricSnapshotPanel } from "./report/RubricSnapshotPanel";
 import SimulationReplayPanel from "./report/SimulationReplayPanel";
 import { RecognitionReview } from './chat/RecognitionReview';
+import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "@/components/ScenarioOverrideSummary";
 
 function ConversationHistoryPanel({
   messages,
@@ -987,6 +988,10 @@ export default function PersonalDevelopmentReport({
             {(feedback.rubricSnapshot || feedback.modelSnapshot) && (
               <RubricSnapshotPanel rubricSnapshot={feedback.rubricSnapshot} modelSnapshot={feedback.modelSnapshot} criteriaSetVersion={feedback.criteriaSetVersion} />
             )}
+            <ScenarioOverrideSummary
+              metadata={(feedback.rubricSnapshot as any)?.organizationOverride as OrganizationOverrideMetadata ?? null}
+              title="평가에 고정된 조직 설정"
+            />
           </TabsContent>
         )}
 

@@ -502,17 +502,47 @@ export interface ScenarioOverrideData {
   terminology?: Record<string, string>;
   policyConstraints?: string[];
   forbiddenPhrases?: string[];
-  evaluationWeights?: Partial<Record<EvaluationDimensionKey, number>>;
+  evaluationWeights?: Record<string, number>;
   customIncidents?: string[];
 }
 
+const overrideText = z.string().trim().min(1).max(1000);
+const overrideList = z.array(overrideText).max(30).transform(items => Array.from(new Set(items)));
 export const scenarioOverrideDataSchema: z.ZodType<ScenarioOverrideData> = z.object({
-  terminology: z.record(z.string(), z.string()).optional(),
-  policyConstraints: z.array(z.string()).optional(),
-  forbiddenPhrases: z.array(z.string()).optional(),
-  evaluationWeights: z.partialRecord(z.enum(['clarity', 'empathy', 'logic', 'ownership', 'actionPlan']), z.number().min(0).max(10)).optional(),
-  customIncidents: z.array(z.string()).optional(),
+  terminology: z.record(z.string(), z.string()).superRefine((terms, ctx) => {
+    const seen = new Set<string>();
+    for (const key of Object.keys(terms)) {
+      const trimmed = key.trim();
+      if (seen.has(trimmed) || ["__proto__", "constructor", "prototype"].includes(trimmed)) {
+        ctx.addIssue({ code: "custom", message: "중복되거나 사용할 수 없는 용어 키입니다" });
+      }
+      seen.add(trimmed);
+    }
+  }).pipe(z.record(z.string().trim().min(1).max(100), overrideText))
+    .superRefine((terms, ctx) => {
+      if (Object.keys(terms).length > 50) ctx.addIssue({ code: "custom", message: "용어는 최대 50개입니다" });
+    }).optional(),
+  policyConstraints: overrideList.optional(),
+  forbiddenPhrases: overrideList.optional(),
+  // Actual key membership is checked against the bound rubric by the server.
+  evaluationWeights: z.record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,99}$/),
+    z.number().finite().min(0).max(10)).optional(),
+  customIncidents: overrideList.optional(),
+}).strict().superRefine((value, ctx) => {
+  if (new TextEncoder().encode(JSON.stringify(value)).length > 32768) {
+    ctx.addIssue({ code: "custom", message: "Override 요청은 32KB 이하여야 합니다" });
+  }
 });
+
+/** Actual rubric membership is contextual, not a hardcoded simulation enum. */
+export function scenarioOverrideSchemaForDimensions(keys: readonly string[]) {
+  const allowed = new Set(keys);
+  return scenarioOverrideDataSchema.superRefine((value, ctx) => {
+    for (const key of Object.keys(value.evaluationWeights ?? {})) {
+      if (!allowed.has(key)) ctx.addIssue({ code: "custom", path: ["evaluationWeights", key], message: `적용 불가 평가항목: ${key}` });
+    }
+  });
+}
 
 export const scenarioOverrides = pgTable("scenario_overrides", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

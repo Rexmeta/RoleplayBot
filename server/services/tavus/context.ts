@@ -31,6 +31,7 @@ export function buildTavusContext(scenario: any, persona: any, language: string,
       title: scenario.title, description: scenario.description, context: scenario.context,
       objectives: scenario.objectives, userRole: scenario.userRole,
       targetTurns: scenario.targetTurns, situation: scenario.situation,
+      organizationResponseInstructions: scenario._overridePromptBlock || undefined,
     },
   };
   const text = `ROLEPLAY_SESSION_DATA\n${JSON.stringify(data)}\nStay in this assigned role until the call ends.`;

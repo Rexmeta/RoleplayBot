@@ -67,6 +67,7 @@ Preferred communication style: Simple, everyday language.
 - **Path Normalization**: Object paths are automatically normalized by stripping query strings and prefixes.
 
 ## Features
+- **Organization scenario overrides**: Administrator editing and delegated-operator read-only inspection use strict shared validation, intersection filters and effective-weight previews. New web/API runs freeze organization instructions, provenance and actual rubric weights in existing run JSON snapshots; later dialogue/reconnect/feedback never reload current overrides. See `docs/organization-overrides.md`.
 - **Comprehensive Persona Reflection**: AI conversations accurately reflect detailed persona definitions including MBTI traits, communication style, motivations, fears, and scenario-specific data.
 - **4-Level Difficulty System**: Influences AI responses across all conversation modes.
 - **Analytics and Reporting**: Comprehensive user conversation history analytics, including scores, category breakdowns, growth tracking, and pattern recognition, using a research-based 5-point scoring system.

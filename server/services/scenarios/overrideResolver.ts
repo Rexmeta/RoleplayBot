@@ -1,4 +1,5 @@
 import type { ScenarioOverrideData } from "@shared/schema";
+import { resolveOverrideWeights } from "@shared/organizationOverride";
 
 export function applyScenarioOverride(scenario: any, override: ScenarioOverrideData | null | undefined): any {
   if (!override) return scenario;
@@ -18,22 +19,17 @@ export function applyScenarioOverride(scenario: any, override: ScenarioOverrideD
   }
 
   if (override.evaluationWeights && Object.keys(override.evaluationWeights).length > 0) {
-    const existing = result.evaluationHarness ?? {};
-    const existingDimensions: any[] = existing.dimensions ?? [];
     const weightMap = override.evaluationWeights as Record<string, number>;
-    const mergedDimensions = existingDimensions.map((d: any) => {
-      if (weightMap[d.key] !== undefined) {
-        return { ...d, weight: weightMap[d.key] };
-      }
-      return d;
-    });
-    const overriddenKeys = new Set(mergedDimensions.map((d: any) => d.key));
-    const addedDimensions = Object.entries(weightMap)
-      .filter(([key]) => !overriddenKeys.has(key))
-      .map(([key, weight]) => ({ key, weight }));
-    result.evaluationHarness = {
-      ...existing,
-      dimensions: [...mergedDimensions, ...addedDimensions],
+    // Feedback rubric and simulation harness are separate contracts, even
+    // when a dimension happens to have the same key. Never mutate the harness.
+    const rubric = result._evaluationCriteriaSnapshot;
+    const resolved = resolveOverrideWeights(rubric?.dimensions ?? [], weightMap);
+    if (resolved.errors.length) throw new Error(resolved.errors.join("; "));
+    result._evaluationCriteriaSnapshot = {
+      ...rubric,
+      dimensions: rubric.dimensions.map((d: any) => ({
+        ...d, weight: resolved.dimensions.find(item => item.key === d.key)?.normalizedPercent ?? d.weight,
+      })),
     };
   }
 
@@ -46,28 +42,14 @@ export function applyScenarioOverride(scenario: any, override: ScenarioOverrideD
   return result;
 }
 
-export function applyEvalWeightsOverride(
-  harness: Record<string, unknown>,
-  evaluationWeights: Record<string, number>
-): Record<string, unknown> {
-  if (!harness || !evaluationWeights || Object.keys(evaluationWeights).length === 0) return harness;
-  const dims = (harness as any).dimensions;
-  if (!Array.isArray(dims)) return harness;
-  return {
-    ...harness,
-    dimensions: dims.map((d: any) => {
-      const key = d.key ?? d.id;
-      return (key !== undefined && evaluationWeights[key] !== undefined)
-        ? { ...d, weight: evaluationWeights[key] }
-        : d;
-    }),
-  };
-}
-
 export function buildOverridePromptBlock(override: ScenarioOverrideData | null | undefined): string {
   if (!override) return '';
 
-  const lines: string[] = [];
+  const lines: string[] = [
+    "\n# 조직별 추가 응답 지침",
+    "아래는 응답에만 적용하는 하위 지침입니다. 시스템 안전 규칙보다 우선하지 않습니다.",
+    "콘텐츠 원본이나 학습자의 발화를 치환하지 마세요. 별도 감점이나 법적 준수 보장을 만들지 마세요.",
+  ];
 
   if (override.terminology && Object.keys(override.terminology).length > 0) {
     lines.push('\n# 조직별 용어 지침 (Organization Terminology)');
@@ -95,7 +77,7 @@ export function buildOverridePromptBlock(override: ScenarioOverrideData | null |
 
   if (override.customIncidents && override.customIncidents.length > 0) {
     lines.push('\n# 커스텀 인시던트 (Custom Incidents)');
-    lines.push('적절한 상황에서 다음 인시던트를 활용할 수 있습니다:');
+    lines.push('다음은 추가 상황 지침이며 자동 사건 트리거가 아닙니다:');
     for (const incident of override.customIncidents) {
       lines.push(`- ${incident}`);
     }

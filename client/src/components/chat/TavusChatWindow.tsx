@@ -8,6 +8,7 @@ import DailyAvatarRoom from "./DailyAvatarRoom";
 import TavusConversationLayout from "./TavusConversationLayout";
 import { useTavusTranscript, type TranscriptState } from "./useTavusTranscript";
 import { useBrowserCaptions } from "./tavusBrowserCaptions";
+import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../ScenarioOverrideSummary";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
@@ -568,8 +569,27 @@ export default function TavusChatWindow({
           </div>}
         </div>
       }
-      history={historyContent}
+      history={<><TavusOverrideSummary conversationId={conversationId} />{historyContent}</>}
     />
   );
 
+}
+
+function TavusOverrideSummary({ conversationId }: { conversationId: string }) {
+  const [state, setState] = useState<{ loading: boolean; error: boolean; metadata: OrganizationOverrideMetadata }>({ loading: true, error: false, metadata: null });
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setState({ loading: true, error: false, metadata: null });
+    apiRequest("GET", `/api/conversations/${encodeURIComponent(conversationId)}/organization-override`)
+      .then(response => response.json())
+      .then(data => { if (!cancelled) setState({ loading: false, error: false, metadata: data.organizationOverride ?? null }); })
+      .catch(() => { if (!cancelled) setState({ loading: false, error: true, metadata: null }); });
+    return () => { cancelled = true; };
+  }, [conversationId, retry]);
+  return <div className="p-4">
+    {state.loading ? <p className="text-sm">조직 설정 적용 기록을 불러오는 중...</p>
+      : state.error ? <p className="text-sm text-red-700">조직 설정 적용 기록 조회 실패. <button onClick={() => setRetry(value => value + 1)} className="underline">다시 시도</button></p>
+      : <ScenarioOverrideSummary metadata={state.metadata} />}
+  </div>;
 }

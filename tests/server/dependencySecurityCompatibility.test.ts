@@ -3,7 +3,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createInsertSchema } from "drizzle-zod";
 import { pgTable, text } from "drizzle-orm/pg-core";
-import { scenarioOverrideDataSchema } from "../../shared/schema/scenarios";
+import { scenarioOverrideDataSchema, scenarioOverrideSchemaForDimensions } from "../../shared/schema/scenarios";
 
 describe("security dependency compatibility", () => {
   it("rejects an oversized collection before allocating an issue per invalid element", () => {
@@ -23,10 +23,12 @@ describe("security dependency compatibility", () => {
       .toEqual({ evaluationWeights: {} });
   });
 
-  it("continues rejecting unknown dimensions and out-of-range evaluation weights", () => {
+  it("rejects unknown dimensions against the actual rubric and out-of-range evaluation weights", () => {
+    const actualRubricSchema = scenarioOverrideSchemaForDimensions(["empathy", "customRubricKey"]);
     for (const evaluationWeights of [{ unknown: 1 }, { empathy: -1 }, { empathy: 11 }]) {
-      expect(scenarioOverrideDataSchema.safeParse({ evaluationWeights }).success).toBe(false);
+      expect(actualRubricSchema.safeParse({ evaluationWeights }).success).toBe(false);
     }
+    expect(actualRubricSchema.safeParse({ evaluationWeights: { customRubricKey: 3 } }).success).toBe(true);
   });
 
   it("keeps Drizzle-generated schemas composable with the patched Zod API", () => {

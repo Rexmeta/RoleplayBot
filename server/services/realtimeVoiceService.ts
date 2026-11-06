@@ -12,7 +12,6 @@ import {
   MAX_CONCURRENT_SESSIONS,
 } from './voice/types';
 import { buildSystemInstructions, buildReconnectSystemInstructions } from './voice/systemPromptBuilder';
-import { applyScenarioOverride } from './scenarios/overrideResolver';
 import { getSessionState } from './simulation/simulationEngine';
 import { applyHarnessToSession, readScenarioHarness } from './simulation/harnessReader';
 import { RUNTIME_PERSONA_PROFILE_KEY, findRuntimePersona, resolveRuntimeScenario } from './runtimeScenario';
@@ -326,18 +325,6 @@ export class RealtimeVoiceService {
     try {
       const user = await storage.getUser(userId);
       userName = normalizeProfileName(user?.name) || '사용자';
-      if (user?.organizationId && !boundScenarioRun?.scenarioSnapshot) {
-        try {
-          const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(user.organizationId, scenarioId);
-          if (overrideRecord) {
-            activeScenarioOverride = overrideRecord.override;
-            resolvedScenarioObj = applyScenarioOverride(scenarioObj, activeScenarioOverride);
-            console.log(`[realtimeVoice] Applied scenario override for org=${user.organizationId}, scenario=${scenarioId}`);
-          }
-        } catch (err) {
-          console.warn('[realtimeVoice] Failed to load scenario override (ignored):', err);
-        }
-      }
     } catch (error) {
       console.warn(`⚠️ Failed to load user info for userId ${userId}:`, error);
     }

@@ -67,6 +67,13 @@ vi.mock('../../server/storage', () => ({
     }),
   },
   storage: {
+    getScenario: vi.fn(),
+    getLatestPublishedVersion: vi.fn().mockResolvedValue(null),
+    getOrganization: vi.fn().mockResolvedValue({ id: "org-1", companyId: "company-1", isActive: true }),
+    getCompany: vi.fn().mockResolvedValue({ id: "company-1", isActive: true }),
+    getCategory: vi.fn().mockResolvedValue(null),
+    getScenarioOverrideByOrgAndScenario: vi.fn().mockResolvedValue(null),
+    getActiveEvaluationCriteriaSetWithDimensions: vi.fn().mockResolvedValue(null),
     createScenarioRun: vi.fn().mockResolvedValue({ id: 'srun-1' }),
     createPersonaRun: vi.fn().mockResolvedValue({ id: 'prun-1' }),
     createChatMessage: vi.fn().mockResolvedValue({}),
@@ -75,6 +82,7 @@ vi.mock('../../server/storage', () => ({
     getSimulationState: vi.fn().mockResolvedValue(null),
     saveSimulationState: vi.fn().mockResolvedValue(undefined),
     getPersonaRun: vi.fn().mockResolvedValue(null),
+    getScenarioRun: vi.fn().mockResolvedValue(null),
     getFeedbackByConversationId: vi.fn().mockResolvedValue(null),
     createSimulationEvent: vi.fn().mockResolvedValue({}),
   },
@@ -84,6 +92,7 @@ vi.mock('../../server/services/fileManager', () => ({
   fileManager: {
     getAllScenarios: vi.fn().mockResolvedValue([]),
     getPersonaByMBTI: vi.fn().mockResolvedValue(null),
+    getPersonaAvatarSettings: vi.fn().mockResolvedValue(null),
   },
 }));
 
@@ -117,12 +126,16 @@ vi.mock('../../server/services/simulation/evaluateUserResponse', () => ({
 
 vi.mock('../../server/routes/routerHelpers', () => ({
   generateAndSaveFeedback: vi.fn().mockResolvedValue(null),
+  loadEvaluationCriteria: vi.fn().mockResolvedValue(null),
+  createHttpError: (status: number, message: string) => Object.assign(new Error(message), { status }),
 }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 import { generateAgentApiKey } from '../../server/utils/agentApiKey';
 import agentApiRouter from '../../server/routes/agentApi';
 import { fileManager } from '../../server/services/fileManager';
+import { storage } from '../../server/storage';
+import { generateAIResponse } from '../../server/services/aiServiceFactory';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SCENARIO_ID = 'scenario-abc';
@@ -197,6 +210,10 @@ beforeEach(() => {
   process.env.AGENT_API_KEY_PEPPER = TEST_PEPPER;
   dbQueue.clear();
   vi.mocked(fileManager.getAllScenarios).mockResolvedValue([]);
+  vi.mocked(storage.getScenario).mockResolvedValue(MOCK_SCENARIO as any);
+  vi.mocked(storage.getPersonaRun).mockResolvedValue(null);
+  vi.mocked(storage.getScenarioRun).mockResolvedValue(undefined);
+  vi.mocked(storage.getScenarioOverrideByOrgAndScenario).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -358,6 +375,10 @@ describe('Happy-path: create → message → end session flow', () => {
     vi.mocked(fileManager.getAllScenarios).mockResolvedValue([MOCK_SCENARIO] as any);
 
     // ── Step 1: Create session ─────────────────────────────────────────────
+    vi.mocked(storage.getScenarioOverrideByOrgAndScenario).mockResolvedValue({
+      id: "override-a", organizationId: ORG_ID, scenarioId: SCENARIO_ID,
+      override: { policyConstraints: ["Frozen API organization policy"] }, updatedAt: new Date(),
+    } as any);
     dbQueue.push([record]);  // auth
     dbQueue.push([{ agentKeyId: KEY_ID, scenarioId: SCENARIO_ID }]); // scenario allowlist
     dbQueue.push([session]); // re-fetch created session
@@ -373,6 +394,11 @@ describe('Happy-path: create → message → end session flow', () => {
     expect(createRes.body).toHaveProperty('scenarioId', SCENARIO_ID);
     expect(createRes.body).toHaveProperty('personaId', PERSONA_ID);
     expect(createRes.body).toHaveProperty('externalUserId', 'user-happy-1');
+    const binding = vi.mocked(storage.createScenarioRun).mock.calls.at(-1)![0];
+    expect((binding.scenarioSnapshot as any)._organizationOverride.organizationId).toBe(ORG_ID);
+    vi.mocked(storage.getPersonaRun).mockResolvedValue({ id: "prun-1", scenarioRunId: "srun-1" } as any);
+    vi.mocked(storage.getScenarioRun).mockResolvedValue({ ...binding, id: "srun-1" } as any);
+    vi.mocked(storage.getScenarioOverrideByOrgAndScenario).mockRejectedValue(new Error("settings changed or unavailable after start"));
 
     // ── Step 2: Send a message ─────────────────────────────────────────────
     dbQueue.push([record]);   // auth
@@ -389,6 +415,7 @@ describe('Happy-path: create → message → end session flow', () => {
     expect(msgRes.body.reply).toHaveProperty('emotionLabel');
     expect(msgRes.body).toHaveProperty('sessionId', SESSION_ID);
     expect(msgRes.body).toHaveProperty('turnId');
+    expect((vi.mocked(generateAIResponse).mock.calls.at(-1)![0] as any)._overridePromptBlock).toContain("Frozen API organization policy");
 
     // ── Step 3: End session ────────────────────────────────────────────────
     dbQueue.push([record]);   // auth
@@ -400,6 +427,7 @@ describe('Happy-path: create → message → end session flow', () => {
       .send({});
 
     expect(endRes.status).toBe(200);
+    expect(feedbackServiceMocks.enqueueFeedbackJob.mock.calls.at(-1)![0].scenario._overridePromptBlock).toContain("Frozen API organization policy");
     expect(endRes.body.sessionId).toBe(SESSION_ID);
     expect(endRes.body.status).toBe('ended');
     expect(endRes.body).toHaveProperty('endedAt');

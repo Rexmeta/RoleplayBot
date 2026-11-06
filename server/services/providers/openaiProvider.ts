@@ -234,6 +234,7 @@ ${difficultyGuidelines}
 5. 상황에 맞는 감정을 표현하세요
 6. **절대로 ${userLabel}의 역할을 수행하거나 ${userLabel} 입장에서 발언하지 마세요**
 
+${(scenarioObj as any)._overridePromptBlock || ''}
 ${metaInstruction}`;
 
     const userMessageContent = userMessage || '앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.';
