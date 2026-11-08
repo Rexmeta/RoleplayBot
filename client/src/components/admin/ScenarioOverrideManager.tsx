@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { ScenarioOverrideHistory } from "./ScenarioOverrideHistory";
 
 type Organization = { id: string; name: string; companyId?: string | null; isActive: boolean; company?: { id: string; name: string; isActive: boolean } | null };
 type Scenario = { id: string; title: string; organizationId?: string | null; categoryId?: string | null };
@@ -290,6 +291,7 @@ export function ScenarioOverrideManager() {
               <label className="text-sm font-medium">시나리오<Select value={scenarioId} onValueChange={chooseScenario} disabled={mutationsPending}><SelectTrigger><SelectValue placeholder="시나리오 선택" /></SelectTrigger><SelectContent>{eligibleScenarios.map(item => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select></label>
             </CardContent></Card>
           </div>
+          {orgId && <ScenarioOverrideHistory key={`${orgId}:${scenarioId}`} organizationId={orgId} scenarioId={scenarioId} />}
           {validPair && <div className="space-y-4">
             {detailQuery.isLoading && <Card><CardContent className="space-y-3 p-6"><div className="h-5 w-1/3 animate-pulse rounded bg-muted" /><div className="h-20 animate-pulse rounded bg-muted" /></CardContent></Card>}
             {detailQuery.isError && <Alert variant="destructive"><AlertDescription>설정 조회에 실패했습니다. 빈 설정으로 처리하지 않았습니다. {readError(detailQuery.error)} <Button size="sm" variant="outline" onClick={() => detailQuery.refetch()}><RefreshCw className="mr-2 h-4 w-4" />다시 시도</Button></AlertDescription></Alert>}

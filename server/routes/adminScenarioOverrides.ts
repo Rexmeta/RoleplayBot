@@ -68,6 +68,25 @@ export default function createAdminScenarioOverridesRouter(isAuthenticated: any)
     }
     res.json({ organizations, scenarios });
   }));
+  router.get("/api/admin/scenario-overrides/organization/:organizationId/audit-logs", asyncHandler(async (req: any, res) => {
+    await scope(req.user, req.params.organizationId);
+    const integer = (value: unknown, fallback: number, max: number) => {
+      if (value === undefined) return fallback;
+      if (typeof value !== "string" || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > max) {
+        throw createHttpError(400, "유효하지 않은 이력 조회 범위입니다");
+      }
+      return Number(value);
+    };
+    const limit = integer(req.query.limit, 25, 100);
+    const offset = integer(req.query.offset, 0, 100000);
+    if (!limit) throw createHttpError(400, "조회 개수는 1 이상이어야 합니다");
+    if (req.query.scenarioId !== undefined && (typeof req.query.scenarioId !== "string" || !req.query.scenarioId.trim())) {
+      throw createHttpError(400, "유효하지 않은 시나리오입니다");
+    }
+    // History survives override deletion/content withdrawal; delegation, not current content access, governs reads.
+    const rows = await storage.getScenarioOverrideAudit(req.params.organizationId, req.query.scenarioId, limit + 1, offset);
+    res.json({ entries: rows.slice(0, limit), hasMore: rows.length > limit });
+  }));
   router.get("/api/admin/scenario-overrides", asyncHandler(async (req: any, res) => {
     res.json(await scopedRows(req.user, typeof req.query.organizationId === "string" ? req.query.organizationId : undefined,
       typeof req.query.scenarioId === "string" ? req.query.scenarioId : undefined));
@@ -95,12 +114,12 @@ export default function createAdminScenarioOverridesRouter(isAuthenticated: any)
     if (isOrganizationOverrideEmpty(value)) throw createHttpError(400, "빈 설정은 저장할 수 없습니다. 기존 설정 제거는 삭제를 사용하세요");
     const preview = buildOrganizationPreview(loaded.base, value);
     if (preview.errors.length) throw createHttpError(422, preview.errors.join("; "));
-    res.json(await storage.upsertScenarioOverride(req.params.organizationId, req.params.scenarioId, value));
+    res.json(await storage.upsertScenarioOverride(req.params.organizationId, req.params.scenarioId, value, req.user.id));
   }));
   router.delete("/api/admin/scenario-overrides/:organizationId/:scenarioId", asyncHandler(async (req: any, res) => {
     write(req.user);
     await context(req.user, req.params.organizationId, req.params.scenarioId);
-    await storage.deleteScenarioOverrideByOrgAndScenario(req.params.organizationId, req.params.scenarioId);
+    await storage.deleteScenarioOverrideByOrgAndScenario(req.params.organizationId, req.params.scenarioId, req.user.id);
     res.json({ success: true });
   }));
   return router;

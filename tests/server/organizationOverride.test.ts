@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   store: Object.fromEntries([
     "getScenario", "getLatestPublishedVersion", "getOrganization", "getCompany", "getCategory",
     "getScenarioOverrideByOrgAndScenario", "getAllScenarioOverrides", "getScenarioOverridesByOrganization",
-    "getScenarioOverridesByScenario", "upsertScenarioOverride", "deleteScenarioOverrideByOrgAndScenario",
+    "getScenarioOverridesByScenario", "upsertScenarioOverride", "deleteScenarioOverrideByOrgAndScenario", "getScenarioOverrideAudit",
     "canOperatorManageOrganization", "getOperatorManagedOrganizationIds", "getAllOrganizations", "getAllScenarios",
   ].map(key => [key, vi.fn()])),
   criteria: vi.fn(),
@@ -112,6 +112,32 @@ describe("common input and weight contract", () => {
   });
 });
 describe("management API authorization and persistence", () => {
+  it("scopes audit history to current delegation even after override deletion and validates pagination", async () => {
+    mocks.store.getScenarioOverrideAudit.mockResolvedValue([{ id: "audit", organizationId: "A" }]);
+    records = [];
+    const result = await request(app("operator")).get("/api/admin/scenario-overrides/organization/A/audit-logs?scenarioId=s&limit=1");
+    expect(result.status).toBe(200);
+    expect(result.body.entries[0].id).toBe("audit");
+    expect(mocks.store.getScenarioOverrideAudit).toHaveBeenLastCalledWith("A", "s", 2, 0);
+    mocks.store.getScenarioOverrideAudit.mockClear();
+    expect((await request(app("operator")).get("/api/admin/scenario-overrides/organization/B/audit-logs")).status).toBe(403);
+    expect((await request(app("user")).get("/api/admin/scenario-overrides/organization/A/audit-logs")).status).toBe(403);
+    expect(mocks.store.getScenarioOverrideAudit).not.toHaveBeenCalled();
+    for (const query of ["limit=0", "limit=101", "offset=-1", "offset=x", "scenarioId[x]=A"]) {
+      expect((await request(app()).get(`/api/admin/scenario-overrides/organization/A/audit-logs?${query}`)).status).toBe(400);
+    }
+    mocks.store.canOperatorManageOrganization.mockResolvedValueOnce(false);
+    expect((await request(app("operator")).get("/api/admin/scenario-overrides/organization/A/audit-logs")).status).toBe(403);
+  });
+  it("passes only the authenticated actor to audited writes and reports persistence failure", async () => {
+    const value = { policyConstraints: ["p"] };
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send(value)).status).toBe(200);
+    expect(mocks.store.upsertScenarioOverride).toHaveBeenCalledWith("A", "s", value, "u");
+    expect((await request(app()).delete("/api/admin/scenario-overrides/A/s")).status).toBe(200);
+    expect(mocks.store.deleteScenarioOverrideByOrgAndScenario).toHaveBeenCalledWith("A", "s", "u");
+    mocks.store.upsertScenarioOverride.mockRejectedValueOnce(new Error("audit unavailable"));
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send(value)).status).toBe(500);
+  });
   it("intersects organization and scenario filters", async () => {
     const result = await request(app()).get("/api/admin/scenario-overrides?organizationId=A&scenarioId=s");
     expect(result.status).toBe(200); expect(result.body.map((r: any) => r.id)).toEqual(["oa"]);
