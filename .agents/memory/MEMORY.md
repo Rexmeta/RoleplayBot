@@ -31,3 +31,4 @@
 - [Vite Zod optimizer cache](vite-zod-optimizer-cache.md) — Zod 메이저 업그레이드 뒤 브라우저가 구버전 최적화 번들을 계속 제공할 수 있어 런타임 API 불일치 확인이 필요하다.
 - [Tavus Full Pipeline 원칙](tavus-full-pipeline-boundaries.md) — 기존 AvatarRouter 경유 필수·직접 Tavus 호출 금지·Gemini 중계 없는 독립 모드·공통 PAL 하나.
 - [조직 Override 계약](organization-override-contract.md) — 위임은 실행 소속이 아니며, 피드백 루브릭과 고정 시뮬레이션 차원을 임의 매핑하지 않는다.
+- [Audit cursor timestamp precision](audit-cursor-timestamp-precision.md) — PostgreSQL timestamp를 JS Date로 변환하면 마이크로초 정밀도가 사라져 커서 경계에서 중복·누락이 생길 수 있다.

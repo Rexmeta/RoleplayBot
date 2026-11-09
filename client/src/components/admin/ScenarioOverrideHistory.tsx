@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+type AuditCursor = { createdAt: string; id: string };
+type AuditPage = { entries: OverrideAuditEntry[]; hasMore: boolean; nextCursor: AuditCursor | null };
+
 const labels: Record<string, string> = {
   terminology: "용어", policyConstraints: "정책 제약", forbiddenPhrases: "금지 표현",
   customIncidents: "추가 상황", evaluationWeights: "평가 비중",
@@ -18,16 +21,28 @@ function summary(value: OverrideAuditSummary) {
 
 /** Remount on organization/filter changes so pagination never crosses scopes. */
 export function ScenarioOverrideHistory({ organizationId, scenarioId }: { organizationId: string; scenarioId: string }) {
-  const [offset, setOffset] = useState(0);
-  const query = useQuery<{ entries: OverrideAuditEntry[]; hasMore: boolean }>({
-    queryKey: ["/api/admin/scenario-overrides", "audit-logs", organizationId, scenarioId, offset],
+  const [pageCursors, setPageCursors] = useState<(AuditCursor | null)[]>([null]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const cursor = pageCursors[pageIndex] ?? null;
+  const query = useQuery<AuditPage>({
+    queryKey: ["/api/admin/scenario-overrides", "audit-logs", organizationId, scenarioId, cursor?.createdAt ?? null, cursor?.id ?? null],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: "25", offset: String(offset) });
+      const params = new URLSearchParams({ limit: "25" });
       if (scenarioId) params.set("scenarioId", scenarioId);
+      if (cursor) {
+        params.set("cursorCreatedAt", cursor.createdAt);
+        params.set("cursorId", cursor.id);
+      }
       const response = await apiRequest("GET", `/api/admin/scenario-overrides/organization/${encodeURIComponent(organizationId)}/audit-logs?${params}`);
       return response.json();
     },
   });
+  const goToNextPage = () => {
+    const nextCursor = query.data?.nextCursor;
+    if (!nextCursor) return;
+    setPageCursors(current => [...current.slice(0, pageIndex + 1), nextCursor]);
+    setPageIndex(index => index + 1);
+  };
   return <Card>
     <CardHeader><CardTitle>조직 설정 변경 이력</CardTitle></CardHeader>
     <CardContent className="space-y-3">
@@ -47,9 +62,10 @@ export function ScenarioOverrideHistory({ organizationId, scenarioId }: { organi
             <div>이전: {summary(entry.metadata.before)}</div><div>이후: {summary(entry.metadata.after)}</div>
           </TableCell>
         </TableRow>)}</TableBody></Table>}
+      <p className="text-sm text-muted-foreground">이력 페이지 {pageIndex + 1}</p>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" disabled={!offset || query.isFetching} onClick={() => setOffset(value => Math.max(0, value - 25))}>이전 이력</Button>
-        <Button variant="outline" size="sm" disabled={!query.data?.hasMore || query.isFetching || query.isError} onClick={() => setOffset(value => value + 25)}>다음 이력</Button>
+        <Button variant="outline" size="sm" disabled={pageIndex === 0 || query.isFetching} onClick={() => setPageIndex(index => Math.max(0, index - 1))}>이전 이력</Button>
+        <Button variant="outline" size="sm" disabled={!query.data?.hasMore || !query.data.nextCursor || query.isFetching || query.isError} onClick={goToNextPage}>다음 이력</Button>
       </div>
     </CardContent>
   </Card>;

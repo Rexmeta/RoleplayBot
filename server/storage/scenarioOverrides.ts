@@ -1,9 +1,10 @@
 import { type ScenarioOverride, type InsertScenarioOverride, type AuditLog, scenarioOverrides, auditLogs, users } from "@shared/schema";
 import { overrideAuditActions, summarizeOverrideChange } from "@shared/organizationOverrideAudit";
 import { db } from "./db";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, lt, or } from "drizzle-orm";
 
 type ScenarioOverrideAuditRow = Pick<AuditLog, "id" | "actorUserId" | "organizationId" | "action" | "targetId" | "metadata" | "createdAt"> & { actorName: string | null };
+export interface ScenarioOverrideAuditCursor { createdAt: string; id: string }
 
 export class ScenarioOverrideConflictError extends Error {
   constructor() {
@@ -26,7 +27,7 @@ export interface IScenarioOverridesStorage {
   getScenarioOverridesByScenario(scenarioId: string): Promise<ScenarioOverride[]>;
   getAllScenarioOverrides(): Promise<ScenarioOverride[]>;
   upsertScenarioOverride(organizationId: string, scenarioId: string, override: InsertScenarioOverride['override'], actorUserId: string, expectedUpdatedAt: string | null, expectedOverrideId: string | null): Promise<ScenarioOverride>;
-  getScenarioOverrideAudit(organizationId: string, scenarioId: string | undefined, limit: number, offset: number): Promise<ScenarioOverrideAuditRow[]>;
+  getScenarioOverrideAudit(organizationId: string, scenarioId: string | undefined, limit: number, cursor?: ScenarioOverrideAuditCursor | null): Promise<(ScenarioOverrideAuditRow & { cursorCreatedAt: string })[]>;
   deleteScenarioOverride(id: string): Promise<void>;
   deleteScenarioOverrideByOrgAndScenario(organizationId: string, scenarioId: string, actorUserId: string, expectedUpdatedAt: string | null, expectedOverrideId: string | null): Promise<void>;
 }
@@ -79,17 +80,23 @@ export function ScenarioOverridesMixin<TBase extends Constructor>(Base: TBase) {
       });
     }
 
-    async getScenarioOverrideAudit(organizationId: string, scenarioId: string | undefined, limit: number, offset: number) {
+    async getScenarioOverrideAudit(organizationId: string, scenarioId: string | undefined, limit: number, cursor?: ScenarioOverrideAuditCursor | null) {
       return db.select({
         id: auditLogs.id, actorUserId: auditLogs.actorUserId, organizationId: auditLogs.organizationId,
         action: auditLogs.action, targetId: auditLogs.targetId, metadata: auditLogs.metadata, createdAt: auditLogs.createdAt,
+        // Keep PostgreSQL's full timestamp precision for an exact keyset boundary.
+        cursorCreatedAt: sql<string>`to_char(${auditLogs.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
         // Resolve only the current display name: never persist names/emails in the immutable audit payload.
         actorName: users.name,
       }).from(auditLogs).leftJoin(users, eq(auditLogs.actorUserId, users.id)).where(and(
         eq(auditLogs.organizationId, organizationId), eq(auditLogs.targetType, "scenario_override"),
         inArray(auditLogs.action, [...overrideAuditActions]),
         scenarioId ? eq(auditLogs.targetId, scenarioId) : undefined,
-      )).orderBy(desc(auditLogs.createdAt), desc(auditLogs.id)).limit(limit).offset(offset);
+        cursor ? or(
+          lt(auditLogs.createdAt, sql`${cursor.createdAt.slice(0, -1)}::timestamp`),
+          and(eq(auditLogs.createdAt, sql`${cursor.createdAt.slice(0, -1)}::timestamp`), lt(auditLogs.id, cursor.id)),
+        ) : undefined,
+      )).orderBy(desc(auditLogs.createdAt), desc(auditLogs.id)).limit(limit);
     }
 
     async deleteScenarioOverride(id: string): Promise<void> {
@@ -118,7 +125,7 @@ export function ScenarioOverridesMixin<TBase extends Constructor>(Base: TBase) {
 }
 
 export class MemScenarioOverridesStorage implements IScenarioOverridesStorage {
-  async getScenarioOverrideAudit(): Promise<ScenarioOverrideAuditRow[]> { throw new Error("Audit history requires database storage"); }
+  async getScenarioOverrideAudit(): Promise<(ScenarioOverrideAuditRow & { cursorCreatedAt: string })[]> { throw new Error("Audit history requires database storage"); }
   async getScenarioOverride(_: string): Promise<ScenarioOverride | undefined> { return undefined; }
   async getScenarioOverrideByOrgAndScenario(_: string, __: string): Promise<ScenarioOverride | undefined> { return undefined; }
   async getScenarioOverridesByOrganization(_: string): Promise<ScenarioOverride[]> { return []; }

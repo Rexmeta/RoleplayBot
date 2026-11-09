@@ -132,17 +132,23 @@ describe("atomic audited persistence", () => {
     await store.deleteScenarioOverrideByOrgAndScenario("org", "scenario", "admin", null, null);
     expect(state.logs).toEqual([]);
   });
-  it("restricts the database query to organization, scenario, action and target type with bounded paging", async () => {
+  it("applies the timestamp/id cursor within organization and scenario with bounded paging", async () => {
     const chain: any = {};
     for (const method of ["from", "leftJoin", "where", "orderBy", "limit", "offset"]) chain[method] = vi.fn(() => chain);
     mocks.select.mockReturnValue(chain);
-    await store.getScenarioOverrideAudit("org", "scenario", 26, 25);
+    const cursor = { createdAt: "2026-11-06T10:00:00.123456Z", id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" };
+    await store.getScenarioOverrideAudit("org", "scenario", 26, cursor);
     const query = dialect.sqlToQuery(chain.where.mock.calls[0][0]);
-    expect(query.params).toEqual(["org", "scenario_override", "scenario_override_saved", "scenario_override_deleted", "scenario"]);
+    expect(query.params).toEqual([
+      "org", "scenario_override", "scenario_override_saved", "scenario_override_deleted", "scenario",
+      "2026-11-06T10:00:00.123456", "2026-11-06T10:00:00.123456", cursor.id,
+    ]);
+    expect(query.sql).toContain("created_at");
+    expect(query.sql).toContain("id");
     expect(chain.limit).toHaveBeenCalledWith(26);
-    expect(chain.offset).toHaveBeenCalledWith(25);
+    expect(chain.offset).not.toHaveBeenCalled();
     const projection = mocks.select.mock.calls[0][0];
-    expect(Object.keys(projection).sort()).toEqual(["id", "actorUserId", "actorName", "organizationId", "action", "targetId", "metadata", "createdAt"].sort());
+    expect(Object.keys(projection).sort()).toEqual(["id", "actorUserId", "actorName", "organizationId", "action", "targetId", "metadata", "createdAt", "cursorCreatedAt"].sort());
   });
 });
 

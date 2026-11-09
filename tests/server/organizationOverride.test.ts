@@ -114,17 +114,34 @@ describe("common input and weight contract", () => {
 });
 describe("management API authorization and persistence", () => {
   it("scopes audit history to current delegation even after override deletion and validates pagination", async () => {
-    mocks.store.getScenarioOverrideAudit.mockResolvedValue([{ id: "audit", organizationId: "A" }]);
+    const cursorCreatedAt = "2026-11-06T10:00:00.123456Z";
+    const cursorId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    mocks.store.getScenarioOverrideAudit.mockResolvedValue([
+      { id: "audit", organizationId: "A", cursorCreatedAt },
+      { id: "audit-next", organizationId: "A", cursorCreatedAt: "2026-11-06T09:59:59.000000Z" },
+    ]);
     records = [];
     const result = await request(app("operator")).get("/api/admin/scenario-overrides/organization/A/audit-logs?scenarioId=s&limit=1");
     expect(result.status).toBe(200);
     expect(result.body.entries[0].id).toBe("audit");
-    expect(mocks.store.getScenarioOverrideAudit).toHaveBeenLastCalledWith("A", "s", 2, 0);
+    expect(result.body.entries[0]).not.toHaveProperty("cursorCreatedAt");
+    expect(result.body.hasMore).toBe(true);
+    expect(result.body.nextCursor).toEqual({ createdAt: cursorCreatedAt, id: "audit" });
+    expect(mocks.store.getScenarioOverrideAudit).toHaveBeenLastCalledWith("A", "s", 2, null);
+    const cursorResult = await request(app("operator")).get(
+      `/api/admin/scenario-overrides/organization/A/audit-logs?scenarioId=s&limit=1&cursorCreatedAt=${cursorCreatedAt}&cursorId=${cursorId}`
+    );
+    expect(cursorResult.status).toBe(200);
+    expect(mocks.store.getScenarioOverrideAudit).toHaveBeenLastCalledWith("A", "s", 2, { createdAt: cursorCreatedAt, id: cursorId });
     mocks.store.getScenarioOverrideAudit.mockClear();
     expect((await request(app("operator")).get("/api/admin/scenario-overrides/organization/B/audit-logs")).status).toBe(403);
     expect((await request(app("user")).get("/api/admin/scenario-overrides/organization/A/audit-logs")).status).toBe(403);
     expect(mocks.store.getScenarioOverrideAudit).not.toHaveBeenCalled();
-    for (const query of ["limit=0", "limit=101", "offset=-1", "offset=x", "scenarioId[x]=A"]) {
+    for (const query of [
+      "limit=0", "limit=101", "offset=-1", "scenarioId[x]=A",
+      "cursorCreatedAt=2026-11-06T10%3A00%3A00.123Z&cursorId=bad",
+      "cursorCreatedAt=2026-11-06T10%3A00%3A00.123456Z",
+    ]) {
       expect((await request(app()).get(`/api/admin/scenario-overrides/organization/A/audit-logs?${query}`)).status).toBe(400);
     }
     mocks.store.canOperatorManageOrganization.mockResolvedValueOnce(false);

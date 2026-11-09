@@ -103,14 +103,35 @@ export default function createAdminScenarioOverridesRouter(isAuthenticated: any)
       return Number(value);
     };
     const limit = integer(req.query.limit, 25, 100);
-    const offset = integer(req.query.offset, 0, 100000);
     if (!limit) throw createHttpError(400, "조회 개수는 1 이상이어야 합니다");
+    if (req.query.offset !== undefined) throw createHttpError(400, "offset 대신 이력 커서를 사용해야 합니다");
+    const hasCursorCreatedAt = req.query.cursorCreatedAt !== undefined;
+    const hasCursorId = req.query.cursorId !== undefined;
+    if (hasCursorCreatedAt !== hasCursorId) throw createHttpError(400, "유효하지 않은 이력 커서입니다");
+    let cursor: { createdAt: string; id: string } | null = null;
+    if (hasCursorCreatedAt) {
+      const createdAt = req.query.cursorCreatedAt;
+      const id = req.query.cursorId;
+      if (typeof createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/.test(createdAt) ||
+        !Number.isFinite(Date.parse(createdAt)) || new Date(createdAt).toISOString().slice(0, 19) !== createdAt.slice(0, 19) ||
+        typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        throw createHttpError(400, "유효하지 않은 이력 커서입니다");
+      }
+      cursor = { createdAt, id };
+    }
     if (req.query.scenarioId !== undefined && (typeof req.query.scenarioId !== "string" || !req.query.scenarioId.trim())) {
       throw createHttpError(400, "유효하지 않은 시나리오입니다");
     }
     // History survives override deletion/content withdrawal; delegation, not current content access, governs reads.
-    const rows = await storage.getScenarioOverrideAudit(req.params.organizationId, req.query.scenarioId, limit + 1, offset);
-    res.json({ entries: rows.slice(0, limit), hasMore: rows.length > limit });
+    const rows = await storage.getScenarioOverrideAudit(req.params.organizationId, req.query.scenarioId, limit + 1, cursor);
+    const entries = rows.slice(0, limit).map(({ cursorCreatedAt: _cursorCreatedAt, ...entry }) => entry);
+    const hasMore = rows.length > limit;
+    const lastEntry = rows[Math.min(rows.length, limit) - 1];
+    res.json({
+      entries,
+      hasMore,
+      nextCursor: hasMore && lastEntry ? { createdAt: lastEntry.cursorCreatedAt, id: lastEntry.id } : null,
+    });
   }));
   router.get("/api/admin/scenario-overrides", asyncHandler(async (req: any, res) => {
     res.json(await scopedRows(req.user, typeof req.query.organizationId === "string" ? req.query.organizationId : undefined,
