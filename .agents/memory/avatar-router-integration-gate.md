@@ -39,6 +39,19 @@ Provider availability does not establish transport or dialogue ownership. Check 
 
 **How to apply:** Prefer the router-hosted common client when its live advertised contract supports it. Keep native microphone/dialogue ownership exclusive, single-start handoffs non-retryable, and unsupported scenario-context/transcript capabilities explicit rather than pretending to preserve them.
 
+Anam session role/organization instructions require a ratified router contract
+and an explicit deployed capability, not just native full-pipeline support.
+Proposed capability names are not authorization to send new request fields.
+
+**Why:** The public Anam contract rechecked on 2026-11-09 uses saved persona
+settings and rejects Tavus fullPipeline options. Implementing speculative fields
+would confuse a contract proposal with working scenario instruction support.
+
+**How to apply:** Recheck both router integration documents before enabling
+session instructions. Use only immutable run-bound instructions, never mutate
+the shared saved persona or run Gemini alongside Anam. External implementation,
+publication and paid call verification need separate approval.
+
 A reconciliation-required status identifies an unresolved paid-create outcome,
 not the root cause of a scenario-only failure. When administrator/persona playback
 works, compare actual creation payloads, renderer events, and media connection

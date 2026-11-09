@@ -57,6 +57,46 @@ beforeEach(() => {
   service = new TavusSessions(deps);
 });
 describe("AvatarRouter Full Pipeline", () => {
+  it.each([
+    { extraFeatures: [] },
+    { extraFeatures: ["tavus_full_pipeline", "daily_private_connection", "tavus_final_transcript_v1"] },
+    { extraFeatures: ["anam_session_context_v1"] },
+  ])("does not treat unrelated or unratified features $extraFeatures as permission to send Anam instructions", async ({ extraFeatures }) => {
+    deps.selection.mockResolvedValue({ blockers: [], providerId: "anam" });
+    deps.connection.check.mockResolvedValue({
+      projectId: "project",
+      scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
+      integration: { features: ["anam_full_pipeline", "unified_client_connection", "hosted_browser_client", ...extraFeatures] },
+    });
+    deps.target.mockResolvedValue({
+      projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null,
+    });
+    const frozenInstructions = {
+      context: "ROLEPLAY_SESSION_DATA: frozen actor role and private organization response instructions",
+      language: "ko",
+    };
+    deps.resolve.mockResolvedValue(frozenInstructions);
+    Object.assign(remote, {
+      providerId: "anam", avatarId: "anam-persona-default", pipeline: "anam_full", rendererState: "running",
+    });
+    deps.client.call.mockImplementation(async (_user, path, schema) =>
+      schema.parse(path.startsWith("/live-limits") ? limits : remote));
+
+    await service.start("owner", "run", true);
+    expect(deps.resolve).toHaveBeenCalledWith("owner", "run");
+    const writes = deps.client.call.mock.calls.filter((call: any[]) => call[3] !== undefined);
+    expect(writes).toHaveLength(1);
+    expect(writes[0][1]).toBe("/sessions");
+    expect(writes[0][3]).toEqual({
+      providerId: "anam", avatarId: "anam-persona-default", pipeline: "anam_full", mode: "live", costConfirmed: true,
+    });
+    expect(JSON.stringify(deps.client.call.mock.calls)).not.toContain(frozenInstructions.context);
+    expect(JSON.stringify([...rows.values()])).not.toContain(frozenInstructions.context);
+    expect(frozenInstructions.context).toContain("frozen actor role");
+    expect(await service.config("owner", "run")).toMatchObject({
+      palStrategy: "saved_persona", evaluationAvailable: false,
+    });
+  });
   it("dispatches Anam via managed native connection without Tavus payloads, Daily or transcript claims", async () => {
     vi.stubEnv("AVATAR_ROUTER_BASE_URL", "https://router.example/api/v1");
     try {

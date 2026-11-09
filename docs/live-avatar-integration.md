@@ -19,6 +19,10 @@
   현행 라우터는 저장된 Anam 페르소나 설정만 사용한다. Tavus `fullPipeline` 지침,
   시나리오 컨텍스트 전달과 Anam 확정 대화록 평가를 지원하는 것으로 표시하지 않는다.
   참고 계약: `/roleplayx/anam-integration.md`, `/roleplayx/managed-client-integration.md`.
+  2026-11-09 두 공개 계약을 재확인했으며 세션별 역할·조직 지침은 여전히 미지원이다.
+  [세션 컨텍스트 계약 변경안](anam-session-context-proposal.md)에 라우터 협의 항목,
+  고정 실행 스냅샷 경계와 지원 광고 후 활성화 조건을 정리했다. 제안 필드는 현재
+  전송하지 않는다. Anam 연결 가능과 시나리오 지침 적용 가능은 별개의 상태다.
 - **커스텀 자산**: `/avatar-assets`의 UUID 자산. 기존 준비 완료·재사용 가능 조건과
   프로젝트/사용자 소유권 검사를 유지한다.
   새 선택 저장 형태: `{ kind: "custom", assetId: "<UUID>", providerId: "tavus", ... }`.
