@@ -39,7 +39,7 @@ import { ScenarioOverrideConflictError } from "../../server/storage/scenarioOver
 import createConversationsRouter from "../../server/routes/conversations";
 import { scenarioOverrideDataSchema } from "../../shared/schema/scenarios";
 import { resolveOverrideWeights } from "../../shared/organizationOverride";
-import { buildOrganizationPreview, captureOrganizationRunSnapshot, resolveExecutionOrganization } from "../../server/services/scenarios/organizationOverride";
+import { buildOrganizationPreview, captureOrganizationRunSnapshot, resolveExecutionOrganization, resolveConversationOrganization } from "../../server/services/scenarios/organizationOverride";
 import { resolveRuntimeScenario } from "../../server/services/runtimeScenario";
 import { calculateWeightedOverallScore } from "../../server/services/evaluationEngine";
 import { buildSystemInstructions } from "../../server/services/voice/systemPromptBuilder";
@@ -234,11 +234,41 @@ describe("management API authorization and persistence", () => {
   });
 });
 describe("execution binding and provider context", () => {
-  it.each(["A", "B", null])("creates a private org-owned web conversation only for its owner (%s)", async membership => {
+  it("binds staff tests to the content owner without changing learner membership", async () => {
+    scenario.categoryId = "category";
+    mocks.store.getCategory.mockResolvedValue({ organizationId: "A" });
+    await expect(resolveConversationOrganization({ id: "u", role: "admin", organizationId: "B" }, "s")).resolves.toBe("A");
+    await expect(resolveConversationOrganization({ id: "u", role: "operator", organizationId: "B" }, "s")).resolves.toBe("A");
+    mocks.store.canOperatorManageOrganization.mockResolvedValue(false);
+    await expect(resolveConversationOrganization({ id: "u", role: "operator" }, "s")).rejects.toMatchObject({ status: 403 });
+    await expect(resolveConversationOrganization({ id: "u", role: "user", organizationId: "B" }, "s")).resolves.toBe("B");
+    await expect(captureOrganizationRunSnapshot("s", "B")).rejects.toMatchObject({ status: 403 });
+  });
+  it("loads only the selected scenario rubric and accepts its real dimension keys", async () => {
+    const response = await request(app()).get("/api/admin/scenario-overrides/A/s/rubric");
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ id: "r", name: "Actual rubric" });
+    expect(response.body.dimensions.map((d: any) => d.key)).toEqual(["discovery", "resolution"]);
+    const saved = await request(app()).put("/api/admin/scenario-overrides/A/s").send({
+      expectedUpdatedAt: null, expectedOverrideId: null, evaluationWeights: { discovery: 2, resolution: 8 },
+    });
+    expect(saved.status).toBe(200);
+    const binding = await captureOrganizationRunSnapshot("s", "A");
+    expect(binding.scenarioSnapshot._organizationOverride.dimensions.map((d: any) => d.normalizedPercent)).toEqual([20, 80]);
+    expect((await request(app("operator")).get("/api/admin/scenario-overrides/B/s/rubric")).status).toBe(403);
+  });
+  it.each([
+    { membership: "A", role: "user", allowed: true },
+    { membership: "B", role: "user", allowed: false },
+    { membership: null, role: "user", allowed: false },
+    { membership: null, role: "admin", allowed: true },
+    { membership: "B", role: "admin", allowed: true },
+    { membership: "B", role: "operator", allowed: true },
+  ])("checks private web conversation execution for $role in $membership", async ({ membership, role, allowed }) => {
     scenario.organizationId = "A";
     scenario.isPublic = false;
     Object.assign(mocks.store, {
-      getUser: vi.fn().mockResolvedValue({ id: "learner", role: "user", organizationId: membership }),
+      getUser: vi.fn().mockResolvedValue({ id: "learner", role, organizationId: membership }),
       findActiveScenarioRun: vi.fn().mockResolvedValue(null),
       getUserScenarioRuns: vi.fn().mockResolvedValue([]),
       createScenarioRun: vi.fn().mockImplementation(async data => ({ ...data, id: "private-run", startedAt: new Date() })),
@@ -251,14 +281,14 @@ describe("execution binding and provider context", () => {
     const app = express();
     app.use(express.json());
     app.use("/api/conversations", createConversationsRouter((req: any, _res: any, next: any) => {
-      req.user = { id: "learner", role: "user" }; next();
+      req.user = { id: "learner", role }; next();
     }));
     app.use((error: any, _req: any, res: any, _next: any) => res.status(error.statusCode ?? error.status ?? 500).json({ message: error.message }));
     const response = await request(app).post("/api/conversations").send({
       scenarioId: "s", scenarioName: "Private training", personaId: "a", messages: [], mode: "text",
     });
-    expect(response.status, JSON.stringify(response.body)).toBe(membership === "A" ? 200 : 403);
-    if (membership === "A") {
+    expect(response.status, JSON.stringify(response.body)).toBe(allowed ? 200 : 403);
+    if (allowed) {
       expect(response.body.scenarioRunId).toBe("private-run");
       expect(mocks.store.createScenarioRun.mock.calls[0][0].scenarioSnapshot._organizationOverride.organizationId).toBe("A");
     } else {

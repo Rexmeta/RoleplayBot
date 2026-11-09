@@ -40,7 +40,7 @@ import { buildRuleFallbackPatch, resolveStageTransition, inferIncidentCandidate,
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
 import { handleToolCall } from "../services/simulation/simulationToolHandler";
 import { v4 as uuidv4 } from "uuid";
-import { captureOrganizationRunSnapshot, resolveExecutionOrganization } from "../services/scenarios/organizationOverride";
+import { captureOrganizationRunSnapshot, resolveConversationOrganization } from "../services/scenarios/organizationOverride";
 import { checkTokenQuota } from "../middleware/tokenQuotaMiddleware";
 import {
   EVALUATION_CRITERIA_SNAPSHOT_KEY,
@@ -186,7 +186,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       const sameScenarioRuns = existingRuns.filter(r => r.scenarioId === validatedData.scenarioId);
       const attemptNumber = sameScenarioRuns.length + 1;
 
-      const organizationId = await resolveExecutionOrganization(user);
+      const organizationId = await resolveConversationOrganization(user, validatedData.scenarioId);
       // Check learner content rights before storing any snapshot of private/paid content.
       if (user?.role !== "admin" && user?.role !== "operator") {
         const source = await storage.getScenario(validatedData.scenarioId);

@@ -5,6 +5,7 @@ import { isOrganizationOverrideEmpty } from "@shared/organizationOverride";
 import { assertOrganizationContentAccess, buildOrganizationPreview, loadOverrideBase } from "../services/scenarios/organizationOverride";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { ScenarioOverrideConflictError } from "../storage/scenarioOverrides";
+import { EVALUATION_CRITERIA_SNAPSHOT_KEY } from "../services/runtimeScenario";
 
 export default function createAdminScenarioOverridesRouter(isAuthenticated: any) {
   const router = Router();
@@ -143,6 +144,13 @@ export default function createAdminScenarioOverridesRouter(isAuthenticated: any)
   }));
   router.get("/api/admin/scenario-overrides/scenario/:scenarioId", asyncHandler(async (req: any, res) => {
     res.json(await scopedRows(req.user, undefined, req.params.scenarioId));
+  }));
+  router.get("/api/admin/scenario-overrides/:organizationId/:scenarioId/rubric", asyncHandler(async (req: any, res) => {
+    const loaded = await context(req.user, req.params.organizationId, req.params.scenarioId);
+    const criteria = loaded.base[EVALUATION_CRITERIA_SNAPSHOT_KEY];
+    const preview = buildOrganizationPreview(loaded.base, {});
+    res.json({ id: criteria?.id ?? null, name: criteria?.name ?? "기본 평가기준",
+      version: criteria?.version ?? null, dimensions: preview.dimensions });
   }));
   router.get("/api/admin/scenario-overrides/:organizationId/:scenarioId", asyncHandler(async (req: any, res) => {
     await context(req.user, req.params.organizationId, req.params.scenarioId);
