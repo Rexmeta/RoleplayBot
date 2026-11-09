@@ -1,3 +1,4 @@
+- [Duplex 개선 보존 범위](duplex-modernization-boundary.md) — 음성·감정 분석·시나리오 시뮬레이션·평가를 유지하면서 실시간 대화와 표정 동기화를 고도화한다.
 - [Gemini Live 모델 검증](gemini-live-models.md) — v1beta·현행 provider 계약·실제 handshake를 확인; 오래된 SDK 버전이나 모델명 메모로 지원 여부를 단정하지 않는다.
 - [Veo model names](veo-model-names.md) — 올바른 순서: `veo-3.1-lite-generate-preview` (lite-generate, not generate-lite); generateAudio는 SDK v1.15+에서 config에 넣으면 즉시 에러
 - [Veo image-to-video constraints](veo-image-to-video.md) — referenceImages/personGeneration 둘 다 Gemini API 미지원; 사람 얼굴 이미지는 RAI 필터에 자주 차단; silent fallback 금지
