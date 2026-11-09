@@ -8,6 +8,21 @@ const mockGetSystemSetting = vi.fn();
 const mockGetUserPersonaById = vi.fn();
 const mockUpsertVoiceTranscript = vi.fn();
 
+// Provider ordering is isolated from persistence; the real pin/restore/CAS
+// contract is covered against PostgreSQL in conversationLedgerPostgres.test.
+vi.mock('../../server/services/voice/duplexRuntime', async () => {
+  const { BASELINE_DUPLEX_CONFIG, initialCharacterEmotion } = await import('../../shared/duplexMode');
+  return {
+    pinDuplexRuntime: vi.fn(async (session: any) => {
+      session.duplexRuntime = { version: 1, epoch: 1, config: BASELINE_DUPLEX_CONFIG,
+        personaId: session.personaId, personaIndex: session.activePersonaIndex,
+        personaGeneration: 0, character: initialCharacterEmotion() };
+    }),
+    resetCharacterPersona: vi.fn().mockResolvedValue(undefined),
+    acceptCharacterEmotion: vi.fn().mockResolvedValue(null),
+  };
+});
+
 vi.mock('../../server/storage', () => ({
   storage: {
     getChatMessagesByPersonaRun: mockGetChatMessagesByPersonaRun,

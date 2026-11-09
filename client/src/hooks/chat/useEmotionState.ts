@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { toMediaUrl } from "@/lib/mediaUrl";
+import { normalizePresentationEmotion } from '@shared/emotionPresentation';
 
 export const emotionToEnglish: Record<string, string> = {
   '중립': 'neutral', '기쁨': 'happy', '슬픔': 'sad', '분노': 'angry', '놀람': 'surprised',
@@ -51,6 +52,9 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
   const [isOverlayFading, setIsOverlayFading] = useState(false);
   const initialLoadCompletedRef = useRef(false);
   const onReadyRef = useRef(onReady);
+  const loadGenerationRef = useRef(0);
+  const expressionGenerationRef = useRef(0);
+  const expressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -60,7 +64,7 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
   const isUserPersona = !persona.mbti && !!persona.id;
 
   const getCharacterImage = (emotion: string): string | null => {
-    const emotionEn = emotionToEnglish[emotion] || 'neutral';
+    const emotionEn = normalizePresentationEmotion(emotion);
 
     // 1순위: expressions prop에서 직접 URL 사용 (API에서 받아온 경우)
     if (persona.expressions) {
@@ -103,14 +107,21 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     Object.keys(personaImagesAvailable).length === uniqueEmotionCount;
 
   const preloadImage = (imageUrl: string) => {
+    const generation = loadGenerationRef.current;
+    const expression = ++expressionGenerationRef.current;
+    if (expressionTimerRef.current) clearTimeout(expressionTimerRef.current);
+    const valid = () => generation === loadGenerationRef.current && expression === expressionGenerationRef.current;
     const img = new Image();
     img.onload = () => {
-      setTimeout(() => {
+      if (!valid()) return;
+      expressionTimerRef.current = setTimeout(() => {
+        if (!valid()) return;
         setLoadedImageUrl(imageUrl);
         setIsEmotionTransitioning(false);
       }, 100);
     };
     img.onerror = () => {
+      if (!valid()) return;
       setIsEmotionTransitioning(false);
     };
     img.src = imageUrl;
@@ -118,6 +129,11 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
 
   // 단일 Effect: 리셋 + 이미지 가용성 체크 (타이밍 충돌 방지)
   useEffect(() => {
+    const generation = ++loadGenerationRef.current;
+    const valid = () => generation === loadGenerationRef.current;
+    ++expressionGenerationRef.current;
+    if (expressionTimerRef.current) clearTimeout(expressionTimerRef.current);
+    let fadeTimer: ReturnType<typeof setTimeout>;
     initialLoadCompletedRef.current = false;
     setIsInitialLoading(true);
     setIsOverlayFading(false);
@@ -131,21 +147,21 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
     const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(persona.name)}&background=6366f1&color=fff&size=400`;
 
     const completeFallback = () => {
-      if (initialLoadCompletedRef.current) return;
+      if (!valid() || initialLoadCompletedRef.current) return;
       initialLoadCompletedRef.current = true;
       setLoadedImageUrl(fallbackUrl);
       setIsOverlayFading(true);
       onReadyRef.current?.();
-      setTimeout(() => setIsInitialLoading(false), 500);
+      fadeTimer = setTimeout(() => { if (valid()) setIsInitialLoading(false); }, 500);
     };
 
     const completeWithImage = (url: string) => {
-      if (initialLoadCompletedRef.current) return;
+      if (!valid() || initialLoadCompletedRef.current) return;
       initialLoadCompletedRef.current = true;
       setLoadedImageUrl(url);
       setIsOverlayFading(true);
       onReadyRef.current?.();
-      setTimeout(() => setIsInitialLoading(false), 500);
+      fadeTimer = setTimeout(() => { if (valid()) setIsInitialLoading(false); }, 500);
     };
 
     const fallbackTimer = setTimeout(completeFallback, 3000);
@@ -178,6 +194,7 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
       const newAvailability: Record<string, boolean> = {};
 
       const onAllChecked = () => {
+        if (!valid()) return;
         setPersonaImagesAvailable(newAvailability);
         const neutralAvail = newAvailability['neutral'];
         if (neutralAvail) {
@@ -185,6 +202,7 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
           const img = new Image();
           img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(imgUrl); };
           img.onerror = () => {
+            if (!valid()) return;
             // neutral HTTP 체크 성공했지만 로드 실패 → avatarUrl fallback
             if (persona.image) {
               const fallbackImg = new Image();
@@ -232,6 +250,7 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
       const newAvailability: Record<string, boolean> = {};
 
       const onAllChecked = () => {
+        if (!valid()) return;
         setPersonaImagesAvailable(newAvailability);
         const neutralAvail = newAvailability['neutral'];
         if (neutralAvail) {
@@ -262,7 +281,13 @@ export function useEmotionState({ persona, conversationId, onReady }: UseEmotion
       }
     }
 
-    return () => clearTimeout(fallbackTimer);
+    return () => {
+      ++loadGenerationRef.current;
+      ++expressionGenerationRef.current;
+      clearTimeout(fallbackTimer);
+      clearTimeout(fadeTimer);
+      if (expressionTimerRef.current) clearTimeout(expressionTimerRef.current);
+    };
   }, [persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, conversationId]);
 
   // 감정 변경 시 이미지 프리로드

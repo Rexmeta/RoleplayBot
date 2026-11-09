@@ -67,7 +67,7 @@ const props = { conversationId: 'synthetic', scenarioId: 'synthetic', personaId:
 const pcm = Buffer.alloc(9600).toString('base64');
 
 describe('real voice + playback hooks; mocked WebAudio, no acoustic claims', () => {
-  it('provider completion clears the VAD playback flag while a 600ms scheduled tail survives', async () => {
+  it.each([false, true])('keeps baseline/enhanced completion semantics separate with a 600ms scheduled tail (enhanced=%s)', async enhanced => {
     const hook = renderHook(() => useRealtimeVoice(props));
     try {
       voiceOutputDiagnostic.armNextSession();
@@ -75,23 +75,33 @@ describe('real voice + playback hooks; mocked WebAudio, no acoustic claims', () 
       const socket = Socket.instances.at(-1)!;
       await act(async () => { socket.onopen?.(); await vi.advanceTimersByTimeAsync(100); });
       expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: 'client.ready', outputDiagnostic: true }));
+      const { BASELINE_DUPLEX_CONFIG } = await import('../../shared/duplexMode');
+      const identity = { version: 1, runId: 'synthetic', sessionId: 'synthetic', personaId: 'synthetic',
+        providerConnectionGeneration: 1, personaIndex: 0, personaGeneration: 0,
+        logicalTurnId: 'user-1', outputGeneration: 0, serverTimeMs: 1001 };
+      if (enhanced) act(() => socket.receive({ type: 'session.ready', sessionId: 'synthetic',
+        duplex: { ...BASELINE_DUPLEX_CONFIG, interaction: true, playbackLifecycle: true } }));
       for (let chunkSeq = 1; chunkSeq <= 3; chunkSeq++) {
         await act(async () => { socket.receive({ type: 'audio.delta', delta: pcm, turnSeq: 0,
+          ...(enhanced ? { interaction: { ...identity, eventId: `event:${chunkSeq}`, sequence: chunkSeq } } : {}),
           diagnostic: { chunkSeq, frameSeq: chunkSeq, providerAtMs: 1000, serverAtMs: 1001 } }); });
       }
       expect(sources).toHaveLength(3);
       expect(sources[2].start).toHaveBeenCalledWith(0.4);
-      await act(async () => { socket.receive({ type: 'response.done' }); });
-      expect(hook.result.current.isAISpeaking).toBe(false);
+      const completion = { type: 'response.done',
+        ...(enhanced ? { interaction: { ...identity, eventId: 'event:4', sequence: 4 } } : {}) };
+      await act(async () => { socket.receive(completion); });
+      expect(hook.result.current.isAISpeaking).toBe(enhanced);
       expect(sources.every(source => source.stop.mock.calls.length === 0)).toBe(true);
       const done = voiceOutputDiagnostic.snapshot()!.rows.find(row => row.event === 'provider-done')!;
       expect(done).toMatchObject({ pendingSources: 3, actuallyPlaying: 1, contextTimeMs: 0 });
-      act(() => socket.receive({ type: 'response.done' }));
+      act(() => socket.receive(completion));
       expect(voiceOutputDiagnostic.snapshot()!.rows.filter(row => row.event === 'provider-done').at(-1))
-        .toMatchObject({ pendingSources: 3, actuallyPlaying: 0 });
+        .toMatchObject({ pendingSources: 3, actuallyPlaying: enhanced ? 1 : 0 });
       // Scheduling survives provider completion. Callback time is modeled, not acoustic playback.
       context.currentTime = 0.6;
       act(() => sources.forEach(source => source.onended?.()));
+      expect(hook.result.current.isAISpeaking).toBe(false);
       expect(voiceOutputDiagnostic.snapshot()!.rows.filter(row => row.event === 'ended')).toHaveLength(3);
       voiceOutputDiagnostic.snapshot()!.rows.filter(row => row.event === 'schedule')
         .forEach((row, i) => expect(row.endMs).toBeCloseTo((i + 1) * 200, 6));

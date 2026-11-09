@@ -16,6 +16,7 @@ import { getSessionState } from './simulation/simulationEngine';
 import { applyHarnessToSession, readScenarioHarness } from './simulation/harnessReader';
 import { RUNTIME_PERSONA_PROFILE_KEY, findRuntimePersona, resolveRuntimeScenario } from './runtimeScenario';
 import { handleGeminiMessage } from './voice/geminiMessageHandler';
+import { pinDuplexRuntime, acceptCharacterEmotion, resetCharacterPersona } from './voice/duplexRuntime';
 import { handleClientMessage as processClientMessage } from './voice/clientMessageHandler';
 import { handleGeminiClose } from './voice/geminiReconnector';
 import { connectOpenAIRealtime } from './voice/openaiRealtimeAdapter';
@@ -508,6 +509,7 @@ export class RealtimeVoiceService {
     applyHarnessToSession(conversationId, harnessConfig);
     console.log(`🎛️ [createSession] Harness applied: flowGraph=${!!harnessConfig.flowGraph}, terminationRules=${!!harnessConfig.terminationRules}, difficultyProfile=${!!harnessConfig.difficultyProfile}, npcBehaviorHarness=${!!harnessConfig.npcBehaviorHarness}, evaluationHarness=${!!harnessConfig.evaluationHarness}`);
 
+    await pinDuplexRuntime(session);
     this.sessions.set(sessionId, session);
     console.log(`⏱️ [TIMING] 세션 객체 생성 완료: ${Date.now() - sessionStartTime}ms`);
     if (usesLedger(await storage.getPersonaRun(conversationId))) {
@@ -786,6 +788,41 @@ export class RealtimeVoiceService {
   }
 
   private sendToClient(session: RealtimeSession, message: any): void {
+    if (session.finalizationState === 'frozen' && ['audio.delta', 'response.ready'].includes(message.type)) return;
+    if (message.type === 'session.ready' && session.duplexRuntime) message = {
+      ...message, duplex: session.duplexRuntime.config,
+      character: session.duplexRuntime.character,
+      personaGeneration: session.duplexRuntime.personaGeneration,
+    };
+    if (message.type === 'persona.switched') {
+      const work = resetCharacterPersona(session).then(() => {
+        if (session.duplexRuntime?.config.characterEmotion) this.sendToClient(session, {
+          type: 'character.emotion', character: session.duplexRuntime.character,
+        });
+      }).catch(() => this.sendToClient(session, { type: 'character.error', error: 'character_state_reset_failed' }));
+      session.ledgerAdapter?.track(work);
+    }
+    if (message.type === 'simulation_update' && session.duplexRuntime?.config.characterEmotion) {
+      const state = message.currentState;
+      const affective = state?.npcAffectiveState?.affective;
+      if (affective && Number.isFinite(state.version)) {
+        const runtime = session.duplexRuntime;
+        const sequence = session.characterCauseSequence = (session.characterCauseSequence ?? 0) + 1;
+        const work = acceptCharacterEmotion(session, null, {
+          ...runtime.character, personaGeneration: runtime.personaGeneration,
+          emotion: affective.valence < -25 ? 'angry' : affective.valence > 25 ? 'happy' : 'neutral',
+          intensity: affective.intensity / 100, confidence: 1, source: 'simulation',
+          cause: { kind: 'scenario', id: message.turnId ?? `scenario:${state.version}`,
+            userTurnId: session.lastEvaluatedUserTurnId ?? undefined, sequence, scenarioVersion: state.version },
+        }).then(character => {
+          if (character && session.duplexRuntime?.personaGeneration === character.personaGeneration &&
+              session.duplexRuntime.character.revision === character.revision) {
+            this.sendToClient(session, { type: 'character.emotion', character });
+          }
+        }).catch(() => this.sendToClient(session, { type: 'character.error', error: 'character_state_update_failed' }));
+        session.ledgerAdapter?.track(work);
+      }
+    }
     const avatarRouted = conversationAvatarSessions.routeAudio(
       session.userId, session.personaRunId, session.personaId, message,
       event => this.sendToClient(session, event),

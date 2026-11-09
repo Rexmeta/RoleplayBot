@@ -1,4 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../../server/services/voice/duplexRuntime', async () => {
+  const { BASELINE_DUPLEX_CONFIG, initialCharacterEmotion } = await import('../../shared/duplexMode');
+  return {
+    pinDuplexRuntime: vi.fn(async (session: any) => {
+      session.duplexRuntime = { version: 1, epoch: 1, config: BASELINE_DUPLEX_CONFIG,
+        personaId: session.personaId, personaIndex: session.activePersonaIndex,
+        personaGeneration: 0, character: initialCharacterEmotion() };
+    }),
+    resetCharacterPersona: vi.fn().mockResolvedValue(undefined),
+    acceptCharacterEmotion: vi.fn().mockResolvedValue(null),
+  };
+});
 import { performance, monitorEventLoopDelay } from 'node:perf_hooks';
 import { mkdirSync, writeFileSync } from 'node:fs';
 

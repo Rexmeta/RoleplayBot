@@ -185,6 +185,33 @@ export class VideoAvatarRenderer implements AvatarRenderer {
   private destroyed = false;
   private listeners = new Set<() => void>();
   private initGeneration = 0;
+  private presentationGeneration = 0;
+  private pendingLoads = new Set<() => void>();
+  private probeLoads = new Set<() => void>();
+
+  private cancelProbes(): void {
+    for (const cancel of Array.from(this.probeLoads)) cancel();
+    this.probeLoads.clear();
+  }
+
+  private cancelPresentation(): number {
+    this.presentationGeneration++;
+    for (const cancel of Array.from(this.pendingLoads)) cancel();
+    this.pendingLoads.clear();
+    // Complete an already-visible fade synchronously before reusing its back
+    // buffer. Otherwise an old timer could clear the new front buffer.
+    if (this.fadeTimer) {
+      clearTimeout(this.fadeTimer);
+      this.fadeTimer = null;
+      const previous = this.frontVideo;
+      this.frontIsA = !this.frontIsA;
+      this._stopPingPong(previous);
+      previous.pause();
+      previous.style.opacity = '0';
+      this.isTransitioning = false;
+    }
+    return this.presentationGeneration;
+  }
 
   /** The container element that consumers must mount in the DOM */
   readonly containerEl: HTMLDivElement;
@@ -339,11 +366,14 @@ export class VideoAvatarRenderer implements AvatarRenderer {
         videoEl.removeEventListener('canplay', onCanPlay);
         videoEl.removeEventListener('error', onError);
         clearTimeout(timer);
+        this.pendingLoads.delete(cancel);
         resolve(result);
       };
+      const cancel = () => settle('timeout');
       const onCanPlay = () => settle('ready');
       const onError = () => settle('error');
       const timer = setTimeout(() => settle('timeout'), timeoutMs);
+      this.pendingLoads.add(cancel);
       videoEl.addEventListener('canplay', onCanPlay);
       videoEl.addEventListener('error', onError);
       videoEl.src = src;
@@ -368,6 +398,8 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     sourceKind: 'explicit' | 'convention' = 'convention',
   ): Promise<void> {
     if (this.destroyed) return;
+    const generation = this.cancelPresentation();
+    const valid = () => !this.destroyed && generation === this.presentationGeneration;
 
     const back = this.backVideo;
     let usedSrc = src;
@@ -375,14 +407,14 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
     // ── Attempt primary source ────────────────────────────────────────────
     let result = await this._loadVideo(back, src, CLIP_LOAD_TIMEOUT_MS);
-    if (this.destroyed) return;
+    if (!valid()) return;
 
     // ── Fallback to neutral on error or timeout ───────────────────────────
     if (result !== 'ready' && fallbackSrc && fallbackSrc !== src) {
       if (result === 'error') this._markUnavailable(src);
 
       result = await this._loadVideo(back, fallbackSrc, CLIP_LOAD_TIMEOUT_MS);
-      if (this.destroyed) return;
+      if (!valid()) return;
       usedSrc = fallbackSrc;
       usedFallback = true;
     }
@@ -412,7 +444,11 @@ export class VideoAvatarRenderer implements AvatarRenderer {
       this.isVideoUnavailable = false;
     }
     this.emit();
-    back.play().catch(() => { /* autoplay may be blocked — silent fail */ });
+    back.play().catch(() => {
+      if (!valid()) return;
+      this.isVideoUnavailable = true;
+      this.emit();
+    });
     // Attach ping-pong loop to the newly active back buffer
     this._startPingPong(back);
 
@@ -426,7 +462,8 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     // Capture current front reference before the async timer fires
     const prevFront = this.frontVideo;
     this.fadeTimer = setTimeout(() => {
-      if (this.destroyed) return;
+      if (!valid()) return;
+      this.fadeTimer = null;
       // Stop ping-pong on the now-hidden video before clearing it
       this._stopPingPong(prevFront);
       // Pause and clear the now-hidden video to save resources
@@ -603,6 +640,8 @@ export class VideoAvatarRenderer implements AvatarRenderer {
     _conversationId: string,
     onReady?: () => void,
   ): void {
+    this.cancelPresentation();
+    this.cancelProbes();
     this.initGeneration++;
     const generation = this.initGeneration;
     const guard = () => !this.destroyed && this.initGeneration === generation;
@@ -648,6 +687,8 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.cancelPresentation();
+    this.cancelProbes();
     if (this.fadeTimer) {
       clearTimeout(this.fadeTimer);
       this.fadeTimer = null;
@@ -703,6 +744,8 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
   async preloadAssets(): Promise<void> {
     if (!this.persona) return;
+    const generation = this.initGeneration;
+    const valid = () => !this.destroyed && generation === this.initGeneration;
 
     // If explicit clips are provided, preload those and skip convention probing.
     const clips = this.persona.videos?.clips;
@@ -721,7 +764,7 @@ export class VideoAvatarRenderer implements AvatarRenderer {
         // to browser-accessible URLs before probing and preloading.
         const url = toMediaUrl(rawSrc) || rawSrc;
         return this._probeVideo(url).then(available => {
-          if (available) this._injectPreloadLink(url);
+          if (valid() && available) this._injectPreloadLink(url);
         });
       });
       await Promise.allSettled(probes);
@@ -750,6 +793,7 @@ export class VideoAvatarRenderer implements AvatarRenderer {
 
         const src = videoUrl(avatarId, emotion, behavior);
         const p = this._probeVideo(src).then(available => {
+          if (!valid()) return;
           cache[emotion][behavior] = available;
           if (available) this._injectPreloadLink(src);
         });
@@ -797,14 +841,26 @@ export class VideoAvatarRenderer implements AvatarRenderer {
       const v = document.createElement('video');
       v.preload = 'metadata';
       v.muted = true;
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout>;
+      const cancel = () => done(false);
+      const loaded = () => done(true);
+      const failed = () => done(false);
       const done = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.probeLoads.delete(cancel);
+        v.removeEventListener('loadedmetadata', loaded);
+        v.removeEventListener('error', failed);
         v.src = '';
         v.load();
         resolve(ok);
       };
-      v.addEventListener('loadedmetadata', () => done(true), { once: true });
-      v.addEventListener('error', () => done(false), { once: true });
-      setTimeout(() => done(false), 3000); // 3 s safety timeout
+      this.probeLoads.add(cancel);
+      v.addEventListener('loadedmetadata', loaded, { once: true });
+      v.addEventListener('error', failed, { once: true });
+      timer = setTimeout(failed, 3000); // 3 s safety timeout
       v.src = src;
       v.load();
     });

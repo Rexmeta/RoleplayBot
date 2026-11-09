@@ -284,10 +284,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     },
     onMessageComplete: (message, emotion, emotionReason, userAffect, interrupted) => {
       setPendingAiMessage(false);
-      isAISpeakingForBargeInRef.current = false;
-      if (emotion) {
-        setEmotion(emotion);
-      }
       if (conversationLedger.enabled) {
         conversationLedger.refetch();
         return;
@@ -350,6 +346,9 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
       setPendingAiMessage(true); isAISpeakingForBargeInRef.current = true;
       dispatchAvatarEvent({ type: 'TTSStart' });
     },
+    onExpressionPresentation: setEmotion,
+    onLedgerUpdate: () => { if (conversationLedger.enabled) conversationLedger.refetch(); },
+    onListeningReaction: () => dispatchAvatarEvent({ type: 'ListeningReaction' }),
     onUserSpeakingStart: () => {
       setPendingUserMessage(true); setPendingUserText(''); setPendingUserVoiceTurnId('');
       hasUserSpokenRef.current = true; setShowMicPrompt(false);
@@ -395,6 +394,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     const wasAISpeaking = prevIsAISpeakingRef.current;
     prevIsAISpeakingRef.current = realtimeVoice.isAISpeaking;
     if (wasAISpeaking && !realtimeVoice.isAISpeaking) {
+      isAISpeakingForBargeInRef.current = false;
       dispatchAvatarEvent({ type: 'TTSEnd' });
     }
   }, [realtimeVoice.isAISpeaking, dispatchAvatarEvent]);
@@ -1256,6 +1256,11 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                   {realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
                     <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-[12]"
                       style={{ height: '40%', background: 'linear-gradient(to top, rgba(34, 197, 94, 0.20) 0%, rgba(16, 185, 129, 0.08) 40%, transparent 100%)', animation: 'beamPulse 2s ease-in-out infinite' }} />
+                  )}
+                  {realtimeVoice.externalPlaybackUnverified && (
+                    <span role="status" data-testid="external-playback-unverified" className="absolute top-12 left-0 right-0 text-center text-xs text-muted-foreground pointer-events-none">
+                      외부 음성의 실제 재생 상태는 확인할 수 없습니다
+                    </span>
                   )}
                   <AISpeechParticleLayer amplitude={realtimeVoice.audioAmplitude} isActive={realtimeVoice.isAISpeaking && !realtimeVoice.isReconnecting} />
                   <UserSpeechParticleLayer amplitude={realtimeVoice.userAudioAmplitude} isActive={realtimeVoice.isRecording && !realtimeVoice.isAISpeaking} />

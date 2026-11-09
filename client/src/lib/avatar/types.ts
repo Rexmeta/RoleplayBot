@@ -36,6 +36,7 @@ export type AvatarEmotion =
 // ── Events ───────────────────────────────────────────────────────────────────
 
 export type AvatarEvent =
+  | { type: 'ListeningReaction' }
   | { type: 'UserSpeechStart' }
   | { type: 'UserSpeechEnd' }
   | { type: 'LLMThinkingStart' }

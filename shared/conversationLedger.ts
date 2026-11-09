@@ -49,7 +49,9 @@ export const ledgerPayloadSchema = z.discriminatedUnion("kind", [
   }).strict(),
   z.object({
     kind: z.literal("playback.observed"), ...utteranceId,
-    state: z.enum(["started", "completed", "interrupted"]),
+    state: z.enum(["started", "completed", "interrupted", "not_played", "failed", "unknown"]),
+    playedMs: z.number().int().min(0).max(7200000).optional(),
+    scope: z.enum(["local_audio_context", "external_provider"]).optional(),
   }).strict(),
   z.object({
     kind: z.literal("session.close"),
