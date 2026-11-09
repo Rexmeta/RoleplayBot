@@ -32,6 +32,7 @@ import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder, E
 import { AIScenarioGenerator } from './AIScenarioGenerator';
 import { ScenarioTranslationEditor } from './ScenarioTranslationEditor';
 import { ScenarioVersionHistory } from './ScenarioVersionHistory';
+import { ScenarioCriteriaPreview } from './ScenarioCriteriaPreview';
 import {
   createScenariosZip,
   normalizeScenarioImport,
@@ -2888,6 +2889,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   <p className="text-xs text-slate-500 mt-1">
                     {t('admin.scenarioManager.form.evaluationCriteriaHelp')}
                   </p>
+                  <ScenarioCriteriaPreview criteriaSetId={formData.evaluationCriteriaSetId} />
                 </div>
               </div>
 
