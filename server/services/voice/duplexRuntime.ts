@@ -41,7 +41,12 @@ export async function pinDuplexRuntime(
     const config = duplexConfigSchema.parse(run.duplexRuntime?.config ??
       (setting ? JSON.parse(setting.value) : BASELINE_DUPLEX_CONFIG));
     if (config.evaluationSnapshot && run.transcriptProtocol !== 'ledger-v1') {
-      throw new Error('duplex_evaluation_requires_ledger');
+      // Global rollout settings are a request for new sessions, not permission
+      // to migrate an existing transcript. Legacy runs keep legacy evaluation.
+      // A previously pinned incompatible runtime is still an integrity error.
+      if (previous) throw new Error('duplex_evaluation_requires_ledger');
+      config.evaluationSnapshot = false;
+      console.info('[Duplex] Legacy transcript: retaining legacy evaluation; evaluationSnapshot not applicable.');
     }
     const replaced = previous && (previous.personaId !== session.personaId || previous.personaIndex !== session.activePersonaIndex);
     const personaGeneration = (previous?.personaGeneration ?? 0) + (replaced ? 1 : 0);

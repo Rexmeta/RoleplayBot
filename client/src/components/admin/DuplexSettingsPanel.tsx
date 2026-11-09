@@ -221,7 +221,7 @@ export function DuplexSettingsPanel() {
           <AlertTitle>활성 실행에는 변경 사항이 적용되지 않습니다</AlertTitle>
           <AlertDescription className="space-y-1.5">
             <p>저장된 설정은 새로 시작한 실행에만 적용됩니다. 이미 활성화되었거나 재연결된 실행의 설정은 바뀌지 않습니다.</p>
-            <p>평가 스냅샷은 새로 등록된 ledger-v1 실행이 필요하며, 레거시 실행은 명시적으로 거부됩니다.</p>
+            <p>평가 스냅샷은 ledger-v1 실행에만 적용됩니다. 레거시 실행은 기존 평가 방식을 유지하며 음성 연결을 계속 사용할 수 있습니다.</p>
             <p>기준값으로 되돌리면 모든 불리언 옵션이 꺼지고 끼어들기 정책이 기준으로 설정됩니다. 이 변경도 신규 실행에만 적용됩니다.</p>
           </AlertDescription>
         </Alert>
