@@ -4,6 +4,7 @@ import { scenarioOverrideDataSchema } from "@shared/schema";
 import { isOrganizationOverrideEmpty } from "@shared/organizationOverride";
 import { assertOrganizationContentAccess, buildOrganizationPreview, loadOverrideBase } from "../services/scenarios/organizationOverride";
 import { asyncHandler, createHttpError } from "./routerHelpers";
+import { ScenarioOverrideConflictError } from "../storage/scenarioOverrides";
 
 export default function createAdminScenarioOverridesRouter(isAuthenticated: any) {
   const router = Router();
@@ -52,6 +53,30 @@ export default function createAdminScenarioOverridesRouter(isAuthenticated: any)
     return parsed.data;
   };
   const write = (user: any) => { if (user.role !== "admin") throw createHttpError(403, "관리자만 수정할 수 있습니다"); };
+  const expectedVersion = (body: any): { updatedAt: string | null; id: string | null } => {
+    if (!body || !Object.prototype.hasOwnProperty.call(body, "expectedUpdatedAt") ||
+      !Object.prototype.hasOwnProperty.call(body, "expectedOverrideId")) {
+      throw createHttpError(428, "수정시각과 설정 식별 정보가 필요합니다. 설정을 다시 조회하세요.");
+    }
+    const value = body.expectedUpdatedAt;
+    const id = body.expectedOverrideId;
+    if (value === null && id === null) return { updatedAt: null, id: null };
+    if (typeof id !== "string" || !id.trim() || id.length > 128) {
+      throw createHttpError(400, "유효하지 않은 설정 식별 정보입니다.");
+    }
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) ||
+      !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) {
+      throw createHttpError(400, "유효하지 않은 수정시각입니다.");
+    }
+    return { updatedAt: value, id };
+  };
+  const conditionalWrite = async (res: any, action: () => Promise<unknown>) => {
+    try { res.json(await action()); }
+    catch (error) {
+      if (!(error instanceof ScenarioOverrideConflictError)) throw error;
+      res.status(409).json({ code: "OVERRIDE_CONFLICT", message: error.message });
+    }
+  };
 
   router.get("/api/admin/scenario-overrides/options", asyncHandler(async (req: any, res) => {
     const allowed = req.user.role === "admin" ? null : new Set(await storage.getOperatorManagedOrganizationIds(req.user.id));
@@ -110,17 +135,22 @@ export default function createAdminScenarioOverridesRouter(isAuthenticated: any)
     write(req.user);
     const loaded = await context(req.user, req.params.organizationId, req.params.scenarioId);
     if (!loaded.organizationActive) throw createHttpError(409, "비활성 조직에는 신규 적용할 수 없습니다");
-    const value = draft(req.body);
+    const version = expectedVersion(req.body);
+    const { expectedUpdatedAt: _version, expectedOverrideId: _id, ...payload } = req.body;
+    const value = draft(payload);
     if (isOrganizationOverrideEmpty(value)) throw createHttpError(400, "빈 설정은 저장할 수 없습니다. 기존 설정 제거는 삭제를 사용하세요");
     const preview = buildOrganizationPreview(loaded.base, value);
     if (preview.errors.length) throw createHttpError(422, preview.errors.join("; "));
-    res.json(await storage.upsertScenarioOverride(req.params.organizationId, req.params.scenarioId, value, req.user.id));
+    await conditionalWrite(res, () => storage.upsertScenarioOverride(req.params.organizationId, req.params.scenarioId, value, req.user.id, version.updatedAt, version.id));
   }));
   router.delete("/api/admin/scenario-overrides/:organizationId/:scenarioId", asyncHandler(async (req: any, res) => {
     write(req.user);
     await context(req.user, req.params.organizationId, req.params.scenarioId);
-    await storage.deleteScenarioOverrideByOrgAndScenario(req.params.organizationId, req.params.scenarioId, req.user.id);
-    res.json({ success: true });
+    const version = expectedVersion(req.body);
+    await conditionalWrite(res, async () => {
+      await storage.deleteScenarioOverrideByOrgAndScenario(req.params.organizationId, req.params.scenarioId, req.user.id, version.updatedAt, version.id);
+      return { success: true };
+    });
   }));
   return router;
 }

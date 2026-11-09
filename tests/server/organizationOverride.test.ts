@@ -35,6 +35,7 @@ vi.mock("../../server/routes/routerHelpers", () => ({
 }));
 
 import createRouter from "../../server/routes/adminScenarioOverrides";
+import { ScenarioOverrideConflictError } from "../../server/storage/scenarioOverrides";
 import createConversationsRouter from "../../server/routes/conversations";
 import { scenarioOverrideDataSchema } from "../../shared/schema/scenarios";
 import { resolveOverrideWeights } from "../../shared/organizationOverride";
@@ -131,12 +132,30 @@ describe("management API authorization and persistence", () => {
   });
   it("passes only the authenticated actor to audited writes and reports persistence failure", async () => {
     const value = { policyConstraints: ["p"] };
-    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send(value)).status).toBe(200);
-    expect(mocks.store.upsertScenarioOverride).toHaveBeenCalledWith("A", "s", value, "u");
-    expect((await request(app()).delete("/api/admin/scenario-overrides/A/s")).status).toBe(200);
-    expect(mocks.store.deleteScenarioOverrideByOrgAndScenario).toHaveBeenCalledWith("A", "s", "u");
+    const expectedUpdatedAt = "2026-01-01T00:00:00.000Z";
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ ...value, expectedUpdatedAt, expectedOverrideId: "oa" })).status).toBe(200);
+    expect(mocks.store.upsertScenarioOverride).toHaveBeenCalledWith("A", "s", value, "u", expectedUpdatedAt, "oa");
+    expect((await request(app()).delete("/api/admin/scenario-overrides/A/s").send({ expectedUpdatedAt, expectedOverrideId: "new" })).status).toBe(200);
+    expect(mocks.store.deleteScenarioOverrideByOrgAndScenario).toHaveBeenCalledWith("A", "s", "u", expectedUpdatedAt, "new");
     mocks.store.upsertScenarioOverride.mockRejectedValueOnce(new Error("audit unavailable"));
-    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send(value)).status).toBe(500);
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ ...value, expectedUpdatedAt: null, expectedOverrideId: null })).status).toBe(500);
+  });
+  it.each(["put", "delete"] as const)("requires an explicit, valid precondition on %s and returns a distinct conflict code", async method => {
+    const endpoint = "/api/admin/scenario-overrides/A/s";
+    expect((await request(app())[method](endpoint).send({ policyConstraints: ["p"] })).status).toBe(428);
+    expect((await request(app())[method](endpoint).send({ policyConstraints: ["p"], expectedUpdatedAt: null })).status).toBe(428);
+    for (const expectedUpdatedAt of ["not-a-date", 123, {}, "", "2026-02-30T00:00:00.000Z"]) {
+      expect((await request(app())[method](endpoint).send({ policyConstraints: ["p"], expectedUpdatedAt, expectedOverrideId: "oa" })).status).toBe(400);
+    }
+    for (const expectedOverrideId of [null, "", 1, {}, " ".repeat(5), "x".repeat(129)]) {
+      expect((await request(app())[method](endpoint).send({ policyConstraints: ["p"], expectedUpdatedAt: "2026-01-01T00:00:00.000Z", expectedOverrideId })).status).toBe(400);
+    }
+    const mutation = method === "put" ? mocks.store.upsertScenarioOverride : mocks.store.deleteScenarioOverrideByOrgAndScenario;
+    expect(mutation).not.toHaveBeenCalled();
+    mutation.mockRejectedValueOnce(new ScenarioOverrideConflictError());
+    const result = await request(app())[method](endpoint).send({ policyConstraints: ["p"], expectedUpdatedAt: null, expectedOverrideId: null });
+    expect(result.status).toBe(409);
+    expect(result.body.code).toBe("OVERRIDE_CONFLICT");
   });
   it("intersects organization and scenario filters", async () => {
     const result = await request(app()).get("/api/admin/scenario-overrides?organizationId=A&scenarioId=s");
@@ -159,17 +178,17 @@ describe("management API authorization and persistence", () => {
     expect((await request(app("user")).post("/api/admin/scenario-overrides/A/s/preview").send({})).status).toBe(403);
   });
   it("rejects empty saves, unknown rubric keys, zero weights and oversized requests", async () => {
-    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({})).status).toBe(400);
-    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ evaluationWeights: { clarity: 5 } })).status).toBe(422);
-    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ evaluationWeights: { discovery: 0, resolution: 0 } })).status).toBe(422);
-    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ policyConstraints: ["x".repeat(33000)] })).status).toBe(413);
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ expectedUpdatedAt: null, expectedOverrideId: null })).status).toBe(400);
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ expectedUpdatedAt: null, expectedOverrideId: null, evaluationWeights: { clarity: 5 } })).status).toBe(422);
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ expectedUpdatedAt: null, expectedOverrideId: null, evaluationWeights: { discovery: 0, resolution: 0 } })).status).toBe(422);
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ expectedUpdatedAt: null, expectedOverrideId: null, policyConstraints: ["x".repeat(33000)] })).status).toBe(413);
     expect(mocks.store.upsertScenarioOverride).not.toHaveBeenCalled();
   });
   it("roundtrips a partial-field edit as a full draft and explicitly deletes the last field", async () => {
     const draft = { ...records[0].override, forbiddenPhrases: ["never"] };
-    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send(draft)).status).toBe(200);
+    expect((await request(app()).put("/api/admin/scenario-overrides/A/s").send({ ...draft, expectedUpdatedAt: null, expectedOverrideId: null })).status).toBe(200);
     expect((await request(app()).get("/api/admin/scenario-overrides/A/s")).body.override).toEqual(draft);
-    expect((await request(app()).delete("/api/admin/scenario-overrides/A/s")).status).toBe(200);
+    expect((await request(app()).delete("/api/admin/scenario-overrides/A/s").send({ expectedUpdatedAt: "2026-02-01T00:00:00.000Z", expectedOverrideId: "new" })).status).toBe(200);
     expect((await request(app()).get("/api/admin/scenario-overrides/A/s")).body).toBeNull();
   });
   it("allows inactive inspection/deletion but refuses new applications", async () => {

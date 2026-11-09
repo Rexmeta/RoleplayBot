@@ -5,16 +5,30 @@ import { eq, and, sql, desc, inArray } from "drizzle-orm";
 
 type ScenarioOverrideAuditRow = Pick<AuditLog, "id" | "actorUserId" | "organizationId" | "action" | "targetId" | "metadata" | "createdAt"> & { actorName: string | null };
 
+export class ScenarioOverrideConflictError extends Error {
+  constructor() {
+    super("다른 관리자가 설정을 변경하거나 삭제했습니다. 최신 설정을 확인한 뒤 다시 시도하세요.");
+  }
+}
+
+function assertVersion(row: ScenarioOverride | undefined, expectedUpdatedAt: string | null, expectedOverrideId: string | null) {
+  // The UUID distinguishes a recreated row even if its timestamp repeats or a server clock moves backwards.
+  if (expectedUpdatedAt === undefined || expectedOverrideId === undefined ||
+    (row?.id ?? null) !== expectedOverrideId || (row?.updatedAt.toISOString() ?? null) !== expectedUpdatedAt) {
+    throw new ScenarioOverrideConflictError();
+  }
+}
+
 export interface IScenarioOverridesStorage {
   getScenarioOverride(id: string): Promise<ScenarioOverride | undefined>;
   getScenarioOverrideByOrgAndScenario(organizationId: string, scenarioId: string): Promise<ScenarioOverride | undefined>;
   getScenarioOverridesByOrganization(organizationId: string): Promise<ScenarioOverride[]>;
   getScenarioOverridesByScenario(scenarioId: string): Promise<ScenarioOverride[]>;
   getAllScenarioOverrides(): Promise<ScenarioOverride[]>;
-  upsertScenarioOverride(organizationId: string, scenarioId: string, override: InsertScenarioOverride['override'], actorUserId: string): Promise<ScenarioOverride>;
+  upsertScenarioOverride(organizationId: string, scenarioId: string, override: InsertScenarioOverride['override'], actorUserId: string, expectedUpdatedAt: string | null, expectedOverrideId: string | null): Promise<ScenarioOverride>;
   getScenarioOverrideAudit(organizationId: string, scenarioId: string | undefined, limit: number, offset: number): Promise<ScenarioOverrideAuditRow[]>;
   deleteScenarioOverride(id: string): Promise<void>;
-  deleteScenarioOverrideByOrgAndScenario(organizationId: string, scenarioId: string, actorUserId: string): Promise<void>;
+  deleteScenarioOverrideByOrgAndScenario(organizationId: string, scenarioId: string, actorUserId: string, expectedUpdatedAt: string | null, expectedOverrideId: string | null): Promise<void>;
 }
 
 type Constructor<T = {}> = new (...args: any[]) => T;
@@ -45,15 +59,18 @@ export function ScenarioOverridesMixin<TBase extends Constructor>(Base: TBase) {
       return await db.select().from(scenarioOverrides);
     }
 
-    async upsertScenarioOverride(organizationId: string, scenarioId: string, override: InsertScenarioOverride['override'], actorUserId: string): Promise<ScenarioOverride> {
+    async upsertScenarioOverride(organizationId: string, scenarioId: string, override: InsertScenarioOverride['override'], actorUserId: string, expectedUpdatedAt: string | null, expectedOverrideId: string | null): Promise<ScenarioOverride> {
       return db.transaction(async tx => {
         // Also serializes concurrent first saves, where there is no row to lock yet.
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([organizationId, scenarioId])}, 0))`);
         const condition = and(eq(scenarioOverrides.organizationId, organizationId), eq(scenarioOverrides.scenarioId, scenarioId));
         const [before] = await tx.select().from(scenarioOverrides).where(condition);
-        const [row] = await tx.insert(scenarioOverrides).values({ organizationId, scenarioId, override })
+        assertVersion(before, expectedUpdatedAt, expectedOverrideId);
+        // JS/JSON timestamps have millisecond precision; even same-millisecond saves must advance the token.
+        const updatedAt = new Date(Math.max(Date.now(), (before?.updatedAt.getTime() ?? 0) + 1));
+        const [row] = await tx.insert(scenarioOverrides).values({ organizationId, scenarioId, override, updatedAt })
           .onConflictDoUpdate({ target: [scenarioOverrides.organizationId, scenarioOverrides.scenarioId],
-            set: { override, updatedAt: new Date() } }).returning();
+            set: { override, updatedAt } }).returning();
         await tx.insert(auditLogs).values({
           actorUserId, organizationId, action: overrideAuditActions[0], targetType: "scenario_override", targetId: scenarioId,
           metadata: summarizeOverrideChange(before?.override ?? null, row.override),
@@ -79,9 +96,13 @@ export function ScenarioOverridesMixin<TBase extends Constructor>(Base: TBase) {
       await db.delete(scenarioOverrides).where(eq(scenarioOverrides.id, id));
     }
 
-    async deleteScenarioOverrideByOrgAndScenario(organizationId: string, scenarioId: string, actorUserId: string): Promise<void> {
+    async deleteScenarioOverrideByOrgAndScenario(organizationId: string, scenarioId: string, actorUserId: string, expectedUpdatedAt: string | null, expectedOverrideId: string | null): Promise<void> {
       await db.transaction(async tx => {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([organizationId, scenarioId])}, 0))`);
+        const [current] = await tx.select().from(scenarioOverrides).where(
+          and(eq(scenarioOverrides.organizationId, organizationId), eq(scenarioOverrides.scenarioId, scenarioId))
+        );
+        assertVersion(current, expectedUpdatedAt, expectedOverrideId);
         const [before] = await tx.delete(scenarioOverrides).where(
           and(eq(scenarioOverrides.organizationId, organizationId), eq(scenarioOverrides.scenarioId, scenarioId))
         ).returning();

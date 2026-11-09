@@ -52,6 +52,11 @@ export function ScenarioOverrideManager() {
   const [scenarioId, setScenarioId] = useState("");
   const [draft, setDraft] = useState<ScenarioOverrideData>(blank);
   const [baseline, setBaseline] = useState<ScenarioOverrideData>(blank);
+  const [baselineVersion, setBaselineVersion] = useState<string | null>(null);
+  const [baselineRecordId, setBaselineRecordId] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [latest, setLatest] = useState<OverrideRecord | null | undefined>(undefined);
+  const [refreshingConflict, setRefreshingConflict] = useState(false);
   const [initializedKey, setInitializedKey] = useState("");
   const [termKey, setTermKey] = useState("");
   const [termValue, setTermValue] = useState("");
@@ -89,6 +94,8 @@ export function ScenarioOverrideManager() {
     const initial = record?.override ?? blank;
     setDraft(initial);
     setBaseline(initial);
+    setBaselineVersion(record?.updatedAt ?? null);
+    setBaselineRecordId(record?.id ?? null);
     setTermKey(""); setTermValue(""); setWeightKey(""); setWeightValue(""); setListInputs({});
     setInitializedKey(key);
   }, [validPair, detailQuery.isLoading, detailQuery.isError, record, initializedKey, key]);
@@ -125,32 +132,68 @@ export function ScenarioOverrideManager() {
   const invalidateLists = useCallback(async () => {
     await client.invalidateQueries({ queryKey: ["/api/admin/scenario-overrides"] });
   }, [client]);
+  const refreshConflict = async () => {
+    setRefreshingConflict(true);
+    setLatest(undefined);
+    try {
+      const result = await detailQuery.refetch();
+      if (result.isError) throw result.error;
+      setLatest(result.data ?? null);
+    } catch (error) {
+      toast({ title: "최신 설정 조회 실패", description: readError(error), variant: "destructive" });
+    } finally { setRefreshingConflict(false); }
+  };
+  const mutationError = (error: unknown, title: string) => {
+    if (readError(error).includes('"OVERRIDE_CONFLICT"')) {
+      setConflict(true);
+      void refreshConflict();
+      toast({ title: "다른 관리자의 변경과 충돌했습니다", description: "입력한 초안은 보존했습니다. 최신 설정을 확인한 뒤 다시 저장하거나 삭제하세요.", variant: "destructive" });
+    } else toast({ title, description: readError(error), variant: "destructive" });
+  };
+  const resolveConflict = (keepDraft: boolean) => {
+    if (latest === undefined || refreshingConflict) return;
+    if (!keepDraft && !window.confirm("현재 초안과 추가 전 입력을 버리고 최신 설정으로 바꿀까요?")) return;
+    setBaseline(latest?.override ?? blank);
+    setBaselineVersion(latest?.updatedAt ?? null);
+    setBaselineRecordId(latest?.id ?? null);
+    if (!keepDraft) {
+      setDraft(latest?.override ?? blank);
+      setTermKey(""); setTermValue(""); setWeightKey(""); setWeightValue(""); setListInputs({});
+    }
+    setConflict(false);
+  };
   const saveMutation = useMutation({
     mutationFn: async (payload: ScenarioOverrideData) => {
-      const response = await apiRequest("PUT", `/api/admin/scenario-overrides/${encodeURIComponent(orgId)}/${encodeURIComponent(scenarioId)}`, payload);
-      return response.json().catch(() => null);
+      const response = await apiRequest("PUT", `/api/admin/scenario-overrides/${encodeURIComponent(orgId)}/${encodeURIComponent(scenarioId)}`, { ...payload, expectedUpdatedAt: baselineVersion, expectedOverrideId: baselineRecordId });
+      return response.json() as Promise<OverrideRecord>;
     },
-    onSuccess: async (_saved, variables) => {
+    onSuccess: async (saved, variables) => {
       setDraft(variables);
       setBaseline(variables);
+      setBaselineVersion(saved.updatedAt);
+      setBaselineRecordId(saved.id);
+      client.setQueryData(detailKey, saved);
       setInitializedKey(key);
       await invalidateLists();
       await client.invalidateQueries({ queryKey: detailKey });
       toast({ title: "저장 완료", description: "선택한 조직의 새 실행부터 설정이 적용됩니다." });
     },
-    onError: error => toast({ title: "저장 실패", description: readError(error), variant: "destructive" }),
+    onError: error => mutationError(error, "저장 실패"),
   });
   const deleteMutation = useMutation({
-    mutationFn: async () => apiRequest("DELETE", `/api/admin/scenario-overrides/${encodeURIComponent(orgId)}/${encodeURIComponent(scenarioId)}`),
+    mutationFn: async () => apiRequest("DELETE", `/api/admin/scenario-overrides/${encodeURIComponent(orgId)}/${encodeURIComponent(scenarioId)}`, { expectedUpdatedAt: baselineVersion, expectedOverrideId: baselineRecordId }),
     onSuccess: async () => {
       await invalidateLists();
       await client.invalidateQueries({ queryKey: detailKey });
       setDraft(blank); setBaseline(blank); setInitializedKey(key);
+      setBaselineVersion(null);
+      setBaselineRecordId(null);
+      setTermKey(""); setTermValue(""); setWeightKey(""); setWeightValue(""); setListInputs({});
       toast({ title: "삭제 완료", description: "새 실행은 기본 설정으로 돌아갑니다. 기존 실행은 변경되지 않습니다." });
     },
-    onError: error => toast({ title: "삭제 실패", description: readError(error), variant: "destructive" }),
+    onError: error => mutationError(error, "삭제 실패"),
   });
-  const mutationsPending = saveMutation.isPending || deleteMutation.isPending;
+  const mutationsPending = saveMutation.isPending || deleteMutation.isPending || refreshingConflict;
   const reportQuery = useQuery<OverrideRecord[]>({
     queryKey: ["/api/admin/scenario-overrides", "report", filterOrg, filterScenario],
     queryFn: async () => {
@@ -167,6 +210,7 @@ export function ScenarioOverrideManager() {
     if (dirty && !window.confirm("저장되지 않은 변경 사항이 있습니다. 버리고 선택을 바꾸시겠습니까?")) return;
     setOrgId(nextOrg); setScenarioId(nextScenario); setInitializedKey("");
     setDraft(blank); setBaseline(blank);
+    setConflict(false); setLatest(undefined); setBaselineVersion(null); setBaselineRecordId(null);
   };
   const chooseOrg = (value: string) => {
     const nextScenario = scenarios.some(item => item.id === scenarioId && (!item.organizationId || item.organizationId === value)) ? scenarioId : "";
@@ -203,6 +247,7 @@ export function ScenarioOverrideManager() {
     setWeightKey(""); setWeightValue("");
   };
   const save = () => {
+    if (conflict || key !== initializedKey) return;
     if (inputDirty) {
       toast({ title: "아직 추가하지 않은 입력이 있습니다.", description: "각 입력의 추가 버튼을 눌러 초안에 반영한 뒤 저장하세요.", variant: "destructive" }); return;
     }
@@ -293,6 +338,15 @@ export function ScenarioOverrideManager() {
           </div>
           {orgId && <ScenarioOverrideHistory key={`${orgId}:${scenarioId}`} organizationId={orgId} scenarioId={scenarioId} />}
           {validPair && <div className="space-y-4">
+            {conflict && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertDescription>
+              <p>다른 관리자가 설정을 변경하거나 삭제했습니다. 내 초안과 추가 전 입력은 보존되어 있습니다. 최신 설정과 비교한 후 처리 방법을 선택하세요.</p>
+              {latest !== undefined && <section className="my-3"><h4 className="font-medium">최신 저장 설정</h4><p className="text-xs">{latest ? `수정시각: ${new Date(latest.updatedAt).toLocaleString("ko-KR")}` : "현재 저장된 설정이 없습니다."}</p><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(latest?.override ?? {}, null, 2)}</pre></section>}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" disabled={refreshingConflict} onClick={() => void refreshConflict()}>{refreshingConflict ? "조회 중…" : "최신 설정 다시 조회"}</Button>
+                <Button variant="outline" size="sm" disabled={latest === undefined || refreshingConflict} onClick={() => resolveConflict(true)}>최신 설정 확인 · 내 초안 유지</Button>
+                <Button variant="outline" size="sm" disabled={latest === undefined || refreshingConflict} onClick={() => resolveConflict(false)}>초안 버리고 최신 설정 사용</Button>
+              </div>
+            </AlertDescription></Alert>}
             {detailQuery.isLoading && <Card><CardContent className="space-y-3 p-6"><div className="h-5 w-1/3 animate-pulse rounded bg-muted" /><div className="h-20 animate-pulse rounded bg-muted" /></CardContent></Card>}
             {detailQuery.isError && <Alert variant="destructive"><AlertDescription>설정 조회에 실패했습니다. 빈 설정으로 처리하지 않았습니다. {readError(detailQuery.error)} <Button size="sm" variant="outline" onClick={() => detailQuery.refetch()}><RefreshCw className="mr-2 h-4 w-4" />다시 시도</Button></AlertDescription></Alert>}
             {!detailQuery.isLoading && !detailQuery.isError && <>
@@ -326,8 +380,8 @@ export function ScenarioOverrideManager() {
                 {!preview.organizationActive && <p className="text-sm text-destructive">비활성 조직에는 신규 적용할 수 없습니다.</p>}
               </CardContent></Card>}
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                {record && <Button type="button" variant="destructive" disabled={!isAdmin || mutationsPending || detailQuery.isLoading} onClick={() => { if (window.confirm("이 조직 Override를 삭제할까요? 새 실행은 기본 설정을 사용하며 기존 실행은 변경되지 않습니다.")) deleteMutation.mutate(); }}><Trash2 className="mr-2 h-4 w-4" />{deleteMutation.isPending ? "삭제 중…" : "Override 삭제"}</Button>}
-                <Button type="button" onClick={save} disabled={!isAdmin || mutationsPending || detailQuery.isLoading || detailQuery.isError || !org?.isActive || !companyActive || !preview || previewMutation.isPending || previewMutation.isError || !!preview.errors.length || preview.organizationActive === false || !dirty || inputDirty || empty(draft)}><Save className="mr-2 h-4 w-4" />{saveMutation.isPending ? "저장 중…" : record ? "변경 사항 저장" : "새 Override 저장"}</Button>
+                {record && <Button type="button" variant="destructive" disabled={!isAdmin || conflict || mutationsPending || detailQuery.isLoading || detailQuery.isError || key !== initializedKey} onClick={() => { if (window.confirm("이 조직 Override를 삭제할까요? 새 실행은 기본 설정을 사용하며 기존 실행은 변경되지 않습니다.")) deleteMutation.mutate(); }}><Trash2 className="mr-2 h-4 w-4" />{deleteMutation.isPending ? "삭제 중…" : "Override 삭제"}</Button>}
+                <Button type="button" onClick={save} disabled={!isAdmin || conflict || mutationsPending || detailQuery.isLoading || detailQuery.isError || key !== initializedKey || !org?.isActive || !companyActive || !preview || previewMutation.isPending || previewMutation.isError || !!preview.errors.length || preview.organizationActive === false || !dirty || inputDirty || empty(draft)}><Save className="mr-2 h-4 w-4" />{saveMutation.isPending ? "저장 중…" : record ? "변경 사항 저장" : "새 Override 저장"}</Button>
               </div>
             </>}
           </div>}
