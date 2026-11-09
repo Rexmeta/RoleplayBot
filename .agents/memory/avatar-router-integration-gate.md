@@ -27,6 +27,12 @@ The user confirmed on 2026-11-02 that both administrator-page and persona-page l
 
 **How to apply:** Diagnose learner configuration, discovery, ownership, and media routing separately; do not restart provisioning or treat diagnostic success as learner playback verification.
 
+The user reports that Anam was successfully tested in AvatarRouter and is available there.
+
+**Why:** An upstream working provider and this app's local provider-selection restrictions are different facts.
+
+**How to apply:** Do not attribute a locally disabled Anam choice to provider unavailability without evidence. Check local stock eligibility, saved provider identity, and execution dispatch separately.
+
 A reconciliation-required status identifies an unresolved paid-create outcome,
 not the root cause of a scenario-only failure. When administrator/persona playback
 works, compare actual creation payloads, renderer events, and media connection
