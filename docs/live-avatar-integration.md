@@ -6,8 +6,19 @@
 프로젝트·사용자 연결을 통해 두 목록을 읽는다. 자동 생성·유료 세션 시작은 하지 않는다.
 
 - **기본 아바타**: `/avatars`의 stock 참조. 현재 `configured: true`인 Tavus
-  `tavus-stock-lucy`만 초안 선택 가능하다. mock 또는 다른 configured 참조는 비활성화한다.
+  `tavus-stock-lucy`와 Anam `anam-persona-default`를 초안 선택할 수 있다. mock 또는 지원 계약이 없는 참조는 비활성화한다.
   저장 형태: `{ kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", ... }`.
+- **Anam 실행**: 저장·재조회 시 `providerId: "anam"`을 보존한다. 페르소나 테스트와
+  시나리오의 독립 Full Pipeline 화면에서 `pipeline: "anam_full"`로 연결한다.
+  API 0.8의 `unified_client_connection`, `hosted_browser_client`, `anam_full_pipeline`
+  기능을 확인한 뒤 라우터의 `/client-connection`을 POST로 한 번만 호출하고,
+  운영자가 고정한 라우터 origin의 `/sdk/avatarrouter-client.js`로 재생한다.
+  Anam SDK 직접 설치·LiveKit 재사용·Gemini 음성 중계는 하지 않는다.
+  사용자 동의, 사용자/프로젝트 소유권, Anam 전용 사용량, 생성 결과 불명확 시 차단,
+  서버 종료·정리 확인을 유지한다. 임시 연결 정보는 메모리에만 두며 저장하지 않는다.
+  현행 라우터는 저장된 Anam 페르소나 설정만 사용한다. Tavus `fullPipeline` 지침,
+  시나리오 컨텍스트 전달과 Anam 확정 대화록 평가를 지원하는 것으로 표시하지 않는다.
+  참고 계약: `/roleplayx/anam-integration.md`, `/roleplayx/managed-client-integration.md`.
 - **커스텀 자산**: `/avatar-assets`의 UUID 자산. 기존 준비 완료·재사용 가능 조건과
   프로젝트/사용자 소유권 검사를 유지한다.
   새 선택 저장 형태: `{ kind: "custom", assetId: "<UUID>", providerId: "tavus", ... }`.

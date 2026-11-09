@@ -5,6 +5,7 @@ import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { ConversationMessage } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import DailyAvatarRoom from "./DailyAvatarRoom";
+import ManagedAvatarRoom from "./ManagedAvatarRoom";
 import TavusConversationLayout from "./TavusConversationLayout";
 import { useTavusTranscript, type TranscriptState } from "./useTavusTranscript";
 import { useBrowserCaptions } from "./tavusBrowserCaptions";
@@ -13,6 +14,7 @@ import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../S
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
   state: SessionState;
+  providerId?: "tavus" | "anam";
   error?: string;
   createdAt?: string;
   expiresAt?: string;
@@ -22,6 +24,7 @@ type Session = {
 };
 type Config = {
   available: boolean; blockers?: string[]; evaluationAvailable?: boolean;
+  providerId?: "tavus" | "anam";
   runtime?: { userRemainingSeconds: number; globalRemainingSeconds: number; sessionSeconds: number; resetsAt: string } | null;
 };
 type Connection = { transport: "daily"; pipeline: "tavus_full"; url: string; token: string; expiresAt?: string };
@@ -97,8 +100,10 @@ export default function TavusChatWindow({
   const readyRef = useRef(false);
   const connectionRequestRef = useRef(false);
   const connectionAttemptedRef = useRef(false);
+  const providerRef = useRef<"tavus" | "anam">("tavus");
 
   const updateSession = useCallback((next: Session) => {
+    if (next.providerId) providerRef.current = next.providerId;
     if (next.state === "ended") endRequestedRef.current = false;
     if (next.createdAt || next.expiresAt || next.state === "ended") setClockNow(Date.now());
     sessionStateRef.current = endRequestedRef.current && next.state === "active" ? "ending" : next.state;
@@ -106,7 +111,8 @@ export default function TavusChatWindow({
     if (mountedRef.current) setSession(visibleSession);
     if (mountedRef.current && next.error) setError(errorDetails(next.error));
   }, []);
-  const evaluationAvailable = session.evaluationAvailable === true || config?.evaluationAvailable === true;
+  const isAnam = (session.state === "idle" ? config?.providerId : session.providerId) === "anam";
+  const evaluationAvailable = !isAnam && (session.evaluationAvailable === true || config?.evaluationAvailable === true);
   const transcript = useTavusTranscript<Session>({
     conversationId,
     session,
@@ -167,6 +173,7 @@ export default function TavusChatWindow({
   }, [conversationId]);
 
   const checkConnection = useCallback(async () => {
+    if (providerRef.current === "anam") return; // Managed client makes the single-use POST itself.
     if (connectionRequestRef.current || connectionAttemptedRef.current) return;
     connectionAttemptedRef.current = true;
     connectionRequestRef.current = true;
@@ -351,7 +358,10 @@ export default function TavusChatWindow({
   const remainingSeconds = session.expiresAt && Number.isFinite(Date.parse(session.expiresAt))
     ? Math.max(0, Math.ceil((Date.parse(session.expiresAt) - clockNow) / 1000))
     : null;
-  const roomStage = session.state === "active" && connection ? (
+  const roomStage = session.state === "active" && isAnam ? (
+    <ManagedAvatarRoom endpoint={sessionUrl(conversationId)}
+      onError={message => setConnectionError({ code: "ANAM_CLIENT_ERROR", message })} />
+  ) : session.state === "active" && connection ? (
     <DailyAvatarRoom
       connection={connection}
       onCaption={browserCaptions.onCaption}
@@ -468,7 +478,7 @@ export default function TavusChatWindow({
     <TavusConversationLayout
       scenario={scenario}
       persona={persona}
-      statusLabel={labels[session.state]}
+      statusLabel={`${isAnam ? "Anam · " : ""}${labels[session.state]}`}
       active={session.state === "active"}
       elapsedSeconds={elapsedSeconds}
       remainingSeconds={remainingSeconds}
@@ -491,7 +501,7 @@ export default function TavusChatWindow({
       sessionControls={
         <div className="space-y-4">
           {!started && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
-            <p>{text("noticePal", "This is a session-specific PAL, not a persistent recording.", "이 세션 전용 PAL이며 지속적으로 저장되는 녹음이 아닙니다.")}</p>
+            <p>{isAnam ? text("anamSavedPersona", "Anam uses the persona saved in AvatarRouter. Scenario instructions and confirmed transcript evaluation are not supported by this router contract.", "Anam은 AvatarRouter에 저장된 페르소나를 사용합니다. 현재 라우터 계약은 이 앱의 시나리오 지침 전달과 확정 대화록 평가를 지원하지 않습니다.") : text("noticePal", "This is a session-specific PAL, not a persistent recording.", "이 세션 전용 PAL이며 지속적으로 저장되는 녹음이 아닙니다.")}</p>
             <p className="mt-2 font-medium text-[#40595e]">{text("noticeLimit", "Maximum duration: 120 seconds, including queue and startup time.", "최대 이용 시간: 대기 및 시작을 포함해 120초입니다.")}</p>
             <p className="mt-2">{text("noticeTranscript", "Confirmed history, when supported, becomes available after the session ends.", "지원되는 경우 확인된 대화 기록은 세션 종료 후 제공됩니다.")}</p>
           </div>}
@@ -525,7 +535,7 @@ export default function TavusChatWindow({
             {feedbackReady && <button type="button" onClick={openFeedback} className="rounded-lg bg-corporate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-corporate-700" data-testid="tavus-view-feedback">{text("viewFeedback", "View feedback", "피드백 보기")}</button>}
             <button type="button" onClick={onExit} className="rounded-lg border border-[#ccd8db] px-4 py-2 text-sm font-semibold text-[#32484e] hover:bg-white" data-testid="tavus-close">{text("close", "Close session", "세션 닫기")}</button>
           </div>}
-          {session.state === "active" && !connection && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-3 text-xs text-[#53696d]" data-testid="tavus-connection-pending">
+          {session.state === "active" && !connection && !isAnam && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-3 text-xs text-[#53696d]" data-testid="tavus-connection-pending">
             {connectionError ? <><p className="font-semibold text-[#8f4137]">{connectionError.code}: {connectionError.message}</p><button type="button" onClick={() => { connectionAttemptedRef.current = false; setConnection(null); void checkConnection(); }} className="mt-2 rounded-lg border border-[#ccd8db] px-3 py-2 font-semibold hover:bg-white" data-testid="tavus-connection-retry">{text("retryConnection", "Retry connection details", "연결 정보 다시 확인")}</button></> : text("connecting", "Securely retrieving connection details…", "안전하게 연결 정보를 확인하고 있습니다…")}
           </div>}
           {(session.state === "creating" || session.state === "ending") && <div className="flex items-center gap-2 text-xs text-[#607a7d]" role="status"><LoaderCircle className="h-4 w-4 animate-spin" />{session.state === "creating" ? text("creatingHelp", "Checking room startup status…", "대화 공간 시작 상태 확인 중…") : text("endingHelp", "Waiting for the room to close…", "대화 공간 종료를 확인하고 있습니다…")}</div>}

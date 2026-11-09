@@ -881,7 +881,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
   // Keep this hook above every loading/error/ending exit so native chat calls
   // the same hooks before and after its conversation query resolves.
-  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; selectable?: boolean; blockers: string[] }>({
+  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; selectable?: boolean; blockers: string[]; providerId?: "tavus" | "anam" }>({
     queryKey: ["/api/tavus/config", conversationId],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`);
@@ -1290,7 +1290,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                         data-testid="tavus-mode-entry"
                         className="rounded-xl border border-white/25 bg-slate-950/75 px-4 py-3 text-left text-white shadow-lg backdrop-blur-md transition hover:bg-slate-900/90 disabled:cursor-not-allowed disabled:opacity-90"
                       >
-                        <span className="block text-sm font-semibold">{tavusText("entry", "Try Tavus Full Pipeline", "Tavus 전체 파이프라인 사용")}</span>
+                        <span className="block text-sm font-semibold">{tavusConfig?.providerId === "anam" ? "Anam Live" : tavusText("entry", "Try Tavus Full Pipeline", "Tavus 전체 파이프라인 사용")}</span>
                         <span className="mt-1 block text-xs text-white/70">
                           {tavusConfig?.blockers?.includes("avatar_router_full_pipeline_contract_required")
                             ? tavusText("routerContractRequired", "Requires AvatarRouter Full Pipeline API support", "아바타 라우터의 Full Pipeline API 지원이 필요합니다")
@@ -1901,7 +1901,7 @@ export default function ChatWindow(props: ChatWindowProps) {
             <Button variant="outline" onClick={() => { setStandardMode("realtime-voice"); setMode("standard"); }}>
               {restoreText("nativeMode", "Existing realtime voice", "기존 실시간 음성 대화")}
             </Button>
-            <Button onClick={() => setMode("tavus")}>Tavus Full Pipeline</Button>
+            <Button onClick={() => setMode("tavus")}>{t("chat.liveAvatar", "라이브 아바타")}</Button>
             <Button variant="ghost" onClick={props.onExit}>{restoreText("exit", "Exit", "나가기")}</Button>
           </div>
         </section>

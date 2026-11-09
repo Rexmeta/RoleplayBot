@@ -10,6 +10,8 @@ import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
 import { OpenAIAvatarTestDialogue, type AvatarTestDialogue } from "./testDialogue";
 import { testConnectionSchema, testLimitsSchema, testScopes, testSessionSchema } from "./testContracts";
+import { anamFeatures, nativeScopes, managedConnectionSchema, managedClientDescriptor } from "./managedClient";
+import { personaStockAvatarSchema, isSelectableStockAvatar } from "../../../shared/avatar/personaAvatar";
 
 const anyTavusSessionSchema = testSessionSchema.extend({
   avatarId: z.string().min(1).max(160),
@@ -17,8 +19,8 @@ const anyTavusSessionSchema = testSessionSchema.extend({
   purpose: z.enum(["validation", "conversation"]).optional(),
 });
 const listSchema = z.array(z.unknown()).max(500).transform(rows => rows.filter((row: any) =>
-  row?.mode === "live" && row?.providerId === "tavus",
-)).pipe(z.array(anyTavusSessionSchema));
+  row?.mode === "live" && ["tavus", "anam"].includes(row?.providerId),
+)).pipe(z.array(anyTavusSessionSchema.extend({ providerId: z.enum(["tavus", "anam"]) })));
 // Shared across stock/custom service instances so switching assets cannot race a paid create.
 const creating = new Set<string>();
 export const AVATAR_TEST_ATTEMPTS = "live_avatar_test_attempt";
@@ -26,7 +28,7 @@ type AttemptStore = {
   getSystemSetting(category: string, key: string): Promise<{ value: string } | undefined>;
   upsertSystemSetting(input: { category: string; key: string; value: string; updatedBy: string; description: string }): Promise<unknown>;
 };
-const attemptSchema = z.object({ pending: z.boolean(), baseline: z.array(z.string().max(160)).max(500) });
+const attemptSchema = z.object({ pending: z.boolean(), baseline: z.array(z.string().max(160)).max(500), target: z.string().optional() });
 
 /** Admin diagnostic only. Does not unlock ordinary conversation sessions or alter policy. */
 export class AdminAvatarTestService {
@@ -43,16 +45,22 @@ export class AdminAvatarTestService {
       assetId: string;
       resolve: (userId: string) => Promise<{ providerAvatarId: string }>;
     },
+    readonly anam = false,
   ) {}
 
   private get sessionSchema(): z.ZodType<AvatarTestSession> {
+    if (this.anam) return testSessionSchema.extend({
+      providerId: z.literal("anam"), avatarId: z.literal("anam-persona-default"), pipeline: z.literal("anam_full"),
+      avatarAssetId: z.null().optional(),
+    });
     return this.custom ? anyTavusSessionSchema.extend({
       avatarAssetId: z.literal(this.custom.assetId), purpose: z.literal("validation"),
     }) : testSessionSchema;
   }
   private belongs(session: AvatarTestSession & { avatarAssetId?: string | null; purpose?: string }) {
     return this.custom ? session.avatarAssetId === this.custom.assetId && session.purpose === "validation" :
-      session.avatarId === "tavus-stock-lucy" && !session.avatarAssetId;
+      session.providerId === (this.anam ? "anam" : "tavus") &&
+      session.avatarId === (this.anam ? "anam-persona-default" : "tavus-stock-lucy") && !session.avatarAssetId;
   }
   private attemptKey(projectId: string, userId: string) {
     return createHash("sha256").update(`${projectId}:${userId}`).digest("hex");
@@ -61,33 +69,45 @@ export class AdminAvatarTestService {
     return this.attempts.upsertSystemSetting({
       category: AVATAR_TEST_ATTEMPTS, key, updatedBy: userId,
       description: "Paid test creation fence; do not clear unknown outcomes without provider reconciliation",
-      value: JSON.stringify({ pending, baseline }),
+      value: JSON.stringify({ pending, baseline, target: this.attemptTarget() }),
     });
+  }
+  private attemptTarget() {
+    return this.anam ? "anam:anam-persona-default" : `tavus:${this.custom?.assetId ?? "tavus-stock-lucy"}`;
   }
 
   async preflight(userId: string) {
     const auth = await this.connection.check(userId);
-    const required = this.custom ? [...testScopes, "assets:read", "assets:write"] as const : testScopes;
+    const required = this.anam ? [...nativeScopes, "assets:read"] as const :
+      this.custom ? [...testScopes, "assets:read", "assets:write"] as const : testScopes;
     const missingScopes = required.filter(scope => !auth.scopes.includes(scope));
     if (missingScopes.includes("live-limits:read") || missingScopes.includes("sessions:read")) {
       throw new AvatarIdentityError("avatar_test_read_scopes_missing", 403);
     }
     const [limits, sessions] = await Promise.all([
-      this.client.call(userId, "/live-limits", testLimitsSchema),
+      this.client.call(userId, this.anam ? "/live-limits?providerId=anam" : "/live-limits",
+        testLimitsSchema.extend({ creationAllowed: z.boolean().optional() })),
       this.client.call<AvatarTestSession[]>(userId, "/sessions", listSchema),
     ]);
     const attemptKey = this.attemptKey(auth.projectId, userId);
     const saved = await this.attempts.getSystemSetting(AVATAR_TEST_ATTEMPTS, attemptKey);
     const attempt = saved ? attemptSchema.parse(JSON.parse(saved.value)) : undefined;
     let creationUncertain = Boolean(attempt?.pending);
-    if (attempt?.pending && sessions.some(session => !attempt.baseline.includes(session.id))) {
+    if (attempt?.pending && (attempt.target === this.attemptTarget() || !attempt.target && !this.anam) &&
+        sessions.filter(session => !attempt.baseline.includes(session.id) && this.belongs(session)).length === 1) {
       // Durable remote ownership resolves an ambiguous create. Never issue a second create to recover.
       await this.saveAttempt(attemptKey, userId, false, []);
       creationUncertain = false;
     }
-    const aiReady = this.dialogue.ready();
+    const aiReady = this.anam || this.dialogue.ready();
     let runtimeReady = true;
     let runtimeError: string | undefined;
+    if (this.anam) {
+      const stock = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500));
+      runtimeReady = anamFeatures.every(f => auth.integration?.features.includes(f)) &&
+        stock.some(a => a.providerId === "anam" && isSelectableStockAvatar(a));
+      if (!runtimeReady) runtimeError = "anam_managed_runtime_unavailable";
+    }
     if (this.custom) {
       try { await this.custom.resolve(userId); }
       catch (error) {
@@ -98,6 +118,7 @@ export class AdminAvatarTestService {
     }
     return {
       ready: runtimeReady && !creationUncertain && aiReady && !missingScopes.length && limits.workerReady &&
+        limits.creationAllowed !== false &&
         limits.cleanupPending === 0 && limits.userRemainingSeconds >= 120 &&
         limits.globalRemainingSeconds >= 120 && !sessions.some(s => !avatarTestTerminal(s)),
       aiReady, creationUncertain, missingScopes, limits, sessions: sessions.filter(s => this.belongs(s)),
@@ -120,7 +141,10 @@ export class AdminAvatarTestService {
       let session: AvatarTestSession;
       try {
         session = await this.client.call(userId, "/sessions", this.sessionSchema, {
-          providerId: "tavus", avatarId: target?.providerAvatarId ?? "tavus-stock-lucy", mode: "live", costConfirmed: true,
+          providerId: this.anam ? "anam" : "tavus",
+          avatarId: this.anam ? "anam-persona-default" : target?.providerAvatarId ?? "tavus-stock-lucy",
+          mode: "live", costConfirmed: true,
+          ...(this.anam ? { pipeline: "anam_full" } : {}),
           ...(this.custom ? { avatarAssetId: this.custom.assetId, purpose: "validation" } : {}),
         });
         if (target && session.avatarId !== target.providerAvatarId) {
@@ -154,13 +178,22 @@ export class AdminAvatarTestService {
   }
 
   async connectionToken(userId: string, id: string) {
+    if (this.anam) throw new AvatarIdentityError("avatar_managed_connection_post_required", 405);
     await this.running(userId, id);
     const result = await this.client.call(userId, `/sessions/${id}/connection`, testConnectionSchema);
     if (Date.parse(result.expiresAt) <= Date.now()) throw new AvatarIdentityError("avatar_test_token_expired", 502);
     return result;
   }
 
+  async managedConnection(userId: string, id: string) {
+    if (!this.anam) throw new AvatarIdentityError("avatar_managed_connection_unavailable", 409);
+    await this.running(userId, id);
+    const descriptor = await this.client.call(userId, `/sessions/${id}/client-connection`, managedConnectionSchema, {});
+    return managedClientDescriptor(descriptor, id);
+  }
+
   async turn(userId: string, id: string, input: AvatarTestTurnInput) {
+    if (this.anam) throw new AvatarIdentityError("anam_owns_dialogue_and_audio", 409);
     const lock = `${userId}:${id}`;
     if (this.turns.has(lock)) throw new AvatarIdentityError("avatar_test_turn_in_progress", 409);
     const controller = new AbortController();
@@ -213,3 +246,4 @@ export class AdminAvatarTestService {
 }
 
 export const adminAvatarTestService = new AdminAvatarTestService();
+export const anamAvatarTestService = new AdminAvatarTestService(undefined, undefined, undefined, undefined, undefined, undefined, true);

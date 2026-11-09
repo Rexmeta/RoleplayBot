@@ -33,6 +33,12 @@ The user reports that Anam was successfully tested in AvatarRouter and is availa
 
 **How to apply:** Do not attribute a locally disabled Anam choice to provider unavailability without evidence. Check local stock eligibility, saved provider identity, and execution dispatch separately.
 
+Provider availability does not establish transport or dialogue ownership. Check the router's current downloadable integration contract before extending dispatch; a native full pipeline must not be attached to an external-PCM renderer.
+
+**Why:** The working Anam catalog entry uses a saved native persona, not the Tavus rendering protocol. The router's newer managed-client contract supersedes provider-SDK setup for new app integrations.
+
+**How to apply:** Prefer the router-hosted common client when its live advertised contract supports it. Keep native microphone/dialogue ownership exclusive, single-start handoffs non-retryable, and unsupported scenario-context/transcript capabilities explicit rather than pretending to preserve them.
+
 A reconciliation-required status identifies an unresolved paid-create outcome,
 not the root cause of a scenario-only failure. When administrator/persona playback
 works, compare actual creation payloads, renderer events, and media connection

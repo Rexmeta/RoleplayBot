@@ -57,6 +57,34 @@ beforeEach(() => {
   service = new TavusSessions(deps);
 });
 describe("AvatarRouter Full Pipeline", () => {
+  it("dispatches Anam via managed native connection without Tavus payloads, Daily or transcript claims", async () => {
+    vi.stubEnv("AVATAR_ROUTER_BASE_URL", "https://router.example/api/v1");
+    try {
+      deps.selection.mockResolvedValue({ blockers: [], providerId: "anam" });
+      deps.connection.check.mockResolvedValue({
+        projectId: "project", scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
+        integration: { features: ["anam_full_pipeline", "unified_client_connection", "hosted_browser_client", "tavus_final_transcript_v1"] },
+      });
+      deps.target.mockResolvedValue({ projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null });
+      Object.assign(remote, { providerId: "anam", avatarId: "anam-persona-default", pipeline: "anam_full", rendererState: "running" });
+      deps.client.call.mockImplementation(async (_u, path, schema) => schema.parse(
+        path.startsWith("/live-limits") ? limits : path.endsWith("/client-connection") ? {
+          sessionId: remote.id, pipeline: "anam_full", audioOwner: "avatarrouter",
+          clientScriptPath: "/sdk/avatarrouter-client.js", expiresAt: remote.expiresAt, connection: { opaque: true },
+        } : remote,
+      ));
+      expect(await service.config("owner", "run")).toMatchObject({ available: true, providerId: "anam", evaluationAvailable: false, palStrategy: "saved_persona" });
+      expect(await service.start("owner", "run", true)).toMatchObject({ state: "active", providerId: "anam", evaluationAvailable: false });
+      expect(deps.client.call).toHaveBeenCalledWith("owner", "/sessions", expect.anything(), {
+        providerId: "anam", avatarId: "anam-persona-default", pipeline: "anam_full", mode: "live", costConfirmed: true,
+      });
+      expect(await service.managedConnection("owner", "run")).toMatchObject({ clientScriptUrl: "https://router.example/sdk/avatarrouter-client.js" });
+      await expect(service.managedConnection("owner", "run")).rejects.toMatchObject({ code: "avatar_client_connection_already_issued" });
+      expect(deps.client.call.mock.calls.filter(c => c[1].endsWith("/client-connection"))).toHaveLength(1);
+      await expect(service.connection("owner", "run")).rejects.toMatchObject({ status: 405 });
+      expect(deps.importTranscript).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); }
+  });
   it("discovers features, actor policy and current limits without a paid create", async () => {
     expect(await service.config("owner", "run")).toMatchObject({
       available: true, maxSeconds: 120, evaluationAvailable: false, palStrategy: "per_session",

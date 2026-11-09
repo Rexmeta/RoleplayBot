@@ -2,11 +2,11 @@ import { z } from "zod";
 
 export const routerSessionSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
-  providerId: z.literal("tavus"),
+  providerId: z.enum(["tavus", "anam"]),
   avatarId: z.string().min(1),
   avatarAssetId: z.string().nullable().optional(),
   mode: z.literal("live"),
-  pipeline: z.literal("tavus_full"),
+  pipeline: z.enum(["tavus_full", "anam_full"]),
   status: z.enum(["active", "ended", "expired", "failed"]),
   rendererState: z.string().nullable(),
   stopRequested: z.boolean(),

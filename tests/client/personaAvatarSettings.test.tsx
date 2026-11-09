@@ -16,6 +16,9 @@ vi.mock("../../client/src/components/admin/PersonaAvatarValidationPanel", () => 
 vi.mock("../../client/src/components/admin/LiveAvatarTestPanel", () => ({
   LiveAvatarTestPanel: () => <div data-testid="stock-avatar-test">Lucy test panel</div>,
 }));
+vi.mock("../../client/src/components/admin/AnamAvatarTestPanel", () => ({
+  AnamAvatarTestPanel: () => <div data-testid="anam-avatar-test">Anam native test</div>,
+}));
 const id = "12345678-1234-4234-8234-123456789abc";
 const saved: PersonaLiveAvatar = {
   assetId: id, providerId: "tavus", voiceMode: "roleplayx",
@@ -39,6 +42,25 @@ beforeEach(() => { api.mockReset(); api.mockResolvedValue({ json: async () => re
 afterEach(cleanup);
 
 describe("persona avatar settings", () => {
+  it("selects configured Anam with its actual provider and offers only its native test", async () => {
+    api.mockResolvedValue({ json: async () => ({ ...response(), stockAvatars: [
+      { id: "anam-persona-default", providerId: "anam", name: "Anam saved persona", description: "native",
+        kind: "configured", configured: true, languages: [] },
+    ] }) });
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+    await screen.findByRole("option", { name: /Anam saved persona/ });
+    expect(screen.getByRole("option", { name: /Anam saved persona/ }).hasAttribute("disabled")).toBe(false);
+    fireEvent.change(screen.getByLabelText("기본 아바타"), { target: { value: "anam-persona-default" } });
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toMatchObject({
+      kind: "stock", avatarId: "anam-persona-default", providerId: "anam",
+      projectId: "project-one", activation: "draft", validationStatus: "unverified",
+    });
+    expect(api).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
+    expect(screen.getByTestId("anam-avatar-test")).toBeTruthy();
+    expect(screen.queryByTestId("stock-avatar-test")).toBeNull();
+  });
   it("offers three modes and never automatically calls remote endpoints", () => {
     render(<Harness />);
     expect(within(screen.getByRole("radiogroup", { name: "아바타 표시 방식" })).getAllByRole("radio")).toHaveLength(3);

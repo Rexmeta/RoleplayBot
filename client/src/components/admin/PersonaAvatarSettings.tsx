@@ -6,6 +6,7 @@ import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCat
 import { PersonaAvatarCreationPanel } from '@/components/admin/PersonaAvatarCreationPanel';
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 import { LiveAvatarTestPanel } from '@/components/admin/LiveAvatarTestPanel';
+import { AnamAvatarTestPanel } from '@/components/admin/AnamAvatarTestPanel';
 export type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
 
 type AvatarAsset = {
@@ -116,7 +117,8 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset && !selectedStock);
   const selectedTavusCustom = Boolean(liveAvatar && liveAvatar.kind !== 'stock' && liveAvatar.providerId === 'tavus');
   const selectedLucy = liveAvatar?.kind === 'stock' && liveAvatar.providerId === 'tavus' && liveAvatar.avatarId === 'tavus-stock-lucy';
-  const hasSelectedTest = Boolean(selectedTavusCustom || selectedLucy);
+  const selectedAnam = liveAvatar?.kind === 'stock' && liveAvatar.providerId === 'anam' && liveAvatar.avatarId === 'anam-persona-default';
+  const hasSelectedTest = Boolean(selectedTavusCustom || selectedLucy || selectedAnam);
   const selectableAssets = (assets ?? []).filter(asset =>
     asset.status === 'ready' &&
     asset.capabilities.reusable &&
@@ -151,7 +153,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
     const avatar = stockAvatars?.find(candidate => candidate.id === avatarId && isSelectableStockAvatar(candidate));
     if (!avatar) return;
     onLiveAvatarChange({
-      kind: 'stock', avatarId: avatar.id, providerId: 'tavus',
+      kind: 'stock', avatarId: avatar.id, providerId: avatar.providerId as 'tavus' | 'anam',
       voiceMode: 'roleplayx', validationStatus: 'unverified', activation: 'draft',
       ...(projectId ? { projectId } : {}),
     });
@@ -401,6 +403,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={selectedAsset?.name ?? '저장된 Tavus 자산'} onReported={() => void loadAssets()} onActivityChange={setTestBusy} />
             )}
             {testEntryOpen && selectedLucy && <LiveAvatarTestPanel onActivityChange={setTestBusy} />}
+            {testEntryOpen && selectedAnam && <AnamAvatarTestPanel onActivityChange={setTestBusy} />}
           </div>}
         </div>
       )}
