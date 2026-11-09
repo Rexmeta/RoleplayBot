@@ -11,6 +11,7 @@ import { AvatarIdentityError } from "../liveAvatar/delegatedIdentity";
 import { inspectTavusLimits, tavusLimitsSchema } from "./runtimeLimits";
 import { dailyConnectionSchema, routerSessionSchema, routerTranscriptSchema } from "./routerContracts";
 import { anamFeatures, managedConnectionSchema, managedClientDescriptor } from "../liveAvatar/managedClient";
+import { supportsAvatarFinalTranscript } from "../../../shared/avatar/personaAvatar";
 
 type State = "creating" | "create_unknown" | "active" | "ending" | "ended";
 export interface TavusSession {
@@ -51,7 +52,7 @@ export class TavusSessions {
         blockers.push(...selection.blockers);
         providerId = selection.providerId ?? "tavus";
       }
-      evaluationAvailable = providerId === "tavus" && auth.integration?.features.includes("tavus_final_transcript_v1") === true;
+      evaluationAvailable = supportsAvatarFinalTranscript(providerId, auth.integration?.features ?? []);
       if (!(providerId === "anam" ? anamFeatures : requiredFeatures).every(f => auth.integration?.features.includes(f))) {
         blockers.push("avatar_router_full_pipeline_unavailable");
       }
@@ -82,11 +83,14 @@ export class TavusSessions {
   }
 
   private publicSession(session: TavusSession | null) {
+    // Persisted state alone must never advertise an unimplemented provider import.
+    const transcriptState = session?.providerId === "anam" ? "unavailable" :
+      session?.transcriptState ?? "unavailable";
     return { state: session?.state ?? "idle",
       providerId: session?.providerId ?? "tavus",
-      evaluationAvailable: !!session?.transcriptState && session.transcriptState !== "unavailable",
-      transcriptState: session?.transcriptState ?? "unavailable",
-      ...(session?.transcriptError ? { transcriptError: session.transcriptError } : {}),
+      evaluationAvailable: transcriptState !== "unavailable",
+      transcriptState,
+      ...(session?.providerId !== "anam" && session?.transcriptError ? { transcriptError: session.transcriptError } : {}),
       ...(session?.createdAt ? { createdAt: session.createdAt } : {}),
       ...(session?.expiresAt ? { expiresAt: session.expiresAt } : {}),
       ...(session?.lastError ? { error: session.lastError } : {}) };
@@ -243,7 +247,9 @@ export class TavusSessions {
     // Discovery is fresh and independent of runtime budget/worker availability.
     const auth = await this.deps.connection.check(userId);
     if (auth.projectId !== session.projectId) throw new TavusError("persona_avatar_project_mismatch", 409);
-    if (session.providerId === "anam" || !auth.integration?.features.includes("tavus_final_transcript_v1")) return this.publicSession(session);
+    if (!supportsAvatarFinalTranscript(session.providerId ?? "tavus", auth.integration?.features ?? [])) {
+      return this.publicSession(session);
+    }
     const now = Date.now();
     const token = randomUUID();
     const claimed = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => {

@@ -18,6 +18,8 @@
   서버 종료·정리 확인을 유지한다. 임시 연결 정보는 메모리에만 두며 저장하지 않는다.
   현행 라우터는 저장된 Anam 페르소나 설정만 사용한다. Tavus `fullPipeline` 지침,
   시나리오 컨텍스트 전달과 Anam 확정 대화록 평가를 지원하는 것으로 표시하지 않는다.
+  최종 전사·사용자/세션/revision 바인딩 및 지원 후 평가 연결 수용 조건은
+  `docs/anam-final-transcript-proposal.md`에 협의용으로 정의했다. 현재 활성화 계약은 아니다.
   참고 계약: `/roleplayx/anam-integration.md`, `/roleplayx/managed-client-integration.md`.
   2026-11-09 두 공개 계약을 재확인했으며 세션별 역할·조직 지침은 여전히 미지원이다.
   [세션 컨텍스트 계약 변경안](anam-session-context-proposal.md)에 라우터 협의 항목,

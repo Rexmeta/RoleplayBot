@@ -52,6 +52,19 @@ session instructions. Use only immutable run-bound instructions, never mutate
 the shared saved persona or run Gemini alongside Anam. External implementation,
 publication and paid call verification need separate approval.
 
+Anam final-transcript evaluation also requires a ratified provider-authenticated
+router contract; a proposed feature name or a Tavus transcript capability must
+never activate Anam imports.
+
+**Why:** Native media support and a locally verifiable transcript hash cannot
+establish that the provider finalized the dialogue or that it belongs to the
+correct project, user and session.
+
+**How to apply:** Keep Anam history/evaluation unavailable until the official
+contract and deployed capability both support server-authenticated final evidence.
+Preserve Anam provenance rather than importing through Tavus, and distinguish
+mock contract checks from separately approved paid-call verification.
+
 A reconciliation-required status identifies an unresolved paid-create outcome,
 not the root cause of a scenario-only failure. When administrator/persona playback
 works, compare actual creation payloads, renderer events, and media connection

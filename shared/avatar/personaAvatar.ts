@@ -3,6 +3,11 @@ import { z } from "zod";
 export const personaAvatarModeSchema = z.enum(["image", "video", "live"]);
 export type PersonaAvatarMode = z.infer<typeof personaAvatarModeSchema>;
 
+/** Ratified transcript support only; native playback and proposed feature names are not evidence. */
+export function supportsAvatarFinalTranscript(providerId: string, features: readonly string[]): boolean {
+  return providerId === "tavus" && features.includes("tavus_final_transcript_v1");
+}
+
 const liveDraftShape = {
   providerId: z.enum(["tavus", "anam"]),
   voiceMode: z.literal("roleplayx"),

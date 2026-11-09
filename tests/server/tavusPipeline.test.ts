@@ -57,10 +57,43 @@ beforeEach(() => {
   service = new TavusSessions(deps);
 });
 describe("AvatarRouter Full Pipeline", () => {
+  it.each(["pending", "importing", "failed", "completed", "empty"])(
+    "never advertises or imports Anam from persisted %s state or speculative feature discovery", async transcriptState => {
+      rows.set("run:run", {
+        state: "ended", token: "local-fence", userId: "owner", runId: "run",
+        createdAt: new Date().toISOString(), projectId: "project", sessionId: "s1",
+        providerId: "anam", transcriptState, transcriptError: "tavus_transcript_sync_failed",
+      });
+      deps.connection.check.mockResolvedValue({
+        projectId: "project", integration: {
+          features: ["anam_full_pipeline", "anam_final_transcript_v1", "tavus_final_transcript_v1"],
+        },
+      });
+      expect(await service.session("owner", "run")).toMatchObject({
+        state: "ended", providerId: "anam", evaluationAvailable: false, transcriptState: "unavailable",
+      });
+      const result = await service.sync("owner", "run");
+      expect(result).toMatchObject({ evaluationAvailable: false, transcriptState: "unavailable" });
+      expect(result).not.toHaveProperty("transcriptError");
+      expect(deps.client.call).not.toHaveBeenCalled();
+      expect(deps.resolve).not.toHaveBeenCalled();
+      expect(deps.importTranscript).not.toHaveBeenCalled();
+    },
+  );
+  it("rejects another user's Anam history before any router read or import", async () => {
+    rows.set("run:run", {
+      state: "ended", userId: "other", runId: "run", providerId: "anam", transcriptState: "pending",
+    });
+    await expect(service.sync("owner", "run")).rejects.toMatchObject({ code: "tavus_conversation_forbidden" });
+    expect(deps.connection.check).not.toHaveBeenCalled();
+    expect(deps.client.call).not.toHaveBeenCalled();
+    expect(deps.importTranscript).not.toHaveBeenCalled();
+  });
   it.each([
     { extraFeatures: [] },
     { extraFeatures: ["tavus_full_pipeline", "daily_private_connection", "tavus_final_transcript_v1"] },
     { extraFeatures: ["anam_session_context_v1"] },
+    { extraFeatures: ["anam_final_transcript_v1"] },
   ])("does not treat unrelated or unratified features $extraFeatures as permission to send Anam instructions", async ({ extraFeatures }) => {
     deps.selection.mockResolvedValue({ blockers: [], providerId: "anam" });
     deps.connection.check.mockResolvedValue({
@@ -83,6 +116,8 @@ describe("AvatarRouter Full Pipeline", () => {
       schema.parse(path.startsWith("/live-limits") ? limits : remote));
 
     await service.start("owner", "run", true);
+    expect(await service.config("owner", "run")).toMatchObject({ providerId: "anam", evaluationAvailable: false });
+    expect(rows.get("run:run").transcriptState).toBe("unavailable");
     expect(deps.resolve).toHaveBeenCalledWith("owner", "run");
     const writes = deps.client.call.mock.calls.filter((call: any[]) => call[3] !== undefined);
     expect(writes).toHaveLength(1);
