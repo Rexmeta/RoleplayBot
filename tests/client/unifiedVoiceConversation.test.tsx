@@ -73,11 +73,16 @@ describe("shared voice and live-avatar conversation experience", () => {
     fireEvent.click(screen.getByTestId("button-conversation-mode-menu"));
     fireEvent.click(await screen.findByTestId("button-conversation-mode-text"));
     expect(exit).toHaveBeenCalledOnce();
+    expect(exit).toHaveBeenLastCalledWith("text");
+    fireEvent.click(screen.getByTestId("button-conversation-mode-menu"));
+    expect(screen.queryByTestId("button-conversation-mode-live-avatar")).toBeNull();
+    fireEvent.click(await screen.findByTestId("button-conversation-mode-voice"));
+    expect(exit).toHaveBeenLastCalledWith("realtime-voice");
     view.rerender(<TavusConversationLayout {...props} />);
     fireEvent.click(screen.getByTestId("button-conversation-mode-menu"));
     expect((await screen.findByTestId("button-conversation-mode-text") as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByTestId("button-conversation-mode-live-avatar"));
-    await waitFor(() => expect((screen.getByTestId("live-avatar-options-dialog") as HTMLDialogElement).open).toBe(true));
+    expect(screen.queryByTestId("button-conversation-mode-live-avatar")).toBeNull();
+    expect((screen.getByTestId("button-conversation-mode-voice") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("opens real errors for attention without interrupting the live stage", async () => {

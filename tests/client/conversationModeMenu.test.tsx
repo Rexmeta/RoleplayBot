@@ -52,6 +52,51 @@ afterEach(() => {
 });
 
 describe("optional bottom conversation modes", () => {
+  it.each([
+    ["text", "text", "voice", "live-avatar"],
+    ["realtime-voice", "voice", "text", "live-avatar"],
+    ["live-avatar", "live-avatar", "text", "voice"],
+  ] as const)("only offers the other two modes in %s", async (currentMode, hidden, first, second) => {
+    const text = vi.fn();
+    const voice = vi.fn();
+    const live = vi.fn();
+    render(<ConversationModeMenu currentMode={currentMode} onTextModeToggle={text}
+      onVoiceModeToggle={voice} onLiveAvatarOptions={live} />);
+    fireEvent.click(screen.getByTestId("button-conversation-mode-menu"));
+    const firstOption = await screen.findByTestId(`button-conversation-mode-${first}`);
+    expect(screen.getByTestId(`button-conversation-mode-${second}`)).toBeTruthy();
+    expect(screen.queryByTestId(`button-conversation-mode-${hidden}`)).toBeNull();
+    fireEvent.click(firstOption);
+    expect(first === "text" ? text : voice).toHaveBeenCalledOnce();
+  });
+
+  it("places mode selection before the mic and settings after it without a duplicate end button", () => {
+    render(<ChatInputBar {...baseProps} realtimeVoiceProps={{ ...voiceProps,
+      onVadSensitivityChange: vi.fn() }} onTextModeToggle={vi.fn()} onLiveAvatarOptions={vi.fn()} />);
+    const row = screen.getByTestId("realtime-control-row");
+    expect(row.querySelector('[data-testid="button-end-conversation-realtime"]')).toBeNull();
+    const mode = screen.getByTestId("button-conversation-mode-menu");
+    const mic = screen.getByTestId("button-realtime-voice-record");
+    const settings = screen.getByTestId("button-audio-settings");
+    expect(mode.compareDocumentPosition(mic) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mic.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(settings);
+    expect(screen.getByTestId("panel-audio-settings")).toBeTruthy();
+  });
+
+  it("keeps the shared menu in empty, collapsed and expanded text chat", () => {
+    const source = readFileSync("client/src/components/ChatWindow.tsx", "utf8");
+    const textMenu = source.slice(source.indexOf('currentMode="text"') - 140,
+      source.indexOf('currentMode="text"') + 400);
+    expect(textMenu).toContain("<ConversationModeMenu");
+    expect(textMenu).toContain("onVoiceModeToggle={() => setShowVoiceModeConfirmDialog(true)}");
+    expect(textMenu).toContain("switchToLiveAvatar");
+    expect(source).not.toContain('data-testid="button-switch-to-voice"');
+    expect(source).not.toContain('data-testid="button-switch-to-voice-collapsed"');
+    expect(source).toContain('restoreText("voiceMode", "Voice conversation", "음성 대화")');
+    expect(source).not.toContain("기존 실시간 음성 대화");
+  });
+
   it.each(["connected", "disconnected"])("offers text and live avatar without auto-switching in %s voice", async status => {
     const text = vi.fn();
     const live = vi.fn();

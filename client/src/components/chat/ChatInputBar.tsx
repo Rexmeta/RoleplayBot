@@ -1,10 +1,8 @@
-import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { getProgressInfo } from "@/lib/conversationProgress";
 import { ConversationModeMenu } from "./ConversationModeMenu";
 
 interface ChatInputBarProps {
@@ -91,32 +89,6 @@ export function ChatInputBar({
   inlineHint,
 }: ChatInputBarProps) {
   const { t } = useTranslation();
-
-  const realtimeProgressPct = realtimeVoiceProps?.currentTurn !== undefined && realtimeVoiceProps?.targetTurns
-    ? Math.min((realtimeVoiceProps.currentTurn / realtimeVoiceProps.targetTurns) * 100, 100)
-    : 0;
-  const realtimeStage = getProgressInfo(realtimeProgressPct).stage;
-
-  const realtimePrevStageRef = useRef(realtimeStage);
-  const [isRealtimeButtonAnimating, setIsRealtimeButtonAnimating] = useState(false);
-  const realtimeAnimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (realtimeStage !== realtimePrevStageRef.current) {
-      realtimePrevStageRef.current = realtimeStage;
-      setIsRealtimeButtonAnimating(true);
-      if (realtimeAnimTimerRef.current) clearTimeout(realtimeAnimTimerRef.current);
-      realtimeAnimTimerRef.current = setTimeout(() => {
-        setIsRealtimeButtonAnimating(false);
-      }, 550);
-    }
-  }, [realtimeStage]);
-
-  useEffect(() => {
-    return () => {
-      if (realtimeAnimTimerRef.current) clearTimeout(realtimeAnimTimerRef.current);
-    };
-  }, []);
 
   if (mode === 'realtime-voice' && realtimeVoiceProps) {
     const rv = realtimeVoiceProps;
@@ -207,55 +179,13 @@ export function ChatInputBar({
         {/* Compact connected control row */}
         {rv.status === 'connected' && !rv.isWaitingForGreeting && (
           <div className="flex flex-wrap items-center gap-2 py-1.5 px-2" data-testid="realtime-control-row">
-            {/* End conversation button */}
-            {(() => {
-              const progressPct = rv.currentTurn !== undefined && rv.targetTurns
-                ? Math.min((rv.currentTurn / rv.targetTurns) * 100, 100)
-                : 0;
-              const pi = getProgressInfo(progressPct);
-              const turnsLeft = rv.targetTurns ? Math.max(rv.targetTurns - (rv.currentTurn ?? 0), 0) : 0;
-              return (
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={rv.onEndConversation}
-                        disabled={rv.isRecording || rv.isAISpeaking}
-                        data-testid="button-end-conversation-realtime"
-                        className={`shrink-0 min-h-[36px] min-w-[36px] h-9 border transition-all duration-300 text-xs px-2 ${
-                          pi.isGreen
-                            ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
-                            : pi.isAmber
-                            ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-500'
-                            : pi.showWarningIcon
-                            ? 'text-slate-400 border-slate-200 hover:bg-slate-50 opacity-80'
-                            : 'text-red-600 border-red-200 hover:bg-red-50'
-                        }${isRealtimeButtonAnimating ? ' animate-btn-pop' : ''}`}
-                      >
-                        {pi.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
-                        {pi.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
-                        {pi.isAmber && <i className="fas fa-star mr-1 text-xs"></i>}
-                        {!pi.showWarningIcon && !pi.isGreen && !pi.isAmber && <i className="fas fa-stop-circle mr-1"></i>}
-                        {pi.showBadge && rv.currentTurn !== undefined && rv.targetTurns ? (
-                          <span>{rv.currentTurn}/{rv.targetTurns}</span>
-                        ) : (
-                          <span>{t(pi.stage === 'complete' ? 'chat.almostDoneEnd' : pi.endButtonLabelKey)}</span>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      {pi.stage === 'early'
-                        ? t('chat.exitWarningTooltip', { count: turnsLeft })
-                        : pi.stage === 'mid'
-                        ? t('chat.progressBadgeTooltip', { current: rv.currentTurn, target: rv.targetTurns })
-                        : t('chat.almostDoneTitle')}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              );
-            })()}
+            <ConversationModeMenu
+              currentMode="realtime-voice"
+              onTextModeToggle={onTextModeToggle}
+              onLiveAvatarOptions={onLiveAvatarOptions}
+              disabled={rv.isSwitchingMode}
+              textDisabled={rv.isAISpeaking}
+            />
 
             {/* Mic button — color encodes state: red=recording, blue=AI speaking */}
             <button
@@ -293,13 +223,6 @@ export function ChatInputBar({
                   : 'fa-microphone'
               }`}></i>
             </button>
-
-            <ConversationModeMenu
-              onTextModeToggle={onTextModeToggle}
-              onLiveAvatarOptions={onLiveAvatarOptions}
-              disabled={rv.isSwitchingMode}
-              textDisabled={rv.isAISpeaking}
-            />
 
             {/* Unified audio settings: single gear button with current-device chip */}
             {(rv.onVadSensitivityChange || rv.onInputDeviceChange || rv.onOutputDeviceChange) && (() => {
@@ -626,6 +549,7 @@ export function ChatInputBar({
         {!(rv.status === 'connected' && !rv.isWaitingForGreeting) && (
           <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
             <ConversationModeMenu
+              currentMode="realtime-voice"
               onTextModeToggle={onTextModeToggle}
               onLiveAvatarOptions={onLiveAvatarOptions}
               disabled={rv.isSwitchingMode}
@@ -641,6 +565,12 @@ export function ChatInputBar({
 
   return (
     <div className="flex items-center gap-2">
+      <ConversationModeMenu
+        currentMode="text"
+        onVoiceModeToggle={onTextModeToggle}
+        onLiveAvatarOptions={onLiveAvatarOptions}
+      />
+
       {/* Mic button */}
       <TooltipProvider delayDuration={300}>
         <Tooltip>

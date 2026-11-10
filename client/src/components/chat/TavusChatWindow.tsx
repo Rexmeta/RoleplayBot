@@ -550,7 +550,7 @@ export default function TavusChatWindow({
       elapsedSeconds={elapsedSeconds}
       remainingSeconds={remainingSeconds}
       preStartControls={startControls}
-      onExitMode={!started ? () => onExitMode("text") : undefined}
+      onExitMode={!started ? onExitMode : undefined}
       requiresAttention={Boolean(apiDisplayError) || session.state === "create_unknown" || session.state === "ended"}
       headerActions={
         <button

@@ -26,7 +26,7 @@ export interface TavusConversationLayoutProps {
   transcriptMessages: ConversationMessage[];
   captionsAreProvisional: boolean;
   hasCaptionEvents: boolean;
-  onExitMode?: () => void;
+  onExitMode?: (mode: "text" | "realtime-voice") => void;
   requiresAttention?: boolean;
 }
 
@@ -193,9 +193,10 @@ export default function TavusConversationLayout({
                   {onExitMode ? <Play className="h-5 w-5" aria-hidden="true" /> : <Settings2 className="h-5 w-5" aria-hidden="true" />}
                 </button>}
                 <ConversationModeMenu
-                  onTextModeToggle={onExitMode}
-                  onLiveAvatarOptions={() => setIsOptionsOpen(true)}
-                  textDisabled={!onExitMode || active}
+                  currentMode="live-avatar"
+                  onTextModeToggle={onExitMode ? () => onExitMode("text") : undefined}
+                  onVoiceModeToggle={onExitMode ? () => onExitMode("realtime-voice") : undefined}
+                  disabled={!onExitMode || active}
                 />
               </div>
             </VoiceControlSurface>

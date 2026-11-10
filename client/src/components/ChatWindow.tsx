@@ -40,6 +40,7 @@ import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
 import type { VideoAvatarRenderer } from "@/lib/avatar/VideoAvatarRenderer";
 import { ChatInputBar } from "@/components/chat/ChatInputBar";
+import { ConversationModeMenu } from "@/components/chat/ConversationModeMenu";
 import { useAvatarStateMachine } from "@/hooks/useAvatarStateMachine";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 import { isIOSWebKitAudioPlatform } from "@/lib/iosAudioSession";
@@ -1417,14 +1418,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                               </div>
                               {!showInputMode && (
                                 <div className="border-t border-slate-200/30 px-4 py-2 flex justify-between items-center">
-                                  <button
-                                    onClick={() => setShowVoiceModeConfirmDialog(true)}
-                                    className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-purple-300 transition-colors"
-                                    data-testid="button-switch-to-voice-collapsed"
-                                  >
-                                    <i className="fas fa-microphone text-purple-500 text-xs"></i>
-                                    <span className="text-slate-600">{t('chat.switchToVoice', { defaultValue: '음성으로 전환' })}</span>
-                                  </button>
                                   <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-inline" size="sm">
                                     <i className="fas fa-comment mr-1"></i>{t('chat.startChat')}
                                   </Button>
@@ -1446,16 +1439,16 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                                   <Button variant="outline" size="sm" onClick={handleSkipTurn} disabled={isLoading} data-testid="button-skip-turn-text">Skip</Button>
                                 </div>
                               </div>
-                              <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
-                                <button
-                                  onClick={() => setShowVoiceModeConfirmDialog(true)}
-                                  className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-purple-300 transition-colors"
-                                  data-testid="button-switch-to-voice"
-                                >
-                                  <i className="fas fa-microphone text-purple-500 text-xs"></i>
-                                  <span className="text-slate-600">{t('chat.switchToVoice', { defaultValue: '음성으로 전환' })}</span>
-                                </button>
-                              </div>
+                            </div>
+                          )}
+                          {conversation.turnCount < MAX_TURNS && (
+                            <div className="flex shrink-0 justify-center border-t border-slate-100 px-3 py-2">
+                              <ConversationModeMenu
+                                currentMode="text"
+                                onVoiceModeToggle={() => setShowVoiceModeConfirmDialog(true)}
+                                onLiveAvatarOptions={liveAvatarSelection.data?.configured ? switchToLiveAvatar : undefined}
+                                disabled={isSwitchingMode || isLoading}
+                              />
                             </div>
                           )}
                           {conversation.turnCount >= MAX_TURNS && (
@@ -1853,7 +1846,7 @@ export default function ChatWindow(props: ChatWindowProps) {
               {restoreText("textMode", "Text conversation", "텍스트 대화")}
             </Button>
             <Button variant="outline" onClick={() => { setStandardMode("realtime-voice"); setMode("standard"); }}>
-              {restoreText("nativeMode", "Existing realtime voice", "기존 실시간 음성 대화")}
+              {restoreText("voiceMode", "Voice conversation", "음성 대화")}
             </Button>
             <Button onClick={() => setMode("tavus")}>{t("chat.liveAvatar", "라이브 아바타")}</Button>
             <Button variant="ghost" onClick={props.onExit}>{restoreText("exit", "Exit", "나가기")}</Button>
