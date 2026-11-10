@@ -5,6 +5,7 @@ import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getProgressInfo } from "@/lib/conversationProgress";
+import { ConversationModeMenu } from "./ConversationModeMenu";
 
 interface ChatInputBarProps {
   userInput: string;
@@ -17,6 +18,7 @@ interface ChatInputBarProps {
   speechSupported: boolean;
   mode?: 'text' | 'realtime-voice';
   onTextModeToggle?: () => void;
+  onLiveAvatarOptions?: () => void;
   realtimeVoiceProps?: {
     status: string;
     isRecording: boolean;
@@ -82,6 +84,7 @@ export function ChatInputBar({
   speechSupported,
   mode = 'text',
   onTextModeToggle,
+  onLiveAvatarOptions,
   realtimeVoiceProps,
   historyCount,
   onHistoryClick,
@@ -291,16 +294,12 @@ export function ChatInputBar({
               }`}></i>
             </button>
 
-            {/* Text mode toggle */}
-            <button
-              onClick={onTextModeToggle}
-              disabled={rv.isAISpeaking || rv.isSwitchingMode}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-              data-testid="button-text-mode-toggle"
-            >
-              <i className="fas fa-keyboard text-slate-500 text-[11px]"></i>
-              <span className="text-slate-600">{t('chat.switchToText', { defaultValue: '텍스트' })}</span>
-            </button>
+            <ConversationModeMenu
+              onTextModeToggle={onTextModeToggle}
+              onLiveAvatarOptions={onLiveAvatarOptions}
+              disabled={rv.isSwitchingMode}
+              textDisabled={rv.isAISpeaking}
+            />
 
             {/* Unified audio settings: single gear button with current-device chip */}
             {(rv.onVadSensitivityChange || rv.onInputDeviceChange || rv.onOutputDeviceChange) && (() => {
@@ -624,17 +623,14 @@ export function ChatInputBar({
           </div>
         )}
 
-        {onTextModeToggle && !(rv.status === 'connected' && !rv.isWaitingForGreeting) && (
+        {!(rv.status === 'connected' && !rv.isWaitingForGreeting) && (
           <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
-            <button
-              onClick={onTextModeToggle}
-              disabled={rv.isAISpeaking || rv.isSwitchingMode}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              data-testid="button-text-mode-toggle-persistent"
-            >
-              <i className="fas fa-keyboard text-slate-500 text-xs"></i>
-              <span className="text-slate-600">{t('chat.switchToText', { defaultValue: '텍스트로 대화' })}</span>
-            </button>
+            <ConversationModeMenu
+              onTextModeToggle={onTextModeToggle}
+              onLiveAvatarOptions={onLiveAvatarOptions}
+              disabled={rv.isSwitchingMode}
+              textDisabled={rv.isAISpeaking}
+            />
           </div>
         )}
       </>

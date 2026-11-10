@@ -35,6 +35,7 @@ import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
 import { LiveAvatarChoice } from "@/components/chat/LiveAvatarChoice";
+import { LiveAvatarOptionsDialog } from "@/components/chat/LiveAvatarOptionsDialog";
 import { LiveAvatarEntry, useLiveAvatarSelection, type LiveAvatarPlaybackState } from "@/components/chat/LiveAvatarEntry";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
@@ -125,6 +126,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
   const [liveAvatarOptionsRequest, setLiveAvatarOptionsRequest] = useState(0);
+  const [liveAvatarOptionsOpen, setLiveAvatarOptionsOpen] = useState(false);
   const [liveAvatarPortraitHost, setLiveAvatarPortraitHost] = useState<HTMLDivElement | null>(null);
   const [isSilenceIdle, setIsSilenceIdle] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
@@ -190,6 +192,9 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const [latestPersonaSwitch, setLatestPersonaSwitch] = useState<{ name: string; transitionLine: string } | null>(null);
   const personaSwitchBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePersona, setActivePersona] = useState<ScenarioPersona>(persona);
+  useEffect(() => {
+    setLiveAvatarOptionsOpen(false);
+  }, [conversationId, activePersona.id, inputMode]);
   const liveAvatarSelection = useLiveAvatarSelection(conversationId, activePersona.id);
   const [liveAvatarPlayback, setLiveAvatarPlayback] = useState<{ actorId: string; state: LiveAvatarPlaybackState } | null>(null);
   const updateLiveAvatarPlayback = useCallback((state: LiveAvatarPlaybackState) => {
@@ -464,7 +469,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     runData?.scenarioSnapshot?.scenarioSnapshot?._organizationOverride ?? null) as OrganizationOverrideMetadata;
 
   const openLiveAvatarOptions = useCallback(() => {
-    setIsTopMenuOpen(true);
+    setLiveAvatarOptionsOpen(true);
     setLiveAvatarOptionsRequest(value => value + 1);
   }, []);
 
@@ -970,7 +975,10 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     <>
       <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)}>
         {inputMode === "realtime-voice" && scenarioRunQuery.isSuccess && <ScenarioOverrideSummary metadata={overrideMetadata} />}
-        {liveAvatarSelection.data?.configured && <LiveAvatarChoice
+      </TopMenuPanel>
+      {liveAvatarSelection.data?.configured && (
+        <LiveAvatarOptionsDialog open={liveAvatarOptionsOpen} onClose={() => setLiveAvatarOptionsOpen(false)}>
+          <LiveAvatarChoice
           key={conversationId}
           conversationId={conversationId}
           voiceMode={inputMode === 'realtime-voice'}
@@ -978,8 +986,9 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
           actorId={activePersona.id}
           optionsRequest={liveAvatarOptionsRequest}
           onPlaybackStateChange={updateLiveAvatarPlayback}
-        />}
-      </TopMenuPanel>
+          />
+        </LiveAvatarOptionsDialog>
+      )}
 
       <div className="chat-window relative">
         {scenarioRunId && (
@@ -1212,7 +1221,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                   <LiveAvatarEntry
                     conversationId={conversationId}
                     actorId={activePersona.id}
-                    optionsOpen={isTopMenuOpen}
+                    optionsOpen={liveAvatarOptionsOpen}
                     onOpenOptions={openLiveAvatarOptions}
                     playbackState={liveAvatarPlayback?.actorId === activePersona.id ? liveAvatarPlayback.state : "idle"}
                   />
@@ -1413,6 +1422,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                               onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
                               isRecording={isRecording} speechSupported={speechSupported}
                               mode="realtime-voice" realtimeVoiceProps={rvBarProps}
+                              onLiveAvatarOptions={liveAvatarSelection.data?.configured ? openLiveAvatarOptions : undefined}
                               onTextModeToggle={() => {
                                 if (handleSwitchToTextModeRef.current) {
                                   handleSwitchToTextModeRef.current();

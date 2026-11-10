@@ -41,7 +41,7 @@ export function LiveAvatarEntry({ conversationId, actorId, optionsOpen, onOpenOp
   }, [optionsOpen, selectionQuery.refetch]);
 
   if (!selectionQuery.data?.configured) return null;
-  // The idle card only duplicates the live-avatar controls in the top menu.
+  // The idle card only duplicates the live-avatar controls in the bottom menu.
   // Keep the portrait clear until there is a real status worth surfacing.
   if (!selectionQuery.isError && selectionQuery.data.enabled && selectionQuery.data.allowed &&
       playbackState === "idle") return null;
