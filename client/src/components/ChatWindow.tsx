@@ -36,6 +36,7 @@ import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
 import { LiveAvatarChoice } from "@/components/chat/LiveAvatarChoice";
 import { LiveAvatarOptionsDialog } from "@/components/chat/LiveAvatarOptionsDialog";
+import { VoiceControlSurface, VoiceOverlayHeader } from "@/components/chat/VoiceConversationChrome";
 import { LiveAvatarEntry, useLiveAvatarSelection, type LiveAvatarPlaybackState } from "@/components/chat/LiveAvatarEntry";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
@@ -970,6 +971,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     onRequestInputPermission: realtimeVoice.requestInputDevicePermission,
     isSwitchingMode,
   };
+  const ConversationSurface = inputMode === "realtime-voice" ? VoiceControlSurface : Card;
 
   return (
     <>
@@ -1113,7 +1115,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
                 <div className="relative flex-1 overflow-hidden">
                   {/* Mobile overlay header – unified bar: avatar + name/role + progress + elapsed + NPC toggle + end button */}
-                  <div className="lg:hidden absolute top-0 left-0 right-0 z-20 bg-black/50 backdrop-blur-sm px-3 pt-2 pb-2">
+                  <VoiceOverlayHeader className="lg:hidden absolute top-0 left-0 right-0 z-20 px-3 pt-2 pb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {/* Persona avatar thumbnail */}
                       <div className="relative shrink-0">
@@ -1195,7 +1197,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                         style={{ width: `${progressPercentage}%` }}
                       />
                     </div>
-                  </div>
+                  </VoiceOverlayHeader>
 
                   {(renderer as VideoAvatarRenderer).containerEl ? (
                     <VideoAvatarPortrait
@@ -1344,7 +1346,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     className={inputMode !== 'realtime-voice' ? "absolute inset-0 z-20 flex flex-col" : "absolute left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4"}
                     style={inputMode === 'realtime-voice' ? { bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' } : undefined}
                   >
-                    <Card className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
+                    <ConversationSurface className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
                       {inputMode === 'realtime-voice' ? (
                         <>
                           {isInlineTextOpen && (
@@ -1583,7 +1585,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                           </Button>
                         </div>
                       )}
-                    </Card>
+                    </ConversationSurface>
                   </div>
                 </div>
             </div>
@@ -1927,7 +1929,10 @@ export default function ChatWindow(props: ChatWindowProps) {
         onChatComplete={props.onChatComplete}
         onExit={props.onExit}
         onReady={notifyReady}
-        onExitMode={() => setMode('standard')}
+        onExitMode={nextMode => {
+          if (nextMode) setStandardMode(nextMode);
+          setMode('standard');
+        }}
       />
     );
   }

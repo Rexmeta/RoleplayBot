@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { ConversationMessage } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { toMediaUrl } from "@/lib/mediaUrl";
 import DailyAvatarRoom from "./DailyAvatarRoom";
 import ManagedAvatarRoom from "./ManagedAvatarRoom";
 import TavusConversationLayout from "./TavusConversationLayout";
@@ -35,7 +36,7 @@ type Props = {
   onChatComplete: () => void;
   onExit: () => void;
   onReady?: () => void;
-  onExitMode: () => void;
+  onExitMode: (mode?: "text" | "realtime-voice") => void;
 };
 
 const sessionUrl = (id: string) => `/api/tavus/conversations/${encodeURIComponent(id)}`;
@@ -418,19 +419,21 @@ export default function TavusChatWindow({
       onError={(message) => setConnectionError({ code: "DAILY_ROOM_ERROR", message })}
     />
   ) : (
-    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto px-6 py-8 text-center">
-      <div className="mb-4 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white/80 shadow-sm">
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-slate-900 px-6 py-8 text-center">
+      {persona.image && <img src={toMediaUrl(persona.image)} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />}
+      <div className="absolute inset-0 bg-black/30" />
+      <div className="relative mb-4 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-black/30 text-white/80 backdrop-blur-sm">
         {busy || loading ? <LoaderCircle className="h-7 w-7 animate-spin" /> : <Mic2 className="h-7 w-7" />}
       </div>
-      <h2 className="text-lg font-semibold text-white">
+      <h2 className="relative text-lg font-semibold text-white">
         {session.state === "ended" ? text("closedTitle", "This session is closed", "이 세션은 종료되었습니다") :
           loading ? text("loading", "Checking session availability", "세션 상태를 확인하고 있습니다") :
-            text("roomReady", "A private room, when you are ready", "원할 때 비공개 대화 공간을 시작할 수 있습니다")}
+            text("voiceReady", "Ready to talk", "대화할 준비가 되었습니다")}
       </h2>
-      <p className="mt-2 max-w-md break-words text-sm leading-6 text-white/70">
+      <p className="relative mt-2 max-w-md break-words text-sm leading-6 text-white/80">
         {session.state === "ended"
           ? text("closedDescription", "The room is closed. Confirmed history will appear in the conversation panel when available.", "대화 공간이 종료되었습니다. 확인된 기록은 제공되는 대로 대화 패널에 표시됩니다.")
-          : text("roomDescription", "Your session-specific PAL connects through Daily. Nothing starts until you consent and choose to begin.", "이 세션 전용 PAL은 Daily를 통해 연결됩니다. 동의하고 시작을 선택하기 전에는 아무것도 시작되지 않습니다.")}
+          : text("liveReadyHint", "Use the controls below to review consent and begin.", "하단에서 이용 동의를 확인한 뒤 대화를 시작하세요.")}
       </p>
     </div>
   );
@@ -528,10 +531,12 @@ export default function TavusChatWindow({
     <TavusConversationLayout
       scenario={scenario}
       persona={persona}
-      statusLabel={`${isAnam ? "Anam · " : ""}${labels[session.state]}`}
+      statusLabel={labels[session.state]}
       active={session.state === "active"}
       elapsedSeconds={elapsedSeconds}
       remainingSeconds={remainingSeconds}
+      onExitMode={!started ? () => onExitMode("text") : undefined}
+      requiresAttention={Boolean(apiDisplayError) || session.state === "create_unknown" || session.state === "ended"}
       headerActions={
         <button
           type="button"
@@ -570,7 +575,9 @@ export default function TavusChatWindow({
           {!started && <div className="border-t border-[#dce5e5] pt-4">
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-3.5">
               <input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#317367]" data-testid="tavus-consent" />
-              <span className="text-xs leading-5 text-[#53696d]">{text("consent", "I consent to sending my audio and conversation context to Tavus and its service providers to run this session.", "이 세션을 위해 내 음성과 대화 맥락을 Tavus 및 서비스 제공자에게 전송하는 데 동의합니다.")}</span>
+              <span className="text-xs leading-5 text-[#53696d]">{isAnam
+                ? text("anamConsent", "I consent to sending my audio to Anam through AvatarRouter. A paid session starts only when I choose Start.", "AvatarRouter를 통해 Anam에 내 음성을 전송하는 데 동의합니다. 시작 버튼을 눌러야 유료 세션이 생성됩니다.")
+                : text("consent", "I consent to sending my audio and conversation context to Tavus and its service providers to run this session.", "이 세션을 위해 내 음성과 대화 맥락을 Tavus 및 서비스 제공자에게 전송하는 데 동의합니다.")}</span>
             </label>
             <button type="button" onClick={() => void start()} disabled={!consent || busy || loading || !config?.available || startedRef.current} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-corporate-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-corporate-700 disabled:cursor-not-allowed disabled:opacity-50" data-testid="tavus-start">
               {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}{text("start", "Start Tavus session", "Tavus 세션 시작")}
