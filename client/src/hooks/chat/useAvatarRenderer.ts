@@ -158,7 +158,7 @@ export function useAvatarRenderer({
   // flag changes after mount (e.g. from a scenario refresh), the renderer must
   // reinitialize with the new video configuration.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rendererInstance, persona.id, persona.name, persona.mbti, persona.gender, persona.expressions, persona.videos, conversationId]);
+  }, [rendererInstance, persona.id, persona.name, persona.mbti, persona.gender, persona.image, persona.expressions, persona.videos, conversationId]);
 
   // ── Step 3: Destroy on unmount ─────────────────────────────────────────────
   // Uses ref so it always reaches the most-recent renderer instance.

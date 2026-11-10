@@ -37,3 +37,11 @@ persona reference can differ; template-only reads can incorrectly report a saved
 **How to apply:** Resolve native runtime media from the selected persona's saved settings.
 Keep immutable published/run snapshots authoritative, and do not change dialogue behavior
 template resolution as a side effect of fixing media selection.
+
+Treat convention-based scenario portraits as derived media, but preserve explicitly
+chosen custom portraits when repairing stale gender/persona references.
+**Why:** Editing a scenario's gender or selected persona can leave its old generated
+portrait saved; the selector computes a fresh portrait while chat uses the saved one.
+**How to apply:** Check the stored portrait's persona and gender against the current
+selection on read. Do not rewrite historical run snapshots or use another gender as
+the replacement for a known gender mismatch.

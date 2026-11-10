@@ -336,7 +336,20 @@ export class FileManagerService {
           // chat portrait with no static fallback behind the video buffers (blank frame
           // whenever a clip fails to load).
           const needsVideos = !withMbti.videos?.clips;
-          const needsImage = !withMbti.image;
+          // Editors can retain a previously generated portrait after changing
+          // gender or personaRef. Only repair convention-based portraits;
+          // explicitly chosen custom images must remain untouched.
+          const portrait = typeof withMbti.image === 'string'
+            ? withMbti.image.match(/^\/?personas\/([^/]+)\/(male|female)\/[^/?#]+$/)
+            : null;
+          const gender = withMbti.gender === 'female' ? 'female' : 'male';
+          const stalePortrait = !!portrait &&
+            (portrait[1] !== mbtiId || portrait[2] !== gender);
+          const needsImage = !withMbti.image || stalePortrait;
+          const correctedImage = stalePortrait
+            ? `personas/${mbtiId}/${gender}/neutral.webp`
+            : undefined;
+          const correctedPersona = correctedImage ? { ...withMbti, image: correctedImage } : withMbti;
 
           if (mbtiId && (needsVideos || needsImage)) {
             try {
@@ -347,11 +360,15 @@ export class FileManagerService {
                   patch.videos = dbMbti.videos;
                 }
                 if (needsImage) {
-                  const baseImage = resolveMbtiBaseImage(dbMbti.images, withMbti.gender);
+                  // Do not replace a stale male portrait with another male
+                  // fallback when the requested female portrait is absent.
+                  const baseImage = stalePortrait
+                    ? resolveMbtiBaseImage({ [gender]: dbMbti.images?.[gender] }, gender)
+                    : resolveMbtiBaseImage(dbMbti.images, withMbti.gender);
                   if (baseImage) patch.image = baseImage;
                 }
                 if (Object.keys(patch).length > 0) {
-                  return { ...withMbti, ...patch };
+                  return { ...correctedPersona, ...patch };
                 }
               }
             } catch {
@@ -359,7 +376,7 @@ export class FileManagerService {
             }
           }
 
-          return withMbti;
+          return correctedPersona;
         })
       );
       scenario.personas = enrichedPersonas;
