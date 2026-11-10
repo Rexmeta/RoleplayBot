@@ -29,7 +29,7 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
       setUncertain(data.creationUncertain);
       const recovered = data.sessions.find(s => !avatarTestTerminal(s));
       if (recovered) { sessionRef.current = recovered; setSession(recovered); }
-    } catch { if (mounted.current) setError("Anam 상태를 확인하지 못했습니다. 새 세션을 시작하지 마세요."); }
+    } catch { if (mounted.current) setError("라이브 아바타 상태를 확인하지 못했습니다. 새 세션을 시작하지 마세요."); }
   }, []);
   const keepaliveEnd = () => {
     const current = sessionRef.current;
@@ -97,13 +97,13 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
     } catch { if (mounted.current) setError("종료를 확인하지 못했습니다. 종료 요청을 다시 시도하세요."); }
     finally { if (mounted.current) setBusy(false); }
   };
-  return <section className="space-y-3 border-t pt-4" aria-label="Anam 기본 아바타 테스트">
-    <h4 className="font-semibold">Anam 저장 페르소나 테스트</h4>
-    <p className="text-sm text-slate-600">Anam이 마이크·대화·음성을 담당합니다. Gemini는 동시에 실행하지 않습니다. 라우터에 저장된 페르소나를 사용하며 이 앱의 시나리오 지침과 평가 기록은 전달되지 않습니다.</p>
+  return <section className="space-y-3 border-t pt-4" aria-label="기본 아바타 테스트">
+    <h4 className="font-semibold">기본 아바타 테스트</h4>
+    <p className="text-sm text-slate-600">외부 서비스가 마이크·대화·음성을 처리합니다. 다른 음성 응답 기능은 동시에 실행하지 않습니다. 서비스에 저장된 페르소나를 사용하며 이 앱의 시나리오 지침과 평가 기록은 전달되지 않습니다.</p>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={consent} disabled={busy || !!session && !terminal}
       onChange={e => setConsent(e.target.checked)} />유료 세션 생성과 마이크·음성 전송에 동의합니다.</label>
     <div className="flex gap-2">
-      <Button type="button" disabled={!consent || !preflight?.ready || busy || uncertain || !!session && !terminal} onClick={() => void start()}>Anam 테스트 시작</Button>
+      <Button type="button" disabled={!consent || !preflight?.ready || busy || uncertain || !!session && !terminal} onClick={() => void start()}>기본 아바타 테스트 시작</Button>
       <Button type="button" variant="outline" onClick={() => void refresh()} disabled={busy}>상태 확인</Button>
       {session && !terminal && <Button type="button" variant="outline" disabled={busy} onClick={() => void end()}>종료 요청</Button>}
     </div>

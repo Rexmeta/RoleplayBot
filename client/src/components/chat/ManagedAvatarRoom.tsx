@@ -88,7 +88,7 @@ export default function ManagedAvatarRoom({ endpoint, onError }: {
             if (cancelled) return;
             setState(next);
             if (next === "error" || next === "failed") {
-              errorRef.current?.("Anam 연결에 실패했습니다. 자동 재연결하지 않고 종료를 요청합니다.");
+              errorRef.current?.("라이브 아바타 연결에 실패했습니다. 자동 재연결하지 않고 종료를 요청합니다.");
               stop();
             }
           },
@@ -98,7 +98,7 @@ export default function ManagedAvatarRoom({ endpoint, onError }: {
       })().catch(() => {
         if (!cancelled) {
           setState("failed");
-          errorRef.current?.("Anam 미디어를 시작하지 못했습니다. 마이크·재생 권한과 서버 상태를 확인하세요. 새 세션을 자동 생성하지 않습니다.");
+          errorRef.current?.("라이브 아바타를 시작하지 못했습니다. 마이크·재생 권한과 연결 상태를 확인하세요. 새 세션을 자동 생성하지 않습니다.");
         }
         stop();
       });
@@ -115,7 +115,7 @@ export default function ManagedAvatarRoom({ endpoint, onError }: {
   return <div className="relative h-full min-h-64 bg-slate-950" data-testid="managed-avatar-room">
     <video id={`managed-avatar-${id}`} ref={video} autoPlay playsInline className="h-full w-full object-cover" />
     <span role="status" className="absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-xs text-white">
-      Anam · {state === "playing" ? "영상 재생 중" : state === "connected" ? "연결됨 · 재생 대기" : state === "ended" ? "로컬 재생 종료" : state === "failed" ? "연결 실패" : "연결 준비 중"}
+      {state === "playing" ? "영상 재생 중" : state === "connected" ? "연결됨 · 재생 대기" : state === "ended" ? "로컬 재생 종료" : state === "failed" ? "연결 실패" : "연결 준비 중"}
     </span>
     <button type="button" className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] right-3 rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur-sm"
       onClick={() => void clientRef.current?.interrupt().catch(() => errorRef.current?.("끼어들기 요청에 실패했습니다."))}>

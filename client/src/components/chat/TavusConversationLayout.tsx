@@ -21,6 +21,7 @@ export interface TavusConversationLayoutProps {
   headerActions: ReactNode;
   stage: ReactNode;
   sessionControls: ReactNode;
+  preStartControls?: ReactNode;
   history: ReactNode;
   transcriptMessages: ConversationMessage[];
   captionsAreProvisional: boolean;
@@ -44,6 +45,7 @@ export default function TavusConversationLayout({
   headerActions,
   stage,
   sessionControls,
+  preStartControls,
   history,
   transcriptMessages,
   captionsAreProvisional,
@@ -170,12 +172,13 @@ export default function TavusConversationLayout({
               data-testid="tavus-control-surface"
               className="mx-auto flex w-full max-w-4xl flex-col items-center gap-1 px-3 py-2 lg:max-w-6xl xl:max-w-[90%]"
             >
+              {preStartControls}
               <div className="flex min-w-0 items-center gap-2 text-[11px] text-slate-600">
                 <span className={`h-2 w-2 shrink-0 rounded-full ${active ? "bg-emerald-500" : "bg-slate-400"}`} />
                 <span className="truncate">{statusLabel}</span>
               </div>
               <div className="flex shrink-0 items-center justify-center gap-3">
-                <button
+                {!preStartControls && <button
                   type="button"
                   onClick={() => setIsOptionsOpen(true)}
                   className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white shadow-md transition-colors hover:bg-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
@@ -188,7 +191,7 @@ export default function TavusConversationLayout({
                   data-testid="button-open-live-avatar-settings"
                 >
                   {onExitMode ? <Play className="h-5 w-5" aria-hidden="true" /> : <Settings2 className="h-5 w-5" aria-hidden="true" />}
-                </button>
+                </button>}
                 <ConversationModeMenu
                   onTextModeToggle={onExitMode}
                   onLiveAvatarOptions={() => setIsOptionsOpen(true)}

@@ -67,6 +67,21 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it("opens directly on the avatar canvas with inline consent and neutral copy, not a settings screen", async () => {
+    apiRequestMock.mockImplementation(async (_method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, providerId: "anam", blockers: [] });
+      return response({ state: "idle" });
+    });
+    const view = render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="direct-live" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTestId("tavus-control-surface").textContent).toContain("saved avatar persona"));
+    expect((screen.getByTestId("live-avatar-options-dialog") as HTMLDialogElement).open).toBe(false);
+    expect(screen.getByTestId("tavus-control-surface").contains(screen.getByTestId("tavus-consent"))).toBe(true);
+    expect(screen.getByTestId("tavus-control-surface").contains(screen.getByTestId("tavus-start"))).toBe(true);
+    expect(view.container.textContent).not.toMatch(/\b(Anam|Tavus)\b/i);
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+    expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("keeps the phone screen awake during a live session and releases it on end", async () => {
     const release = vi.fn().mockResolvedValue(undefined);
     const request = vi.fn().mockResolvedValue({
@@ -170,7 +185,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       return response({ state: "idle" });
     });
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="capacity" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    expect(await screen.findByText(/worker is not ready/)).toBeTruthy();
+    expect(await screen.findByText(/live avatar service is not ready/)).toBeTruthy();
     expect(screen.getByTestId("tavus-runtime-limits").textContent).toContain("80s");
     fireEvent.click(screen.getByTestId("tavus-consent"));
     expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(true);

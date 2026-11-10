@@ -68,17 +68,17 @@ export default function TavusChatWindow({
     t(`chat.tavus.${key}`, { defaultValue: i18n.language?.startsWith("ko") ? korean : english });
   const reasonText = (code: string) => {
     switch (code) {
-      case "avatar_runtime_worker_unavailable": return text("workerUnavailable", "AvatarRouter's worker is not ready. The router operator must check worker health.", "AvatarRouter 작업 서버가 준비되지 않았습니다. 라우터 운영자의 서버 상태 확인이 필요합니다.");
+      case "avatar_runtime_worker_unavailable": return text("workerUnavailable", "The live avatar service is not ready. Please try again later.", "라이브 아바타 서비스가 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.");
       case "avatar_runtime_cleanup_pending": return text("cleanupPending", "A previous avatar session is still being cleaned up. Check again after cleanup finishes; if it persists, contact the router operator.", "이전 아바타 세션을 정리 중입니다. 정리가 끝난 뒤 다시 확인하세요. 계속되면 라우터 운영자의 확인이 필요합니다.");
       case "avatar_runtime_user_budget_insufficient": return text("userBudget", "Your remaining avatar time is shorter than one session. Wait for the budget reset or ask the router operator to review the limit.", "사용자 잔여 시간이 한 세션에 필요한 시간보다 적습니다. 한도 초기화를 기다리거나 라우터 운영자에게 한도 확인을 요청하세요.");
       case "avatar_runtime_global_budget_insufficient": return text("globalBudget", "The project's remaining avatar time is insufficient. Wait for the budget reset or ask the router operator to review the limit.", "프로젝트 잔여 아바타 시간이 부족합니다. 한도 초기화를 기다리거나 라우터 운영자에게 한도 확인을 요청하세요.");
       case "avatar_runtime_creation_blocked": return text("creationBlocked", "AvatarRouter is blocking new sessions because of service capacity or cleanup restrictions. The router operator must check admission status.", "AvatarRouter가 서비스 용량 또는 정리 제한으로 새 세션 생성을 차단했습니다. 라우터 운영자의 생성 허용 상태 확인이 필요합니다.");
-      default: return code;
+      case "tavus_fresh_run_required": return text("freshLiveConversationRequired", "This conversation already has saved messages. Keep that history and start a new conversation in live avatar mode.", "이미 저장된 대화가 있습니다. 기존 기록을 보존하려면 새 대화에서 라이브 아바타를 선택해 주세요.");
+      default: return text("requestFailed", "The live avatar request could not be completed. Check its status before trying again.", "라이브 아바타 요청을 완료하지 못했습니다. 상태를 확인한 뒤 다시 시도해 주세요.");
     }
   };
-  const displayError = (details: { code: string; message: string }) =>
-    reasonText(details.code) !== details.code ? reasonText(details.code) :
-      details.code === details.message ? details.code : `${details.code}: ${details.message}`;
+  // Keep provider codes/messages for internal recovery, never as learner-facing copy.
+  const displayError = (details: { code: string; message: string }) => reasonText(details.code);
   const [session, setSession] = useState<Session>({ state: "idle" });
   const [config, setConfig] = useState<Config | null>(null);
   const [consent, setConsent] = useState(false);
@@ -526,6 +526,20 @@ export default function TavusChatWindow({
     utteranceId: caption.id,
   })) as unknown as ConversationMessage[];
   const transcriptMessages = canonicalTranscriptReady ? transcript.messages : provisionalMessages;
+  const startControls = !started ? (
+    <div className="w-full space-y-2">
+      <p className="text-center text-[11px] text-slate-600">{text("inlineLimit", "Up to 120 seconds, including connection time.", "연결 준비를 포함해 최대 120초 동안 이용할 수 있습니다.")}</p>
+      {isAnam && <p className="text-center text-[11px] text-slate-600">{text("inlineLiveLimitations", "Uses the saved avatar persona. Scenario-specific instructions and feedback are not supported for this connection.", "저장된 아바타로 대화하며, 현재 연결은 시나리오별 역할 지침과 대화 평가를 지원하지 않습니다.")}</p>}
+      {!loading && config && !config.available && <p role="status" className="text-center text-xs text-amber-800">{text("inlineUnavailable", "Live avatar is temporarily unavailable. Check connection status for details.", "현재 라이브 아바타를 시작할 수 없습니다. 연결 상태를 확인해 주세요.")}</p>}
+      <label className="flex cursor-pointer items-start justify-center gap-2">
+        <input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-purple-600" data-testid="tavus-consent" />
+        <span className="text-xs leading-5 text-slate-600">{text("liveConsent", "I agree to sending my audio to an external live avatar service and any usage charges. Nothing starts until I choose Start.", "음성을 외부 라이브 아바타 서비스에 전송하고 이용 요금이 발생할 수 있음에 동의합니다. 시작 버튼을 눌러야 연결됩니다.")}</span>
+      </label>
+      <button type="button" onClick={() => void start()} disabled={!consent || busy || loading || !config?.available || startedRef.current} className="flex w-full items-center justify-center gap-2 rounded-full bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50" data-testid="tavus-start">
+        {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}{text("liveStart", "Start live avatar", "라이브 아바타 시작")}
+      </button>
+    </div>
+  ) : null;
 
   return (
     <TavusConversationLayout
@@ -535,6 +549,7 @@ export default function TavusChatWindow({
       active={session.state === "active"}
       elapsedSeconds={elapsedSeconds}
       remainingSeconds={remainingSeconds}
+      preStartControls={startControls}
       onExitMode={!started ? () => onExitMode("text") : undefined}
       requiresAttention={Boolean(apiDisplayError) || session.state === "create_unknown" || session.state === "ended"}
       headerActions={
@@ -556,7 +571,7 @@ export default function TavusChatWindow({
       sessionControls={
         <div className="space-y-4">
           {!started && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
-            <p>{isAnam ? text("anamSavedPersona", "Anam uses the persona saved in AvatarRouter. Scenario instructions and confirmed transcript evaluation are not supported by this router contract.", "Anam은 AvatarRouter에 저장된 페르소나를 사용합니다. 현재 라우터 계약은 이 앱의 시나리오 지침 전달과 확정 대화록 평가를 지원하지 않습니다.") : text("noticePal", "This is a session-specific PAL, not a persistent recording.", "이 세션 전용 PAL이며 지속적으로 저장되는 녹음이 아닙니다.")}</p>
+            <p>{isAnam ? text("savedLivePersona", "This live conversation uses the saved avatar persona. Scenario-specific instructions and feedback are not supported for this connection.", "저장된 아바타 페르소나로 대화합니다. 현재 연결에서는 시나리오별 역할 지침과 대화 평가를 지원하지 않습니다.") : text("sessionOnlyAvatar", "This avatar connection is used only for the current conversation.", "이 아바타 연결은 현재 대화에만 사용됩니다.")}</p>
             <p className="mt-2 font-medium text-[#40595e]">{text("noticeLimit", "Maximum duration: 120 seconds, including queue and startup time.", "최대 이용 시간: 대기 및 시작을 포함해 120초입니다.")}</p>
             <p className="mt-2">{text("noticeTranscript", "Confirmed history, when supported, becomes available after the session ends.", "지원되는 경우 확인된 대화 기록은 세션 종료 후 제공됩니다.")}</p>
           </div>}
@@ -572,18 +587,6 @@ export default function TavusChatWindow({
             <p>{text("resetsAt", "Budget resets at", "한도 초기화 시각")}: {Number.isNaN(Date.parse(config.runtime.resetsAt)) ? config.runtime.resetsAt : new Date(config.runtime.resetsAt).toLocaleString(i18n.language)}</p>
           </div>}
           {loading && <div className="space-y-2" aria-label={text("loading", "Loading", "불러오는 중")}><div className="h-3 animate-pulse rounded bg-[#e3ebea]" /><div className="h-3 w-4/5 animate-pulse rounded bg-[#e3ebea]" /></div>}
-          {!started && <div className="border-t border-[#dce5e5] pt-4">
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-3.5">
-              <input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#317367]" data-testid="tavus-consent" />
-              <span className="text-xs leading-5 text-[#53696d]">{isAnam
-                ? text("anamConsent", "I consent to sending my audio to Anam through AvatarRouter. A paid session starts only when I choose Start.", "AvatarRouter를 통해 Anam에 내 음성을 전송하는 데 동의합니다. 시작 버튼을 눌러야 유료 세션이 생성됩니다.")
-                : text("consent", "I consent to sending my audio and conversation context to Tavus and its service providers to run this session.", "이 세션을 위해 내 음성과 대화 맥락을 Tavus 및 서비스 제공자에게 전송하는 데 동의합니다.")}</span>
-            </label>
-            <button type="button" onClick={() => void start()} disabled={!consent || busy || loading || !config?.available || startedRef.current} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-corporate-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-corporate-700 disabled:cursor-not-allowed disabled:opacity-50" data-testid="tavus-start">
-              {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}{text("start", "Start Tavus session", "Tavus 세션 시작")}
-            </button>
-            <p className="mt-2 text-center text-[11px] leading-4 text-[#829395]">{text("noAutoRetry", "A room creation is never retried automatically.", "대화 공간 생성은 자동으로 다시 시도하지 않습니다.")}</p>
-          </div>}
           {session.state === "active" && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
             <p className="text-xs text-slate-500">{text("scenario", "Scenario:", "시나리오:")} <span className="font-medium text-slate-700">{scenario.title}</span></p>
             <button type="button" onClick={() => void end()} disabled={busy} className="rounded-lg bg-[#a94338] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#90372f] disabled:opacity-60" data-testid="tavus-end">{ending ? text("endingButton", "Ending…", "종료 중…") : text("end", "End session", "세션 종료")}</button>

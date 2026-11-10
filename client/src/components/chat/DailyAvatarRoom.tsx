@@ -140,13 +140,13 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#24383b]" data-testid="daily-avatar-room">
-      <video ref={videoRef} autoPlay playsInline className="h-full w-full object-cover" aria-label="Tavus avatar video" data-testid="daily-remote-video" />
+      <video ref={videoRef} autoPlay playsInline className="h-full w-full object-cover" aria-label="Live avatar video" data-testid="daily-remote-video" />
       <audio ref={audioRef} autoPlay playsInline data-testid="daily-remote-audio" />
       {status === "joining" && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#24383b]/90 text-center text-sm text-[#e0ebe8]" role="status" data-testid="daily-joining">
         <LoaderCircle className="h-6 w-6 animate-spin" />Joining the private room…
       </div>}
       {status === "joined" && !remoteVideo && <div className="absolute inset-x-0 bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] flex justify-center" role="status" data-testid="daily-waiting-media">
-        <span className="rounded-full border border-white/15 bg-[#24383b]/80 px-3 py-1.5 text-xs text-[#e0ebe8]">Waiting for PAL video…</span>
+        <span className="rounded-full border border-white/15 bg-[#24383b]/80 px-3 py-1.5 text-xs text-[#e0ebe8]">Waiting for avatar video…</span>
       </div>}
       {status === "error" && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#24383b]/95 px-6 text-center text-sm text-[#f4e4df]" role="alert" data-testid="daily-room-error">
         <AlertTriangle className="h-6 w-6" /><span>{roomError}</span>

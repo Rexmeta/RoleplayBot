@@ -34,10 +34,8 @@ import { resolvePersonaAfterSwitch } from "@/components/chat/resolvePersonaAfter
 import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
-import { LiveAvatarChoice } from "@/components/chat/LiveAvatarChoice";
-import { LiveAvatarOptionsDialog } from "@/components/chat/LiveAvatarOptionsDialog";
 import { VoiceControlSurface, VoiceOverlayHeader } from "@/components/chat/VoiceConversationChrome";
-import { LiveAvatarEntry, useLiveAvatarSelection, type LiveAvatarPlaybackState } from "@/components/chat/LiveAvatarEntry";
+import { LiveAvatarEntry, useLiveAvatarSelection } from "@/components/chat/LiveAvatarEntry";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
 import type { VideoAvatarRenderer } from "@/lib/avatar/VideoAvatarRenderer";
@@ -76,10 +74,10 @@ export interface ChatWindowProps {
 
 interface StandardChatWindowProps extends Omit<ChatWindowProps, 'initialInputMode'> {
   initialInputMode?: 'text' | 'realtime-voice';
-  onSelectTavus?: () => void;
+  onSelectLiveAvatar?: () => void;
 }
 
-function StandardChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting, onSelectTavus }: StandardChatWindowProps) {
+function StandardChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting, onSelectLiveAvatar }: StandardChatWindowProps) {
   const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -126,9 +124,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
-  const [liveAvatarOptionsRequest, setLiveAvatarOptionsRequest] = useState(0);
-  const [liveAvatarOptionsOpen, setLiveAvatarOptionsOpen] = useState(false);
-  const [liveAvatarPortraitHost, setLiveAvatarPortraitHost] = useState<HTMLDivElement | null>(null);
   const [isSilenceIdle, setIsSilenceIdle] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState<number>(0);
@@ -163,9 +158,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
   const { toast } = useToast();
   const { user } = useAuth();
-  const { t, i18n } = useTranslation();
-  const tavusText = (key: string, english: string, korean: string) =>
-    t(`chat.tavus.${key}`, { defaultValue: i18n.language?.startsWith("ko") ? korean : english });
+  const { t } = useTranslation();
 
   const getPersonaGender = (): 'male' | 'female' => persona.gender ?? 'male';
 
@@ -193,14 +186,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const [latestPersonaSwitch, setLatestPersonaSwitch] = useState<{ name: string; transitionLine: string } | null>(null);
   const personaSwitchBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePersona, setActivePersona] = useState<ScenarioPersona>(persona);
-  useEffect(() => {
-    setLiveAvatarOptionsOpen(false);
-  }, [conversationId, activePersona.id, inputMode]);
   const liveAvatarSelection = useLiveAvatarSelection(conversationId, activePersona.id);
-  const [liveAvatarPlayback, setLiveAvatarPlayback] = useState<{ actorId: string; state: LiveAvatarPlaybackState } | null>(null);
-  const updateLiveAvatarPlayback = useCallback((state: LiveAvatarPlaybackState) => {
-    setLiveAvatarPlayback({ actorId: activePersona.id, state });
-  }, [activePersona.id]);
   const [personaSwitchAnnounced, setPersonaSwitchAnnounced] = useState(false);
   const conversationLedger = useConversationLedger(conversationId);
 
@@ -469,10 +455,19 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const overrideMetadata = (runData?.scenarioSnapshot?._organizationOverride ??
     runData?.scenarioSnapshot?.scenarioSnapshot?._organizationOverride ?? null) as OrganizationOverrideMetadata;
 
-  const openLiveAvatarOptions = useCallback(() => {
-    setLiveAvatarOptionsOpen(true);
-    setLiveAvatarOptionsRequest(value => value + 1);
-  }, []);
+  const switchToLiveAvatar = async () => {
+    if (!onSelectLiveAvatar || isSwitchingMode) return;
+    setIsSwitchingMode(true);
+    try {
+      await flushRealtimeMessagesRef.current?.(false);
+      realtimeVoice.disconnect();
+      onSelectLiveAvatar();
+    } catch {
+      toast({ title: t("chat.liveAvatarSwitchFailed", { defaultValue: "대화 기록을 저장하지 못했습니다. 다시 시도해 주세요." }), variant: "destructive" });
+    } finally {
+      setIsSwitchingMode(false);
+    }
+  };
 
   const { elapsedTime, setConversationStartTime, setElapsedTime } = useConversationTimer({
     conversation, maxTurns: MAX_TURNS,
@@ -887,14 +882,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
   // Keep this hook above every loading/error/ending exit so native chat calls
   // the same hooks before and after its conversation query resolves.
-  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; selectable?: boolean; blockers: string[]; providerId?: "tavus" | "anam" }>({
-    queryKey: ["/api/tavus/config", conversationId],
-    queryFn: async () => {
-      const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`);
-      return response.json();
-    },
-  });
-
   if (error) return (
     <div className="text-center py-8">
       <p className="text-red-600">대화를 불러올 수 없습니다.</p>
@@ -978,19 +965,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
       <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)}>
         {inputMode === "realtime-voice" && scenarioRunQuery.isSuccess && <ScenarioOverrideSummary metadata={overrideMetadata} />}
       </TopMenuPanel>
-      {liveAvatarSelection.data?.configured && (
-        <LiveAvatarOptionsDialog open={liveAvatarOptionsOpen} onClose={() => setLiveAvatarOptionsOpen(false)}>
-          <LiveAvatarChoice
-          key={conversationId}
-          conversationId={conversationId}
-          voiceMode={inputMode === 'realtime-voice'}
-          portraitHost={liveAvatarPortraitHost}
-          actorId={activePersona.id}
-          optionsRequest={liveAvatarOptionsRequest}
-          onPlaybackStateChange={updateLiveAvatarPlayback}
-          />
-        </LiveAvatarOptionsDialog>
-      )}
 
       <div className="chat-window relative">
         {scenarioRunId && (
@@ -1214,18 +1188,12 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       isTransitioning={isTransitioning} isSessionEnding={isSessionEnding}
                       isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
                   )}
-                  <div
-                    ref={setLiveAvatarPortraitHost}
-                    data-testid="live-avatar-portrait-host"
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 z-[5] overflow-hidden"
-                  />
                   <LiveAvatarEntry
                     conversationId={conversationId}
                     actorId={activePersona.id}
-                    optionsOpen={liveAvatarOptionsOpen}
-                    onOpenOptions={openLiveAvatarOptions}
-                    playbackState={liveAvatarPlayback?.actorId === activePersona.id ? liveAvatarPlayback.state : "idle"}
+                    optionsOpen={false}
+                    onOpenOptions={switchToLiveAvatar}
+                    playbackState="idle"
                   />
 
                   {latestPersonaSwitch && (
@@ -1292,32 +1260,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
                   )}
 
-                  {onSelectTavus && tavusConfig && tavusConfig.providerId !== "anam" && (
-                    <div className="absolute top-16 right-4 z-[18] max-w-[min(22rem,calc(100%-2rem))]">
-                      <button
-                        type="button"
-                        onClick={onSelectTavus}
-                        disabled={!(tavusConfig?.selectable ?? tavusConfig?.available)}
-                        data-testid="tavus-mode-entry"
-                        className="rounded-xl border border-white/25 bg-slate-950/75 px-4 py-3 text-left text-white shadow-lg backdrop-blur-md transition hover:bg-slate-900/90 disabled:cursor-not-allowed disabled:opacity-90"
-                      >
-                        <span className="block text-sm font-semibold">{tavusText("entry", "Try Tavus Full Pipeline", "Tavus 전체 파이프라인 사용")}</span>
-                        <span className="mt-1 block text-xs text-white/70">
-                          {tavusConfig?.blockers?.includes("avatar_router_full_pipeline_contract_required")
-                            ? tavusText("routerContractRequired", "Requires AvatarRouter Full Pipeline API support", "아바타 라우터의 Full Pipeline API 지원이 필요합니다")
-                            : tavusConfig?.available
-                            ? tavusText("entryAvailable", "Join a provider-hosted avatar conversation", "외부 제공자의 아바타 대화에 참여합니다")
-                            : tavusConfig?.selectable
-                              ? tavusText("entryCheckRuntime", "View runtime status and admission restrictions", "실행 상태 및 차단 사유 확인")
-                            : tavusConfigError
-                              ? tavusText("availabilityError", "Availability could not be checked", "사용 가능 여부를 확인할 수 없습니다")
-                              : tavusConfig
-                              ? `${tavusText("unavailable", "Unavailable", "사용할 수 없음")}${tavusConfig.blockers?.length ? `: ${tavusConfig.blockers.join(", ")}` : ` ${tavusText("rightNow", "right now", "현재")}`}`
-                              : isTavusConfigLoading ? tavusText("checkingAvailability", "Checking availability", "사용 가능 여부 확인 중") : tavusText("availabilityUnavailable", "Availability unavailable", "사용 가능 여부를 확인할 수 없습니다")}
-                        </span>
-                      </button>
-                    </div>
-                  )}
 
                   {inputMode === 'realtime-voice' && (
                     <TranscriptPanel isOpen={isTranscriptPanelOpen} onToggle={() => setIsTranscriptPanelOpen(v => !v)}
@@ -1424,7 +1366,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                               onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
                               isRecording={isRecording} speechSupported={speechSupported}
                               mode="realtime-voice" realtimeVoiceProps={rvBarProps}
-                              onLiveAvatarOptions={liveAvatarSelection.data?.configured ? openLiveAvatarOptions : undefined}
+                              onLiveAvatarOptions={liveAvatarSelection.data?.configured ? switchToLiveAvatar : undefined}
                               onTextModeToggle={() => {
                                 if (handleSwitchToTextModeRef.current) {
                                   handleSwitchToTextModeRef.current();
@@ -1943,7 +1885,7 @@ export default function ChatWindow(props: ChatWindowProps) {
       {...standardProps}
       initialInputMode={standardMode ?? (initialInputMode === 'text' || initialInputMode === 'realtime-voice' ? initialInputMode : undefined)}
       onReady={notifyReady}
-      onSelectTavus={() => setMode('tavus')}
+      onSelectLiveAvatar={() => setMode('tavus')}
     />
   );
 }

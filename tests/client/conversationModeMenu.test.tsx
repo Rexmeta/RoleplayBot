@@ -90,9 +90,12 @@ describe("optional bottom conversation modes", () => {
     const source = readFileSync("client/src/components/ChatWindow.tsx", "utf8");
     const topBar = source.slice(source.indexOf("<TopMenuPanel"), source.indexOf("</TopMenuPanel>"));
     expect(topBar).not.toContain("LiveAvatarChoice");
-    expect(source).toContain("<LiveAvatarOptionsDialog");
-    expect(source).toContain("onLiveAvatarOptions={liveAvatarSelection.data?.configured ? openLiveAvatarOptions : undefined}");
-    expect(source).toContain("setLiveAvatarOptionsOpen(true)");
+    expect(source).not.toContain("<LiveAvatarOptionsDialog");
+    expect(source).not.toContain("<LiveAvatarChoice");
+    expect(source).toContain("onLiveAvatarOptions={liveAvatarSelection.data?.configured ? switchToLiveAvatar : undefined}");
+    const switchHandler = source.slice(source.indexOf("const switchToLiveAvatar"), source.indexOf("const { elapsedTime"));
+    expect(switchHandler.indexOf("flushRealtimeMessagesRef")).toBeLessThan(switchHandler.indexOf("realtimeVoice.disconnect()"));
+    expect(switchHandler.indexOf("realtimeVoice.disconnect()")).toBeLessThan(switchHandler.indexOf("onSelectLiveAvatar()"));
   });
 
   it("opens consent from the bottom and keeps a created session mounted when settings close", async () => {

@@ -24,11 +24,11 @@ beforeEach(() => {
   }));
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-describe("Anam native test consent and lifecycle", () => {
+describe("default avatar test consent and lifecycle", () => {
   it("only reads on opening and creates exactly the selected native session after consent", async () => {
     render(<AnamAvatarTestPanel />);
     await waitFor(() => expect(api).toHaveBeenCalledWith("GET", `${base}/preflight`));
-    const start = screen.getByRole("button", { name: "Anam 테스트 시작" });
+    const start = screen.getByRole("button", { name: "기본 아바타 테스트 시작" });
     expect((start as HTMLButtonElement).disabled).toBe(true);
     expect(api.mock.calls.every(c => c[0] === "GET")).toBe(true);
     fireEvent.click(screen.getByRole("checkbox"));
@@ -45,7 +45,7 @@ describe("Anam native test consent and lifecycle", () => {
     render(<AnamAvatarTestPanel />);
     await screen.findByText(/생성 결과 확인 중/);
     fireEvent.click(screen.getByRole("checkbox"));
-    expect((screen.getByRole("button", { name: "Anam 테스트 시작" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "기본 아바타 테스트 시작" }) as HTMLButtonElement).disabled).toBe(true);
     expect(api.mock.calls.every(c => c[0] === "GET")).toBe(true);
   });
   it("recovers an existing session for cleanup without requesting a new media handoff", async () => {
