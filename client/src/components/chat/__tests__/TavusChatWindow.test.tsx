@@ -67,6 +67,34 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it("keeps the phone screen awake during a live session and releases it on end", async () => {
+    const release = vi.fn().mockResolvedValue(undefined);
+    const request = vi.fn().mockResolvedValue({
+      released: false,
+      release,
+      addEventListener: vi.fn(),
+    });
+    Object.defineProperty(navigator, "wakeLock", {
+      configurable: true,
+      value: { request },
+    });
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, blockers: [] });
+      if (url.endsWith("/connection")) return response(connection);
+      if (url.endsWith("/start")) return response(active);
+      if (url.endsWith("/end")) return response({ state: "ended", evaluationAvailable: false });
+      return response({ state: "idle" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="wake-lock-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    fireEvent.click(await screen.findByTestId("tavus-consent"));
+    fireEvent.click(screen.getByTestId("tavus-start"));
+
+    await waitFor(() => expect(request).toHaveBeenCalledWith("screen"));
+    expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
+    fireEvent.click(await screen.findByTestId("tavus-end"));
+    await waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+  });
+
   it("requires explicit consent, starts a single session, retrieves Daily credentials separately, then closes without completion", async () => {
     const onChatComplete = vi.fn();
     const onExit = vi.fn();

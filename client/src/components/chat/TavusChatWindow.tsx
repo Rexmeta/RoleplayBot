@@ -101,16 +101,52 @@ export default function TavusChatWindow({
   const connectionRequestRef = useRef(false);
   const connectionAttemptedRef = useRef(false);
   const providerRef = useRef<"tavus" | "anam">("tavus");
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const wakeLockRequestRef = useRef<Promise<void> | null>(null);
+
+  const releaseScreenWakeLock = useCallback(() => {
+    const lock = wakeLockRef.current;
+    wakeLockRef.current = null;
+    if (lock && !lock.released) void lock.release().catch(() => {});
+  }, []);
+
+  const requestScreenWakeLock = useCallback(() => {
+    if (!("wakeLock" in navigator) || document.visibilityState !== "visible" ||
+        !startedRef.current || endRequestedRef.current || wakeLockRequestRef.current ||
+        (wakeLockRef.current && !wakeLockRef.current.released)) return;
+    const request = (async () => {
+      try {
+        const lock = await navigator.wakeLock.request("screen");
+        if (!mountedRef.current || !startedRef.current || endRequestedRef.current ||
+            sessionStateRef.current === "ended" || document.visibilityState !== "visible") {
+          await lock.release();
+          return;
+        }
+        wakeLockRef.current = lock;
+        lock.addEventListener("release", () => {
+          if (wakeLockRef.current === lock) wakeLockRef.current = null;
+        }, { once: true });
+      } catch {
+        // Screen Wake Lock is optional and not available in every mobile browser.
+      } finally {
+        wakeLockRequestRef.current = null;
+      }
+    })();
+    wakeLockRequestRef.current = request;
+  }, []);
 
   const updateSession = useCallback((next: Session) => {
     if (next.providerId) providerRef.current = next.providerId;
+    if (next.state !== "idle") startedRef.current = true;
     if (next.state === "ended") endRequestedRef.current = false;
     if (next.createdAt || next.expiresAt || next.state === "ended") setClockNow(Date.now());
     sessionStateRef.current = endRequestedRef.current && next.state === "active" ? "ending" : next.state;
     const visibleSession = endRequestedRef.current && next.state === "active" ? { ...next, state: "ending" as const } : next;
     if (mountedRef.current) setSession(visibleSession);
     if (mountedRef.current && next.error) setError(errorDetails(next.error));
-  }, []);
+    if (next.state === "active") requestScreenWakeLock();
+    if (next.state === "ended") releaseScreenWakeLock();
+  }, [releaseScreenWakeLock, requestScreenWakeLock]);
   const isAnam = (session.state === "idle" ? config?.providerId : session.providerId) === "anam";
   const evaluationAvailable = !isAnam && (session.evaluationAvailable === true || config?.evaluationAvailable === true);
   const transcript = useTavusTranscript<Session>({
@@ -239,17 +275,27 @@ export default function TavusChatWindow({
     });
     const pageHide = () => {
       if (startedRef.current || sessionStateRef.current !== "idle") endKeepalive();
+      releaseScreenWakeLock();
+    };
+    const visibilityChange = () => {
+      if (document.visibilityState === "visible" && startedRef.current &&
+          sessionStateRef.current !== "ended" && !endRequestedRef.current) {
+        requestScreenWakeLock();
+      }
     };
     window.addEventListener("pagehide", pageHide);
+    document.addEventListener("visibilitychange", visibilityChange);
     return () => {
       cancelled = true;
       mountedRef.current = false;
       window.removeEventListener("pagehide", pageHide);
+      document.removeEventListener("visibilitychange", visibilityChange);
+      releaseScreenWakeLock();
       if (startedRef.current || sessionStateRef.current !== "idle") endKeepalive();
     };
   // Initial session/config bootstrap is intentionally one-shot for this conversation.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
+  }, [conversationId, releaseScreenWakeLock, requestScreenWakeLock]);
 
   useEffect(() => {
     if (!["creating", "active", "ending"].includes(session.state)) return;
@@ -280,6 +326,8 @@ export default function TavusChatWindow({
   const start = async () => {
     if (!consent || startedRef.current || starting || !config?.available) return;
     startedRef.current = true;
+    // Request synchronously from the user's tap before any network awaits.
+    requestScreenWakeLock();
     setStarting(true);
     setError(null);
     try {
@@ -304,6 +352,7 @@ export default function TavusChatWindow({
         const details = errorDetails(cause);
         if (details.creationAttempted === false) {
           startedRef.current = false;
+          releaseScreenWakeLock();
           updateSession({ state: "idle" });
           // Disable stale admission until the user explicitly refreshes it.
           setConfig(current => ({ ...current, available: false, blockers: [details.code] }));
@@ -317,6 +366,7 @@ export default function TavusChatWindow({
 
   const end = async () => {
     if (endInFlightRef.current || session.state === "ended") return;
+    releaseScreenWakeLock();
     endInFlightRef.current = true;
     setEnding(true);
     setEndFailed(false);
