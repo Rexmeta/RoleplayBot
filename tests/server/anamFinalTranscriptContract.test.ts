@@ -72,4 +72,8 @@ describe("proposed Anam contract model — no runtime or paid-call certification
     expect(supportsAvatarFinalTranscript("tavus", features)).toBe(true);
     expect(supportsAvatarFinalTranscript("tavus", [])).toBe(false);
   });
+  it.each(["anam", "tavus"])("enables %s only through the official unified transcript feature", provider => {
+    expect(supportsAvatarFinalTranscript(provider, ["unified_final_transcript"])).toBe(true);
+    expect(supportsAvatarFinalTranscript("mock", ["unified_final_transcript"])).toBe(false);
+  });
 });

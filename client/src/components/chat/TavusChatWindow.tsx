@@ -16,6 +16,7 @@ type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending"
 type Session = {
   state: SessionState;
   providerId?: "tavus" | "anam";
+  managedClient?: boolean;
   error?: string;
   createdAt?: string;
   expiresAt?: string;
@@ -26,6 +27,7 @@ type Session = {
 type Config = {
   available: boolean; blockers?: string[]; evaluationAvailable?: boolean;
   providerId?: "tavus" | "anam";
+  managedClient?: boolean;
   runtime?: { userRemainingSeconds: number; globalRemainingSeconds: number; sessionSeconds: number; resetsAt: string } | null;
 };
 type Connection = { transport: "daily"; pipeline: "tavus_full"; url: string; token: string; expiresAt?: string };
@@ -102,6 +104,7 @@ export default function TavusChatWindow({
   const connectionRequestRef = useRef(false);
   const connectionAttemptedRef = useRef(false);
   const providerRef = useRef<"tavus" | "anam">("tavus");
+  const managedRef = useRef(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const wakeLockRequestRef = useRef<Promise<void> | null>(null);
 
@@ -138,7 +141,13 @@ export default function TavusChatWindow({
 
   const updateSession = useCallback((next: Session) => {
     if (next.providerId) providerRef.current = next.providerId;
+    else if (next.state !== "idle") providerRef.current = "tavus";
     if (next.state !== "idle") startedRef.current = true;
+    if (next.state !== "idle") {
+      // Existing sessions own their transport. Current creation defaults cannot
+      // upgrade an already-paid legacy Daily call to a one-time managed handoff.
+      managedRef.current = next.managedClient ?? next.providerId === "anam";
+    }
     if (next.state === "ended") endRequestedRef.current = false;
     if (next.createdAt || next.expiresAt || next.state === "ended") setClockNow(Date.now());
     sessionStateRef.current = endRequestedRef.current && next.state === "active" ? "ending" : next.state;
@@ -149,7 +158,10 @@ export default function TavusChatWindow({
     if (next.state === "ended") releaseScreenWakeLock();
   }, [releaseScreenWakeLock, requestScreenWakeLock]);
   const isAnam = (session.state === "idle" ? config?.providerId : session.providerId) === "anam";
-  const evaluationAvailable = !isAnam && (session.evaluationAvailable === true || config?.evaluationAvailable === true);
+  const usesManagedClient = session.state === "idle"
+    ? config?.managedClient ?? isAnam
+    : session.managedClient ?? isAnam;
+  const evaluationAvailable = session.evaluationAvailable === true || config?.evaluationAvailable === true;
   const transcript = useTavusTranscript<Session>({
     conversationId,
     session,
@@ -210,7 +222,7 @@ export default function TavusChatWindow({
   }, [conversationId]);
 
   const checkConnection = useCallback(async () => {
-    if (providerRef.current === "anam") return; // Managed client makes the single-use POST itself.
+    if (managedRef.current || providerRef.current === "anam") return; // Common client owns the single-use handoff.
     if (connectionRequestRef.current || connectionAttemptedRef.current) return;
     connectionAttemptedRef.current = true;
     connectionRequestRef.current = true;
@@ -267,6 +279,7 @@ export default function TavusChatWindow({
     ]).then(([nextConfig, nextSession]) => {
       if (cancelled) return;
       setConfig(nextConfig);
+      managedRef.current = nextConfig.managedClient === true || nextConfig.providerId === "anam";
       updateSession(nextSession);
       if (nextSession.state === "active") void checkConnection();
     }).catch(cause => {
@@ -409,9 +422,11 @@ export default function TavusChatWindow({
   const remainingSeconds = session.expiresAt && Number.isFinite(Date.parse(session.expiresAt))
     ? Math.max(0, Math.ceil((Date.parse(session.expiresAt) - clockNow) / 1000))
     : null;
-  const roomStage = session.state === "active" && isAnam ? (
+  const roomStage = session.state === "active" && usesManagedClient ? (
     <ManagedAvatarRoom endpoint={sessionUrl(conversationId)}
-      onError={message => setConnectionError({ code: "ANAM_CLIENT_ERROR", message })} />
+      statusEndpoint={`${sessionUrl(conversationId)}/session`}
+      onCaption={browserCaptions.onCaption}
+      onError={message => setConnectionError({ code: "AVATAR_CLIENT_ERROR", message })} />
   ) : session.state === "active" && connection ? (
     <DailyAvatarRoom
       connection={connection}
@@ -529,11 +544,11 @@ export default function TavusChatWindow({
   const startControls = !started ? (
     <div className="w-full space-y-2">
       <p className="text-center text-[11px] text-slate-600">{text("inlineLimit", "Up to 120 seconds, including connection time.", "연결 준비를 포함해 최대 120초 동안 이용할 수 있습니다.")}</p>
-      {isAnam && <p className="text-center text-[11px] text-slate-600">{text("inlineLiveLimitations", "Uses the saved avatar persona. Scenario-specific instructions and feedback are not supported for this connection.", "저장된 아바타로 대화하며, 현재 연결은 시나리오별 역할 지침과 대화 평가를 지원하지 않습니다.")}</p>}
+      <p className="text-center text-[11px] text-slate-600">{text("inlineUnifiedContext", "Uses this session's persona and scenario instructions. Confirmed history is saved after the session ends when supported.", "이 실행의 페르소나·시나리오 지침을 사용합니다. 지원되는 경우 확정 기록은 세션 종료 후 저장합니다.")}</p>
       {!loading && config && !config.available && <p role="status" className="text-center text-xs text-amber-800">{text("inlineUnavailable", "Live avatar is temporarily unavailable. Check connection status for details.", "현재 라이브 아바타를 시작할 수 없습니다. 연결 상태를 확인해 주세요.")}</p>}
       <label className="flex cursor-pointer items-start justify-center gap-2">
         <input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-purple-600" data-testid="tavus-consent" />
-        <span className="text-xs leading-5 text-slate-600">{text("liveConsent", "I agree to sending my audio to an external live avatar service and any usage charges. Nothing starts until I choose Start.", "음성을 외부 라이브 아바타 서비스에 전송하고 이용 요금이 발생할 수 있음에 동의합니다. 시작 버튼을 눌러야 연결됩니다.")}</span>
+        <span className="text-xs leading-5 text-slate-600">{text("unifiedLiveConsent", "I consent to usage charges and sending my audio, persona, scenario and applicable organization instructions to the external live avatar service. Nothing starts until I choose Start.", "이용 요금과 음성·페르소나·시나리오·적용된 조직 지침을 외부 라이브 아바타 서비스에 전송하는 데 동의합니다. 시작 버튼을 눌러야 연결됩니다.")}</span>
       </label>
       <button type="button" onClick={() => void start()} disabled={!consent || busy || loading || !config?.available || startedRef.current} className="flex w-full items-center justify-center gap-2 rounded-full bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50" data-testid="tavus-start">
         {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}{text("liveStart", "Start live avatar", "라이브 아바타 시작")}
@@ -571,7 +586,7 @@ export default function TavusChatWindow({
       sessionControls={
         <div className="space-y-4">
           {!started && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
-            <p>{isAnam ? text("savedLivePersona", "This live conversation uses the saved avatar persona. Scenario-specific instructions and feedback are not supported for this connection.", "저장된 아바타 페르소나로 대화합니다. 현재 연결에서는 시나리오별 역할 지침과 대화 평가를 지원하지 않습니다.") : text("sessionOnlyAvatar", "This avatar connection is used only for the current conversation.", "이 아바타 연결은 현재 대화에만 사용됩니다.")}</p>
+            <p>{text("unifiedContext", "The live avatar service receives this session's persona, scenario and applicable organization instructions. Confirmed history is saved after the session ends when supported.", "라이브 아바타 서비스에 이 실행의 페르소나·시나리오·적용된 조직 지침을 전달합니다. 지원되는 경우 확정 기록은 세션 종료 후 저장합니다.")}</p>
             <p className="mt-2 font-medium text-[#40595e]">{text("noticeLimit", "Maximum duration: 120 seconds, including queue and startup time.", "최대 이용 시간: 대기 및 시작을 포함해 120초입니다.")}</p>
             <p className="mt-2">{text("noticeTranscript", "Confirmed history, when supported, becomes available after the session ends.", "지원되는 경우 확인된 대화 기록은 세션 종료 후 제공됩니다.")}</p>
           </div>}
@@ -595,7 +610,7 @@ export default function TavusChatWindow({
             {feedbackReady && <button type="button" onClick={openFeedback} className="rounded-lg bg-corporate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-corporate-700" data-testid="tavus-view-feedback">{text("viewFeedback", "View feedback", "피드백 보기")}</button>}
             <button type="button" onClick={onExit} className="rounded-lg border border-[#ccd8db] px-4 py-2 text-sm font-semibold text-[#32484e] hover:bg-white" data-testid="tavus-close">{text("close", "Close session", "세션 닫기")}</button>
           </div>}
-          {session.state === "active" && !connection && !isAnam && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-3 text-xs text-[#53696d]" data-testid="tavus-connection-pending">
+          {session.state === "active" && !connection && !usesManagedClient && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-3 text-xs text-[#53696d]" data-testid="tavus-connection-pending">
             {connectionError ? <><p className="font-semibold text-[#8f4137]">{connectionError.code}: {connectionError.message}</p><button type="button" onClick={() => { connectionAttemptedRef.current = false; setConnection(null); void checkConnection(); }} className="mt-2 rounded-lg border border-[#ccd8db] px-3 py-2 font-semibold hover:bg-white" data-testid="tavus-connection-retry">{text("retryConnection", "Retry connection details", "연결 정보 다시 확인")}</button></> : text("connecting", "Securely retrieving connection details…", "안전하게 연결 정보를 확인하고 있습니다…")}
           </div>}
           {(session.state === "creating" || session.state === "ending") && <div className="flex items-center gap-2 text-xs text-[#607a7d]" role="status"><LoaderCircle className="h-4 w-4 animate-spin" />{session.state === "creating" ? text("creatingHelp", "Checking room startup status…", "대화 공간 시작 상태 확인 중…") : text("endingHelp", "Waiting for the room to close…", "대화 공간 종료를 확인하고 있습니다…")}</div>}
@@ -627,7 +642,7 @@ export default function TavusChatWindow({
           {apiDisplayError && <div className="rounded-xl border border-[#efd5d0] bg-[#fff7f4] p-3 text-[#8f4137]" role="alert" data-testid="tavus-error">
             <div className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 text-xs leading-5"><p className="break-words font-semibold">{displayError(apiDisplayError)}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {connectionError && <button type="button" onClick={() => { connectionAttemptedRef.current = false; setConnection(null); void checkConnection(); }} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white" data-testid="tavus-connection-retry">{text("retryConnection", "Retry connection details", "연결 정보 다시 확인")}</button>}
+                {connectionError && !usesManagedClient && <button type="button" onClick={() => { connectionAttemptedRef.current = false; setConnection(null); void checkConnection(); }} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white" data-testid="tavus-connection-retry">{text("retryConnection", "Retry connection details", "연결 정보 다시 확인")}</button>}
                 <button type="button" onClick={() => void refreshStatus()} disabled={statusChecking || busy} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white disabled:opacity-50" data-testid="tavus-status-retry">{statusChecking ? text("checking", "Checking…", "확인 중…") : text("retryStatus", "Check status", "상태 확인")}</button>
                 {(session.state !== "idle" && session.state !== "ended") && <button type="button" onClick={() => void end()} disabled={busy} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white disabled:opacity-50" data-testid="tavus-end-retry">{endFailed ? text("retryEnd", "Retry safe end", "안전하게 종료 재시도") : text("endSession", "End session", "세션 종료")}</button>}
               </div>

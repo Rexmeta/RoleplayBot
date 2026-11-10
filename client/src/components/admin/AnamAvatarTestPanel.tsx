@@ -98,8 +98,8 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
     finally { if (mounted.current) setBusy(false); }
   };
   return <section className="space-y-3 border-t pt-4" aria-label="기본 아바타 테스트">
-    <h4 className="font-semibold">기본 아바타 테스트</h4>
-    <p className="text-sm text-slate-600">외부 서비스가 마이크·대화·음성을 처리합니다. 다른 음성 응답 기능은 동시에 실행하지 않습니다. 서비스에 저장된 페르소나를 사용하며 이 앱의 시나리오 지침과 평가 기록은 전달되지 않습니다.</p>
+    <h4 className="font-semibold">기본 아바타 연결 진단</h4>
+    <p className="text-sm text-slate-600">외부 서비스가 마이크·대화·음성을 처리합니다. 다른 음성 응답 기능은 동시에 실행하지 않습니다. 이 화면은 기본 진단 배역으로 연결만 확인하며 선택한 페르소나·시나리오의 학습 기록이나 평가를 만들지 않습니다. 실제 배역·기록·피드백은 시나리오의 라이브 아바타 대화에서 확인하세요.</p>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={consent} disabled={busy || !!session && !terminal}
       onChange={e => setConsent(e.target.checked)} />유료 세션 생성과 마이크·음성 전송에 동의합니다.</label>
     <div className="flex gap-2">

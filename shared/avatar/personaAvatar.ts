@@ -5,7 +5,9 @@ export type PersonaAvatarMode = z.infer<typeof personaAvatarModeSchema>;
 
 /** Ratified transcript support only; native playback and proposed feature names are not evidence. */
 export function supportsAvatarFinalTranscript(providerId: string, features: readonly string[]): boolean {
-  return providerId === "tavus" && features.includes("tavus_final_transcript_v1");
+  return (providerId === "anam" || providerId === "tavus") &&
+    (features.includes("unified_final_transcript") ||
+      providerId === "tavus" && features.includes("tavus_final_transcript_v1"));
 }
 
 const liveDraftShape = {

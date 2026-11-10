@@ -144,7 +144,11 @@ export class AdminAvatarTestService {
           providerId: this.anam ? "anam" : "tavus",
           avatarId: this.anam ? "anam-persona-default" : target?.providerAvatarId ?? "tavus-stock-lucy",
           mode: "live", costConfirmed: true,
-          ...(this.anam ? { pipeline: "anam_full" } : {}),
+          ...(this.anam ? { pipeline: "anam_full", roleplay: {
+            persona: "당신은 친절한 한국어 대화 상대입니다. 짧고 명확하게 답하세요.",
+            scenario: "관리자가 영상과 음성 연결을 확인하는 짧은 진단입니다. 실제 학습 시나리오나 평가가 아닙니다.",
+            language: "Korean",
+          } } : {}),
           ...(this.custom ? { avatarAssetId: this.custom.assetId, purpose: "validation" } : {}),
         });
         if (target && session.avatarId !== target.providerAvatarId) {
@@ -189,6 +193,7 @@ export class AdminAvatarTestService {
     if (!this.anam) throw new AvatarIdentityError("avatar_managed_connection_unavailable", 409);
     await this.running(userId, id);
     const descriptor = await this.client.call(userId, `/sessions/${id}/client-connection`, managedConnectionSchema, {});
+    if (descriptor.pipeline !== "anam_full") throw new AvatarIdentityError("avatar_test_session_mismatch", 502);
     return managedClientDescriptor(descriptor, id);
   }
 

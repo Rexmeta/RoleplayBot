@@ -40,8 +40,9 @@ export class AvatarProjectClient {
         const status = [400, 401, 403, 404, 409, 413, 415, 422, 429, 503].includes(response.status) ? response.status : 502;
         throw new AvatarIdentityError(`avatar_test_upstream_${status}`, status);
       }
+      const maxBytes = body === undefined && path.endsWith("/transcript") ? 2 * 1024 * 1024 : 262_144;
       if (!response.headers.get("content-type")?.includes("application/json") ||
-          Number(response.headers.get("content-length")) > 262_144 || !response.body) throw new Error();
+          Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error();
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
       let bytes = 0;
@@ -50,7 +51,7 @@ export class AvatarProjectClient {
           const { done, value } = await reader.read();
           if (done) break;
           bytes += value.length;
-          if (bytes > 262_144) throw new Error();
+          if (bytes > maxBytes) throw new Error();
           chunks.push(value);
         }
       } finally { await reader.cancel().catch(() => {}); }

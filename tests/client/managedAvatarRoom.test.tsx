@@ -33,6 +33,31 @@ async function loadScript() {
   fireEvent.load(document.querySelector('script[src*="/sdk/avatarrouter-client.js"]')!);
 }
 describe("managed native browser handoff", () => {
+  it.each(["anam_full", "tavus_full"])("uses one common client for %s captions and owned cleanup reads", async pipeline => {
+    const original = api.getMockImplementation()!;
+    api.mockImplementation(async (...args) => {
+      const response = await original(...args);
+      const data = await response.json();
+      return { json: async () => args[1].endsWith("/client-connection") ? { ...data, pipeline } :
+        { id: "owned", rendererState: "closed", cleanupPending: false } };
+    });
+    const onCaption = vi.fn();
+    const { unmount } = render(<ManagedAvatarRoom endpoint="/owned" statusEndpoint="/owned/session" onCaption={onCaption} />);
+    await loadScript();
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    options.onMessages([{ id: "one", role: "user", text: "납기를 확인하고 싶습니다." },
+      { id: "two", role: "assistant", text: "금요일입니다." }, { id: "bad", role: "system", text: "private" }]);
+    expect(onCaption.mock.calls.map(call => call[0].sender)).toEqual(["user", "ai"]);
+    expect(onCaption.mock.calls[0][0]).toMatchObject({
+      id: "router:owned:one", message: "납기를 확인하고 싶습니다.", interrupted: false,
+    });
+    expect(await options.getSessionStatus("owned")).toEqual({ id: "owned", rendererState: "closed", cleanupPending: false });
+    await expect(options.getSessionStatus("foreign")).rejects.toThrow("avatar_status_session_mismatch");
+    expect(api.mock.calls.filter(call => call[0] === "POST")).toHaveLength(1);
+    unmount();
+    options.onMessages([{ id: "late", role: "user", text: "late" }]);
+    expect(onCaption).toHaveBeenCalledTimes(2);
+  });
   it("starts once in StrictMode, keeps opaque credentials out of storage and always sends server end", async () => {
     const { unmount } = render(<StrictMode><ManagedAvatarRoom endpoint="/owned" /></StrictMode>);
     await loadScript();

@@ -12,6 +12,14 @@ const { apiRequestMock, roomMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/queryClient", () => ({ apiRequest: apiRequestMock }));
 vi.mock("../DailyAvatarRoom", () => ({ default: roomMock }));
+vi.mock("../ManagedAvatarRoom", () => ({ default: (props: any) => (
+  <div data-testid="mock-managed-room">
+    <button data-testid="emit-router-caption" onClick={() => props.onCaption?.({
+      id: "router-caption", sender: "user", message: "Unified provisional caption",
+      timestamp: "2026-11-09T10:00:00Z", interrupted: false,
+    })}>Caption</button>
+  </div>
+) }));
 vi.mock("../RecognitionReview", () => ({
   RecognitionReview: () => null,
   useRecognitionEvidence: () => ({ data: undefined }),
@@ -67,13 +75,32 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it.each([undefined, false])("recovers a persisted legacy Daily call with managedClient=%s despite new config defaults", async managedClient => {
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({
+        available: true, providerId: "tavus", managedClient: true,
+      });
+      if (method === "GET" && url.endsWith("/session")) return response({
+        state: "active", providerId: "tavus", ...(managedClient !== undefined ? { managedClient } : {}),
+      });
+      if (url.endsWith("/connection")) return response(connection);
+      return response({ state: "active" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="legacy-resume"
+      onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
+    expect(screen.queryByTestId("mock-managed-room")).toBeNull();
+    expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/tavus/conversations/legacy-resume/connection");
+    expect(apiRequestMock.mock.calls.some(call => call[1].endsWith("/client-connection"))).toBe(false);
+    expect(apiRequestMock.mock.calls.some(call => call[0] === "POST")).toBe(false);
+  });
   it("opens directly on the avatar canvas with inline consent and neutral copy, not a settings screen", async () => {
     apiRequestMock.mockImplementation(async (_method: string, url: string) => {
       if (url.startsWith("/api/tavus/config?")) return response({ available: true, providerId: "anam", blockers: [] });
       return response({ state: "idle" });
     });
     const view = render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="direct-live" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    await waitFor(() => expect(screen.getByTestId("tavus-control-surface").textContent).toContain("saved avatar persona"));
+    await waitFor(() => expect(screen.getByTestId("tavus-control-surface").textContent).toContain("session's persona"));
     expect((screen.getByTestId("live-avatar-options-dialog") as HTMLDialogElement).open).toBe(false);
     expect(screen.getByTestId("tavus-control-surface").contains(screen.getByTestId("tavus-consent"))).toBe(true);
     expect(screen.getByTestId("tavus-control-surface").contains(screen.getByTestId("tavus-start"))).toBe(true);
@@ -109,7 +136,36 @@ describe("TavusChatWindow Daily pipeline", () => {
     fireEvent.click(await screen.findByTestId("tavus-end"));
     await waitFor(() => expect(release).toHaveBeenCalledTimes(1));
   });
-
+  it.each(["tavus", "anam"])("uses common %s captions and automatically opens feedback only after final import", async providerId => {
+    const onChatComplete = vi.fn();
+    const completed = { state: "ended", providerId, managedClient: true,
+      evaluationAvailable: true, transcriptState: "completed" };
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({
+        available: true, providerId, managedClient: true, evaluationAvailable: true,
+      });
+      if (url.endsWith("/start")) return response({ state: "active", providerId, managedClient: true, evaluationAvailable: true });
+      if (url.endsWith("/end")) return response({ state: "ended", providerId, managedClient: true, evaluationAvailable: true, transcriptState: "pending" });
+      if (url.endsWith("/sync")) return response(completed);
+      if (url === "/api/conversations/common-run") return response({ messages: [
+        { sender: "user", message: "Unified confirmed history", timestamp: "2026-11-09T10:00:00Z" },
+      ] });
+      return response({ state: "idle" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="common-run"
+      onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    fireEvent.click(await screen.findByTestId("tavus-consent"));
+    fireEvent.click(screen.getByTestId("tavus-start"));
+    await screen.findByTestId("mock-managed-room");
+    fireEvent.click(screen.getByTestId("emit-router-caption"));
+    expect(await screen.findByText("Unified provisional caption")).toBeTruthy();
+    expect(onChatComplete).not.toHaveBeenCalled();
+    expect(apiRequestMock.mock.calls.some(call => call[1].endsWith("/connection"))).toBe(false);
+    fireEvent.click(screen.getByTestId("tavus-end"));
+    expect(await screen.findByText("Unified confirmed history")).toBeTruthy();
+    await waitFor(() => expect(onChatComplete).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Unified provisional caption")).toBeNull();
+  });
   it("requires explicit consent, starts a single session, retrieves Daily credentials separately, then closes without completion", async () => {
     const onChatComplete = vi.fn();
     const onExit = vi.fn();

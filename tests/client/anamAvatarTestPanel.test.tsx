@@ -38,7 +38,7 @@ describe("default avatar test consent and lifecycle", () => {
     expect(api.mock.calls.filter(c => c[0] === "POST")).toEqual([
       ["POST", `${base}/sessions`, { costConfirmed: true, audioConfirmed: true }],
     ]);
-    expect(screen.getByText(/시나리오 지침과 평가 기록은 전달되지 않습니다/)).toBeTruthy();
+    expect(screen.getByText(/실제 배역·기록·피드백은 시나리오의 라이브 아바타 대화에서 확인하세요/)).toBeTruthy();
   });
   it("does not create or reconnect automatically when the server reports an uncertain create", async () => {
     api.mockResolvedValue({ json: async () => ({ ...preflight, ready: false, creationUncertain: true }) });

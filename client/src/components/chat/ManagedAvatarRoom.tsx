@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import type { BrowserCaption } from "./tavusBrowserCaptions";
 
 type ManagedClient = { start(): Promise<void>; stop(): Promise<void>; interrupt(): Promise<void> };
 type Descriptor = {
-  sessionId: string; pipeline: "anam_full"; audioOwner: "avatarrouter";
+  sessionId: string; pipeline: "anam_full" | "tavus_full"; audioOwner: "avatarrouter";
   clientScriptUrl: string; clientScriptPath: string; expiresAt: string; connection: unknown;
 };
 type ManagedSDK = {
@@ -11,6 +12,8 @@ type ManagedSDK = {
     connection: Descriptor; video: HTMLVideoElement;
     onAudioOwner(owner: string): Promise<void>;
     endSession(): Promise<unknown>; interruptSession(): Promise<unknown>;
+    getSessionStatus(sessionId: string): Promise<unknown>;
+    onMessages(messages: unknown): void;
     onState(state: string, code?: string): void;
   }): ManagedClient;
 };
@@ -41,14 +44,17 @@ function loadClient(url: string) {
 }
 
 /** Native pipeline only: no Gemini generation, PCM, LiveKit or local TTS. */
-export default function ManagedAvatarRoom({ endpoint, onError }: {
-  endpoint: string; onError?: (message: string) => void;
+export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint, onError, onCaption }: {
+  endpoint: string; statusEndpoint?: string;
+  onError?: (message: string) => void; onCaption?: (caption: BrowserCaption) => void;
 }) {
   const id = useId();
   const video = useRef<HTMLVideoElement>(null);
   const clientRef = useRef<ManagedClient>();
   const errorRef = useRef(onError);
   errorRef.current = onError;
+  const captionRef = useRef(onCaption);
+  captionRef.current = onCaption;
   const [state, setState] = useState("connecting");
   useEffect(() => {
     let cancelled = false, started = false, endSent = false;
@@ -69,7 +75,7 @@ export default function ManagedAvatarRoom({ endpoint, onError }: {
       void (async () => {
         const response = await apiRequest("POST", `${endpoint}/client-connection`, {});
         const descriptor = await response.json() as Descriptor;
-        if (descriptor.pipeline !== "anam_full" || descriptor.audioOwner !== "avatarrouter" ||
+        if (!["anam_full", "tavus_full"].includes(descriptor.pipeline) || descriptor.audioOwner !== "avatarrouter" ||
             !Number.isFinite(Date.parse(descriptor.expiresAt)) || Date.parse(descriptor.expiresAt) <= Date.now()) {
           throw new Error("invalid_descriptor");
         }
@@ -83,6 +89,27 @@ export default function ManagedAvatarRoom({ endpoint, onError }: {
             if (owner !== "avatarrouter") throw new Error("native_audio_owner_required");
           },
           endSession: end,
+          getSessionStatus: async sessionId => {
+            if (sessionId !== descriptor.sessionId) throw new Error("avatar_status_session_mismatch");
+            const response = await apiRequest("GET", statusEndpoint);
+            const status = await response.json();
+            if (status.id !== sessionId) throw new Error("avatar_status_session_mismatch");
+            return { id: status.id, rendererState: status.rendererState, cleanupPending: status.cleanupPending };
+          },
+          onMessages: messages => {
+            // Display-only bounded snapshots. Never upload captions to history/feedback.
+            if (cancelled || !Array.isArray(messages) || messages.length > 1000) return;
+            for (const message of messages.slice(-500)) {
+              if (!message || typeof message.id !== "string" || !message.id || message.id.length > 200 ||
+                  !["user", "assistant"].includes(message.role) || typeof message.text !== "string" ||
+                  !message.text.trim() || message.text.length > 10000) continue;
+              captionRef.current?.({
+                id: `router:${descriptor.sessionId}:${message.id}`,
+                sender: message.role === "user" ? "user" : "ai", message: message.text,
+                timestamp: new Date().toISOString(), interrupted: false,
+              });
+            }
+          },
           interruptSession: () => apiRequest("POST", `${endpoint}/interrupt`, {}),
           onState: next => {
             if (cancelled) return;
@@ -91,6 +118,7 @@ export default function ManagedAvatarRoom({ endpoint, onError }: {
               errorRef.current?.("라이브 아바타 연결에 실패했습니다. 자동 재연결하지 않고 종료를 요청합니다.");
               stop();
             }
+            if (next === "ended") void end().catch(() => {});
           },
         });
         clientRef.current = client;
@@ -110,7 +138,7 @@ export default function ManagedAvatarRoom({ endpoint, onError }: {
       clientRef.current = undefined;
       if (started) stop();
     };
-  }, [endpoint]);
+  }, [endpoint, statusEndpoint]);
 
   return <div className="relative h-full min-h-64 bg-slate-950" data-testid="managed-avatar-room">
     <video id={`managed-avatar-${id}`} ref={video} autoPlay playsInline className="h-full w-full object-cover" />

@@ -55,10 +55,15 @@ describe("Anam saved persona through the managed AvatarRouter client", () => {
     await expect(service.create("user")).rejects.toMatchObject({ code: "avatar_test_not_ready" });
     expect(client.call.mock.calls.every(c => c[3] === undefined)).toBe(true);
   });
-  it("posts Anam native mode without Tavus fullPipeline options or custom asset claims", async () => {
+  it("posts Anam diagnostic context through the common API without custom asset claims", async () => {
     await service.create("user");
     expect(client.call).toHaveBeenCalledWith("user", "/sessions", expect.anything(), {
       providerId: "anam", avatarId: avatar.id, pipeline: "anam_full", mode: "live", costConfirmed: true,
+      roleplay: {
+        persona: "당신은 친절한 한국어 대화 상대입니다. 짧고 명확하게 답하세요.",
+        scenario: "관리자가 영상과 음성 연결을 확인하는 짧은 진단입니다. 실제 학습 시나리오나 평가가 아닙니다.",
+        language: "Korean",
+      },
     });
     expect(JSON.stringify(saved)).not.toContain("sessionToken");
   });

@@ -1,5 +1,8 @@
 # Anam 세션별 역할·조직 지침 계약 변경안
 
+> 과거 협의안이다. 현재 구현은 [API 0.9 공통 계약](avatarrouter-unified-integration.md)을 사용한다.
+> `anamSessionContext`를 전송하거나 이 제안의 feature로 활성화하지 않는다.
+
 상태: **라우터 협의용 제안이며, 현재 구현·지원 계약이 아니다.**
 외부 저장소 수정, PR 제출, 게시, 유료 세션 및 음성 전송은 실행하지 않았다.
 

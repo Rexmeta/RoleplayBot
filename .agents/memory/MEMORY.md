@@ -30,9 +30,10 @@
 - [Culture Map 독립성](culture-map-boundaries.md) — Persona 불변·Actor별 기본 OFF·시나리오 snapshot·검증된 국가 출처·평가 직접 가감 금지.
 - [테스트 워커·실행 환경](test-worker-resource-limits.md) — 미디어 timeout은 제한된 동시성으로 비교; Vitest 버전 변경 시 DOM 환경 적용을 확인한다.
 - [운영 변경 승인 경계](production-change-boundary.md) — 운영 환경 변경과 배포는 사용자의 명시적 승인이 있어야 한다.
-- [AvatarRouter integration gate](avatar-router-integration-gate.md) — 선택형 persona 테스트·시나리오 실행의 동의·스냅샷·프로젝트 소유권 경계; 구현 승인은 유료 검증·배포 승인이 아니다.
+- [AvatarRouter 통합 원칙](avatar-router-integration-gate.md) — 제공자 차이는 라우터가 처리하고 앱은 간단한 공통 API로 연동; 동의·소유권·별도 유료 검증 승인 경계 유지.
 - [Vite Zod optimizer cache](vite-zod-optimizer-cache.md) — Zod 메이저 업그레이드 뒤 브라우저가 구버전 최적화 번들을 계속 제공할 수 있어 런타임 API 불일치 확인이 필요하다.
 - [Tavus Full Pipeline 원칙](tavus-full-pipeline-boundaries.md) — 기존 AvatarRouter 경유 필수·직접 Tavus 호출 금지·Gemini 중계 없는 독립 모드·공통 PAL 하나.
 - [조직 Override 계약](organization-override-contract.md) — 위임은 실행 소속이 아니며, 피드백 루브릭과 고정 시뮬레이션 차원을 임의 매핑하지 않는다.
 - [Audit cursor timestamp precision](audit-cursor-timestamp-precision.md) — PostgreSQL timestamp를 JS Date로 변환하면 마이크로초 정밀도가 사라져 커서 경계에서 중복·누락이 생길 수 있다.
 - [로컬 PostgreSQL 통합 테스트](isolated-postgres-test-runtime.md) — 임시 DB 서버와 Vitest는 한 셸 호출에서 실행하고, 로컬 접속은 `sslmode=disable`로 설정한다.
+- [자동 충돌 병합 검증](conflict-merge-validation.md) — 표시된 충돌 밖에서도 선언이 중복될 수 있으므로 병합 계속 전에 타입 검사와 관련 테스트를 실행한다.

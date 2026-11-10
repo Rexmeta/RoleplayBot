@@ -1,5 +1,8 @@
 # 선택형 AvatarRouter 연동
 
+현재 네이티브 Tavus·Anam 경로는 [API 0.9 공통 연동](avatarrouter-unified-integration.md)을 따른다.
+아래 초기 구현·공개 점검 기록의 미지원 표시는 당시 상태이며 현재 공통 계약을 대신하지 않는다.
+
 ## 페르소나의 기본/커스텀 아바타 초안 선택
 
 관리자 페르소나 편집의 Live 탭에서 **아바타 목록 조회**를 누르면, 로그인한 관리자의
@@ -16,15 +19,13 @@
   Anam SDK 직접 설치·LiveKit 재사용·Gemini 음성 중계는 하지 않는다.
   사용자 동의, 사용자/프로젝트 소유권, Anam 전용 사용량, 생성 결과 불명확 시 차단,
   서버 종료·정리 확인을 유지한다. 임시 연결 정보는 메모리에만 두며 저장하지 않는다.
-  현행 라우터는 저장된 Anam 페르소나 설정만 사용한다. Tavus `fullPipeline` 지침,
-  시나리오 컨텍스트 전달과 Anam 확정 대화록 평가를 지원하는 것으로 표시하지 않는다.
-  최종 전사·사용자/세션/revision 바인딩 및 지원 후 평가 연결 수용 조건은
-  `docs/anam-final-transcript-proposal.md`에 협의용으로 정의했다. 현재 활성화 계약은 아니다.
+   API 0.9는 같은 `fullPipeline` 컨텍스트를 두 제공자에 적용한다.
+   `unified_final_transcript`를 확인한 뒤 Anam 원본 출처로 최종 기록을 저장하고 평가한다.
+   `docs/anam-final-transcript-proposal.md`는 과거 협의안이며 실제 응답 스키마가 아니다.
   참고 계약: `/roleplayx/anam-integration.md`, `/roleplayx/managed-client-integration.md`.
-  2026-11-09 두 공개 계약을 재확인했으며 세션별 역할·조직 지침은 여전히 미지원이다.
-  [세션 컨텍스트 계약 변경안](anam-session-context-proposal.md)에 라우터 협의 항목,
-  고정 실행 스냅샷 경계와 지원 광고 후 활성화 조건을 정리했다. 제안 필드는 현재
-  전송하지 않는다. Anam 연결 가능과 시나리오 지침 적용 가능은 별개의 상태다.
+   고정 실행 스냅샷에서 구성한 배역·시나리오·조직 지침만 전송한다.
+   과거 [세션 컨텍스트 제안](anam-session-context-proposal.md)의 필드는 보내지 않는다.
+   실제 발화에서 지침을 준수하는지는 별도 승인된 통화로 확인해야 한다.
 - **커스텀 자산**: `/avatar-assets`의 UUID 자산. 기존 준비 완료·재사용 가능 조건과
   프로젝트/사용자 소유권 검사를 유지한다.
   새 선택 저장 형태: `{ kind: "custom", assetId: "<UUID>", providerId: "tavus", ... }`.

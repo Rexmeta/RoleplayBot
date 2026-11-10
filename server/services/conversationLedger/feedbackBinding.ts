@@ -10,17 +10,24 @@ import { personaRuns } from '../../../shared/schema/conversations';
 export function snapshotFeedbackInput(run: LedgerRun, snapshot: typeof snapshots.$inferSelect) {
   const rows = snapshot.content.utterances as LedgerUtterance[];
   const binding = snapshot.content.boundContext as Record<string, any>;
+  const isRouterRow = (row: LedgerUtterance) => row.provider === "tavus" || row.provider === "anam";
+  const source = rows[0]?.metadata?.routerTranscript;
   return {
     conversationId: run.personaRunId,
     conversation: {
       id: run.personaRunId, transcriptProtocol: "ledger-v1",
       scenarioId: binding.scenarioSnapshot.id, personaId: run.personaId,
       personaSnapshot: binding.personaSnapshot, createdAt: run.createdAt, completedAt: new Date(),
-      status: "completed", mode: rows.length > 0 && rows.every(row => row.provider === "tavus")
+      status: "completed", mode: rows.length > 0 && rows.every(isRouterRow)
         ? "realtime_voice" : "mixed", difficulty: binding.difficulty ?? binding.scenarioSnapshot.difficulty ?? 4,
+      ...(source && rows.every(row => (["provider", "projectId", "sessionId", "revision"] as const)
+        .every(key => row.metadata?.routerTranscript?.[key] === source[key]))
+        ? { transcriptSource: { provider: source.provider, projectId: source.projectId,
+          conversationId: source.sessionId, routerSessionId: source.sessionId, revision: source.revision,
+          kind: "final_transcript" } } : {}),
       turnCount: rows.filter(row => row.speaker === "user").length,
       messages: rows.map(row => ({
-        ...ledgerChatMessage(row), timestamp: row.provider === "tavus"
+        ...ledgerChatMessage(row), timestamp: isRouterRow(row)
           ? row.metadata?.sourceTimestamp ?? row.createdAt : row.createdAt, utteranceId: row.id,
       })),
     },

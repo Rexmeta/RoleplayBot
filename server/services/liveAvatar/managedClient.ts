@@ -5,7 +5,7 @@ import { AvatarIdentityError } from "./delegatedIdentity";
 /** The opaque connection is short-lived browser-only data. Never persist it. */
 export const managedConnectionSchema = z.object({
   sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
-  pipeline: z.literal("anam_full"),
+  pipeline: z.enum(["anam_full", "tavus_full"]),
   audioOwner: z.literal("avatarrouter"),
   clientScriptPath: z.literal("/sdk/avatarrouter-client.js"),
   expiresAt: z.string().datetime({ offset: true }),
@@ -22,7 +22,7 @@ export function managedClientDescriptor(value: z.infer<typeof managedConnectionS
 }
 
 export const anamFeatures = [
-  "anam_full_pipeline", "unified_client_connection", "hosted_browser_client",
+  "anam_full_pipeline", "unified_client_connection", "hosted_browser_client", "unified_roleplay_context",
 ] as const;
 export const nativeScopes = [
   "live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end",
