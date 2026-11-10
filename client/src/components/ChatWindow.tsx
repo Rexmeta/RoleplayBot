@@ -1281,7 +1281,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
                   )}
 
-                  {onSelectTavus && (
+                  {onSelectTavus && tavusConfig && tavusConfig.providerId !== "anam" && (
                     <div className="absolute top-16 right-4 z-[18] max-w-[min(22rem,calc(100%-2rem))]">
                       <button
                         type="button"
@@ -1290,7 +1290,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                         data-testid="tavus-mode-entry"
                         className="rounded-xl border border-white/25 bg-slate-950/75 px-4 py-3 text-left text-white shadow-lg backdrop-blur-md transition hover:bg-slate-900/90 disabled:cursor-not-allowed disabled:opacity-90"
                       >
-                        <span className="block text-sm font-semibold">{tavusConfig?.providerId === "anam" ? "Anam Live" : tavusText("entry", "Try Tavus Full Pipeline", "Tavus 전체 파이프라인 사용")}</span>
+                        <span className="block text-sm font-semibold">{tavusText("entry", "Try Tavus Full Pipeline", "Tavus 전체 파이프라인 사용")}</span>
                         <span className="mt-1 block text-xs text-white/70">
                           {tavusConfig?.blockers?.includes("avatar_router_full_pipeline_contract_required")
                             ? tavusText("routerContractRequired", "Requires AvatarRouter Full Pipeline API support", "아바타 라우터의 Full Pipeline API 지원이 필요합니다")
