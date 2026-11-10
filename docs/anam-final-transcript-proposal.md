@@ -1,16 +1,23 @@
 # Anam 종료 후 기록·피드백: 라우터 계약 변경안
 
 상태: **협의용 제안 및 로컬 모의 계약 검증. 실제 지원·저장·평가 활성화가 아니다.**
+최신 공개자료 재확인: **2026-11-10**.
 
 ## 현재 확인과 범위
 
-2026-11-09 다음 공개 문서를 인증정보 없이 GET으로 재확인했다.
+2026-11-10 다음 공개 문서와 공개 진단 API를 인증정보 없이 GET으로 재확인했다.
 
 - https://avatar-router.replit.app/roleplayx/anam-integration.md — API 0.7
 - https://avatar-router.replit.app/roleplayx/managed-client-integration.md — API 0.8
+- https://avatar-router.replit.app/api/v1/providers — Anam `available`, `full_pipeline`,
+  native Anam WebRTC와 제공자 정리 확인. 마이크·가청 대화 검증은 대기 중.
+- https://avatar-router.replit.app/api/ready — 전역 준비 상태이며 최종 전사 capability를 광고하지 않는다.
 
 현재 Anam 계약은 저장 페르소나 연결·종료·정리를 제공하지만 인증된 최종 전사
-응답을 정의하지 않는다. 공통 클라이언트 문서도 미디어 연결과 평가·저장을 구분한다.
+응답을 정의하지 않는다. 관리형 클라이언트 문서는 기존 Tavus 최종 전사 API와
+Anam 평가 검증을 별도라고 명시한다. 공개 제공자 상태 `available`은 미디어 연결
+상태일 뿐이며 전사 capability나 인증된 `/auth/check` feature가 아니다. 공개 API만으로
+프로젝트별 transcript feature를 확인할 수 없으며, 해당 인증된 feature도 현재 확인되지 않았다.
 따라서 Anam의 `evaluationAvailable=false`, `transcriptState=unavailable`을 유지한다.
 `anam_full_pipeline`, 영상 재생 성공, Tavus 전사 feature, 아래 제안 feature의 출현만으로
 이 제한을 해제하지 않는다. 브라우저 임시 자막은 표시용이며 저장·평가 증거가 아니다.
