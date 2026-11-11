@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { newCultureValues } from "../../shared/cultureMap";
 const mocks = vi.hoisted(() => ({ persona: vi.fn(), criteria: vi.fn(), personaRun: vi.fn(), run: vi.fn() }));
-vi.mock("../../server/services/fileManager", () => ({ fileManager: { getPersonaByMBTI: mocks.persona } }));
+vi.mock("../../server/services/fileManager", () => ({ fileManager: {
+  getPersonaByMBTI: mocks.persona, getPersonaAvatarSettings: vi.fn(async () => null),
+} }));
 vi.mock("../../server/routes/routerHelpers", () => ({ loadEvaluationCriteria: mocks.criteria }));
 vi.mock("../../server/storage", () => ({ storage: { getPersonaRun: mocks.personaRun, getScenarioRun: mocks.run } }));
 import { captureCultureRunSnapshot, resolveAgentCultureScenario } from "../../server/services/cultureMap/runSnapshot";

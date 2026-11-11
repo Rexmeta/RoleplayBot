@@ -35,6 +35,9 @@ Preferred communication style: Simple, everyday language.
 - **Cloud Run Health Checks**: `/_ah/health` (liveness, always 200), `/_ah/ready` (readiness, 503 until app is fully initialized), `/_ah/debug` (diagnostic info, enabled when `DEBUG_ENDPOINT_ENABLED=true` env var is set). Server binds to `0.0.0.0` and registers health endpoints before all route initialization.
 - **Application Health API**: `/api/health` returns memory usage, uptime, and realtime voice session counts.
 - **Voice Audio Settings**: `/api/settings/voice-audio` exposes configurable AGC parameters (target RMS, min/max gain, attack/release coefficients), seeded from `system_settings` on first access. Real-time voice also offers browser-supported output-device selection with persisted preference, safe default fallback, and clear mobile OS-routing guidance when the browser cannot force a route. Microphone (input-device) selection is also available: persisted choice applied via `deviceId: { exact }` (no silent wrong-mic fallback), live mid-conversation swap that keeps the audio graph wired, and automatic default-mic fallback with a user-visible message when the chosen device disappears.
+- **Optional Live Avatars**: Default-OFF AvatarRouter adapter foundation with administrator diagnostics, separately saved scenario permissions, and chat-menu opt-in controls. Ordinary scenario sessions/PCM/media remain blocked; existing voice and renderers are unchanged. A separate system-admin stock Lucy test supports explicit paid consent, OpenAI turn-based text/microphone dialogue, subscribe-only LiveKit media, bounded PCM and confirmed cleanup. Never run paid tests or media transfers automatically. See `docs/live-avatar-integration.md`.
+- **AvatarRouter Connection**: API 0.4 defaults to server-only `AVATAR_ROUTER_BASE_URL` + `AVATAR_ROUTER_API_KEY` with an admin-triggered free `/auth/check`. Project keys do not prove local tenant isolation or enable live sessions. RS256 issuer/JWKS delegation remains optional under advanced settings, not a prerequisite.
+- **Free Avatar Preflight**: Admin-triggered `/api/live-avatar/runtime/preflight` reads official project authentication, custom Tavus catalog and capacity only; no sessions, media transfer or reconciliation writes. Diagnostic candidates never activate personas; existing learner gates remain closed. See `docs/live-avatar-integration.md` for approval boundaries and outstanding checks.
 
 ## Data Storage
 - **ORM**: Drizzle ORM (PostgreSQL dialect). Schema is split into domain modules under `shared/schema/`.
@@ -46,6 +49,7 @@ Preferred communication style: Simple, everyday language.
   - `scenarios.ts` — `scenarios`, `scenario_versions`, `scenario_runs`, `scenario_overrides`
   - `personas.ts` — `mbti_personas`, `user_personas`, `user_persona_likes`, `persona_user_scenes`
   - `cultureMap.ts` — `culture_profiles`, `culture_profile_versions` (independent custom profiles and 47 explicitly unvalidated RoleplayX editorial country baselines; immutable Actor snapshots; no official Erin Meyer score claims)
+  - `personaAvatar.ts` — `persona_avatar_assets`, `persona_avatar_bindings` (tenant-scoped provider asset reuse, versioned persona links, and unverified-by-default image-rights review)
   - `feedback.ts` — `feedbacks`, `evaluation_criteria_sets`, `evaluation_dimensions`, `few_shot_examples`, `criteria_set_few_shot_examples`
   - `analytics.ts` — `ai_usage_logs`, `hr_benchmark_targets`
   - `billing.ts` — `plans`, `subscriptions`
@@ -63,6 +67,7 @@ Preferred communication style: Simple, everyday language.
 - **Path Normalization**: Object paths are automatically normalized by stripping query strings and prefixes.
 
 ## Features
+- **Organization scenario overrides**: Administrator editing and delegated-operator read-only inspection use strict shared validation, intersection filters and effective-weight previews. New web/API runs freeze organization instructions, provenance and actual rubric weights in existing run JSON snapshots; later dialogue/reconnect/feedback never reload current overrides. See `docs/organization-overrides.md`.
 - **Comprehensive Persona Reflection**: AI conversations accurately reflect detailed persona definitions including MBTI traits, communication style, motivations, fears, and scenario-specific data.
 - **4-Level Difficulty System**: Influences AI responses across all conversation modes.
 - **Analytics and Reporting**: Comprehensive user conversation history analytics, including scores, category breakdowns, growth tracking, and pattern recognition, using a research-based 5-point scoring system.
@@ -155,6 +160,7 @@ Test files are organized under `tests/server/`, `tests/client/`, and `tests/` (r
 - `incrementUsageDaily.test.ts` — Daily usage counter increment logic
 - `memStorage.test.ts` — In-memory storage domain coverage
 - `metricSnapshot.test.ts` — Metric snapshot computation
+- `personaAvatarManifest.test.ts` — Stable seed-image resolution, manifest hashing, rights blockers, and source-image versioning
 - `optimizedGeminiProvider.test.ts` — Gemini AI provider optimizations
 - `realtimeVoiceService.test.ts` — Realtime voice service session lifecycle
 - `scenarioValidator.test.ts` — Scenario data validation

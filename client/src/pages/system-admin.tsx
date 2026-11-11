@@ -49,6 +49,7 @@ import { AgentKeyManager } from "@/components/admin/AgentKeyManager";
 import { PlansBillingTab } from "@/components/admin/PlansBillingTab";
 import { StorePackManager } from "@/components/admin/StorePackManager";
 import { DefaultIntroVideoManager } from "@/components/admin/DefaultIntroVideoManager";
+import { LiveAvatarSettingsPanel } from "@/components/admin/LiveAvatarSettingsPanel";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1829,6 +1830,7 @@ export default function SystemAdminPage() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6 mt-6">
+            <LiveAvatarSettingsPanel />
             <Card>
               <CardHeader>
                 <CardTitle>{t('systemAdmin.settings.aiModelStatus')}</CardTitle>

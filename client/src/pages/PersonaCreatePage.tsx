@@ -56,7 +56,7 @@ export default function PersonaCreatePage() {
   const [avatarObjectPath, setAvatarObjectPath] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
-  const form = useForm<PersonaFormData>({
+  const form = useForm<z.input<typeof personaFormSchema>, unknown, PersonaFormData>({
     resolver: zodResolver(personaFormSchema),
     defaultValues: {
       name: "",
@@ -72,7 +72,7 @@ export default function PersonaCreatePage() {
   });
 
   const watchedName = form.watch("name");
-  const watchedTags = form.watch("tags");
+  const watchedTags = form.watch("tags") ?? "";
   const watchedIsPublic = form.watch("isPublic");
   const watchedDescription = form.watch("description");
 

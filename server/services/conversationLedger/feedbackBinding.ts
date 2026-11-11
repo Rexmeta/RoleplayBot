@@ -15,10 +15,12 @@ export function snapshotFeedbackInput(run: LedgerRun, snapshot: typeof snapshots
       id: run.personaRunId, transcriptProtocol: "ledger-v1",
       scenarioId: binding.scenarioSnapshot.id, personaId: run.personaId,
       personaSnapshot: binding.personaSnapshot, createdAt: run.createdAt, completedAt: new Date(),
-      status: "completed", mode: "mixed", difficulty: binding.difficulty ?? binding.scenarioSnapshot.difficulty ?? 4,
+      status: "completed", mode: rows.length > 0 && rows.every(row => row.provider === "tavus")
+        ? "realtime_voice" : "mixed", difficulty: binding.difficulty ?? binding.scenarioSnapshot.difficulty ?? 4,
       turnCount: rows.filter(row => row.speaker === "user").length,
       messages: rows.map(row => ({
-        ...ledgerChatMessage(row), timestamp: row.createdAt, utteranceId: row.id,
+        ...ledgerChatMessage(row), timestamp: row.provider === "tavus"
+          ? row.metadata?.sourceTimestamp ?? row.createdAt : row.createdAt, utteranceId: row.id,
       })),
     },
     scenario: binding.scenarioSnapshot, persona: binding.personaSnapshot,

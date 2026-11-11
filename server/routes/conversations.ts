@@ -38,11 +38,9 @@ import { applyHarnessToSession, readScenarioHarness } from "../services/simulati
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
 import { buildRuleFallbackPatch, resolveStageTransition, inferIncidentCandidate, evaluateIncidentProbability } from "../services/simulation/simulationRules";
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
-import { captureCultureRunSnapshot } from "../services/cultureMap/runSnapshot";
 import { handleToolCall } from "../services/simulation/simulationToolHandler";
 import { v4 as uuidv4 } from "uuid";
-import { applyScenarioOverride, applyEvalWeightsOverride } from "../services/scenarios/overrideResolver";
-import type { ScenarioOverrideData } from "@shared/schema";
+import { captureOrganizationRunSnapshot, resolveExecutionOrganization } from "../services/scenarios/organizationOverride";
 import { checkTokenQuota } from "../middleware/tokenQuotaMiddleware";
 import {
   EVALUATION_CRITERIA_SNAPSHOT_KEY,
@@ -120,6 +118,13 @@ export default function createConversationsRouter(isAuthenticated: any) {
   const router = Router();
   router.use("/:id/ledger", createConversationLedgerRouter(isAuthenticated));
 
+  router.get("/:id/organization-override", isAuthenticated, asyncHandler(async (req: any, res) => {
+    const personaRun = await storage.getPersonaRun(req.params.id);
+    const scenarioRun = personaRun && await storage.getScenarioRun(personaRun.scenarioRunId);
+    if (!scenarioRun || scenarioRun.userId !== req.user.id) throw createHttpError(403, "Unauthorized");
+    res.json({ organizationOverride: (scenarioRun.scenarioSnapshot as any)?._organizationOverride ?? null });
+  }));
+
   router.get("/:id/voice-recognition", isAuthenticated, asyncHandler(async (req: any, res) => {
     await verifyPersonaRunOwnership(req.params.id, req.user.id);
     res.json(await listRecognitionEvidence(req.params.id));
@@ -181,47 +186,18 @@ export default function createConversationsRouter(isAuthenticated: any) {
       const sameScenarioRuns = existingRuns.filter(r => r.scenarioId === validatedData.scenarioId);
       const attemptNumber = sameScenarioRuns.length + 1;
 
-      let scenarioVersionId: string | undefined;
-      let scenarioSnapshotForRun: Record<string, unknown> | undefined;
-      let evaluationHarnessSnapshotForRun: Record<string, unknown> | undefined;
-
-      try {
-        const latestVersion = await storage.getLatestPublishedVersion(validatedData.scenarioId);
-        if (latestVersion) {
-          scenarioVersionId = latestVersion.id;
-          scenarioSnapshotForRun = { ...(latestVersion.contentSnapshot as Record<string, unknown>) };
-          evaluationHarnessSnapshotForRun = latestVersion.evaluationHarnessSnapshot as Record<string, unknown> | undefined;
-          assertImportedSnapshotComplete(scenarioSnapshotForRun);
-          if (!(scenarioSnapshotForRun as any)[EVALUATION_CRITERIA_SNAPSHOT_KEY]) {
-            const criteriaSetId = (scenarioSnapshotForRun as any).evaluationCriteriaSetId;
-            if (criteriaSetId) {
-              const criteria = await storage.getEvaluationCriteriaSetWithDimensions(criteriaSetId);
-              if (criteria) (scenarioSnapshotForRun as any)[EVALUATION_CRITERIA_SNAPSHOT_KEY] = criteria;
-            }
-          }
-          console.log(`🏷️ Scenario Run에 버전 v${latestVersion.version} 연결: ${latestVersion.id}`);
-        } else {
-          const sourceScenario = await storage.getScenario(validatedData.scenarioId);
-          if ((sourceScenario as any)?.contentxPackageId) {
-            throw createHttpError(503, "Imported scenario published snapshot is unavailable");
-          }
+      const organizationId = await resolveExecutionOrganization(user);
+      // Check learner content rights before storing any snapshot of private/paid content.
+      if (user?.role !== "admin" && user?.role !== "operator") {
+        const source = await storage.getScenario(validatedData.scenarioId);
+        // Private organization/category-owned content is valid for its members.
+        // captureOrganizationRunSnapshot enforces ownership before persisting.
+        if (!source) throw createHttpError(404, "시나리오를 찾을 수 없습니다");
+        if (source.storeListed && source.storePackId && !await storage.isOrgEntitledToPack(organizationId, source.storePackId)) {
+          throw Object.assign(createHttpError(403, "entitlement_required"), { code: "entitlement_required", pack_id: source.storePackId });
         }
-      } catch (versionErr) {
-        const sourceScenario = await storage.getScenario(validatedData.scenarioId).catch(() => null);
-        if ((sourceScenario as any)?.contentxPackageId) {
-          throw Object.assign(createHttpError(503, "Imported scenario version could not be bound"), {
-            cause: versionErr,
-            errorCode: "IMPORTED_SCENARIO_VERSION_UNAVAILABLE",
-          });
-        }
-        console.warn('⚠️ 시나리오 버전 조회 실패 (무시됨):', versionErr);
       }
-
-      if (!scenarioSnapshotForRun) {
-        const nativeScenario = await storage.getScenario(validatedData.scenarioId);
-        scenarioSnapshotForRun = await captureCultureRunSnapshot(nativeScenario, user?.preferredLanguage ?? "ko") ?? undefined;
-        if (scenarioSnapshotForRun) evaluationHarnessSnapshotForRun = (scenarioSnapshotForRun as any).evaluationHarness;
-      }
+      const binding = await captureOrganizationRunSnapshot(validatedData.scenarioId, organizationId, user?.preferredLanguage ?? "ko");
       scenarioRun = await storage.createScenarioRun({
         userId,
         scenarioId: validatedData.scenarioId,
@@ -230,11 +206,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
         mode: validatedData.mode,
         difficulty: validatedData.difficulty,
         status: 'active',
-        ...(scenarioVersionId && {
-          scenarioVersionId,
-          scenarioSnapshot: scenarioSnapshotForRun ?? null,
-          evaluationHarnessSnapshot: evaluationHarnessSnapshotForRun ?? null,
-        }),
+        ...binding,
       } as any);
 
       console.log(`📋 새로운 Scenario Run 생성: ${scenarioRun.id} (attempt #${attemptNumber})`);
@@ -259,7 +231,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       validatedData.scenarioId === '__free_chat__';
     const _isAdminOrOperator = user?.role === 'admin' || user?.role === 'operator';
     if (!_isAdminOrOperator && !_isPersonaXId && (scenarioFromDb as any).storeListed && (scenarioFromDb as any).storePackId) {
-      const _orgId = user?.organizationId ?? user?.assignedOrganizationId ?? null;
+      const _orgId = (scenarioRun.scenarioSnapshot as any)?._organizationOverride?.organizationId
+        ?? user?.organizationId ?? user?.assignedOrganizationId ?? null;
       const _packId = (scenarioFromDb as any).storePackId;
       const _entitled = await storage.isOrgEntitledToPack(_orgId, _packId);
       if (!_entitled) {
@@ -299,20 +272,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       throw new Error(`Scenario not found: ${validatedData.scenarioId}`);
     }
 
-    const orgId = user?.organizationId;
-    let activeScenarioOverride = null;
-    if (orgId && !(scenarioRun as any).scenarioSnapshot) {
-      try {
-        const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(orgId, validatedData.scenarioId);
-        if (overrideRecord) {
-          activeScenarioOverride = overrideRecord.override;
-          scenarioObj = applyScenarioOverride(scenarioObj, activeScenarioOverride);
-          console.log(`[conversations] Applied scenario override for org=${orgId}, scenario=${validatedData.scenarioId}`);
-        }
-      } catch (err) {
-        console.warn('[conversations] Failed to load scenario override (ignored):', err);
-      }
-    }
+    // Legacy runs do not borrow today's organization settings.
 
     let scenarioPersona = findRuntimePersona(scenarioObj, personaId);
     if (!scenarioPersona) {
@@ -386,7 +346,9 @@ export default function createConversationsRouter(isAuthenticated: any) {
       setSessionState(personaRun.id, freshState);
       const harnessConfig = readScenarioHarness({
         ...(scenarioObj as any),
-        evaluationHarness: (scenarioRun as any).evaluationHarnessSnapshot ?? (scenarioObj as any).evaluationHarness ?? (scenarioFromDb as any).evaluationHarness,
+        evaluationHarness: (scenarioRun as any).scenarioSnapshot
+          ? (scenarioObj as any).evaluationHarness ?? null
+          : (scenarioObj as any).evaluationHarness ?? (scenarioFromDb as any).evaluationHarness,
         npcBehaviorHarness: (scenarioPersona as any)?.npcBehaviorHarness ?? null,
       });
       applyHarnessToSession(personaRun.id, harnessConfig);
@@ -594,6 +556,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       activePersonaIndex: (personaRun.activePersonaIndex as number | null) ?? 0,
       scenarioVersionId: (scenarioRun as any).scenarioVersionId ?? null,
       scenarioVersion: scenarioVersionNumber,
+      organizationOverride: (scenarioRun.scenarioSnapshot as any)?._organizationOverride ?? null,
     });
   }));
 
@@ -656,6 +619,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
     const personaRunId = req.params.id;
 
     let { personaRun, scenarioRun } = await verifyPersonaRunOwnership(personaRunId, userId);
+    if (personaRun.mode === "tavus_full") throw createHttpError(409, "tavus_full_pipeline_active");
     const ledgerEnabled = usesLedger(personaRun);
     if (ledgerEnabled) {
       const [bound] = await db.select().from(conversationLedgerRuns)
@@ -758,7 +722,6 @@ export default function createConversationsRouter(isAuthenticated: any) {
     let persona: any;
     let scenarioWithUserDifficulty: any;
     let scenarioObjRef: any = null; // hoisted for auto-feedback trigger
-    let msgActiveScenarioOverride: ScenarioOverrideData | null = null;
 
     if (scenarioRun!.scenarioId === "__free_chat__") {
       const snapshot = personaRun!.personaSnapshot as any || {};
@@ -839,19 +802,6 @@ ${userNameLine}
       let scenarioObj: any = resolveRuntimeScenario(scenarioRun as any, liveScenario);
       if (!scenarioObj) throw new Error(`Scenario not found: ${scenarioRun!.scenarioId}`);
 
-      const msgOrgId = (user as any)?.organizationId;
-      if (msgOrgId && !(scenarioRun as any).scenarioSnapshot) {
-        try {
-          const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(msgOrgId, scenarioRun!.scenarioId);
-          if (overrideRecord) {
-            msgActiveScenarioOverride = overrideRecord.override as ScenarioOverrideData;
-            scenarioObj = applyScenarioOverride(scenarioObj, msgActiveScenarioOverride);
-            console.log(`[conversations/messages] Applied override for org=${msgOrgId}, scenario=${scenarioRun!.scenarioId}`);
-          }
-        } catch (err) {
-          console.warn('[conversations/messages] Failed to load scenario override (ignored):', err);
-        }
-      }
       scenarioObjRef = scenarioObj; // hoist for auto-feedback
 
       let scenarioPersona: any = findRuntimePersona(scenarioObj, personaId);
@@ -999,13 +949,15 @@ ${userNameLine}
     let fastEvalPromise: Promise<import('../services/simulation/evaluateUserResponse').EvaluationResult> | null = null;
 
     const baseScenarioEvalHarness = !isPersonaX
-      ? ((scenarioRun as any).evaluationHarnessSnapshot ?? scenarioObjRef?.evaluationHarness ?? (scenarioDbRecord as any)?.evaluationHarness ?? null)
+      ? ((scenarioRun as any).scenarioSnapshot
+        ? scenarioObjRef?.evaluationHarness ?? null
+        : scenarioObjRef?.evaluationHarness ?? (scenarioDbRecord as any)?.evaluationHarness ?? null)
       : null;
-    const scenarioEvalHarness = (baseScenarioEvalHarness && msgActiveScenarioOverride?.evaluationWeights && Object.keys(msgActiveScenarioOverride.evaluationWeights).length > 0)
-      ? applyEvalWeightsOverride(baseScenarioEvalHarness, msgActiveScenarioOverride.evaluationWeights as Record<string, number>)
-      : baseScenarioEvalHarness;
+    const scenarioEvalHarness = baseScenarioEvalHarness;
     const scenarioDifficultyProfile = !isPersonaX
-      ? (scenarioObjRef?.difficultyProfile ?? (scenarioDbRecord as any)?.difficultyProfile ?? null)
+      ? ((scenarioRun as any).scenarioSnapshot
+        ? scenarioObjRef?.difficultyProfile ?? null
+        : scenarioObjRef?.difficultyProfile ?? (scenarioDbRecord as any)?.difficultyProfile ?? null)
       : null;
     const activePersonaNpcHarness = !isPersonaX
       ? getSessionHarnessConfig(personaRunId).npcBehaviorHarness ?? null
@@ -1672,6 +1624,7 @@ ${userNameLine}
     const personaRunId = req.params.id;
 
     const { personaRun } = await verifyPersonaRunOwnership(personaRunId, userId);
+    if (personaRun.mode === "tavus_full") throw createHttpError(409, "tavus_full_pipeline_active");
     if (usesLedger(personaRun)) throw createHttpError(409, "ledger_full_snapshot_write_forbidden");
 
     const { messages } = req.body;
@@ -2024,6 +1977,10 @@ ${userNameLine}
       throw createHttpError(403, "Unauthorized access");
     }
 
+    if (personaRun.mode === "tavus_full" && personaRun.status !== "completed") {
+      throw createHttpError(409, "tavus_transcript_pending");
+    }
+
     if (force) {
       const existingFeedback = await storage.getFeedbackByConversationId(personaRunId);
       if (existingFeedback) {
@@ -2049,6 +2006,7 @@ ${userNameLine}
     const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
     const conversation = {
       id: personaRunId,
+      ...(personaRun.mode === "tavus_full" ? { mode: "realtime_voice" } : {}),
       messages: chatMessages.map((msg: any) => ({
         sender: msg.sender,
         message: msg.message,

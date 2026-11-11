@@ -279,7 +279,7 @@ export const agentEndSessionResponseSchema = z.object({
   sessionId: z.string(),
   status: z.literal("ended"),
   endedAt: z.string(),
-  feedbackReport: z.record(z.any()).nullable(),
+  feedbackReport: z.record(z.string(), z.any()).nullable(),
   requestId: z.string(),
 });
 export type AgentEndSessionResponse = z.infer<typeof agentEndSessionResponseSchema>;

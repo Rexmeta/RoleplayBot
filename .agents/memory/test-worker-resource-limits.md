@@ -1,6 +1,6 @@
 ---
-name: Test worker resource limits
-description: 병렬 전체 테스트에서 미디어 처리 timeout을 회귀와 구분하는 기준
+name: Test worker and environment constraints
+description: 미디어 timeout 비교 기준과 Vitest 버전 변경에 따른 DOM 실행 환경 확인
 ---
 
 이 개발 환경에서는 기본 병렬 전체 실행 시 기존 미디어 처리 테스트가 개별 시간 제한을 초과할 수 있다. 해당 실패를 기능 회귀로 단정하기 전에 같은 테스트를 제한된 동시성으로 비교한다.
@@ -8,3 +8,9 @@ description: 병렬 전체 테스트에서 미디어 처리 timeout을 회귀와
 **Why:** FFmpeg를 포함하는 기존 테스트가 기본 병렬 실행에서는 timeout으로 실패했지만, 미디어 코드나 assertion을 바꾸지 않은 전체 실행에서 워커를 두 개로 제한하자 통과했다.
 
 **How to apply:** 리소스 경합이 의심되면 제한된 동시성 비교를 한 번 수행하고 기본 실행의 실패와 제한 실행의 결과를 둘 다 보고한다. 단순히 시간 제한을 늘리거나 기본 실행 실패를 숨기지 않는다.
+
+DOM 테스트의 실행 환경은 Vitest 버전 변경 시 다시 확인한다. 디렉터리 패턴 설정만으로 브라우저 환경이 적용된다고 가정하지 않는다.
+
+**Why:** Vitest 4에서 기존 환경 패턴 설정이 있어도 새 React 테스트가 Node 환경으로 실행되는 것을 확인했다. 테스트 내용 문제가 아니라 실행 환경 계약의 차이였다.
+
+**How to apply:** 새 DOM 테스트에는 명시적 환경 지정을 사용하고, `document is not defined`를 앱 렌더링 오류와 구분한다.

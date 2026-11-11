@@ -14,6 +14,7 @@ import {
 } from "../services/evaluationEngine";
 import {
   getSnapshotEvaluationCriteria,
+  EVALUATION_CRITERIA_SNAPSHOT_KEY,
   resolveRuntimeScenario,
 } from "../services/runtimeScenario";
 
@@ -100,12 +101,12 @@ export async function checkAndCompleteScenario(scenarioRunId: string) {
 }
 
 export function recalculateOverallScore(evaluationScores: any[]): number {
-  const totalWeight = evaluationScores.reduce((sum: number, s: any) => sum + (s.weight || 20), 0);
+  const totalWeight = evaluationScores.reduce((sum: number, s: any) => sum + (s.weight ?? 20), 0);
   if (totalWeight === 0) return 50;
 
   const weightedSum = evaluationScores.reduce((sum: number, s: any) => {
     const maxScore = s.maxScore || 10;
-    const weight = s.weight || 20;
+    const weight = s.weight ?? 20;
     return sum + (s.score / maxScore) * weight;
   }, 0);
 
@@ -123,6 +124,8 @@ export async function loadEvaluationCriteria(
       dimensions: snapshotCriteria.dimensions.filter((dimension: any) => dimension.isActive !== false),
     };
   }
+  // Explicit null is a frozen absence, not permission to fetch a future rubric.
+  if (scenarioObj?._organizationOverride && Object.prototype.hasOwnProperty.call(scenarioObj, EVALUATION_CRITERIA_SNAPSHOT_KEY)) return null;
 
   const applyTranslations = async (criteriaSet: any): Promise<any> => {
     let translatedName = criteriaSet.name;
@@ -328,6 +331,7 @@ export async function generateAndSaveFeedback(
     name: evaluationCriteria.name,
     version: evaluationCriteria.version ?? null,
     status: evaluationCriteria.status ?? null,
+    organizationOverride: scenarioObj?._organizationOverride ?? null,
     dimensions: (evaluationCriteria.dimensions || []).map((d: any) => ({
       key: d.key,
       name: d.name,
@@ -493,11 +497,11 @@ export async function generateAndSaveFeedback(
     return {
       category: dim.key,
       name: dim.name,
-      score: existingScore?.score || dim.minScore || 1,
+      score: existingScore?.score ?? dim.minScore ?? 1,
       feedback: dimFeedback[dim.key] || dim.description || '',
       icon: dim.icon || '📊',
       color: dim.color || 'blue',
-      weight: dim.weight || 20,
+      weight: dim.weight ?? 20,
       maxScore: dim.maxScore || 10,
     };
   });
@@ -539,7 +543,7 @@ export async function generateAndSaveFeedback(
   let scenarioDbRow: Awaited<ReturnType<typeof storage.getScenario>> | null = null;
   try {
     const scenarioId = scenarioObj?.id ? String(scenarioObj.id) : null;
-    scenarioDbRow = scenarioId
+    scenarioDbRow = scenarioId && !scenarioObj?._organizationOverride
       ? await storage.getScenario(scenarioId).catch(() => null)
       : null;
     const harnessPR = (evaluationHarnessSnapshot ?? scenarioObj?.evaluationHarness ?? (scenarioDbRow as any)?.evaluationHarness)?.passingRule ?? null;

@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { conversationAvatarSessions } from './liveAvatar/conversationSessions';
 import { finishRecognitionCapture } from './voice/utteranceCapture';
 import { listRecognitionEvidence } from './voice/recognitionEvidence';
 import { recognitionResolved } from './voice/recognitionPolicy';
@@ -11,7 +12,6 @@ import {
   MAX_CONCURRENT_SESSIONS,
 } from './voice/types';
 import { buildSystemInstructions, buildReconnectSystemInstructions } from './voice/systemPromptBuilder';
-import { applyScenarioOverride } from './scenarios/overrideResolver';
 import { getSessionState } from './simulation/simulationEngine';
 import { applyHarnessToSession, readScenarioHarness } from './simulation/harnessReader';
 import { RUNTIME_PERSONA_PROFILE_KEY, findRuntimePersona, resolveRuntimeScenario } from './runtimeScenario';
@@ -325,18 +325,6 @@ export class RealtimeVoiceService {
     try {
       const user = await storage.getUser(userId);
       userName = normalizeProfileName(user?.name) || '사용자';
-      if (user?.organizationId && !boundScenarioRun?.scenarioSnapshot) {
-        try {
-          const overrideRecord = await storage.getScenarioOverrideByOrgAndScenario(user.organizationId, scenarioId);
-          if (overrideRecord) {
-            activeScenarioOverride = overrideRecord.override;
-            resolvedScenarioObj = applyScenarioOverride(scenarioObj, activeScenarioOverride);
-            console.log(`[realtimeVoice] Applied scenario override for org=${user.organizationId}, scenario=${scenarioId}`);
-          }
-        } catch (err) {
-          console.warn('[realtimeVoice] Failed to load scenario override (ignored):', err);
-        }
-      }
     } catch (error) {
       console.warn(`⚠️ Failed to load user info for userId ${userId}:`, error);
     }
@@ -798,6 +786,11 @@ export class RealtimeVoiceService {
   }
 
   private sendToClient(session: RealtimeSession, message: any): void {
+    const avatarRouted = conversationAvatarSessions.routeAudio(
+      session.userId, session.personaRunId, session.personaId, message,
+      event => this.sendToClient(session, event),
+    );
+    if (message.type === "audio.delta") message = { ...message, avatarRouted };
     if (session.ledgerAdapter) {
       if (message.type === "session.ready") message = {
         ...message, transcriptProtocol: "ledger-v1", generation: session.ledgerAdapter.generation,
@@ -815,6 +808,10 @@ export class RealtimeVoiceService {
   }
 
   handleClientMessage(sessionId: string, message: any): void {
+    if (message.type === "response.cancel") {
+      const active = this.sessions.get(sessionId);
+      if (active) conversationAvatarSessions.routeAudio(active.userId, active.personaRunId, active.personaId, { type: "response.interrupted" });
+    }
     processClientMessage(sessionId, message, this.sessions, this.sendToClient.bind(this), this.proactiveReconnect.bind(this));
   }
 
@@ -993,6 +990,10 @@ export class RealtimeVoiceService {
   }
 
   closeSession(sessionId: string): void {
+    const avatarOwner = this.sessions.get(sessionId);
+    if (avatarOwner) conversationAvatarSessions.routeAudio(
+      avatarOwner.userId, avatarOwner.personaRunId, avatarOwner.personaId, { type: "session.closed" },
+    );
     const session = this.sessions.get(sessionId);
     if (session) finishRecognitionCapture(session, this.sendToClient.bind(this), 'session_closed_before_commit');
     if (session?.ledgerAdapter) void session.ledgerAdapter.lost();

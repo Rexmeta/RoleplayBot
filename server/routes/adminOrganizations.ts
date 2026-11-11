@@ -541,7 +541,7 @@ export default function createAdminOrganizationsRouter(isAuthenticated: any) {
     const actor = req.user;
     const parsed = bulkAnonymizeSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw createHttpError(400, parsed.error.errors[0]?.message ?? "Invalid request body");
+      throw createHttpError(400, parsed.error.issues[0]?.message ?? "Invalid request body");
     }
     const { userIds } = parsed.data;
 

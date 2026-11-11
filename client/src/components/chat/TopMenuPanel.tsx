@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -7,12 +7,13 @@ interface TopMenuPanelProps {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
+  children?: React.ReactNode;
 }
 
 const DISMISS_THRESHOLD = 80;
 const FLICK_VELOCITY = 0.4;
 
-export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
+export function TopMenuPanel({ isOpen, onToggle, onClose, children }: TopMenuPanelProps) {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   );
@@ -22,6 +23,7 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
 
   const touchStartY = useRef(0);
   const touchStartTime = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
@@ -30,6 +32,13 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
     setIsMobile(mq.matches);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    if (isOpen) panel.removeAttribute("inert");
+    else panel.setAttribute("inert", "");
+  }, [isOpen, isMobile]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -74,9 +83,11 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
         )}
 
         <div
+          ref={panelRef}
           className={`fixed bottom-0 left-0 right-0 z-[9999] bg-white rounded-t-2xl shadow-2xl ${
             isDragging ? '' : 'transition-transform duration-300 ease-out'
           } ${isOpen && dragY === 0 ? 'translate-y-0' : !isOpen && dragY === 0 ? 'translate-y-full' : ''}`}
+          aria-hidden={!isOpen}
           style={{
             paddingBottom: 'env(safe-area-inset-bottom, 0px)',
             transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
@@ -92,6 +103,7 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
             <div className="w-10 h-1 bg-slate-300 rounded-full" />
           </div>
           <AppHeader />
+          {children && <div className="max-h-[60dvh] overflow-y-auto bg-white p-3">{children}</div>}
         </div>
 
         <button
@@ -124,11 +136,14 @@ export function TopMenuPanel({ isOpen, onToggle, onClose }: TopMenuPanelProps) {
         />
       )}
       <div
+        ref={panelRef}
         className={`fixed left-0 right-0 top-0 z-[9999] shadow-lg transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-y-0' : '-translate-y-full'
         }`}
+        aria-hidden={!isOpen}
       >
         <AppHeader />
+        {children && <div className="max-h-[60dvh] overflow-y-auto bg-white p-3"><div className="mx-auto max-w-2xl">{children}</div></div>}
       </div>
       <button
         onClick={onToggle}

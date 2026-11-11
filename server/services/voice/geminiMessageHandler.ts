@@ -509,6 +509,8 @@ export function handleGeminiMessage(
           type: 'audio.delta',
           delta: message.data,
           turnSeq: session.turnSeq,
+          pcmSampleRate: message.serverContent?.modelTurn?.parts?.some((part: any) =>
+            /^audio\/pcm;rate=24000$/i.test(part.inlineData?.mimeType ?? "")) ? 24000 : undefined,
         });
       }
     }
@@ -716,6 +718,7 @@ export function handleGeminiMessage(
               type: 'audio.delta',
               delta: audioData,
               turnSeq: session.turnSeq,
+              pcmSampleRate: /^audio\/pcm;rate=24000$/i.test(part.inlineData?.mimeType ?? "") ? 24000 : undefined,
             });
           }
         }

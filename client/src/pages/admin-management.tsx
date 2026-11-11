@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearch } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,9 +18,22 @@ export default function AdminManagement() {
   const urlTab = new URLSearchParams(search).get("tab");
   const [activeTab, setActiveTab] = useState(urlTab || "manage-scenarios");
   const [personaCreateTrigger, setPersonaCreateTrigger] = useState(0);
+  const [overrideDirty, setOverrideDirty] = useState(false);
 
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === "admin";
+
+  useEffect(() => {
+    const onDirty = (event: Event) => setOverrideDirty(Boolean((event as CustomEvent<boolean>).detail));
+    window.addEventListener("scenario-override-dirty", onDirty);
+    return () => window.removeEventListener("scenario-override-dirty", onDirty);
+  }, []);
+
+  const changeTab = (next: string) => {
+    if (activeTab === "scenario-overrides" && next !== activeTab && overrideDirty &&
+      !window.confirm("저장되지 않은 조직 Override 변경 사항이 있습니다. 탭을 이동하시겠습니까?")) return;
+    setActiveTab(next);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -30,7 +43,7 @@ export default function AdminManagement() {
         showBackButton
       />
       <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="admin-management">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={changeTab} className="space-y-6">
           <TabsList className="flex flex-wrap w-full h-auto p-1 gap-1">
             <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오</TabsTrigger>
             <TabsTrigger value="culture-map" data-testid="tab-culture-map">Culture Map</TabsTrigger>
@@ -69,8 +82,8 @@ export default function AdminManagement() {
           </TabsContent>
 
           <TabsContent value="scenario-overrides" className="space-y-6">
-            {isAdmin && <ScenarioOverrideManager />}
-            {!isAdmin && <p className="text-muted-foreground text-sm">관리자만 접근 가능합니다.</p>}
+            {(isAdmin || currentUser?.role === "operator") && <ScenarioOverrideManager />}
+            {!isAdmin && currentUser?.role !== "operator" && <p className="text-muted-foreground text-sm">관리자 또는 권한이 위임된 운영자만 접근할 수 있습니다.</p>}
           </TabsContent>
 
         </Tabs>

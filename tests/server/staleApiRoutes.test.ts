@@ -76,6 +76,7 @@ const SERVER_FILES_ABSOLUTE: string[] = [
  * /api/subscriptions, becomes the canonical path /api/subscriptions/plans.
  */
 const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
+  { file: "server/routes/tavus.ts",           prefix: "/api/tavus" },
   { file: "server/routes/bookmarks.ts",       prefix: "/api/bookmarks" },
   { file: "server/routes/scenarios.ts",        prefix: "/api/scenarios" },
   { file: "server/routes/conversations.ts",    prefix: "/api/conversations" },
@@ -90,6 +91,9 @@ const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
   { file: "server/routes/imageGeneration.ts",  prefix: "/api/image" },
   { file: "server/routes/userPersonaImage.ts", prefix: "/api/user-personas" },
   { file: "server/routes/media.ts",            prefix: "/api/media" },
+  { file: "server/routes/liveAvatar.ts",       prefix: "/api/live-avatar" },
+  { file: "server/routes/liveAvatarTest.ts",   prefix: "/api/live-avatar/test" },
+  { file: "server/routes/personaAvatarOperations.ts", prefix: "/api/admin/personas/live-avatar" },
 ];
 
 /**
@@ -134,6 +138,11 @@ const PATH_ALLOWLIST: string[] = [
   // /api/admin/categories is used as a query-key prefix; actual routes include
   // /api/admin/categories/:id and /api/admin/categories/:categoryId/translations/:locale.
   "/api/admin/categories/",
+
+  // Exact React Query key prefixes only; actual HTTP routes are registered
+  // under conversations/:conversationId and scenarios/:scenarioId.
+  "/api/live-avatar/conversations",
+  "/api/live-avatar/scenarios",
 
 ];
 
@@ -318,7 +327,7 @@ function isCovered(normalizedPath: string, canonical: Set<string>): boolean {
     // Guard against trivial prefixes like "/api" matching everything.
     if (
       normalizedPath.length > "/api/".length - 1 &&
-      route.startsWith(normalizedPath + "/")
+      new RegExp(`^${clientRegexSource}/`).test(route)
     ) {
       return true;
     }
@@ -332,6 +341,11 @@ function isCovered(normalizedPath: string, canonical: Set<string>): boolean {
 // ---------------------------------------------------------------------------
 
 describe("Stale API route detector", () => {
+  it("matches dynamic endpoint prefixes without allowing unrelated subpaths", () => {
+    const routes = new Set(["/api/admin/personas/live-avatar/assets/:assetId/validation/preflight"]);
+    expect(isCovered("/api/admin/personas/live-avatar/assets/__SEG__/validation", routes)).toBe(true);
+    expect(isCovered("/api/admin/personas/live-avatar/assets/__SEG__/other", routes)).toBe(false);
+  });
   const canonicalRoutes = buildCanonicalRoutes();
   const clientFiles = collectSourceFiles(join(CWD, "client", "src"));
 

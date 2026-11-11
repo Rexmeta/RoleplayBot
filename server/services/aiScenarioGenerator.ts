@@ -651,8 +651,8 @@ ${contextStr}
 
   const result = evaluationHarnessSchema.safeParse(parsed);
   if (!result.success) {
-    console.error('[generateEvaluationHarnessWithAI] Zod validation failed:', result.error.errors);
-    throw new Error(`AI가 반환한 evaluationHarness 형식이 잘못되었습니다: ${result.error.errors[0]?.message}`);
+    console.error('[generateEvaluationHarnessWithAI] Zod validation failed:', result.error.issues);
+    throw new Error(`AI가 반환한 evaluationHarness 형식이 잘못되었습니다: ${result.error.issues[0]?.message}`);
   }
   return result.data;
 }
@@ -719,8 +719,8 @@ ${contextStr}
 
   const result = playerConstraintsSchema.safeParse(parsed);
   if (!result.success) {
-    console.error('[generatePlayerConstraintsWithAI] Zod validation failed:', result.error.errors);
-    throw new Error(`AI가 반환한 playerConstraints 형식이 잘못되었습니다: ${result.error.errors[0]?.message}`);
+    console.error('[generatePlayerConstraintsWithAI] Zod validation failed:', result.error.issues);
+    throw new Error(`AI가 반환한 playerConstraints 형식이 잘못되었습니다: ${result.error.issues[0]?.message}`);
   }
   return result.data;
 }
@@ -850,8 +850,8 @@ ${contextStr}
 
   const result = npcBehaviorHarnessSchema.safeParse(normalized);
   if (!result.success) {
-    console.error('[generateNpcBehaviorHarnessWithAI] Zod validation failed:', result.error.errors);
-    throw new Error(`AI가 반환한 npcBehaviorHarness 형식이 잘못되었습니다: ${result.error.errors[0]?.message}`);
+    console.error('[generateNpcBehaviorHarnessWithAI] Zod validation failed:', result.error.issues);
+    throw new Error(`AI가 반환한 npcBehaviorHarness 형식이 잘못되었습니다: ${result.error.issues[0]?.message}`);
   }
   return result.data;
 }

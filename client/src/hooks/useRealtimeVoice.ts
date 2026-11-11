@@ -201,6 +201,8 @@ export function useRealtimeVoice({
   onPersonaSwitchPendingCleared,
 }: UseRealtimeVoiceProps): UseRealtimeVoiceReturn {
   const { toast } = useToast();
+  const avatarOwnsAudioRef = useRef(false);
+  const avatarSpeakingRef = useRef(false);
 
   const [status, setStatus] = useState<RealtimeVoiceStatus>('disconnected');
   const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('idle');
@@ -742,6 +744,14 @@ export function useRealtimeVoice({
 
             case 'user.speaking.started':
               console.log('🎙️ Server detected user speaking');
+              if (avatarSpeakingRef.current) {
+                avatarOwnsAudioRef.current = false;
+                avatarSpeakingRef.current = false;
+                window.dispatchEvent(new CustomEvent("live-avatar-fallback", { detail: { conversationId } }));
+                if (wsRef.current?.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify({ type: 'response.cancel' }));
+                }
+              }
               if (serverVoiceDetectedTimeRef.current === null) {
                 serverVoiceDetectedTimeRef.current = Date.now();
                 if (onUserSpeakingStartRef.current) onUserSpeakingStartRef.current();
@@ -806,13 +816,34 @@ export function useRealtimeVoice({
                 }
                 setIsAISpeaking(true);
                 isAISpeakingRef.current = true;
-                playAudioDelta(data.delta, outputTraceRef.current?.active
-                  ? { ...data.diagnostic, turnSeq: data.turnSeq } : undefined).catch(() => {});
+                if (data.avatarRouted === true) {
+                  // The subscribed renderer owns audio only after explicit media readiness.
+                  // Stop the local queue, not transcript buffers or the dialogue engine.
+                  if (!avatarOwnsAudioRef.current) stopPlayback();
+                  avatarOwnsAudioRef.current = true;
+                  avatarSpeakingRef.current = true;
+                } else {
+                  if (avatarOwnsAudioRef.current) {
+                    avatarOwnsAudioRef.current = false;
+                    avatarSpeakingRef.current = false;
+                    window.dispatchEvent(new CustomEvent("live-avatar-fallback", { detail: { conversationId } }));
+                  }
+                  playAudioDelta(data.delta, outputTraceRef.current?.active
+                    ? { ...data.diagnostic, turnSeq: data.turnSeq } : undefined).catch(() => {});
+                }
               }
               break;
 
             case 'audio.done':
               console.log('✅ Audio playback complete');
+              break;
+            case 'avatar.fallback':
+              avatarOwnsAudioRef.current = false;
+              avatarSpeakingRef.current = false;
+              window.dispatchEvent(new CustomEvent("live-avatar-fallback", { detail: { conversationId } }));
+              break;
+            case 'avatar.playback.done':
+              avatarSpeakingRef.current = false;
               break;
 
             case 'ai.transcription.delta':

@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { MoreVertical, RefreshCw, Languages, Download, Upload } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
+import { PersonaAvatarSettings, type PersonaAvatarMode, type PersonaLiveAvatar } from './PersonaAvatarSettings';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -214,6 +215,8 @@ interface MBTIPersona {
       female?: Record<string, string>;
     };
   };
+  avatarMode?: PersonaAvatarMode;
+  liveAvatar?: PersonaLiveAvatar | null;
 }
 
 // 시나리오별 페르소나 정보
@@ -316,6 +319,8 @@ interface MBTIPersonaFormData {
       female?: Partial<Record<string, string>>;
     };
   };
+  avatarMode?: PersonaAvatarMode;
+  liveAvatar?: PersonaLiveAvatar | null;
 }
 
 interface PersonaManagerProps {
@@ -411,6 +416,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     storeListed: false,
     storePriceUsd: null,
     storePackId: null,
+    avatarMode: 'image',
+    liveAvatar: null,
     images: {
       base: '',
       style: '',
@@ -1040,6 +1047,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       storeListed: false,
       storePriceUsd: null,
       storePackId: null,
+      avatarMode: 'image',
+      liveAvatar: null,
       images: {
         base: '',
         style: '',
@@ -1126,6 +1135,9 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       storeListed: (persona as any).storeListed ?? false,
       storePriceUsd: (persona as any).storePriceUsd ?? null,
       storePackId: (persona as any).storePackId ?? null,
+      // Preserve legacy absence; the selector derives a display-only image/video mode.
+      avatarMode: persona.avatarMode ?? undefined,
+      liveAvatar: persona.liveAvatar ?? null,
       videos: (() => {
         const pv = (persona as any).videos;
         if (!pv) return { enabled: false, avatarId: persona.id, clips: { male: {}, female: {} }, clipModels: { male: {}, female: {} } };
@@ -1724,6 +1736,26 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 </div>
               </div>
 
+              <PersonaAvatarSettings
+                videoManagementAllowed={canManageVideoAvatar}
+                activeVideoEnabled={formData.videos?.enabled ?? false}
+                mode={formData.avatarMode ?? (formData.videos?.enabled ? 'video' : 'image')}
+                liveAvatar={formData.liveAvatar ?? null}
+                onModeChange={(mode) => setFormData(prev => ({
+                  ...prev,
+                  avatarMode: mode,
+                  // Live is a draft-only preference in this phase. Keep the existing
+                  // conversation fallback untouched until an admin selects image/video.
+                  ...(mode === 'live' ? {} : {
+                    videos: {
+                      ...(prev.videos ?? { avatarId: prev.id, clips: { male: {}, female: {} } }),
+                      enabled: mode === 'video',
+                    },
+                  }),
+                }))}
+                onLiveAvatarChange={(liveAvatar) => setFormData(prev => ({ ...prev, liveAvatar }))}
+              />
+
               {/* Video management is deliberately absent for operators when disabled. */}
               {canManageVideoAvatar && <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
@@ -1733,23 +1765,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                   </h3>
                 </div>
 
-                {/* 활성화 스위치 + Avatar ID */}
+                {/* Mode is managed above so videos.enabled cannot drift from avatarMode. */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="videoEnabled"
-                      checked={formData.videos?.enabled ?? false}
-                      onCheckedChange={(checked) =>
-                        setFormData(prev => ({
-                          ...prev,
-                          videos: { enabled: checked, avatarId: prev.videos?.avatarId ?? prev.id, clips: prev.videos?.clips ?? { male: {}, female: {} }, clipModels: prev.videos?.clipModels },
-                        }))
-                      }
-                    />
-                    <Label htmlFor="videoEnabled" className="text-sm font-semibold text-slate-700">
-                      비디오 아바타 활성화
-                    </Label>
-                  </div>
                   <div className="flex-1">
                     <Label htmlFor="videoAvatarId" className="text-sm font-semibold text-slate-700 mb-1 block">
                       Avatar ID
@@ -2160,6 +2177,20 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       <Badge variant="outline" className="bg-green-100 text-green-800">
                         {t('admin.personaManager.usedInScenarios', { count: scenarioUsage.length })}
                       </Badge>
+                      {persona.avatarMode === 'live' ? (
+                        <>
+                          <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-900">
+                            Live 초안
+                          </Badge>
+                          <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
+                            현재 대화 표시: {persona.videos?.enabled ? '비디오' : '이미지'}
+                          </Badge>
+                        </>
+                      ) : (
+                        <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
+                          {(persona.avatarMode ?? (persona.videos?.enabled ? 'video' : 'image')) === 'video' ? '비디오 표시' : '이미지 표시'}
+                        </Badge>
+                      )}
                       {(() => {
                         const videoBadge = getVideoModelBadge(persona);
                         if (!videoBadge) return null;

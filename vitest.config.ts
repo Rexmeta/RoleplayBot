@@ -6,10 +6,14 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
+    // FFmpeg/media tests otherwise contend for this workspace's limited CPU.
+    maxWorkers: 1,
     environment: 'node',
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
+      // Downloaded/generated external projects are not this application's tests.
+      '**/generated-artifacts/**',
       '**/*.smoke.test.ts',
     ],
     environmentMatchGlobs: [

@@ -15,10 +15,11 @@ vi.mock("../../server/routes/routerHelpers", () => ({
   asyncHandler: (work: any) => (req: any, res: any, next: any) => Promise.resolve(work(req, res, next)).catch(next),
   createHttpError: (status: number, message: string) => Object.assign(new Error(message), { status }),
   verifyPersonaRunOwnership: async (runId: string, userId: string, role?: string) => {
-    if (runId !== "owned-run") throw Object.assign(new Error("not_found"), { status: 404 });
+    if (!["owned-run", "tavus-run"].includes(runId)) throw Object.assign(new Error("not_found"), { status: 404 });
     if (userId !== "owner" && !["admin", "operator"].includes(role ?? "")) {
       throw Object.assign(new Error("not_owner"), { status: 403 });
     }
+    return { personaRun: { mode: runId === "tavus-run" ? "tavus_full" : "text" } };
   },
 }));
 

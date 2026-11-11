@@ -1,3 +1,4 @@
+- [Duplex 개선 보존 범위](duplex-modernization-boundary.md) — 음성·감정 분석·시나리오 시뮬레이션·평가를 유지하면서 실시간 대화와 표정 동기화를 고도화한다.
 - [Gemini Live 모델 검증](gemini-live-models.md) — v1beta·현행 provider 계약·실제 handshake를 확인; 오래된 SDK 버전이나 모델명 메모로 지원 여부를 단정하지 않는다.
 - [Veo model names](veo-model-names.md) — 올바른 순서: `veo-3.1-lite-generate-preview` (lite-generate, not generate-lite); generateAudio는 SDK v1.15+에서 config에 넣으면 즉시 에러
 - [Veo image-to-video constraints](veo-image-to-video.md) — referenceImages/personGeneration 둘 다 Gemini API 미지원; 사람 얼굴 이미지는 RAI 필터에 자주 차단; silent fallback 금지
@@ -25,4 +26,11 @@
 - [동시 음성 장애 증거](voice-incident-evidence.md) — 저장소 배포 정의·최근 로그·모의 부하를 행사 실행 환경이나 실제 provider 수용량과 혼동하지 않는다.
 - [Startup vs numbered migrations](startup-vs-numbered-migrations.md) — 번호 SQL 존재만으로 개발 DB가 갱신되지 않는다; 런타임 즉시 조회 스키마는 startup 경로도 보장한다.
 - [Culture Map 독립성](culture-map-boundaries.md) — Persona 불변·Actor별 기본 OFF·시나리오 snapshot·검증된 국가 출처·평가 직접 가감 금지.
-- [테스트 워커 리소스 제한](test-worker-resource-limits.md) — 미디어 테스트의 병렬 timeout은 제한된 동시성으로 비교하고 양쪽 결과를 구분 보고한다.
+- [테스트 워커·실행 환경](test-worker-resource-limits.md) — 미디어 timeout은 제한된 동시성으로 비교; Vitest 버전 변경 시 DOM 환경 적용을 확인한다.
+- [운영 변경 승인 경계](production-change-boundary.md) — 운영 환경 변경과 배포는 사용자의 명시적 승인이 있어야 한다.
+- [AvatarRouter integration gate](avatar-router-integration-gate.md) — 선택형 persona 테스트·시나리오 실행의 동의·스냅샷·프로젝트 소유권 경계; 구현 승인은 유료 검증·배포 승인이 아니다.
+- [Vite Zod optimizer cache](vite-zod-optimizer-cache.md) — Zod 메이저 업그레이드 뒤 브라우저가 구버전 최적화 번들을 계속 제공할 수 있어 런타임 API 불일치 확인이 필요하다.
+- [Tavus Full Pipeline 원칙](tavus-full-pipeline-boundaries.md) — 기존 AvatarRouter 경유 필수·직접 Tavus 호출 금지·Gemini 중계 없는 독립 모드·공통 PAL 하나.
+- [조직 Override 계약](organization-override-contract.md) — 위임은 실행 소속이 아니며, 피드백 루브릭과 고정 시뮬레이션 차원을 임의 매핑하지 않는다.
+- [Audit cursor timestamp precision](audit-cursor-timestamp-precision.md) — PostgreSQL timestamp를 JS Date로 변환하면 마이크로초 정밀도가 사라져 커서 경계에서 중복·누락이 생길 수 있다.
+- [로컬 PostgreSQL 통합 테스트](isolated-postgres-test-runtime.md) — 임시 DB 서버와 Vitest는 한 셸 호출에서 실행하고, 로컬 접속은 `sslmode=disable`로 설정한다.

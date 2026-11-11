@@ -67,6 +67,9 @@ describe('saveVideo — end-to-end filename via mocked storage', () => {
 
   beforeEach(async () => {
     uploadPaths = [];
+    // Keep this mocked-GCS test independent of the workspace's Replit storage environment.
+    vi.stubEnv('REPL_ID', '');
+    vi.stubEnv('PRIVATE_OBJECT_DIR', '');
 
     // Stub the storage backend so no real network calls happen.
     vi.doMock('../../server/services/gcsStorage', () => ({
@@ -86,6 +89,7 @@ describe('saveVideo — end-to-end filename via mocked storage', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     vi.resetModules();
   });
 

@@ -66,10 +66,22 @@ describe("AssessmentScenarioPackage v1", () => {
     expect(() => assessmentScenarioPackageV1Schema.parse({ ...validPackage(), schemaVersion: "2.0" })).toThrow(/Unsupported schemaVersion/);
     const missing = validPackage() as unknown as Record<string, unknown>;
     delete missing.provenance;
-    expect(() => assessmentScenarioPackageV1Schema.parse(missing)).toThrow(/Required/);
+    const missingResult = assessmentScenarioPackageV1Schema.safeParse(missing);
+    expect(missingResult.success).toBe(false);
+    if (!missingResult.success) {
+      expect(missingResult.error.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "invalid_type", path: ["provenance"] }),
+      ]));
+    }
     const malformed = validPackage();
     malformed.scenarios[0].difficulty = 99;
-    expect(() => assessmentScenarioPackageV1Schema.parse(malformed)).toThrow(/less than or equal to 10/);
+    const malformedResult = assessmentScenarioPackageV1Schema.safeParse(malformed);
+    expect(malformedResult.success).toBe(false);
+    if (!malformedResult.success) {
+      expect(malformedResult.error.issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "too_big", path: ["scenarios", 0, "difficulty"], maximum: 10 }),
+      ]));
+    }
   });
 
   it("rejects duplicate and dangling scenario relationships", () => {

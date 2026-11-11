@@ -234,7 +234,9 @@ export function buildSystemInstructions(
     st.conversationStart,
     `${langInst.greetingInstruction}`,
     ...(playerConstraints ? [buildPlayerConstraintsBlock(playerConstraints, userLanguage)] : []),
-    ...(scenarioOverride ? [buildOverridePromptBlock(scenarioOverride)] : []),
+    ...(scenario?._overridePromptBlock
+      ? [scenario._overridePromptBlock]
+      : scenarioOverride ? [buildOverridePromptBlock(scenarioOverride)] : []),
     ...(includeSimulationTools ? [``, buildSimulationToolPrompt(userLanguage)] : []),
     ...(allPersonas && allPersonas.length > 1 && personaSwitchMode !== 'none'
       ? [personaSwitchMode === 'join'

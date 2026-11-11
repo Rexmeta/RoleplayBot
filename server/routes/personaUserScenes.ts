@@ -61,7 +61,7 @@ export default function createPersonaUserScenesRouter(isAuthenticated: any) {
     asyncHandler(async (req: any, res) => {
       const parsed = generateSceneSchema.safeParse(req.body);
       if (!parsed.success) {
-        throw createHttpError(400, parsed.error.errors[0]?.message || "잘못된 요청입니다.");
+        throw createHttpError(400, parsed.error.issues[0]?.message || "잘못된 요청입니다.");
       }
       const { idea, personaName, personaDescription } = parsed.data;
       const scene = await generatePersonaScene({
@@ -93,7 +93,7 @@ export default function createPersonaUserScenesRouter(isAuthenticated: any) {
     asyncHandler(async (req: any, res) => {
       const parsed = createSceneSchema.safeParse(req.body);
       if (!parsed.success) {
-        throw createHttpError(400, parsed.error.errors[0]?.message || "잘못된 요청입니다.");
+        throw createHttpError(400, parsed.error.issues[0]?.message || "잘못된 요청입니다.");
       }
       const userId = req.user?.id;
       const scene = await storage.createPersonaUserScene({
@@ -111,7 +111,7 @@ export default function createPersonaUserScenesRouter(isAuthenticated: any) {
     asyncHandler(async (req: any, res) => {
       const parsed = updateSceneSchema.safeParse(req.body);
       if (!parsed.success) {
-        throw createHttpError(400, parsed.error.errors[0]?.message || "잘못된 요청입니다.");
+        throw createHttpError(400, parsed.error.issues[0]?.message || "잘못된 요청입니다.");
       }
       const userId = req.user?.id;
       const existing = await storage.getPersonaUserSceneById(req.params.id);

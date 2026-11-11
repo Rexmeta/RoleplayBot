@@ -363,7 +363,7 @@ export function setupAuth(app: Express) {
     } catch (error: any) {
       console.error("Registration error:", error);
       if (error instanceof z.ZodError) {
-        const errorMessages = error.errors.map(e => e.message);
+        const errorMessages = error.issues.map(e => e.message);
         return res.status(400).json({
           message: errorMessages.join(', '),
           errors: errorMessages,
@@ -447,7 +447,7 @@ export function setupAuth(app: Express) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           message: "입력 오류",
-          errors: error.errors.map(e => e.message),
+          errors: error.issues.map(e => e.message),
         });
       }
       if (isDatabaseError(error)) {

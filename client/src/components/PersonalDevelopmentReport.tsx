@@ -29,6 +29,7 @@ import { StrategyPanel } from "./report/StrategyPanel";
 import { RubricSnapshotPanel } from "./report/RubricSnapshotPanel";
 import SimulationReplayPanel from "./report/SimulationReplayPanel";
 import { RecognitionReview } from './chat/RecognitionReview';
+import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "@/components/ScenarioOverrideSummary";
 
 function ConversationHistoryPanel({
   messages,
@@ -852,7 +853,7 @@ export default function PersonalDevelopmentReport({
           <div className="flex flex-col gap-0.5"><span className="font-semibold text-white/60 uppercase tracking-wide">발행 일시</span><span>{feedback.createdAt ? new Date(feedback.createdAt).toLocaleString('ko-KR') : new Date().toLocaleString('ko-KR')}</span></div>
           <div className="flex flex-col gap-0.5"><span className="font-semibold text-white/60 uppercase tracking-wide">보고서 ID</span><span className="font-mono">{conversationId.slice(0, 8).toUpperCase()}</span></div>
           <div className="flex flex-col gap-0.5"><span className="font-semibold text-white/60 uppercase tracking-wide">난이도</span><span>{['', '입문', '기본', '심화', '전문가'][scenario.difficulty as number] || '기본'}</span></div>
-          <div className="flex flex-col gap-0.5"><span className="font-semibold text-white/60 uppercase tracking-wide">대화 모드</span><span>{currentConversation?.mode === 'realtime_voice' ? '실시간 음성' : '텍스트'}</span></div>
+          <div className="flex flex-col gap-0.5"><span className="font-semibold text-white/60 uppercase tracking-wide">대화 모드</span><span>{currentConversation?.mode === 'tavus_full' ? 'Tavus 라이브 아바타' : currentConversation?.mode === 'realtime_voice' ? '실시간 음성' : '텍스트'}</span></div>
         </div>
         {scores.length > 0 && (
           <div className="mt-4 pt-4 border-t border-white/20">
@@ -987,6 +988,10 @@ export default function PersonalDevelopmentReport({
             {(feedback.rubricSnapshot || feedback.modelSnapshot) && (
               <RubricSnapshotPanel rubricSnapshot={feedback.rubricSnapshot} modelSnapshot={feedback.modelSnapshot} criteriaSetVersion={feedback.criteriaSetVersion} />
             )}
+            <ScenarioOverrideSummary
+              metadata={(feedback.rubricSnapshot as any)?.organizationOverride as OrganizationOverrideMetadata ?? null}
+              title="평가에 고정된 조직 설정"
+            />
           </TabsContent>
         )}
 

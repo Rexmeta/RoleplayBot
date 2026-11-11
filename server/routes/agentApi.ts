@@ -31,7 +31,9 @@ import {
   attachAgentRequestId,
 } from "../middleware/agentApiKeyMiddleware";
 import { fileManager } from "../services/fileManager";
-import { captureCultureRunSnapshot, resolveAgentCultureScenario } from "../services/cultureMap/runSnapshot";
+import { resolveAgentCultureScenario } from "../services/cultureMap/runSnapshot";
+import { captureOrganizationRunSnapshot } from "../services/scenarios/organizationOverride";
+import { RUNTIME_PERSONA_PROFILE_KEY } from "../services/runtimeScenario";
 import { generateAIResponse, generateStreamingAIResponse } from "../services/aiServiceFactory";
 import { storage } from "../storage";
 import { z } from "zod";
@@ -507,7 +509,7 @@ const createSessionSchema = z.object({
   externalSessionId: z.string().optional(),
   difficulty: z.number().int().min(1).max(5).default(4),
   language: z.enum(SUPPORTED_LANGUAGES).default("ko"),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 router.post("/sessions", requireScope("sessions:create"), async (req: any, res) => {
@@ -598,17 +600,14 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
 
     // Create internal persona run (userId is null – agent sessions are not
     // tied to a users table row; agent_sessions.id is the source of truth).
-    const cultureRunSnapshot = await captureCultureRunSnapshot(scenario, language);
+    const organizationBinding = await captureOrganizationRunSnapshot(scenarioId, orgId, language);
     let personaRunId: string | null = null;
     try {
       const scenarioRun = await storage.createScenarioRun({
         userId: null as any,
         scenarioId,
         scenarioName: scenario.title ?? scenarioId,
-        ...(cultureRunSnapshot ? {
-          scenarioSnapshot: cultureRunSnapshot,
-          evaluationHarnessSnapshot: cultureRunSnapshot.evaluationHarness ?? null,
-        } : {}),
+        ...organizationBinding,
         attemptNumber: 1,
         mode: "text",
         difficulty,
@@ -628,8 +627,7 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
       });
       personaRunId = personaRun.id;
     } catch (err) {
-      if (cultureRunSnapshot) throw err; // Never continue a cultural session unbound.
-      console.warn("[agentApi] Failed to create persona run (non-fatal):", err);
+      throw err; // Never start a session without its server-resolved run snapshot.
     }
 
     // Create agent session
@@ -671,6 +669,12 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
     res.status(201).json(responseBody);
   } catch (err) {
     console.error("[agentApi] POST /sessions error:", err);
+    const status = (err as any)?.status;
+    if ([403, 409, 410, 422, 503].includes(status)) {
+      agentError(res, status, status === 503 ? "service_unavailable" : "validation_error",
+        (err as Error).message);
+      return;
+    }
     agentError(res, 500, "internal_error", "Failed to create session.");
   }
 });
@@ -783,7 +787,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
 
     const scenarioPersona = scenario.personas?.find((p: any) => p.id === session.personaId);
     const mbtiType = scenarioPersona?.mbti ?? scenarioPersona?.personaRef?.replace(".json", "");
-    const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+    const mbtiPersona = scenarioPersona?.[RUNTIME_PERSONA_PROFILE_KEY] ?? (mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null);
 
     const persona = {
       id: scenarioPersona?.id ?? session.personaId,
@@ -1336,7 +1340,7 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
            if (scenario) {
             const scenarioPersona = scenario.personas?.find((p: any) => p.id === session.personaId);
             const mbtiType = scenarioPersona?.mbti ?? scenarioPersona?.personaRef?.replace(".json", "");
-            const mbtiPersona = mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null;
+            const mbtiPersona = scenarioPersona?.[RUNTIME_PERSONA_PROFILE_KEY] ?? (mbtiType ? await fileManager.getPersonaByMBTI(mbtiType) : null);
 
             const personaContext = {
               id: scenarioPersona?.id ?? session.personaId,

@@ -34,6 +34,8 @@ import { resolvePersonaAfterSwitch } from "@/components/chat/resolvePersonaAfter
 import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
+import { LiveAvatarChoice } from "@/components/chat/LiveAvatarChoice";
+import { LiveAvatarEntry, useLiveAvatarSelection, type LiveAvatarPlaybackState } from "@/components/chat/LiveAvatarEntry";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
 import type { VideoAvatarRenderer } from "@/lib/avatar/VideoAvatarRenderer";
@@ -41,6 +43,9 @@ import { ChatInputBar } from "@/components/chat/ChatInputBar";
 import { useAvatarStateMachine } from "@/hooks/useAvatarStateMachine";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 import { isIOSWebKitAudioPlatform } from "@/lib/iosAudioSession";
+import TavusChatWindow from "@/components/chat/TavusChatWindow";
+import { apiRequest } from "@/lib/queryClient";
+import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "@/components/ScenarioOverrideSummary";
 
 const MAX_TURNS = 999;
 const SOFT_CLOSE_THRESHOLD = 0.8;
@@ -51,7 +56,7 @@ export function isLimitReason(reason: string): boolean {
 
 type PreviousMessage = { role: 'user' | 'ai'; content: string };
 
-interface ChatWindowProps {
+export interface ChatWindowProps {
   scenario: ComplexScenario;
   persona: ScenarioPersona;
   conversationId: string;
@@ -62,12 +67,17 @@ interface ChatWindowProps {
   onConversationEnding?: () => void;
   isPersonaMode?: boolean;
   initialMessages?: import("@shared/schema").ConversationMessage[];
-  initialInputMode?: 'text' | 'realtime-voice';
+  initialInputMode?: 'text' | 'realtime-voice' | 'tavus';
   earlyConnect?: boolean;
   delayGreeting?: boolean;
 }
 
-export default function ChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting }: ChatWindowProps) {
+interface StandardChatWindowProps extends Omit<ChatWindowProps, 'initialInputMode'> {
+  initialInputMode?: 'text' | 'realtime-voice';
+  onSelectTavus?: () => void;
+}
+
+function StandardChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting, onSelectTavus }: StandardChatWindowProps) {
   const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -114,6 +124,8 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
+  const [liveAvatarOptionsRequest, setLiveAvatarOptionsRequest] = useState(0);
+  const [liveAvatarPortraitHost, setLiveAvatarPortraitHost] = useState<HTMLDivElement | null>(null);
   const [isSilenceIdle, setIsSilenceIdle] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState<number>(0);
@@ -148,7 +160,9 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   const { toast } = useToast();
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const tavusText = (key: string, english: string, korean: string) =>
+    t(`chat.tavus.${key}`, { defaultValue: i18n.language?.startsWith("ko") ? korean : english });
 
   const getPersonaGender = (): 'male' | 'female' => persona.gender ?? 'male';
 
@@ -176,6 +190,11 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
   const [latestPersonaSwitch, setLatestPersonaSwitch] = useState<{ name: string; transitionLine: string } | null>(null);
   const personaSwitchBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePersona, setActivePersona] = useState<ScenarioPersona>(persona);
+  const liveAvatarSelection = useLiveAvatarSelection(conversationId, activePersona.id);
+  const [liveAvatarPlayback, setLiveAvatarPlayback] = useState<{ actorId: string; state: LiveAvatarPlaybackState } | null>(null);
+  const updateLiveAvatarPlayback = useCallback((state: LiveAvatarPlaybackState) => {
+    setLiveAvatarPlayback({ actorId: activePersona.id, state });
+  }, [activePersona.id]);
   const [personaSwitchAnnounced, setPersonaSwitchAnnounced] = useState(false);
   const conversationLedger = useConversationLedger(conversationId);
 
@@ -431,6 +450,23 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     enabled: !!conversationId,
     refetchOnWindowFocus: realtimeVoice.conversationPhase !== 'active',
   });
+  const scenarioRunId = (conversation as any)?.scenarioRunId as string | undefined;
+  const scenarioRunQuery = useQuery<any>({
+    queryKey: ["/api/scenario-runs", scenarioRunId],
+    enabled: !!scenarioRunId,
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/scenario-runs/${encodeURIComponent(scenarioRunId!)}`);
+      return response.json();
+    },
+  });
+  const runData = scenarioRunQuery.data?.scenarioRun ?? scenarioRunQuery.data;
+  const overrideMetadata = (runData?.scenarioSnapshot?._organizationOverride ??
+    runData?.scenarioSnapshot?.scenarioSnapshot?._organizationOverride ?? null) as OrganizationOverrideMetadata;
+
+  const openLiveAvatarOptions = useCallback(() => {
+    setIsTopMenuOpen(true);
+    setLiveAvatarOptionsRequest(value => value + 1);
+  }, []);
 
   const { elapsedTime, setConversationStartTime, setElapsedTime } = useConversationTimer({
     conversation, maxTurns: MAX_TURNS,
@@ -843,6 +879,16 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
     }
   };
 
+  // Keep this hook above every loading/error/ending exit so native chat calls
+  // the same hooks before and after its conversation query resolves.
+  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; selectable?: boolean; blockers: string[] }>({
+    queryKey: ["/api/tavus/config", conversationId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`);
+      return response.json();
+    },
+  });
+
   if (error) return (
     <div className="text-center py-8">
       <p className="text-red-600">대화를 불러올 수 없습니다.</p>
@@ -922,9 +968,29 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
 
   return (
     <>
-      <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)} />
+      <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)}>
+        {inputMode === "realtime-voice" && scenarioRunQuery.isSuccess && <ScenarioOverrideSummary metadata={overrideMetadata} />}
+        {liveAvatarSelection.data?.configured && <LiveAvatarChoice
+          key={conversationId}
+          conversationId={conversationId}
+          voiceMode={inputMode === 'realtime-voice'}
+          portraitHost={liveAvatarPortraitHost}
+          actorId={activePersona.id}
+          optionsRequest={liveAvatarOptionsRequest}
+          onPlaybackStateChange={updateLiveAvatarPlayback}
+        />}
+      </TopMenuPanel>
 
       <div className="chat-window relative">
+        {scenarioRunId && (
+          <div className="mx-auto mb-3 max-w-5xl px-3 sm:px-4">
+            {scenarioRunQuery.isLoading
+              ? <div className="h-14 animate-pulse rounded-md bg-slate-100" aria-label="조직 설정 적용 기록 로딩 중" />
+              : scenarioRunQuery.isError
+              ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><span>실행의 조직 설정 적용 기록을 불러오지 못했습니다. 과거 실행으로 오인하지 않도록 기록 상태를 별도로 표시합니다.</span><Button size="sm" variant="outline" onClick={() => scenarioRunQuery.refetch()}>다시 시도</Button></div>
+              : <ScenarioOverrideSummary metadata={overrideMetadata} />}
+          </div>
+        )}
         {isInitialLoading && (
           <div className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${isOverlayFading ? 'opacity-0' : 'opacity-100'}`} data-testid="chat-loading-overlay">
             <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
@@ -1137,6 +1203,19 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                       isTransitioning={isTransitioning} isSessionEnding={isSessionEnding}
                       isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
                   )}
+                  <div
+                    ref={setLiveAvatarPortraitHost}
+                    data-testid="live-avatar-portrait-host"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-[5] overflow-hidden"
+                  />
+                  <LiveAvatarEntry
+                    conversationId={conversationId}
+                    actorId={activePersona.id}
+                    optionsOpen={isTopMenuOpen}
+                    onOpenOptions={openLiveAvatarOptions}
+                    playbackState={liveAvatarPlayback?.actorId === activePersona.id ? liveAvatarPlayback.state : "idle"}
+                  />
 
                   {latestPersonaSwitch && (
                     <div className="absolute top-16 left-0 right-0 z-[14] flex justify-center animate-in slide-in-from-top-2 duration-300 px-4">
@@ -1195,6 +1274,33 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
                     <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
                       elapsedTime={elapsedTime}
                       isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
+                  )}
+
+                  {onSelectTavus && (
+                    <div className="absolute top-16 right-4 z-[18] max-w-[min(22rem,calc(100%-2rem))]">
+                      <button
+                        type="button"
+                        onClick={onSelectTavus}
+                        disabled={!(tavusConfig?.selectable ?? tavusConfig?.available)}
+                        data-testid="tavus-mode-entry"
+                        className="rounded-xl border border-white/25 bg-slate-950/75 px-4 py-3 text-left text-white shadow-lg backdrop-blur-md transition hover:bg-slate-900/90 disabled:cursor-not-allowed disabled:opacity-90"
+                      >
+                        <span className="block text-sm font-semibold">{tavusText("entry", "Try Tavus Full Pipeline", "Tavus 전체 파이프라인 사용")}</span>
+                        <span className="mt-1 block text-xs text-white/70">
+                          {tavusConfig?.blockers?.includes("avatar_router_full_pipeline_contract_required")
+                            ? tavusText("routerContractRequired", "Requires AvatarRouter Full Pipeline API support", "아바타 라우터의 Full Pipeline API 지원이 필요합니다")
+                            : tavusConfig?.available
+                            ? tavusText("entryAvailable", "Join a provider-hosted avatar conversation", "외부 제공자의 아바타 대화에 참여합니다")
+                            : tavusConfig?.selectable
+                              ? tavusText("entryCheckRuntime", "View runtime status and admission restrictions", "실행 상태 및 차단 사유 확인")
+                            : tavusConfigError
+                              ? tavusText("availabilityError", "Availability could not be checked", "사용 가능 여부를 확인할 수 없습니다")
+                              : tavusConfig
+                              ? `${tavusText("unavailable", "Unavailable", "사용할 수 없음")}${tavusConfig.blockers?.length ? `: ${tavusConfig.blockers.join(", ")}` : ` ${tavusText("rightNow", "right now", "현재")}`}`
+                              : isTavusConfigLoading ? tavusText("checkingAvailability", "Checking availability", "사용 가능 여부 확인 중") : tavusText("availabilityUnavailable", "Availability unavailable", "사용 가능 여부를 확인할 수 없습니다")}
+                        </span>
+                      </button>
+                    </div>
                   )}
 
                   {inputMode === 'realtime-voice' && (
@@ -1714,5 +1820,110 @@ export default function ChatWindow({ scenario, persona, conversationId, onChatCo
         </Sheet>
       </div>
     </>
+  );
+}
+
+export default function ChatWindow(props: ChatWindowProps) {
+  const { t, i18n } = useTranslation();
+  const restoreText = (key: string, english: string, korean: string) =>
+    t(`chat.tavus.${key}`, { defaultValue: i18n.language?.startsWith("ko") ? korean : english });
+  const readyFiredRef = useRef(false);
+  const onReadyRef = useRef(props.onReady);
+  onReadyRef.current = props.onReady;
+  const notifyReady = useCallback(() => {
+    if (readyFiredRef.current) return;
+    readyFiredRef.current = true;
+    onReadyRef.current?.();
+  }, []);
+  const [mode, setMode] = useState<'standard' | 'tavus' | 'checking' | 'choice'>(() =>
+    props.initialInputMode === 'tavus' ? 'tavus' : 'checking'
+  );
+  const [standardMode, setStandardMode] = useState<'text' | 'realtime-voice' | undefined>(undefined);
+  useEffect(() => {
+    readyFiredRef.current = false;
+    setStandardMode(undefined);
+  }, [props.conversationId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (props.initialInputMode === 'tavus') {
+      setMode('tavus');
+      return () => { cancelled = true; };
+    }
+    setMode('checking');
+    notifyReady();
+    apiRequest("GET", `/api/tavus/conversations/${encodeURIComponent(props.conversationId)}/session`)
+      .then(response => response.json())
+      .then(async (session: { state?: string }) => {
+        if (cancelled) return;
+        if (session.state && session.state !== "idle") { setMode("tavus"); return; }
+        if (props.initialInputMode !== undefined) { setMode("standard"); return; }
+        // Only configured Tavus installations add an explicit pre-connect choice.
+        // Do not mount/prewarm Gemini before the learner has selected a pipeline.
+        try {
+          const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(props.conversationId)}`);
+          const config = await response.json();
+          if (!cancelled) setMode((config.selectable ?? config.available) && !props.initialMessages?.length ? "choice" : "standard");
+        } catch {
+          if (!cancelled) setMode("standard");
+        }
+      })
+      .catch(() => {
+        // During resume, fail closed: do not mount Gemini until Tavus status is known.
+        if (!cancelled) setMode("tavus");
+      });
+    return () => { cancelled = true; };
+  }, [props.conversationId, props.initialInputMode, notifyReady]);
+
+  if (mode === 'checking') {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[#eef2f4] px-6 text-center text-sm text-[#53696d]" role="status">
+        {restoreText("restore", "Restoring conversation mode…", "대화 모드를 복원하고 있습니다…")}
+      </div>
+    );
+  }
+  if (mode === "choice") {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6" data-testid="conversation-pipeline-choice">
+        <section className="w-full max-w-lg space-y-4 rounded-2xl border bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold">{props.persona.name}</h2>
+          <p className="text-sm text-slate-600">{props.scenario.title}</p>
+          <p>{restoreText("chooseMode", "Choose how to start this conversation.", "대화를 시작할 방식을 선택하세요.")}</p>
+          <div className="grid gap-3">
+            <Button variant="outline" onClick={() => { setStandardMode("text"); setMode("standard"); }}>
+              {restoreText("textMode", "Text conversation", "텍스트 대화")}
+            </Button>
+            <Button variant="outline" onClick={() => { setStandardMode("realtime-voice"); setMode("standard"); }}>
+              {restoreText("nativeMode", "Existing realtime voice", "기존 실시간 음성 대화")}
+            </Button>
+            <Button onClick={() => setMode("tavus")}>Tavus Full Pipeline</Button>
+            <Button variant="ghost" onClick={props.onExit}>{restoreText("exit", "Exit", "나가기")}</Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+  if (mode === 'tavus') {
+    return (
+      <TavusChatWindow
+        scenario={props.scenario}
+        persona={props.persona}
+        conversationId={props.conversationId}
+        onChatComplete={props.onChatComplete}
+        onExit={props.onExit}
+        onReady={notifyReady}
+        onExitMode={() => setMode('standard')}
+      />
+    );
+  }
+
+  const { initialInputMode, ...standardProps } = props;
+  return (
+    <StandardChatWindow
+      {...standardProps}
+      initialInputMode={standardMode ?? (initialInputMode === 'text' || initialInputMode === 'realtime-voice' ? initialInputMode : undefined)}
+      onReady={notifyReady}
+      onSelectTavus={() => setMode('tavus')}
+    />
   );
 }

@@ -123,6 +123,7 @@ export function createMessageHandler(
           // Emit using the same contract as geminiMessageHandler: audio.delta + delta + turnSeq
           sendToClient(session, {
             type: 'audio.delta',
+            pcmSampleRate: 24000,
             delta: msg.delta,
             turnSeq: session.turnSeq,
           });

@@ -36,7 +36,8 @@ export function createConversationLedgerRouter(isAuthenticated: any) {
   }));
   router.post("/commands", isAuthenticated, asyncHandler(async (req: any, res) => {
     // Operators/admins may read, but may not write to another user's ledger.
-    await verifyPersonaRunOwnership(req.params.id, req.user.id);
+    const { personaRun } = await verifyPersonaRunOwnership(req.params.id, req.user.id);
+    if (personaRun.mode === "tavus_full") throw createHttpError(409, "tavus_full_pipeline_active");
     if (req.body?.payload?.kind === "session.close") await drainLedgerVoice(req.params.id);
     const ack = await handle(() => applyLedgerCommand(req.params.id, req.body, "client"));
     res.json({ type: "ledger.ack", ack }); // applyLedgerCommand has already committed.

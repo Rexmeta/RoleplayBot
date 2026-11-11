@@ -12,6 +12,10 @@ import { realtimeVoiceService } from "./services/realtimeVoiceService";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { VIDEO_AVATAR_ACCESS_SETTING, parseBooleanSetting } from "./services/videoAvatarAccess";
 import { normalizeVoiceLanguage } from "./services/voice/transcriptionIntegrity";
+import createLiveAvatarRouter from "./routes/liveAvatar";
+import createTavusRouter from "./routes/tavus";
+import { startTavusWorker } from "./services/tavus/sessions";
+import { avatarRouterIdentityService } from "./services/liveAvatar/identityService";
 
 import createUserRouter from "./routes/user";
 import createFreeChatRouter from "./routes/freeChat";
@@ -47,6 +51,19 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
+  // Public verification material only. Never derive issuer/JWKS from Host headers.
+  app.get("/.well-known/jwks.json", (_req, res) => {
+    try {
+      res.setHeader("Cache-Control", "public, max-age=300");
+      res.json(avatarRouterIdentityService.signer.publicJwks());
+    } catch {
+      res.setHeader("Cache-Control", "no-store");
+      res.status(503).json({ code: "avatar_delegation_not_configured" });
+    }
+  });
+  app.use("/api/live-avatar", createLiveAvatarRouter(isAuthenticated));
+  app.use("/api/tavus", createTavusRouter(isAuthenticated));
+  startTavusWorker();
 
   // Seed model_translation setting if not present
   try {
@@ -457,6 +474,12 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     if (!scenarioRun || scenarioRun.userId !== userId) {
       ws.send(JSON.stringify({ type: 'error', error: 'Unauthorized access' }));
       ws.close();
+      return;
+    }
+
+    if (personaRun.mode === "tavus_full") {
+      ws.send(JSON.stringify({ type: "error", error: "tavus_full_pipeline_active" }));
+      ws.close(1008, "Tavus handles this conversation");
       return;
     }
 

@@ -103,7 +103,8 @@ describe('handleGeminiMessage', () => {
       vi.advanceTimersByTime(86);
       handleGeminiMessage(session, source === 'top' ? { data: first } : inline(first), sendToClient, null, proactiveReconnect);
       expect(session.isInterrupted).toBe(false);
-      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'audio.delta', delta: first, turnSeq: 19 });
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'audio.delta', delta: first, turnSeq: 19,
+        pcmSampleRate: source === "inline" ? 24000 : undefined });
       // No provider turnComplete or new input was delivered by this synthetic fixture.
     });
     it('also accepts genuine new-turn audio, but the same local gate cannot identify residual audio', () => {
@@ -111,7 +112,7 @@ describe('handleGeminiMessage', () => {
       session.cancelledTurnSeq = 18;
       session.turnSeq = 19;
       handleGeminiMessage(session, inline(different), sendToClient, null, proactiveReconnect);
-      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'audio.delta', delta: different, turnSeq: 19 });
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'audio.delta', delta: different, turnSeq: 19, pcmSampleRate: 24000 });
     });
     it.each(['top-inline', 'inline-top'])('drops distinct content on cross-frame source switch %s', order => {
       const messages = order === 'top-inline' ? [{ data: first }, inline(different)] : [inline(first), { data: different }];
