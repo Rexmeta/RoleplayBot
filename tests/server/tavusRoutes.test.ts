@@ -49,7 +49,7 @@ describe("Tavus authenticated routes", () => {
     await request(app()).get("/api/tavus/conversations/run/connection").expect(401);
     await request(app()).get("/api/tavus/conversations/run/connection").set("x-user", "other").expect(403);
     const result = await request(app()).get("/api/tavus/conversations/run/connection").set("x-user", "owner").expect(200);
-    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(result.headers["cache-control"]).toBe("private, no-store");
     expect(service.connection).toHaveBeenCalledWith("owner", "run");
     await request(app()).get("/api/tavus/config?runId=run").set("x-user", "owner").expect(200);
     expect(service.config).toHaveBeenCalledWith("owner", "run");
@@ -58,6 +58,14 @@ describe("Tavus authenticated routes", () => {
     const result = await request(app()).get("/api/tavus/conversations/run/session")
       .set("x-user", "other").set("x-role", "admin").expect(403);
     expect(result.body.code).toBe("tavus_conversation_forbidden");
+  });
+  it("reads an owned cleanup status without issuing connection credentials or writes", async () => {
+    service.session.mockResolvedValueOnce({ state: "ended", id: "owned", rendererState: "closed", cleanupPending: false });
+    const result = await request(app()).get("/api/tavus/conversations/run/session").set("x-user", "owner").expect(200);
+    expect(result.headers["cache-control"]).toBe("private, no-store");
+    expect(result.body).toEqual({ state: "ended", id: "owned", rendererState: "closed", cleanupPending: false });
+    expect(service.session).toHaveBeenCalledWith("owner", "run");
+    for (const method of ["connection", "start", "end", "sync"]) expect(service[method]).not.toHaveBeenCalled();
   });
   it("rejects absent consent and all client-supplied persona/context/provider IDs", async () => {
     for (const body of [{}, { consent: false }, { consent: true, pal_id: "foreign" },
@@ -70,7 +78,7 @@ describe("Tavus authenticated routes", () => {
     const result = await request(app()).post("/api/tavus/conversations/run/start")
       .set("Host", "app.example").set("Origin", "https://app.example")
       .set("x-user", "owner").send({ consent: true }).expect(200);
-    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(result.headers["cache-control"]).toBe("private, no-store");
     expect(service.start).toHaveBeenCalledWith("owner", "run", true);
     await request(app()).post("/api/tavus/conversations/run/end")
       .set("Host", "app.example").set("Origin", "https://other.example")
