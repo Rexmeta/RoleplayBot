@@ -12,6 +12,11 @@ export interface PendingOutgoingMessage {
 }
 
 export interface RealtimeSession {
+  duplexRuntime?: import('@shared/duplexMode').DuplexRuntime;
+  characterCauseSequence?: number;
+  cancelledOutputKeys?: string[];
+  finalizationState?: 'closing' | 'frozen';
+  finalizationOutputGeneration?: number;
   ledgerAdapter?: import("../conversationLedger/voiceAdapter").VoiceLedgerAdapter;
   id: string;
   personaRunId: string;
@@ -111,6 +116,14 @@ export interface RealtimeSession {
   currentClientCaptureGeneration?: number;
   /** Monotonic provider socket lifetime; stale callbacks must not mutate the session. */
   providerConnectionGeneration?: number;
+  interactionEventSequence?: number;
+  outputLogicalTurns?: Map<string, string>;
+  /** Quarantine bytes until a provider boundary, not just a local turnSeq bump. */
+  awaitingOutputBoundary?: { providerGeneration: number; responseId?: string };
+  activeProviderResponseId?: string;
+  cancelledProviderResponseIds?: string[];
+  /** False after provider completion even while local buffered audio is playing. */
+  providerOutputInProgress?: boolean;
   outputDiagnostic?: { startedAt: number; emitted: number; frameSeq: number; chunkSeq: number };
   recognitionCapture?: {
     turnId: string;

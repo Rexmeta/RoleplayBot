@@ -18,6 +18,8 @@
 - [Audio default-device representation](audio-default-device-representation.md) — 기본 기기는 항상 `''`로 표현; 브라우저의 `'default'` pseudo-ID를 state/storage에 넣지 말고 렌더 시점에만 매핑
 - [Gemini Live transcript dedup](gemini-live-transcript-dedup.md) — modelTurn text와 outputTranscription이 다른 프레임으로 같은 턴에 도착해 대사가 2번 나옴; per-turn source 추적 필수, action_result 마커도 모델이 뱉음
 - [iOS realtime audio routing](ios-realtime-audio-routing.md) — iOS 음성 통화는 AudioContext/getUserMedia 전에 play-and-record를 유지하고 출력은 OS 경로에 맡김
+- [Live avatar screen wake lock](live-avatar-screen-wake-lock.md) — 시작 탭에서 화면 깨우기 잠금을 요청하고, 백그라운드 복귀 시 재요청하며 세션 종료·이탈 시 해제
+- [음성 대화의 선택형 컨트롤](voice-conversation-controls.md) — 텍스트·라이브 아바타는 하단의 눈에 덜 띄는 선택 기능으로 통합하고 상단 중복 옵션을 두지 않는다.
 - [Voice transcript finality](voice-transcript-finality.md) — 바지인·재연결·종료 flush는 provisional; provider completion만 immutable final로 승격
 - [Realtime voice turn finalization](realtime-voice-turn-finalization.md) — 로컬 VAD가 무음 전송을 끊으면 짧은 tail 뒤 명시적 EOT 필수; 재보정은 발화 epoch가 바뀌면 폐기
 - [Published runtime snapshots](published-runtime-snapshots.md) — 실행 중 scenario/persona/harness/rubric은 run에 바인딩된 snapshot만 사용; imported rubric 누락 시 live fallback 금지
@@ -28,9 +30,11 @@
 - [Culture Map 독립성](culture-map-boundaries.md) — Persona 불변·Actor별 기본 OFF·시나리오 snapshot·검증된 국가 출처·평가 직접 가감 금지.
 - [테스트 워커·실행 환경](test-worker-resource-limits.md) — 미디어 timeout은 제한된 동시성으로 비교; Vitest 버전 변경 시 DOM 환경 적용을 확인한다.
 - [운영 변경 승인 경계](production-change-boundary.md) — 운영 환경 변경과 배포는 사용자의 명시적 승인이 있어야 한다.
-- [AvatarRouter integration gate](avatar-router-integration-gate.md) — 선택형 persona 테스트·시나리오 실행의 동의·스냅샷·프로젝트 소유권 경계; 구현 승인은 유료 검증·배포 승인이 아니다.
+- [AvatarRouter 통합 원칙](avatar-router-integration-gate.md) — 제공자 차이는 라우터가 처리하고 앱은 간단한 공통 API로 연동; 동의·소유권·별도 유료 검증 승인 경계 유지.
 - [Vite Zod optimizer cache](vite-zod-optimizer-cache.md) — Zod 메이저 업그레이드 뒤 브라우저가 구버전 최적화 번들을 계속 제공할 수 있어 런타임 API 불일치 확인이 필요하다.
 - [Tavus Full Pipeline 원칙](tavus-full-pipeline-boundaries.md) — 기존 AvatarRouter 경유 필수·직접 Tavus 호출 금지·Gemini 중계 없는 독립 모드·공통 PAL 하나.
 - [조직 Override 계약](organization-override-contract.md) — 위임은 실행 소속이 아니며, 피드백 루브릭과 고정 시뮬레이션 차원을 임의 매핑하지 않는다.
 - [Audit cursor timestamp precision](audit-cursor-timestamp-precision.md) — PostgreSQL timestamp를 JS Date로 변환하면 마이크로초 정밀도가 사라져 커서 경계에서 중복·누락이 생길 수 있다.
 - [로컬 PostgreSQL 통합 테스트](isolated-postgres-test-runtime.md) — 임시 DB 서버와 Vitest는 한 셸 호출에서 실행하고, 로컬 접속은 `sslmode=disable`로 설정한다.
+- [자동 충돌 병합 검증](conflict-merge-validation.md) — 표시된 충돌 밖에서도 선언이 중복될 수 있으므로 병합 계속 전에 타입 검사와 관련 테스트를 실행한다.
+- [대화 언어 고정 정책](conversation-language-policy.md) — 실행 언어는 모드 간 유지하고 프로필 변경은 새 대화에 적용; 과거 언어 기록이 없으면 복구했다고 주장하지 않는다.

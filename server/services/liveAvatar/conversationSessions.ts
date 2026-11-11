@@ -63,7 +63,8 @@ export class ConversationAvatarSessions {
     const enabled = global?.value === "true", allowed = policy?.value === "true";
     let blockers: string[] = [];
     try {
-      await this.d.resolve(userId, conversationId);
+      const target = await this.d.resolve(userId, conversationId);
+      if (target.providerId === "anam") throw new AvatarIdentityError("avatar_native_pipeline_required", 409);
       const limits = await this.d.client.call(userId, "/live-limits", testLimitsSchema);
       if (!limits.workerReady) blockers.push("avatar_renderer_not_ready");
       if (limits.cleanupPending > 0) blockers.push("avatar_provider_cleanup_required");
@@ -78,6 +79,7 @@ export class ConversationAvatarSessions {
   }
   async create(userId: string, conversationId: string) {
     const target = await this.d.resolve(userId, conversationId);
+    if (target.providerId === "anam") throw new AvatarIdentityError("avatar_native_pipeline_required", 409);
     const key = this.key(userId, target.projectId);
     if (this.creating.has(key)) throw new AvatarIdentityError("avatar_session_creation_in_progress", 409);
     this.creating.add(key);

@@ -18,6 +18,14 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// These are SDK/model-routing unit tests, not native media integration tests.
+// Do not feed synthetic bytes to a real FFmpeg process under full-suite load.
+vi.mock('child_process', () => ({
+  exec: Object.assign(vi.fn(), {
+    [Symbol.for('nodejs.util.promisify.custom')]: vi.fn(async () => ({ stdout: '', stderr: '' })),
+  }),
+}));
+
 // ── Hoisted setup — runs before any module import ────────────────────────────
 
 const mockGenerateVideos = vi.hoisted(() => {

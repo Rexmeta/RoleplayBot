@@ -3,6 +3,13 @@ import { z } from "zod";
 export const personaAvatarModeSchema = z.enum(["image", "video", "live"]);
 export type PersonaAvatarMode = z.infer<typeof personaAvatarModeSchema>;
 
+/** Ratified transcript support only; native playback and proposed feature names are not evidence. */
+export function supportsAvatarFinalTranscript(providerId: string, features: readonly string[]): boolean {
+  return (providerId === "anam" || providerId === "tavus") &&
+    (features.includes("unified_final_transcript") ||
+      providerId === "tavus" && features.includes("tavus_final_transcript_v1"));
+}
+
 const liveDraftShape = {
   providerId: z.enum(["tavus", "anam"]),
   voiceMode: z.literal("roleplayx"),
@@ -41,9 +48,9 @@ export const personaStockAvatarSchema = z.object({
 export type PersonaStockAvatar = z.infer<typeof personaStockAvatarSchema>;
 
 export function isSelectableStockAvatar(avatar: PersonaStockAvatar): boolean {
-  // Other configured entries and mock avatars have not passed the stock runtime contract.
-  return avatar.id === "tavus-stock-lucy" && avatar.providerId === "tavus" &&
-    avatar.kind === "configured" && avatar.configured;
+  const supported = (avatar.id === "tavus-stock-lucy" && avatar.providerId === "tavus") ||
+    (avatar.id === "anam-persona-default" && avatar.providerId === "anam");
+  return supported && avatar.kind === "configured" && avatar.configured;
 }
 
 export const personaAvatarAssetSchema = z.object({

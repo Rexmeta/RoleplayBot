@@ -76,6 +76,14 @@ export function ScenarioOverrideManager() {
   const validPair = !!orgId && !!scenarioId && !!org && !!selectedScenario &&
     (!selectedScenario.organizationId || selectedScenario.organizationId === orgId);
   const detailKey = ["/api/admin/scenario-overrides", orgId, scenarioId];
+  const rubricQuery = useQuery<{ id: string | null; name: string; version: number | null; dimensions: Preview["dimensions"] }>({
+    queryKey: ["/api/admin/scenario-overrides", orgId, scenarioId, "rubric"],
+    enabled: validPair,
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/admin/scenario-overrides/${encodeURIComponent(orgId)}/${encodeURIComponent(scenarioId)}/rubric`);
+      return response.json();
+    },
+  });
   const detailQuery = useQuery<OverrideRecord | null>({
     queryKey: detailKey,
     enabled: validPair,
@@ -240,7 +248,7 @@ export function ScenarioOverrideManager() {
     if (!weightKey || !weightValue || !Number.isFinite(value) || value < 0 || value > 10) {
       toast({ title: "평가 항목과 0~10 사이의 유한한 가중치를 입력하세요.", variant: "destructive" }); return;
     }
-    if (!preview?.dimensions.some(item => item.key === weightKey)) {
+    if (!rubricQuery.data?.dimensions.some(item => item.key === weightKey)) {
       toast({ title: "이 시나리오의 실제 평가 항목이 아닙니다.", variant: "destructive" }); return;
     }
     setDraft(prev => ({ ...prev, evaluationWeights: { ...(prev.evaluationWeights ?? {}), [weightKey]: value } }));
@@ -363,10 +371,12 @@ export function ScenarioOverrideManager() {
                 <div className="flex gap-2"><Input placeholder={`${field.label} 추가`} value={listInputs[field.key] ?? ""} onChange={event => setListInputs(prev => ({ ...prev, [field.key]: event.target.value }))} disabled={!isAdmin || mutationsPending} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addList(field.key); } }} /><Button type="button" variant="outline" onClick={() => addList(field.key)} disabled={!isAdmin || mutationsPending}><Plus className="mr-1 h-4 w-4" />추가</Button></div>
               </CardContent></Card>)}
               <Card><CardHeader><CardTitle className="text-sm">평가 가중치</CardTitle></CardHeader><CardContent className="space-y-3">
+                <p className="text-sm font-medium">선택 시나리오 루브릭: {rubricQuery.data?.name ?? "불러오는 중…"}{rubricQuery.data?.version != null ? ` · v${rubricQuery.data.version}` : ""}</p>
+                {rubricQuery.isError && <Alert variant="destructive"><AlertDescription>평가 루브릭을 불러오지 못했습니다. {readError(rubricQuery.error)} <Button size="sm" variant="outline" onClick={() => rubricQuery.refetch()}>다시 시도</Button></AlertDescription></Alert>}
                 <p className="text-xs text-muted-foreground">값은 상대 가중치(0~10)입니다. 입력하지 않은 항목은 기본 상대값을 유지합니다. 최종 비중은 정규화 기준이며 합계 0이나 실제 평가에 없는 항목은 저장할 수 없습니다.</p>
                 <div className="flex flex-wrap gap-2">{Object.entries(draft.evaluationWeights ?? {}).map(([keyName, value]) => <Badge key={keyName} variant="outline" className="gap-2">{labels[keyName] ?? keyName}: {value}<button type="button" aria-label={`${labels[keyName] ?? keyName} 가중치 삭제`} disabled={!isAdmin || mutationsPending} onClick={() => setDraft(prev => { const next = { ...(prev.evaluationWeights ?? {}) }; delete next[keyName]; return { ...prev, evaluationWeights: next }; })}><X className="h-3 w-3" /></button></Badge>)}</div>
                 <div className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
-                  <Select value={weightKey} onValueChange={setWeightKey} disabled={!isAdmin || mutationsPending || !preview?.dimensions.length}><SelectTrigger><SelectValue placeholder="미리보기의 평가 항목" /></SelectTrigger><SelectContent>{(preview?.dimensions ?? []).map(item => <SelectItem key={item.key} value={item.key}>{item.name || labels[item.key] || item.key}</SelectItem>)}</SelectContent></Select>
+                  <Select value={weightKey} onValueChange={setWeightKey} disabled={!isAdmin || mutationsPending || !rubricQuery.data?.dimensions.length}><SelectTrigger aria-label="시나리오 루브릭 평가 항목"><SelectValue placeholder="시나리오 루브릭 항목 선택" /></SelectTrigger><SelectContent>{(rubricQuery.data?.dimensions ?? []).map(item => <SelectItem key={item.key} value={item.key}>{item.name || item.key}</SelectItem>)}</SelectContent></Select>
                   <Input type="number" min="0" max="10" step="0.1" value={weightValue} onChange={event => setWeightValue(event.target.value)} placeholder="0–10" disabled={!isAdmin || mutationsPending} />
                   <Button type="button" variant="outline" onClick={addWeight} disabled={!isAdmin || mutationsPending}><Plus className="mr-1 h-4 w-4" />추가 / 교체</Button>
                 </div>

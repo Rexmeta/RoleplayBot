@@ -12,6 +12,7 @@ import { LedgerError, snapshotBlockers, transitionUtterance } from "./policy";
 import { snapshotFeedbackInput } from "./feedbackBinding";
 
 type Connection = Pick<typeof db, "transaction">;
+type ApplyOptions = { barrier?: import('../voice/finalizationBarrier').FinalizationBarrierResult };
 function digest(value: unknown) {
   const ordered = (node: any): any => Array.isArray(node) ? node.map(ordered) :
     node !== null && typeof node === "object"
@@ -90,7 +91,7 @@ async function snapshotInTransaction(tx: any, run: LedgerRun) {
 
 /** Resolves only after COMMIT. Callers must never send durable ACK before awaiting it. */
 export async function applyLedgerCommand(
-  runId: string, input: unknown, actor: LedgerActor, connection: Connection = db,
+  runId: string, input: unknown, actor: LedgerActor, connection: Connection = db, options: ApplyOptions = {},
 ): Promise<LedgerAck> {
   const parsed = ledgerCommandSchema.safeParse(input);
   if (!parsed.success) throw new LedgerError("invalid_ledger_command", 400);
@@ -109,6 +110,20 @@ export async function applyLedgerCommand(
     if (prior) {
       if (prior.payloadHash !== payloadHash) throw new LedgerError("event_identity_conflict");
       return { ...prior.ack, duplicate: true };
+    }
+    const [parentRuntime] = await tx.select({ runtime: personaRuns.duplexRuntime }).from(personaRuns)
+      .where(eq(personaRuns.id, runId));
+    const runtime = parentRuntime?.runtime;
+    const frozen = runtime?.config.evaluationSnapshot ? runtime.finalization : undefined;
+    // Explicit learner correction creates a NEW immutable evaluation input;
+    // ordinary late provider/playback events never replace an existing job.
+    const explicitCorrection = command.payload.kind === 'recognition.confirm';
+    if (frozen && command.payload.kind === 'session.close') {
+      return { eventId: command.eventId, cursor: frozen.watermark, utteranceRevision: null,
+        snapshotId: frozen.snapshotId, duplicate: true };
+    }
+    if (command.payload.kind === 'session.close' && runtime?.config.evaluationSnapshot && !options.barrier) {
+      throw new LedgerError('duplex_finalization_barrier_required');
     }
     if (command.generation !== run.generation) throw new LedgerError("stale_connection_generation");
     if (run.cursor >= 10000) throw new LedgerError("ledger_event_limit");
@@ -207,7 +222,7 @@ export async function applyLedgerCommand(
       }).where(utteranceFilter(runId, current.id)).returning();
     }
     const [updatedRun] = await tx.update(runs).set(patch).where(runFilter(runId)).returning();
-    const snapshot = updatedRun.status === "closed" ? await snapshotInTransaction(tx, updatedRun) : null;
+    const snapshot = updatedRun.status === "closed" && (!frozen || explicitCorrection) ? await snapshotInTransaction(tx, updatedRun) : null;
     if (snapshot) {
       const pending = snapshot.blockedReasons.length > 0;
       await tx.update(personaRuns).set({
@@ -218,10 +233,18 @@ export async function applyLedgerCommand(
         feedbackJobStartedAt: null, feedbackWorkerToken: null, feedbackCompletedAt: null,
         feedbackJobToken: randomUUID(), feedbackJobPayload: snapshotFeedbackInput(updatedRun, snapshot),
       }).where(eq(personaRuns.id, runId));
+      const barrier = options.barrier ?? (explicitCorrection ? frozen : undefined);
+      if (runtime?.config.evaluationSnapshot && barrier) {
+        await tx.update(personaRuns).set({
+          duplexRuntime: { ...runtime, finalization: {
+            ...barrier, watermark: updatedRun.cursor, snapshotId: snapshot.id,
+          } },
+        }).where(eq(personaRuns.id, runId));
+      }
     }
     const ack: LedgerAck = {
       eventId: command.eventId, cursor: sequence, utteranceRevision: row?.revision ?? null,
-      snapshotId: snapshot?.id ?? null, duplicate: false,
+      snapshotId: snapshot?.id ?? frozen?.snapshotId ?? null, duplicate: false,
     };
     await tx.insert(events).values({ personaRunId: runId, eventId: command.eventId, sequence, command, payloadHash, ack });
     return ack;
@@ -274,7 +297,11 @@ export async function assertCurrentLedgerSnapshot(tx: any, runId: string, snapsh
   ));
   if (!run || !snapshot) throw new LedgerError("snapshot_not_found", 404);
   if (snapshot.hash !== hash) throw new LedgerError("snapshot_hash_mismatch");
-  if (run.cursor !== snapshot.revision) throw new LedgerError("snapshot_revision_stale");
+  const [parent] = await tx.select({ runtime: personaRuns.duplexRuntime }).from(personaRuns)
+    .where(eq(personaRuns.id, runId));
+  const frozen = parent?.runtime?.config.evaluationSnapshot ? parent.runtime.finalization : undefined;
+  if (frozen ? frozen.snapshotId !== snapshot.id || frozen.watermark !== snapshot.revision
+    : run.cursor !== snapshot.revision) throw new LedgerError("snapshot_revision_stale");
   if (run.status !== "closed" || snapshot.blockedReasons.length) throw new LedgerError("snapshot_evaluation_pending");
   return snapshot;
 }

@@ -153,7 +153,7 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
   return <section className="rounded-md border border-slate-200 bg-white p-4" aria-labelledby="persona-creation-title">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h4 id="persona-creation-title" className="text-sm font-bold text-slate-900">Tavus 커스텀 생성</h4>
+        <h4 id="persona-creation-title" className="text-sm font-bold text-slate-900">맞춤 아바타 생성</h4>
         <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600">관리자 명시 동작으로만 이미지를 제출합니다. 상태 조회는 수동이며, 불확실한 작업은 중복 제출하지 않습니다.</p>
       </div>
       <Button type="button" size="sm" variant="outline" onClick={() => void reconcile()} disabled={busy}>
@@ -195,7 +195,7 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
     </div>
     <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 text-xs text-slate-700 md:grid-cols-3">
       <Confirm checked={rightsConfirmed} onChange={setRightsConfirmed} label="이미지 사용 권리와 초상 사용 권한을 확인했습니다." />
-      <Confirm checked={transferConfirmed} onChange={setTransferConfirmed} label="이미지가 Tavus 등 외부 제공자에게 전송됨을 확인했습니다." />
+      <Confirm checked={transferConfirmed} onChange={setTransferConfirmed} label="이미지가 외부 서비스에 전송됨을 확인했습니다." />
       <Confirm checked={costConfirmed} onChange={setCostConfirmed} label="외부 제공자 비용이 발생할 수 있음을 확인했습니다." />
     </div>
     <div className="mt-3 flex flex-wrap items-center gap-3">

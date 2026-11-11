@@ -10,6 +10,7 @@ import { AvatarIdentityError } from "./delegatedIdentity";
 import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
 import { testScopes } from "./testContracts";
+import { nativeScopes } from "./managedClient";
 
 export const conversationTargetDeps = {
   storage, fileManager, ledgerRuntimeBinding,
@@ -65,16 +66,18 @@ export async function inspectConversationAvatarSelection(userId: string, convers
   ];
   let configured = false;
   let personaId = personaRun.personaId;
+  let providerId: "tavus" | "anam" | undefined;
   try {
     const selection = await selectedAvatarReference(conversationId, personaRun, scenarioRun, deps);
     personaId = selection.personaId;
+    providerId = selection.selected.providerId;
     configured = true;
   } catch (error) {
     if (!(error instanceof AvatarIdentityError)) throw error;
     blockers.push(error.code);
   }
   if (personaRun.status === "completed" || scenarioRun.status === "completed") blockers.push("avatar_conversation_ended");
-  return { configured, enabled, allowed, blockers, personaId };
+  return { configured, enabled, allowed, blockers, personaId, providerId };
 }
 
 /** Resolve only the run's selected actor. Published snapshots never borrow mutable persona settings. */
@@ -93,7 +96,8 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
   }
   const { selected, personaId } = await selectedAvatarReference(conversationId, personaRun, scenarioRun, deps);
   const auth = await deps.connection.check(userId);
-  if (![...testScopes, "assets:read"].every(scope => auth.scopes.includes(scope as any))) {
+  const scopes = selected.providerId === "anam" ? nativeScopes : testScopes;
+  if (![...scopes, "assets:read"].every(scope => auth.scopes.includes(scope as any))) {
     throw new AvatarIdentityError("avatar_conversation_scopes_missing", 403);
   }
   if (selected.projectId && selected.projectId !== auth.projectId) {
@@ -104,7 +108,7 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
     if (!stock.some(a => a.id === selected.avatarId && a.providerId === selected.providerId && isSelectableStockAvatar(a))) {
       throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
     }
-    return { projectId: auth.projectId, avatarId: selected.avatarId, assetId: null,
+    return { projectId: auth.projectId, avatarId: selected.avatarId, assetId: null, providerId: selected.providerId,
       personaId };
   }
   if (selected.providerId !== "tavus" || !supportsCustomLiveContract(auth.integration)) {
@@ -115,6 +119,6 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
       !asset.liveValidation?.runtimeSupported || !isLiveValidatedPersonaAvatar(asset)) {
     throw new AvatarIdentityError("persona_avatar_playback_validation_required", 409);
   }
-  return { projectId: auth.projectId, avatarId: asset.providerAvatarId!, assetId: asset.id,
+  return { projectId: auth.projectId, avatarId: asset.providerAvatarId!, assetId: asset.id, providerId: selected.providerId,
     personaId };
 }

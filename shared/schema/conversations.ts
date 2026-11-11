@@ -50,6 +50,8 @@ export const personaRuns = pgTable("persona_runs", {
   mode: text("mode").notNull().default("text"),
   difficulty: integer("difficulty").notNull().default(2),
   simulationState: jsonb("simulation_state"),
+  duplexRuntime: jsonb("duplex_runtime").$type<import('../duplexMode').DuplexRuntime>(),
+  language: varchar("language").$type<import('../conversationLanguage').ConversationLanguage>(),
   terminationReason: text("termination_reason"),
   activePersonaIndex: integer("active_persona_index").notNull().default(0),
   personaSwitchLog: jsonb("persona_switch_log").$type<Array<{

@@ -1126,6 +1126,87 @@ describe('useAudioPlayback', () => {
   });
 
   describe('isActuallyPlayingRef lifecycle', () => {
+    it('keeps speaking after provider completion until all scheduled nodes end', async () => {
+      const { result } = renderAudioPlayback();
+      const chunk = Buffer.from(new Int16Array([1000, -1000]).buffer).toString('base64');
+      await act(async () => {
+        await result.current.playAudioDelta(chunk);
+        await result.current.playAudioDelta(chunk);
+        result.current.finishGeneration();
+      });
+      const sources = [...result.current.scheduledSourcesRef.current];
+      expect(result.current.isAISpeaking).toBe(true);
+      act(() => sources[0].onended?.(new Event('ended')));
+      expect(result.current.isActuallyPlayingRef.current).toBe(true);
+      act(() => sources[1].onended?.(new Event('ended')));
+      expect(result.current.isAISpeaking).toBe(false);
+      expect(result.current.isActuallyPlayingRef.current).toBe(false);
+    });
+
+    it('does not interpret a temporary queue gap as generation completion', async () => {
+      const { result } = renderAudioPlayback();
+      const chunk = Buffer.from(new Int16Array([1000]).buffer).toString('base64');
+      await act(async () => { await result.current.playAudioDelta(chunk); });
+      act(() => result.current.scheduledSourcesRef.current[0].onended?.(new Event('ended')));
+      expect(result.current.isAISpeaking).toBe(true);
+      act(() => result.current.finishGeneration());
+      expect(result.current.isAISpeaking).toBe(false);
+    });
+
+    it('does not let cancelled asynchronous scheduling revive after a new output starts', async () => {
+      localStorage.setItem('realtime_voice_output_device_id', 'bluetooth-1');
+      let release!: () => void;
+      mockContext.setSinkId = vi.fn(() => new Promise<void>(resolve => { release = resolve; }));
+      const { result, isInterruptedRef } = renderAudioPlayback();
+      const chunk = Buffer.from(new Int16Array([1000]).buffer).toString('base64');
+      let cancelled!: Promise<void>;
+      await act(async () => {
+        cancelled = result.current.playAudioDelta(chunk);
+        await Promise.resolve();
+      });
+      act(() => {
+        result.current.stopPlayback();
+        isInterruptedRef.current = false;
+      });
+      await act(async () => {
+        release();
+        await cancelled;
+        await result.current.playAudioDelta(chunk);
+      });
+      expect(mockContext.createBufferSource).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores cancelled node onended even after the interruption flag was cleared', async () => {
+      const { result, isInterruptedRef } = renderAudioPlayback();
+      const chunk = Buffer.from(new Int16Array([1000]).buffer).toString('base64');
+      await act(async () => { await result.current.playAudioDelta(chunk); });
+      const cancelled = result.current.scheduledSourcesRef.current[0];
+      act(() => {
+        result.current.stopPlayback();
+        isInterruptedRef.current = false;
+      });
+      await act(async () => { await result.current.playAudioDelta(chunk); });
+      act(() => {
+        result.current.finishGeneration();
+        cancelled.onended?.(new Event('ended'));
+      });
+      expect(result.current.scheduledSourcesRef.current).toHaveLength(1);
+      expect(result.current.isAISpeaking).toBe(true);
+    });
+
+    it('waits for asynchronous scheduling when completion arrives while a chunk is queued', async () => {
+      const { result } = renderAudioPlayback();
+      const chunk = Buffer.from(new Int16Array([1000]).buffer).toString('base64');
+      await act(async () => {
+        const queued = result.current.playAudioDelta(chunk);
+        result.current.finishGeneration();
+        await queued;
+      });
+      expect(result.current.isAISpeaking).toBe(true);
+      act(() => result.current.scheduledSourcesRef.current[0].onended?.(new Event('ended')));
+      expect(result.current.isAISpeaking).toBe(false);
+    });
+
     it('starts as false before any audio has been played', () => {
       const { result } = renderAudioPlayback();
       expect(result.current.isActuallyPlayingRef.current).toBe(false);

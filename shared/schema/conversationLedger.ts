@@ -48,6 +48,8 @@ export const conversationLedgerUtterances = pgTable("conversation_ledger_utteran
   metadata: jsonb("metadata").notNull().default({}).$type<{
     emotion?: string; emotionReason?: string; userAffect?: Record<string, unknown>;
     sourceTimestamp?: string;
+    routerTranscript?: { provider: "tavus" | "anam"; projectId: string; sessionId: string; revision: string };
+    playback?: { playedMs?: number; scope?: 'local_audio_context' | 'external_provider' };
   }>(),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, table => [

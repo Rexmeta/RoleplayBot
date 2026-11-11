@@ -4,6 +4,7 @@ export const OUTPUT_TRACE_TTL_MS = 60_000;
 export const OUTPUT_TRACE_EVENTS = [
   'provider-frame', 'receive', 'schedule', 'ended', 'stop', 'drop',
   'provider-done', 'ready', 'vad-cancel', 'error', 'disconnect',
+  'vad-candidate', 'vad-confirmed', 'playback-observed', 'expression-applied',
 ] as const;
 export type OutputTraceEvent = typeof OUTPUT_TRACE_EVENTS[number];
 const fields = [
@@ -13,6 +14,7 @@ const fields = [
   'arrivalGapMs', 'queueWaitMs', 'processingMs', 'contextTimeMs',
   'startMs', 'endMs', 'bufferedMs', 'gapMs', 'pendingSources',
   'contextState', 'outputSelected', 'actuallyPlaying', 'reason',
+  'emotionRevision', 'personaGeneration',
 ] as const;
 export type OutputTraceFields = Partial<Record<typeof fields[number], number>>;
 

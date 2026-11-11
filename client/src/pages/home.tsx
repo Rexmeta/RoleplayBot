@@ -460,9 +460,19 @@ export default function Home() {
       }
     } catch (error) {
       console.error("대화 생성 실패:", error);
+      let description = t('conversation.createError', '대화를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      if (error instanceof Error) {
+        const message = error.message.replace(/^\d{3}:\s*/, "");
+        try {
+          const body = JSON.parse(message);
+          if (typeof body.message === "string") description = body.message;
+        } catch {
+          if (message && !message.trim().startsWith("<")) description = message;
+        }
+      }
       toast({
         title: t('toast.error'),
-        description: t('conversation.createError', '대화를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+        description,
         variant: 'destructive',
       });
     } finally {

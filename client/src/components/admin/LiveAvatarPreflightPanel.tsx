@@ -18,7 +18,7 @@ export function LiveAvatarPreflightPanel({ configured }: { configured: boolean }
   return <div className="space-y-3 border-t pt-4" aria-label="라이브 연결 무료 사전 점검">
     <h4 className="text-sm font-medium">라이브 연결 무료 사전 점검</h4>
     <p className="text-xs text-muted-foreground">
-      현재 프로젝트의 인증·자산·worker·사용 한도만 읽습니다. 재생 검증된 커스텀 Tavus 자산을 우선하여
+      현재 프로젝트의 인증·자산·worker·사용 한도만 읽습니다. 재생 검증된 맞춤 아바타 자산을 우선하여
       후보를 제안할 뿐, 페르소나에 저장하거나 세션을 생성하지 않습니다. 이미지·음성 전송과 AI 호출도 하지 않습니다.
     </p>
     <Button type="button" variant="outline" disabled={!configured || check.isPending} onClick={() => check.mutate()}>
@@ -33,8 +33,8 @@ export function LiveAvatarPreflightPanel({ configured }: { configured: boolean }
       <p>프로젝트: {result.projectName} · {result.projectId}</p>
       <p>확인 시각: {new Date(result.checkedAt).toLocaleString()}</p>
       <p>{result.candidate
-        ? `Tavus 후보: ${result.candidate.name} · ${result.candidate.assetId} · 실제 재생 ${result.candidate.liveValidated ? "검증 기록 있음" : "미검증"}`
-        : "사용 가능한 커스텀 Tavus 후보를 확인하지 못했습니다."}</p>
+        ? `맞춤 아바타 후보: ${result.candidate.name.replace(/\b(Tavus|Anam)\b/gi, "아바타")} · ${result.candidate.assetId} · 실제 재생 ${result.candidate.liveValidated ? "검증 기록 있음" : "미검증"}`
+        : "사용 가능한 맞춤 아바타 후보를 확인하지 못했습니다."}</p>
       {result.capacity && <p>
         Worker: {result.capacity.workerReady ? "준비됨" : "미준비"} · 정리 대기: {result.capacity.cleanupPending} ·
         예약 가능 시간: 프로젝트 {result.capacity.userRemainingSeconds}초 / 전체 {result.capacity.globalRemainingSeconds}초

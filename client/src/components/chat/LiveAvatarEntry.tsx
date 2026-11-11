@@ -41,6 +41,10 @@ export function LiveAvatarEntry({ conversationId, actorId, optionsOpen, onOpenOp
   }, [optionsOpen, selectionQuery.refetch]);
 
   if (!selectionQuery.data?.configured) return null;
+  // The idle card only duplicates the live-avatar controls in the bottom menu.
+  // Keep the portrait clear until there is a real status worth surfacing.
+  if (!selectionQuery.isError && selectionQuery.data.enabled && selectionQuery.data.allowed &&
+      playbackState === "idle") return null;
 
   const statusLabels: Record<LiveAvatarPlaybackState, [string, string]> = {
     idle: ["라이브 아바타 연결 대기", "아직 영상 미연결 · 눌러서 동의 후 연결 시작"],
