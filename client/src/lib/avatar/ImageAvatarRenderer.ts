@@ -62,6 +62,17 @@ export class ImageAvatarRenderer implements AvatarRenderer {
   private onReadyCb?: () => void;
   private listeners = new Set<() => void>();
   private initGeneration = 0; // guard against stale async callbacks
+  private expressionGeneration = 0;
+  private expressionTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Diagnostic status; does not imply that an expression asset was displayed. */
+  expressionAssetStatus: 'ready' | 'loading' | 'fallback' | 'unavailable' = 'ready';
+
+  private cancelExpression(): void {
+    this.expressionGeneration++;
+    if (this.expressionTimer) clearTimeout(this.expressionTimer);
+    this.expressionTimer = null;
+    this.isTransitioning = false;
+  }
 
   // ── Subscription ─────────────────────────────────────────────────────────
 
@@ -139,6 +150,7 @@ export class ImageAvatarRenderer implements AvatarRenderer {
       this.fallbackTimer = null;
     }
     this.initGeneration++;
+    this.cancelExpression();
     const generation = this.initGeneration;
 
     this.destroyed = false;
@@ -191,6 +203,9 @@ export class ImageAvatarRenderer implements AvatarRenderer {
     };
 
     this.fallbackTimer = setTimeout(completeFallback, 3000);
+    // Capture this initialization's timer. A stale image callback must never
+    // clear the fallback timer belonging to a subsequently selected persona.
+    const fallbackTimer = this.fallbackTimer;
 
     if (persona.expressions) {
       // Case 1 — expressions provided by API
@@ -205,11 +220,11 @@ export class ImageAvatarRenderer implements AvatarRenderer {
       if (neutralUrl) {
         const fullUrl = toMediaUrl(neutralUrl);
         const img = new Image();
-        img.onload = () => { clearTimeout(this.fallbackTimer!); completeWithImage(fullUrl); };
-        img.onerror = () => { clearTimeout(this.fallbackTimer!); completeFallback(); };
+        img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(fullUrl); };
+        img.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
         img.src = fullUrl;
       } else {
-        clearTimeout(this.fallbackTimer!);
+        clearTimeout(fallbackTimer);
         completeFallback();
       }
     } else if (!persona.mbti && !!persona.id) {
@@ -228,26 +243,26 @@ export class ImageAvatarRenderer implements AvatarRenderer {
           if (neutralAvail) {
             const imgUrl = toMediaUrl(`${baseObjectPath}/neutral.webp`);
             const img = new Image();
-            img.onload = () => { clearTimeout(this.fallbackTimer!); completeWithImage(imgUrl); };
+            img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(imgUrl); };
             img.onerror = () => {
               if (persona.image) {
                 const fb = new Image();
-                fb.onload = () => { clearTimeout(this.fallbackTimer!); completeWithImage(persona.image!); };
-                fb.onerror = () => { clearTimeout(this.fallbackTimer!); completeFallback(); };
+                fb.onload = () => { clearTimeout(fallbackTimer); completeWithImage(persona.image!); };
+                fb.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
                 fb.src = persona.image;
               } else {
-                clearTimeout(this.fallbackTimer!);
+                clearTimeout(fallbackTimer);
                 completeFallback();
               }
             };
             img.src = imgUrl;
           } else if (persona.image) {
             const img = new Image();
-            img.onload = () => { clearTimeout(this.fallbackTimer!); completeWithImage(persona.image!); };
-            img.onerror = () => { clearTimeout(this.fallbackTimer!); completeFallback(); };
+            img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(persona.image!); };
+            img.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
             img.src = persona.image;
           } else {
-            clearTimeout(this.fallbackTimer!);
+            clearTimeout(fallbackTimer);
             completeFallback();
           }
         },
@@ -269,11 +284,11 @@ export class ImageAvatarRenderer implements AvatarRenderer {
           if (neutralAvail) {
             const imgUrl = toMediaUrl(`personas/${mbtiId}/${genderFolder}/neutral.webp`);
             const img = new Image();
-            img.onload = () => { clearTimeout(this.fallbackTimer!); completeWithImage(imgUrl); };
-            img.onerror = () => { clearTimeout(this.fallbackTimer!); completeFallback(); };
+            img.onload = () => { clearTimeout(fallbackTimer); completeWithImage(imgUrl); };
+            img.onerror = () => { clearTimeout(fallbackTimer); completeFallback(); };
             img.src = imgUrl;
           } else {
-            clearTimeout(this.fallbackTimer!);
+            clearTimeout(fallbackTimer);
             completeFallback();
           }
         },
@@ -307,6 +322,7 @@ export class ImageAvatarRenderer implements AvatarRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.cancelExpression();
     if (this.fallbackTimer) {
       clearTimeout(this.fallbackTimer);
       this.fallbackTimer = null;
@@ -315,6 +331,8 @@ export class ImageAvatarRenderer implements AvatarRenderer {
   }
 
   setEmotion(emotion: string): void {
+    if (this.destroyed) return;
+    this.cancelExpression();
     this.currentEmotion = emotion;
     const emotionEn = emotionToEnglish[emotion] || 'neutral';
     this.overlayColor = emotionOverlayColors[emotionEn] ?? 'rgba(0, 0, 0, 0)';
@@ -347,18 +365,45 @@ export class ImageAvatarRenderer implements AvatarRenderer {
   }
 
   private _preloadImage(url: string): void {
+    const initialization = this.initGeneration;
+    const expression = ++this.expressionGeneration;
+    const valid = () => !this.destroyed && initialization === this.initGeneration &&
+      expression === this.expressionGeneration;
+    this.expressionAssetStatus = 'loading';
     const img = new Image();
     img.onload = () => {
-      if (this.destroyed) return;
-      setTimeout(() => {
-        if (this.destroyed) return;
+      if (!valid()) return;
+      this.expressionTimer = setTimeout(() => {
+        if (!valid()) return;
+        this.expressionTimer = null;
         this.displayImageUrl = url;
+        this.expressionAssetStatus = 'ready';
         this.isTransitioning = false;
         this.emit();
       }, 100);
     };
     img.onerror = () => {
-      if (this.destroyed) return;
+      if (!valid()) return;
+      const fallback = this.getCharacterImage('neutral');
+      this.expressionAssetStatus = fallback && fallback !== url ? 'fallback' : 'unavailable';
+      console.warn('[ImageAvatar] Expression asset unavailable', { generation: expression });
+      if (fallback && fallback !== url) {
+        // This is still the same expression request; a later request invalidates it.
+        const neutral = new Image();
+        neutral.onload = () => {
+          if (!valid()) return;
+          this.displayImageUrl = fallback;
+          this.isTransitioning = false;
+          this.emit();
+        };
+        neutral.onerror = () => {
+          if (!valid()) return;
+          this.expressionAssetStatus = 'unavailable';
+          this.isTransitioning = false;
+          this.emit();
+        };
+        neutral.src = fallback;
+      }
       this.isTransitioning = false;
       this.emit();
     };
@@ -366,8 +411,10 @@ export class ImageAvatarRenderer implements AvatarRenderer {
   }
 
   playState(state: AvatarState, emotion?: string): void {
-    // Image renderer ignores machine state; only emotion matters
-    if (emotion) this.setEmotion(emotion);
+    // A stopped output may not install its pending expression after listening
+    // has resumed. This cancels presentation only, not server emotion state.
+    if (state === 'listening' || state === 'idle') this.cancelExpression();
+    if (emotion && emotion !== this.currentEmotion) this.setEmotion(emotion);
   }
 
   async preloadAssets(): Promise<void> {

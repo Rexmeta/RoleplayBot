@@ -8,6 +8,21 @@ const mockGetSystemSetting = vi.fn();
 const mockGetUserPersonaById = vi.fn();
 const mockUpsertVoiceTranscript = vi.fn();
 
+// Provider ordering is isolated from persistence; the real pin/restore/CAS
+// contract is covered against PostgreSQL in conversationLedgerPostgres.test.
+vi.mock('../../server/services/voice/duplexRuntime', async () => {
+  const { BASELINE_DUPLEX_CONFIG, initialCharacterEmotion } = await import('../../shared/duplexMode');
+  return {
+    pinDuplexRuntime: vi.fn(async (session: any) => {
+      session.duplexRuntime = { version: 1, epoch: 1, config: BASELINE_DUPLEX_CONFIG,
+        personaId: session.personaId, personaIndex: session.activePersonaIndex,
+        personaGeneration: 0, character: initialCharacterEmotion() };
+    }),
+    resetCharacterPersona: vi.fn().mockResolvedValue(undefined),
+    acceptCharacterEmotion: vi.fn().mockResolvedValue(null),
+  };
+});
+
 vi.mock('../../server/storage', () => ({
   storage: {
     getChatMessagesByPersonaRun: mockGetChatMessagesByPersonaRun,
@@ -149,6 +164,21 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
   });
 
   describe('createSession (scenario persona)', () => {
+    it.each(['en', 'ja', 'zh', 'ko'] as const)('keeps pinned %s after a profile language change in both persona paths', async language => {
+      const transcript = await import('../../server/services/conversationLedger/transcript');
+      vi.mocked(transcript.ledgerRuntimeBinding).mockResolvedValue(null);
+      mockGetPersonaRun.mockResolvedValue({ language, voiceRecognitionRequired: false });
+      const profileLanguage = language === "en" ? "ko" : "en";
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID,
+        { readyState: 1, send: vi.fn() } as any, 4, profileLanguage);
+      expect((service as any).sessions.get(SESSION_ID).userLanguage).toBe(language);
+      mockGetUserPersonaById.mockResolvedValue({ id: "custom", name: "Custom", personality: {} });
+      vi.mocked(transcript.ledgerRuntimeBinding).mockResolvedValue({ language });
+      await service.createSession("custom-session", CONVERSATION_ID, "__user_persona__:custom", "custom", USER_ID,
+        { readyState: 1, send: vi.fn() } as any, 4, profileLanguage);
+      expect((service as any).sessions.get("custom-session").userLanguage).toBe(language);
+      vi.mocked(transcript.ledgerRuntimeBinding).mockResolvedValue(null);
+    });
     it.each(['en', 'ja', 'zh', 'ko'] as const)('preserves %s/legacy voice and AI context when verification is not required', async language => {
       mockGetChatMessagesByPersonaRun.mockResolvedValue([
         { sender: 'user', message: 'Original voice transcript', voiceTurnId: 'voice-user:legacy:1' },

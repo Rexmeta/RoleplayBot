@@ -3,6 +3,15 @@ name: AvatarRouter integration gate
 description: External avatar provisioning prerequisites and transfer safety
 ---
 
+Tavus든 Anam이든 AvatarRouter와 하나의 통합된 구조로 작동해야 한다.
+다른 구조가 필요한 경우에도 가능한 일관된 방식으로 AvatarRouter와 연동하고,
+각기 다른 아바타 연동은 AvatarRouter에서 처리한다. AvatarRouter 사용자는
+간단한 API 연동만으로 라이브 아바타를 사용하는 구조를 지켜야 한다.
+
+**Why:** 사용자가 제공자별 앱 연동 분산 대신 이 통합 구조를 지키도록 명시했다.
+
+**How to apply:** 라이브 아바타 연동과 개선에서 이 책임 경계를 유지한다.
+
 Keep the RoleplayX-to-AvatarRouter boundary internal until a trusted machine-to-machine tenant identity bridge and a rights-review gate are supported. Re-check the provider's current contract before beginning external image transfer work; do not infer authorization from existing persona images.
 
 **Why:** The reviewed public contract documented image ingestion and avatar provisioning but did not establish RoleplayX tenant identity or rights-review controls. Sending images without those safeguards risks cross-tenant access or unauthorized likeness transfer.
@@ -26,6 +35,64 @@ The user confirmed on 2026-11-02 that both administrator-page and persona-page l
 **Why:** Success in the diagnostic path does not establish that the learner path selects, starts, and renders the same avatar.
 
 **How to apply:** Diagnose learner configuration, discovery, ownership, and media routing separately; do not restart provisioning or treat diagnostic success as learner playback verification.
+
+The user reports that Anam was successfully tested in AvatarRouter and is available there.
+
+**Why:** An upstream working provider and this app's local provider-selection restrictions are different facts.
+
+**How to apply:** Do not attribute a locally disabled Anam choice to provider unavailability without evidence. Check local stock eligibility, saved provider identity, and execution dispatch separately.
+
+Provider availability does not establish transport or dialogue ownership. Check the router's current downloadable integration contract before extending dispatch; a native full pipeline must not be attached to an external-PCM renderer.
+
+**Why:** The working Anam catalog entry uses a saved native persona, not the Tavus rendering protocol. The router's newer managed-client contract supersedes provider-SDK setup for new app integrations.
+
+**How to apply:** Prefer the router-hosted common client when its live advertised contract supports it. Keep native microphone/dialogue ownership exclusive, single-start handoffs non-retryable, and unsupported scenario-context/transcript capabilities explicit rather than pretending to preserve them.
+
+Historical Anam calls started while feedback was disclosed as unavailable must
+not gain transcript retention or evaluation after router capabilities change.
+
+**Why:** A current capability does not supply creation-time consent for externally
+held conversation transcripts. Tavus legacy recovery has a different existing
+disclosure contract and must not be conflated with undisclosed Anam retention.
+
+**How to apply:** Require Anam's creation-time transcript contract before import,
+including the atomic import claim. Existing Anam UI sessions use their own
+availability, not current project discovery. Keep new-session imports and
+previously supported Tavus recovery covered by regression tests.
+
+Anam session role/organization instructions require a ratified router contract
+and an explicit deployed capability, not just native full-pipeline support.
+Proposed capability names are not authorization to send new request fields.
+
+**Why:** The public router contract can change without a top-level API version
+bump. A later public read exposed the official roleplay-context guide while local
+proposals still described instructions as unsupported. Neither old local proposals
+nor a newly published guide alone prove the configured runtime has enabled support.
+
+**How to apply:** Recheck both router integration documents and linked roleplay
+guide before enabling session instructions, then verify the authenticated runtime
+capability. The official roleplay path uses a session-only temporary persona from
+the saved template; do not assume it inherits template prompts, knowledge or tools.
+Use immutable run-bound instructions, never mutate the shared saved persona or run
+Gemini alongside Anam. External implementation, publication and paid call verification
+need separate approval.
+
+Anam final-transcript evaluation requires the current official common router
+contract and authenticated runtime capability, not an old local proposal or a
+Tavus-only transcript feature.
+
+**Why:** The official unified contract intentionally hides provider resource IDs
+and does not adopt the richer local proposal envelope. Requiring speculative
+fields can falsely classify supported functionality as unavailable; conversely,
+native media and a locally verifiable hash cannot authenticate dialogue ownership.
+
+**How to apply:** Follow the current official schema and authenticated capability
+discovery. Keep local user/run/project ownership checks and validate returned
+session, source and pinned revision; preserve Anam provenance. A project-only
+auth check is not per-user isolation verification. If acceptance requires the
+provider-session mapping hidden by the common API, obtain trusted router-side
+evidence separately rather than claiming the public response proves it. Keep
+mock checks distinct from separately approved paid-call verification.
 
 A reconciliation-required status identifies an unresolved paid-create outcome,
 not the root cause of a scenario-only failure. When administrator/persona playback

@@ -9,7 +9,11 @@ const metadata = z.object({
   emotion: z.string().max(100).optional(),
   emotionReason: z.string().max(1000).optional(),
   userAffect: z.record(z.string(), z.unknown()).refine(value => JSON.stringify(value).length <= 12000).optional(),
-  sourceTimestamp: z.string().datetime().optional(),
+  sourceTimestamp: z.string().datetime({ offset: true }).optional(),
+  routerTranscript: z.object({
+    provider: z.enum(["tavus", "anam"]), projectId: z.string().min(1).max(256),
+    sessionId: z.string().min(1).max(160), revision: z.string().regex(/^[a-f0-9]{64}$/),
+  }).strict().optional(),
 }).strict();
 const reason = z.enum([
   "connection_lost", "capture_gap", "overlapping_capture", "capture_timeout",
@@ -24,7 +28,7 @@ export const ledgerPayloadSchema = z.discriminatedUnion("kind", [
     kind: z.literal("utterance.register"), ...utteranceId,
     speaker: z.enum(["user", "ai"]), mode: z.enum(["text", "voice"]),
     personaId: z.string().min(1).max(160), responseTo: identity.optional(),
-    provider: z.enum(["gemini", "openai", "text", "tavus"]),
+    provider: z.enum(["gemini", "openai", "text", "tavus", "anam"]),
     providerResponseId: z.string().min(1).max(200).optional(),
     captureGeneration: integer.optional(), captureSequence: integer.min(1).optional(),
   }).strict(),
@@ -49,7 +53,9 @@ export const ledgerPayloadSchema = z.discriminatedUnion("kind", [
   }).strict(),
   z.object({
     kind: z.literal("playback.observed"), ...utteranceId,
-    state: z.enum(["started", "completed", "interrupted"]),
+    state: z.enum(["started", "completed", "interrupted", "not_played", "failed", "unknown"]),
+    playedMs: z.number().int().min(0).max(7200000).optional(),
+    scope: z.enum(["local_audio_context", "external_provider"]).optional(),
   }).strict(),
   z.object({
     kind: z.literal("session.close"),

@@ -8,6 +8,23 @@ import {
 } from '@/lib/iosAudioSession';
 
 const DEFAULT_GAIN = 1.0;
+export type PlaybackObservation = 'started' | 'completed' | 'interrupted' | 'not_played' | 'failed';
+export interface PlaybackOutput {
+  key: string;
+  observe: (state: PlaybackObservation, playedMs: number) => void;
+}
+interface ObservedOutput {
+  output: PlaybackOutput;
+  generation: number;
+  queued: number;
+  finished: boolean;
+  started: boolean;
+  failed: boolean;
+  completedMs: number;
+  context: AudioContext | null;
+  nodes: Map<AudioBufferSourceNode, { start: number; duration: number }>;
+  startTimer: ReturnType<typeof setTimeout> | null;
+}
 const OUTPUT_DEVICE_KEY = 'realtime_voice_output_device_id';
 // Tracks whether the user explicitly picked an output device so auto-selection
 // on devicechange does not overwrite a deliberate choice.
@@ -110,8 +127,10 @@ interface UseAudioPlaybackReturn {
   outputListUnavailable: boolean;
   requestOutputDevicePermission: () => Promise<boolean>;
   setIsAISpeaking: React.Dispatch<React.SetStateAction<boolean>>;
-  stopPlayback: () => void;
-  playAudioDelta: (base64: string, metadata?: OutputTraceFields) => Promise<void>;
+  stopPlayback: (reason?: 'interrupted' | 'failed') => void;
+  /** Provider completion is not local playback completion. */
+  finishGeneration: (outputKey?: string) => void;
+  playAudioDelta: (base64: string, metadata?: OutputTraceFields, output?: PlaybackOutput) => Promise<void>;
   startAmplitudeAnalysis: () => void;
   stopAmplitudeAnalysis: () => void;
   selectOutputDevice: (deviceId: string) => Promise<boolean>;
@@ -126,7 +145,8 @@ interface UseAudioPlaybackReturn {
 export function useAudioPlayback(
   isInterruptedRef: React.MutableRefObject<boolean>,
   agcConfig?: Partial<AgcConfig>,
-  diagnosticRef?: React.MutableRefObject<VoiceOutputTrace | undefined>
+  diagnosticRef?: React.MutableRefObject<VoiceOutputTrace | undefined>,
+  lifecycleEnabledRef?: React.MutableRefObject<boolean>,
 ): UseAudioPlaybackReturn {
   const { t } = useTranslation();
 
@@ -141,6 +161,7 @@ export function useAudioPlayback(
   const [outputListUnavailable, setOutputListUnavailable] = useState(false);
 
   const playbackContextRef = useRef<AudioContext | null>(null);
+  const playbackInitializationRef = useRef<Promise<void> | null>(null);
   const scheduledSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const nextPlayTimeRef = useRef<number>(0);
   const analyserNodeRef = useRef<AnalyserNode | null>(null);
@@ -159,6 +180,48 @@ export function useAudioPlayback(
   // newer Bluetooth device may still replace it.
   const outputAutoSelectedRef = useRef(false);
   const playbackQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const playbackGenerationRef = useRef(0);
+  const pendingChunksRef = useRef(0);
+  const generationFinishedRef = useRef(false);
+  const observedOutputsRef = useRef(new Map<string, ObservedOutput>());
+
+  const observedMs = useCallback((record: ObservedOutput) => {
+    let milliseconds = record.completedMs;
+    record.nodes.forEach(node => {
+      milliseconds += Math.max(0, Math.min(node.duration,
+        (record.context?.currentTime ?? 0) - node.start)) * 1000;
+    });
+    return Math.round(milliseconds);
+  }, []);
+
+  const settleObservedOutput = useCallback((record: ObservedOutput) => {
+    if (record.generation !== playbackGenerationRef.current || !record.finished ||
+        record.queued > 0 || record.nodes.size > 0) return;
+    if (record.startTimer) clearTimeout(record.startTimer);
+    record.output.observe(record.failed ? 'failed' : record.started ? 'completed' : 'not_played', observedMs(record));
+    observedOutputsRef.current.delete(record.output.key);
+  }, [observedMs]);
+
+  const settlePlayback = useCallback(() => {
+    if (!generationFinishedRef.current || pendingChunksRef.current > 0 ||
+        scheduledSourcesRef.current.length > 0 ||
+        Array.from(observedOutputsRef.current.values()).some(record => !record.finished)) return;
+    isActuallyPlayingRef.current = false;
+    isAISpeakingRef.current = false;
+    setIsAISpeaking(false);
+  }, []);
+
+  const finishGeneration = useCallback((outputKey?: string) => {
+    generationFinishedRef.current = true;
+    if (outputKey) {
+      const record = observedOutputsRef.current.get(outputKey);
+      if (record) {
+        record.finished = true;
+        settleObservedOutput(record);
+      }
+    }
+    settlePlayback();
+  }, [settlePlayback, settleObservedOutput]);
 
   const reportOutputError = useCallback((message: string) => {
     setOutputStatus('error');
@@ -379,10 +442,13 @@ export function useAudioPlayback(
     setIOSRealtimeAudioSessionActive(true);
     if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
       playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      await ensureOutputDevice(playbackContextRef.current);
+      playbackInitializationRef.current = ensureOutputDevice(playbackContextRef.current);
       nextPlayTimeRef.current = 0;
       console.log('🔊 Created new playback AudioContext');
     }
+    // A new output may bypass a cancelled chunk queue, but it must not bypass
+    // the shared context's pending output-device initialization.
+    await playbackInitializationRef.current;
     return playbackContextRef.current;
   }, [ensureOutputDevice]);
 
@@ -474,7 +540,18 @@ export function useAudioPlayback(
     setAudioAmplitude(0);
   }, []);
 
-  const stopPlayback = useCallback(() => {
+  const stopPlayback = useCallback((reason: 'interrupted' | 'failed' = 'interrupted') => {
+    // Invalidate BEFORE stop(): some browsers dispatch onended during stop.
+    playbackGenerationRef.current++;
+    observedOutputsRef.current.forEach(record => {
+      if (record.startTimer) clearTimeout(record.startTimer);
+      const playedMs = observedMs(record);
+      record.output.observe(reason === 'failed' ? 'failed' : record.started || playedMs > 0 ? 'interrupted' : 'not_played', playedMs);
+    });
+    observedOutputsRef.current.clear();
+    pendingChunksRef.current = 0;
+    generationFinishedRef.current = false;
+    playbackQueueRef.current = Promise.resolve();
     diagnosticRef?.current?.record('stop', {
       pendingSources: scheduledSourcesRef.current.length,
       contextTimeMs: (playbackContextRef.current?.currentTime ?? 0) * 1000,
@@ -510,12 +587,13 @@ export function useAudioPlayback(
     agcRmsRef.current = agcConfigRef.current.targetRms;
     setIsAISpeaking(false);
     isAISpeakingRef.current = false;
-  }, [isInterruptedRef, diagnosticRef]);
+  }, [isInterruptedRef, diagnosticRef, observedMs]);
 
-  const scheduleAudioDelta = useCallback(async (base64Audio: string, trace?: VoiceOutputTrace, metadata?: OutputTraceFields, queuedAt = 0) => {
+  const scheduleAudioDelta = useCallback(async (base64Audio: string, generation: number, trace?: VoiceOutputTrace, metadata?: OutputTraceFields, queuedAt = 0, record?: ObservedOutput) => {
+    const valid = () => generation === playbackGenerationRef.current && !isInterruptedRef.current;
     const processingAt = trace?.active ? performance.now() : 0;
     const queueWaitMs = processingAt - queuedAt;
-    if (isInterruptedRef.current) {
+    if (!valid()) {
       trace?.record('drop', { ...metadata, reason: 2, queueWaitMs });
       console.log('🔇 Ignoring audio chunk (barge-in active)');
       return;
@@ -523,7 +601,7 @@ export function useAudioPlayback(
 
     try {
       const audioContext = await initializePlaybackContext();
-      if (!audioContext || isInterruptedRef.current) {
+      if (!audioContext || !valid()) {
         trace?.record('drop', { ...metadata, reason: 3, queueWaitMs });
         return;
       }
@@ -532,16 +610,14 @@ export function useAudioPlayback(
         console.log('🔊 Resuming suspended AudioContext for playback');
         if (!await resumePlayback()) {
           trace?.record('error', { ...metadata, reason: 4 });
+          if (valid()) generationFinishedRef.current = true;
+          if (record) { record.failed = true; record.finished = true; }
           return;
         }
-        if (isInterruptedRef.current) {
+        if (!valid()) {
           trace?.record('drop', { ...metadata, reason: 3 });
           return;
         }
-      }
-
-      if (!isActuallyPlayingRef.current) {
-        isActuallyPlayingRef.current = true;
       }
 
       if (!analyserNodeRef.current) {
@@ -585,6 +661,7 @@ export function useAudioPlayback(
       }
 
       const pcm16 = new Int16Array(audioData.buffer);
+      if (pcm16.length === 0) throw new Error('Empty PCM chunk');
       const float32 = new Float32Array(pcm16.length);
       for (let i = 0; i < pcm16.length; i++) {
         float32[i] = pcm16[i] / 32768.0;
@@ -623,8 +700,33 @@ export function useAudioPlayback(
       source.start(startTime);
 
       scheduledSourcesRef.current.push(source);
+      isActuallyPlayingRef.current = true;
+      if (record) {
+        record.context = audioContext;
+        record.nodes.set(source, { start: startTime, duration: audioBuffer.duration });
+        const observeStart = () => {
+          record.startTimer = null;
+          if (!valid() || record.started || record.nodes.size === 0) return;
+          const firstStart = Math.min(...Array.from(record.nodes.values()).map(node => node.start));
+          if (audioContext.state === 'running' && audioContext.currentTime >= firstStart) {
+            record.started = true;
+            record.output.observe('started', observedMs(record));
+          } else {
+            // Browser timers are not the audio clock. Suspended contexts never
+            // acknowledge playback merely because a wall-clock timer elapsed.
+            record.startTimer = setTimeout(observeStart, 50);
+          }
+        };
+        if (!record.started && !record.startTimer) observeStart();
+      }
+      if (lifecycleEnabledRef?.current !== false) {
+        isAISpeakingRef.current = true;
+        setIsAISpeaking(true);
+      }
 
       source.onended = () => {
+        if (generation !== playbackGenerationRef.current) return;
+        if (!scheduledSourcesRef.current.includes(source)) return;
         trace?.record('ended', { ...metadata, contextTimeMs: audioContext.currentTime * 1000,
           endMs: (startTime + audioBuffer.duration) * 1000,
           interrupted: Number(isInterruptedRef.current) });
@@ -632,6 +734,17 @@ export function useAudioPlayback(
         if (index > -1) {
           scheduledSourcesRef.current.splice(index, 1);
         }
+        if (record) {
+          if (!record.started) {
+            record.started = true;
+            record.output.observe('started', observedMs(record));
+          }
+          record.completedMs += audioBuffer.duration * 1000;
+          record.nodes.delete(source);
+          settleObservedOutput(record);
+        }
+        source.disconnect();
+        settlePlayback();
       };
 
       const chunkDuration = audioBuffer.duration;
@@ -649,17 +762,59 @@ export function useAudioPlayback(
     } catch (err) {
       trace?.record('error', { ...metadata, reason: 5 });
       console.error('Error playing audio delta:', err);
+      // Do not leave a failed output permanently marked as speaking.
+      if (valid()) {
+        stopPlayback('failed');
+      }
     }
-  }, [initializePlaybackContext, isInterruptedRef, resumePlayback, startAmplitudeAnalysis]);
+  }, [initializePlaybackContext, isInterruptedRef, resumePlayback, startAmplitudeAnalysis, settlePlayback, lifecycleEnabledRef, observedMs, settleObservedOutput, stopPlayback]);
 
-  const playAudioDelta = useCallback((base64Audio: string, metadata?: OutputTraceFields) => {
+  const playAudioDelta = useCallback((base64Audio: string, metadata?: OutputTraceFields, output?: PlaybackOutput) => {
     const trace = diagnosticRef?.current?.active ? diagnosticRef.current : undefined;
     const queuedAt = trace ? performance.now() : 0;
-    const scheduled = playbackQueueRef.current.then(() => scheduleAudioDelta(base64Audio, trace, metadata, queuedAt));
+    const generation = playbackGenerationRef.current;
+    generationFinishedRef.current = false;
+    pendingChunksRef.current++;
+    let record: ObservedOutput | undefined;
+    if (output) {
+      record = observedOutputsRef.current.get(output.key);
+      if (!record) {
+        record = {
+          output, generation, queued: 0, finished: false, started: false,
+          failed: false, completedMs: 0, context: null, nodes: new Map(), startTimer: null,
+        };
+        observedOutputsRef.current.set(output.key, record);
+      }
+      record.queued++;
+    }
+    const scheduled = playbackQueueRef.current
+      .then(() => scheduleAudioDelta(base64Audio, generation, trace, metadata, queuedAt, record))
+      .finally(() => {
+        if (generation !== playbackGenerationRef.current) return;
+        pendingChunksRef.current--;
+        if (record) {
+          record.queued--;
+          settleObservedOutput(record);
+        }
+        settlePlayback();
+      });
     // Keep the queue usable after one malformed chunk or a recoverable browser failure.
     playbackQueueRef.current = scheduled.catch(() => {});
     return scheduled;
-  }, [scheduleAudioDelta, diagnosticRef]);
+  }, [scheduleAudioDelta, diagnosticRef, settlePlayback, settleObservedOutput]);
+
+  useEffect(() => () => {
+    playbackGenerationRef.current++;
+    observedOutputsRef.current.forEach(record => {
+      if (record.startTimer) clearTimeout(record.startTimer);
+    });
+    observedOutputsRef.current.clear();
+    scheduledSourcesRef.current.forEach(source => {
+      try { source.stop(); source.disconnect(); } catch {}
+    });
+    scheduledSourcesRef.current = [];
+    if (amplitudeAnimationRef.current && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(amplitudeAnimationRef.current);
+  }, []);
 
   return {
     playbackContextRef,
@@ -681,6 +836,7 @@ export function useAudioPlayback(
     requestOutputDevicePermission,
     setIsAISpeaking,
     stopPlayback,
+    finishGeneration,
     playAudioDelta,
     startAmplitudeAnalysis,
     stopAmplitudeAnalysis,

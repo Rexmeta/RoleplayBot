@@ -9,6 +9,8 @@ import { useAudioInputDevices, buildMicrophoneConstraints, type AudioInputDevice
 import { isIOSWebKitAudioPlatform, setIOSRealtimeAudioSessionActive } from '@/lib/iosAudioSession';
 import { acquireMicrophone, microphoneErrorKey } from '@/lib/microphonePermission';
 import { pcm16ToBase64, StreamingPcm16Resampler, trimPcmPreroll } from '@/lib/streamingPcmResampler';
+import { VOICE_OUTPUT_EVENT_TYPES, isVoiceInteractionEvent, sameVoiceOutput, voiceOutputKey, type VoiceInteractionEvent } from '@shared/voiceInteraction';
+import { BASELINE_DUPLEX_CONFIG, duplexConfigSchema, type CharacterEmotion } from '@shared/duplexMode';
 
 const NOISE_FLOOR_DURATION_MS = 1500;
 const VAD_ENTRY_MULTIPLIER = 3.0;
@@ -126,6 +128,10 @@ interface UseRealtimeVoiceProps {
   onUserTranscription?: (transcript: string, metadata: UserTranscriptionMetadata) => void;
   onUserTranscriptionDelta?: (delta: string, accumulated: string, metadata: UserTranscriptionMetadata) => void;
   onAiSpeakingStart?: () => void;
+  /** Presentation only; transcript/history metadata remains independent. */
+  onExpressionPresentation?: (emotion: string) => void;
+  onLedgerUpdate?: () => void;
+  onListeningReaction?: () => void;
   onUserSpeakingStart?: () => void;
   onError?: (error: string) => void;
   onSessionTerminated?: (reason: string) => void;
@@ -136,6 +142,7 @@ interface UseRealtimeVoiceProps {
 }
 
 interface UseRealtimeVoiceReturn {
+  externalPlaybackUnverified: boolean;
   status: RealtimeVoiceStatus;
   conversationPhase: ConversationPhase;
   isRecording: boolean;
@@ -192,6 +199,9 @@ export function useRealtimeVoice({
   onUserTranscription,
   onUserTranscriptionDelta,
   onAiSpeakingStart,
+  onExpressionPresentation,
+  onLedgerUpdate,
+  onListeningReaction,
   onUserSpeakingStart,
   onError,
   onSessionTerminated,
@@ -239,6 +249,7 @@ export function useRealtimeVoice({
     }
   }, [delayGreeting]);
 
+  const [externalPlaybackUnverified, setExternalPlaybackUnverified] = useState(false);
   const { data: voiceAudioSettingsRaw } = useQuery<Record<string, number>>({
     queryKey: ['/api/settings/voice-audio'],
     staleTime: 5 * 60 * 1000,
@@ -285,6 +296,25 @@ export function useRealtimeVoice({
   const lastTextDisplayTimeRef = useRef<number>(0);
   const textSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const aiSpeakingCallbackFiredRef = useRef(false);
+  const currentOutputIdentityRef = useRef<VoiceInteractionEvent | null>(null);
+  const latestReceivedOutputRef = useRef<VoiceInteractionEvent | null>(null);
+  const interactionSequenceRef = useRef(0);
+  const providerGenerationRef = useRef(-1);
+  const wireSessionIdRef = useRef<string | null>(null);
+  const duplexModeRef = useRef({ ...BASELINE_DUPLEX_CONFIG });
+  const lifecycleEnabledRef = useRef(false);
+  const characterEmotionRef = useRef<CharacterEmotion | null>(null);
+  const expressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastExpressionAtRef = useRef(-Infinity);
+  const currentOutputStartedAtRef = useRef<number | null>(null);
+  const lastPresentedRevisionRef = useRef(-1);
+  const providerDoneOutputsRef = useRef(new Set<string>());
+  const ledgerGenerationRef = useRef<number | null>(null);
+  const onLedgerUpdateRef = useRef(onLedgerUpdate);
+  onLedgerUpdateRef.current = onLedgerUpdate;
+  const onListeningReactionRef = useRef(onListeningReaction);
+  onListeningReactionRef.current = onListeningReaction;
+  const lastListeningReactionRef = useRef(0);
 
   const autoReconnectCountRef = useRef(0);
   const autoReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -311,6 +341,8 @@ export function useRealtimeVoice({
   const onUserTranscriptionRef = useRef(onUserTranscription);
   const onUserTranscriptionDeltaRef = useRef(onUserTranscriptionDelta);
   const onAiSpeakingStartRef = useRef(onAiSpeakingStart);
+  const onExpressionPresentationRef = useRef(onExpressionPresentation);
+  onExpressionPresentationRef.current = onExpressionPresentation;
   const onUserSpeakingStartRef = useRef(onUserSpeakingStart);
   const onErrorRef = useRef(onError);
   const onSessionTerminatedRef = useRef(onSessionTerminated);
@@ -353,6 +385,7 @@ export function useRealtimeVoice({
     audioAmplitude,
     setIsAISpeaking,
     stopPlayback,
+    finishGeneration,
     playAudioDelta,
     stopAmplitudeAnalysis,
     analyserNodeRef,
@@ -370,7 +403,52 @@ export function useRealtimeVoice({
     requestOutputDevicePermission,
     initializePlaybackContext,
     resumePlayback,
-  } = useAudioPlayback(isInterruptedRef, agcConfig, outputTraceRef);
+  } = useAudioPlayback(isInterruptedRef, agcConfig, outputTraceRef, lifecycleEnabledRef);
+
+  const presentCharacterEmotion = useCallback((character: CharacterEmotion, output: VoiceInteractionEvent) => {
+    if (!duplexModeRef.current.expressionSync || !isActuallyPlayingRef.current ||
+        character.personaGeneration !== output.personaGeneration ||
+        avatarOwnsAudioRef.current || isInterruptedRef.current ||
+        !currentOutputIdentityRef.current || !sameVoiceOutput(output, currentOutputIdentityRef.current)) return;
+    if (expressionTimerRef.current) clearTimeout(expressionTimerRef.current);
+    const apply = () => {
+      expressionTimerRef.current = null;
+      const authority = characterEmotionRef.current;
+      if (!authority || authority.personaGeneration !== character.personaGeneration ||
+          authority.revision !== character.revision || !isActuallyPlayingRef.current ||
+          isInterruptedRef.current || !currentOutputIdentityRef.current ||
+          !sameVoiceOutput(output, currentOutputIdentityRef.current)) return;
+      lastExpressionAtRef.current = performance.now();
+      lastPresentedRevisionRef.current = character.revision;
+      onExpressionPresentationRef.current?.(character.emotion);
+      outputTraceRef.current?.record('expression-applied', {
+        turnSeq: output.outputGeneration, providerGeneration: output.providerConnectionGeneration,
+        emotionRevision: character.revision, personaGeneration: character.personaGeneration,
+        durationMs: currentOutputStartedAtRef.current === null ? undefined :
+          performance.now() - currentOutputStartedAtRef.current,
+      });
+    };
+    const hold = Math.max(0, 600 - (performance.now() - lastExpressionAtRef.current));
+    if (hold) expressionTimerRef.current = setTimeout(apply, hold);
+    else apply();
+  }, [isActuallyPlayingRef]);
+
+  // Local output starts when the player has actually scheduled an accepted
+  // source, not when a network audio.delta merely arrives.
+  useEffect(() => {
+    if (isAISpeaking && !aiSpeakingCallbackFiredRef.current) {
+      aiSpeakingCallbackFiredRef.current = true;
+      onAiSpeakingStartRef.current?.();
+      if (characterEmotionRef.current && currentOutputIdentityRef.current) {
+        presentCharacterEmotion(characterEmotionRef.current, currentOutputIdentityRef.current);
+      }
+    }
+    if (!isAISpeaking) {
+      aiSpeakingCallbackFiredRef.current = false;
+      if (expressionTimerRef.current) clearTimeout(expressionTimerRef.current);
+      expressionTimerRef.current = null;
+    }
+  }, [isAISpeaking, presentCharacterEmotion]);
 
   const {
     vadProcessorRef,
@@ -437,8 +515,14 @@ export function useRealtimeVoice({
   const recalibrationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRecalibrationRef = useRef<number>(0);
 
-  const stopCurrentPlayback = useCallback(() => {
-    stopPlayback();
+  const stopCurrentPlayback = useCallback((reason: 'interrupted' | 'failed' = 'interrupted') => {
+    stopPlayback(reason);
+    setExternalPlaybackUnverified(false);
+    if (expressionTimerRef.current) clearTimeout(expressionTimerRef.current);
+    expressionTimerRef.current = null;
+    currentOutputIdentityRef.current = null;
+    latestReceivedOutputRef.current = null;
+    aiSpeakingCallbackFiredRef.current = false;
     aiMessageBufferRef.current = '';
     audioResponseStartTimeRef.current = null;
     totalScheduledAudioDurationRef.current = 0;
@@ -623,6 +707,12 @@ export function useRealtimeVoice({
       if (connectionAttempt !== connectionAttemptRef.current) return;
       const url = getWebSocketUrl(token);
       const ws = new WebSocket(url);
+      interactionSequenceRef.current = 0;
+      providerGenerationRef.current = -1;
+      wireSessionIdRef.current = null;
+      currentOutputIdentityRef.current = null;
+      providerDoneOutputsRef.current.clear();
+      ledgerGenerationRef.current = null;
       outputTraceRef.current?.stop();
       outputTraceRef.current = takeVoiceOutputTrace();
       outputArrivalRef.current = undefined;
@@ -676,7 +766,42 @@ export function useRealtimeVoice({
         if (wsRef.current !== ws) return;
         try {
           const data = JSON.parse(event.data);
+          if (duplexModeRef.current.interaction && VOICE_OUTPUT_EVENT_TYPES.includes(data.type) &&
+              data.interaction === undefined) return;
+          if (data.interaction !== undefined) {
+            if (!isVoiceInteractionEvent(data.interaction)) return;
+            const identity = data.interaction;
+            if (wireSessionIdRef.current && identity.sessionId !== wireSessionIdRef.current) return;
+            if (identity.providerConnectionGeneration < providerGenerationRef.current ||
+                identity.sequence <= interactionSequenceRef.current) return;
+            if (identity.providerConnectionGeneration > providerGenerationRef.current) {
+              if (providerGenerationRef.current >= 0) stopCurrentPlayback();
+              providerGenerationRef.current = identity.providerConnectionGeneration;
+            }
+            interactionSequenceRef.current = identity.sequence;
+            // A delayed completion/interruption must not end a newer output.
+            if (data.type === 'response.interrupted' && latestReceivedOutputRef.current &&
+                !sameVoiceOutput(identity, latestReceivedOutputRef.current)) return;
+          }
+
           switch (data.type) {
+            case 'ledger.ack':
+              onLedgerUpdateRef.current?.();
+              break;
+            case 'character.emotion': {
+              const character = data.character as CharacterEmotion | undefined;
+              const previous = characterEmotionRef.current;
+              if (!character || !Number.isSafeInteger(character.revision) || !Number.isSafeInteger(character.personaGeneration) ||
+                  !Number.isFinite(character.intensity) || !Number.isFinite(character.confidence) ||
+                  (previous && (character.personaGeneration < previous.personaGeneration ||
+                    (character.personaGeneration === previous.personaGeneration && character.revision <= previous.revision)))) break;
+              characterEmotionRef.current = character;
+              if (data.expression?.output && currentOutputIdentityRef.current &&
+                  sameVoiceOutput(data.expression.output, currentOutputIdentityRef.current)) {
+                presentCharacterEmotion(character, currentOutputIdentityRef.current);
+              }
+              break;
+            }
             case 'output.diagnostic':
               outputTraceRef.current?.record('provider-frame', data.diagnostic);
               break;
@@ -781,6 +906,7 @@ export function useRealtimeVoice({
 
             case 'audio.delta':
               if (data.delta) {
+                if (data.interaction && providerDoneOutputsRef.current.has(voiceOutputKey(data.interaction))) break;
                 if (outputTraceRef.current?.active) {
                   const now = performance.now();
                   outputTraceRef.current.record('receive', { ...data.diagnostic,
@@ -810,32 +936,77 @@ export function useRealtimeVoice({
                   voiceTailTimerRef.current = null;
                   activeSpeechSeqRef.current = 0;
                 }
-                if (!aiSpeakingCallbackFiredRef.current) {
-                  aiSpeakingCallbackFiredRef.current = true;
-                  if (onAiSpeakingStartRef.current) onAiSpeakingStartRef.current();
+                if (data.interaction) latestReceivedOutputRef.current = data.interaction;
+                if (!duplexModeRef.current.playbackLifecycle) {
+                  setIsAISpeaking(true);
+                  isAISpeakingRef.current = true;
                 }
-                setIsAISpeaking(true);
-                isAISpeakingRef.current = true;
                 if (data.avatarRouted === true) {
+                  if (duplexModeRef.current.playbackLifecycle) setExternalPlaybackUnverified(true);
                   // The subscribed renderer owns audio only after explicit media readiness.
                   // Stop the local queue, not transcript buffers or the dialogue engine.
-                  if (!avatarOwnsAudioRef.current) stopPlayback();
+                  if (!avatarOwnsAudioRef.current) {
+                    stopPlayback();
+                    // This is a change of audio owner, not a user interruption.
+                    isInterruptedRef.current = false;
+                  }
                   avatarOwnsAudioRef.current = true;
                   avatarSpeakingRef.current = true;
+                  // Routed delivery is not a browser playback acknowledgement.
+                  // The external path retains its existing activity indication.
+                  setIsAISpeaking(true);
+                  isAISpeakingRef.current = true;
                 } else {
+                  setExternalPlaybackUnverified(false);
                   if (avatarOwnsAudioRef.current) {
                     avatarOwnsAudioRef.current = false;
                     avatarSpeakingRef.current = false;
                     window.dispatchEvent(new CustomEvent("live-avatar-fallback", { detail: { conversationId } }));
                   }
+                  const output = data.interaction && duplexModeRef.current.playbackLifecycle
+                    ? {
+                      key: voiceOutputKey(data.interaction),
+                      observe: (() => {
+                        const utteranceId = data.utteranceId;
+                        const generation = ledgerGenerationRef.current;
+                        const identity: VoiceInteractionEvent = data.interaction;
+                        return (state: import('./useAudioPlayback').PlaybackObservation, playedMs: number) => {
+                          if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
+                          outputTraceRef.current?.record('playback-observed', {
+                            turnSeq: identity.outputGeneration, providerGeneration: identity.providerConnectionGeneration,
+                            personaGeneration: identity.personaGeneration, durationMs: playedMs,
+                            reason: ['started', 'completed', 'interrupted', 'not_played', 'failed'].indexOf(state),
+                          });
+                          if (state === 'started' && !isInterruptedRef.current &&
+                              (!currentOutputIdentityRef.current ||
+                                identity.outputGeneration >= currentOutputIdentityRef.current.outputGeneration)) {
+                            currentOutputIdentityRef.current = identity;
+                            currentOutputStartedAtRef.current = performance.now();
+                            aiSpeakingCallbackFiredRef.current = true;
+                            onAiSpeakingStartRef.current?.();
+                            if (characterEmotionRef.current) presentCharacterEmotion(characterEmotionRef.current, identity);
+                          }
+                          if (state === 'failed') {
+                            expectedTurnSeqRef.current = Math.max(expectedTurnSeqRef.current, identity.outputGeneration + 1);
+                            ws.send(JSON.stringify({ type: 'response.cancel' }));
+                          }
+                          if (!duplexModeRef.current.evaluationSnapshot || generation === null || !utteranceId) return;
+                          ws.send(JSON.stringify({
+                            type: 'ledger.command',
+                            command: { eventId: crypto.randomUUID(), generation,
+                              payload: { kind: 'playback.observed', utteranceId, state, playedMs, scope: 'local_audio_context' } },
+                          }));
+                        };
+                      })(),
+                    } : undefined;
                   playAudioDelta(data.delta, outputTraceRef.current?.active
-                    ? { ...data.diagnostic, turnSeq: data.turnSeq } : undefined).catch(() => {});
+                    ? { ...data.diagnostic, turnSeq: data.turnSeq } : undefined, output).catch(() => {});
                 }
               }
               break;
 
             case 'audio.done':
-              console.log('✅ Audio playback complete');
+              // This is a provider boundary, not an AudioBufferSourceNode boundary.
               break;
             case 'avatar.fallback':
               avatarOwnsAudioRef.current = false;
@@ -844,6 +1015,10 @@ export function useRealtimeVoice({
               break;
             case 'avatar.playback.done':
               avatarSpeakingRef.current = false;
+              if (avatarOwnsAudioRef.current) {
+                setIsAISpeaking(false);
+                isAISpeakingRef.current = false;
+              }
               break;
 
             case 'ai.transcription.delta':
@@ -864,6 +1039,9 @@ export function useRealtimeVoice({
                 console.log('🔄 Skipping reconnect greeting to keep turn counter accurate');
                 if (onReconnectGreetingCompleteRef.current) onReconnectGreetingCompleteRef.current();
               } else if (data.text && onMessageCompleteRef.current) {
+                if (!duplexModeRef.current.expressionSync && data.emotion) {
+                  onExpressionPresentationRef.current?.(data.emotion);
+                }
                 onMessageCompleteRef.current(data.text, data.emotion, data.emotionReason, data.userAffect, data.interrupted ?? false);
               }
               if (data.text) {
@@ -875,29 +1053,39 @@ export function useRealtimeVoice({
               break;
 
             case 'response.done':
+              if (data.interaction) {
+                providerDoneOutputsRef.current.add(voiceOutputKey(data.interaction));
+                if (providerDoneOutputsRef.current.size > 256) {
+                  const first = providerDoneOutputsRef.current.values().next().value;
+                  if (first) providerDoneOutputsRef.current.delete(first);
+                }
+              }
               outputTraceRef.current?.record('provider-done', { ...data.diagnostic,
                 pendingSources: scheduledSourcesRef.current.length,
                 actuallyPlaying: Number(isActuallyPlayingRef.current),
                 contextTimeMs: (playbackContextRef.current?.currentTime ?? 0) * 1000,
                 bufferedMs: Math.max(0, nextPlayTimeRef.current - (playbackContextRef.current?.currentTime ?? 0)) * 1000 });
-              setIsAISpeaking(false);
-              isAISpeakingRef.current = false;
-              isActuallyPlayingRef.current = false;
+              if (duplexModeRef.current.playbackLifecycle) {
+                if (!avatarOwnsAudioRef.current) finishGeneration(data.interaction ? voiceOutputKey(data.interaction) : undefined);
+              } else {
+                setIsAISpeaking(false);
+                isAISpeakingRef.current = false;
+                isActuallyPlayingRef.current = false;
+              }
               setGreetingFailed(false);
               audioResponseStartTimeRef.current = null;
               totalScheduledAudioDurationRef.current = 0;
               lastTextDisplayTimeRef.current = 0;
-              aiSpeakingCallbackFiredRef.current = false;
               break;
 
             case 'response.interrupted':
               outputTraceRef.current?.record('stop', { reason: 9, expectedTurnSeq: expectedTurnSeqRef.current,
                 pendingSources: scheduledSourcesRef.current.length });
-              setIsAISpeaking(false);
-              isAISpeakingRef.current = false;
+              stopCurrentPlayback();
               break;
 
             case 'response.ready':
+              if (data.turnSeq !== undefined && data.turnSeq < expectedTurnSeqRef.current) break;
               outputTraceRef.current?.record('ready', { ...data.diagnostic, turnSeq: data.turnSeq });
               isInterruptedRef.current = false;
               bargeInTriggeredRef.current = false;
@@ -945,6 +1133,16 @@ export function useRealtimeVoice({
               break;
 
             case 'session.ready':
+              if (typeof data.sessionId === 'string') wireSessionIdRef.current = data.sessionId;
+              {
+                const parsed = duplexConfigSchema.safeParse(data.duplex ?? BASELINE_DUPLEX_CONFIG);
+                if (!parsed.success) throw new Error('Invalid duplex session configuration');
+                duplexModeRef.current = parsed.data;
+                lifecycleEnabledRef.current = parsed.data.playbackLifecycle;
+                if (data.character) characterEmotionRef.current = data.character;
+                ledgerGenerationRef.current = data.transcriptProtocol === 'ledger-v1' && Number.isSafeInteger(data.generation)
+                  ? data.generation : null;
+              }
               if (statusRef.current === 'connected') {
                 console.log('⚠️ session.ready received but already connected — ignoring duplicate');
                 break;
@@ -998,6 +1196,9 @@ export function useRealtimeVoice({
               break;
 
             case 'persona.switched':
+              stopCurrentPlayback();
+              characterEmotionRef.current = null;
+              lastPresentedRevisionRef.current = -1;
               if (onPersonaSwitchedRef.current && data.switched) {
                 onPersonaSwitchedRef.current({
                   fromIndex: data.switched.fromIndex,
@@ -1024,7 +1225,11 @@ export function useRealtimeVoice({
               }
               break;
 
+            case 'character.error':
+              setError('캐릭터 감정 상태를 갱신하지 못했습니다. 이전 감정 상태를 유지합니다.');
+              break;
             case 'error':
+              if (lifecycleEnabledRef.current) stopCurrentPlayback('failed');
               console.error('❌ Server error:', data.error);
               setError(data.error);
               if (onErrorRef.current) onErrorRef.current(data.error);
@@ -1040,6 +1245,7 @@ export function useRealtimeVoice({
 
       ws.onerror = (event) => {
         if (wsRef.current !== ws) return;
+        if (lifecycleEnabledRef.current) stopCurrentPlayback('failed');
         console.error('❌ WebSocket error:', event);
         setError('WebSocket connection error');
         setStatus('error');
@@ -1157,7 +1363,7 @@ export function useRealtimeVoice({
       setGreetingFailed(false);
       if (onErrorRef.current) onErrorRef.current(err instanceof Error ? err.message : 'Connection failed');
     }
-  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef, initializePlaybackContext, resumePlayback, resetVAD, requestInputDevicePermission, refreshOutputDevices]);
+  }, [enabled, getRealtimeToken, getWebSocketUrl, disconnect, stopCurrentPlayback, playAudioDelta, finishGeneration, presentCharacterEmotion, setIsAISpeaking, isAISpeakingRef, bargeInTriggeredRef, initializePlaybackContext, resumePlayback, resetVAD, requestInputDevicePermission, refreshOutputDevices]);
 
   useEffect(() => {
     connectRef.current = connect;
@@ -1428,10 +1634,22 @@ export function useRealtimeVoice({
         isRecordingRef,
         expectedTurnSeqRef,
         stopPlayback,
+        bargeInPolicy: duplexModeRef.current.bargeInPolicy,
+        onVoiceConfirmed: () => {
+          outputTraceRef.current?.record('vad-confirmed', { actuallyPlaying: isActuallyPlayingRef.current ? 1 : 0 });
+          if (!duplexModeRef.current.silentReactions || isActuallyPlayingRef.current ||
+              !isRecordingRef.current || Date.now() - lastListeningReactionRef.current < 3000) return;
+          lastListeningReactionRef.current = Date.now();
+          onListeningReactionRef.current?.();
+        },
         entryThreshold,
         exitThreshold,
         onNoiseDrift: recalibrateNoiseFloor,
         onBargeIn: () => {
+          currentOutputIdentityRef.current = null;
+          latestReceivedOutputRef.current = null;
+          if (expressionTimerRef.current) clearTimeout(expressionTimerRef.current);
+          expressionTimerRef.current = null;
           outputTraceRef.current?.record('vad-cancel', { reason: 10,
             expectedTurnSeq: expectedTurnSeqRef.current,
             pendingSources: scheduledSourcesRef.current.length });
@@ -1448,6 +1666,8 @@ export function useRealtimeVoice({
           flushPreroll(speechSeq);
         },
         onVoiceStart: (duringPlayback) => {
+          outputTraceRef.current?.record('vad-candidate', { actuallyPlaying: duringPlayback ? 1 : 0,
+            expectedTurnSeq: expectedTurnSeqRef.current });
           voiceActivityEpochRef.current++;
           if (duringPlayback) return;
           if (voiceTailTimerRef.current) {
@@ -1750,6 +1970,7 @@ export function useRealtimeVoice({
   }, []);
 
   return {
+    externalPlaybackUnverified,
     status,
     conversationPhase,
     isRecording,

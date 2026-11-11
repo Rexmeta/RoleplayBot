@@ -5,21 +5,29 @@ import type { LedgerRun } from "../../../shared/schema/conversationLedger";
 import type { LedgerUtterance } from "../../../shared/schema/conversationLedger";
 import { LedgerError } from "./policy";
 import { ledgerChatMessage, hasLedgerProtocol } from "./transcript";
+import { personaRuns } from '../../../shared/schema/conversations';
 
 export function snapshotFeedbackInput(run: LedgerRun, snapshot: typeof snapshots.$inferSelect) {
   const rows = snapshot.content.utterances as LedgerUtterance[];
   const binding = snapshot.content.boundContext as Record<string, any>;
+  const isRouterRow = (row: LedgerUtterance) => row.provider === "tavus" || row.provider === "anam";
+  const source = rows[0]?.metadata?.routerTranscript;
   return {
     conversationId: run.personaRunId,
     conversation: {
       id: run.personaRunId, transcriptProtocol: "ledger-v1",
       scenarioId: binding.scenarioSnapshot.id, personaId: run.personaId,
       personaSnapshot: binding.personaSnapshot, createdAt: run.createdAt, completedAt: new Date(),
-      status: "completed", mode: rows.length > 0 && rows.every(row => row.provider === "tavus")
+      status: "completed", mode: rows.length > 0 && rows.every(isRouterRow)
         ? "realtime_voice" : "mixed", difficulty: binding.difficulty ?? binding.scenarioSnapshot.difficulty ?? 4,
+      ...(source && rows.every(row => (["provider", "projectId", "sessionId", "revision"] as const)
+        .every(key => row.metadata?.routerTranscript?.[key] === source[key]))
+        ? { transcriptSource: { provider: source.provider, projectId: source.projectId,
+          conversationId: source.sessionId, routerSessionId: source.sessionId, revision: source.revision,
+          kind: "final_transcript" } } : {}),
       turnCount: rows.filter(row => row.speaker === "user").length,
       messages: rows.map(row => ({
-        ...ledgerChatMessage(row), timestamp: row.provider === "tavus"
+        ...ledgerChatMessage(row), timestamp: isRouterRow(row)
           ? row.metadata?.sourceTimestamp ?? row.createdAt : row.createdAt, utteranceId: row.id,
       })),
     },
@@ -36,8 +44,12 @@ export async function readLedgerFeedbackInput(runId: string, connection: Pick<ty
     if (!run) throw new LedgerError("ledger_protocol_storage_missing");
     await tx.execute((await import("drizzle-orm")).sql`SELECT pg_advisory_xact_lock(hashtext(${runId}))`);
     const [current] = await tx.select().from(runs).where(eq(runs.personaRunId, runId));
+    const [parent] = await tx.select({ runtime: personaRuns.duplexRuntime }).from(personaRuns)
+      .where(eq(personaRuns.id, runId));
+    const frozen = parent?.runtime?.config.evaluationSnapshot ? parent.runtime.finalization : undefined;
     const [snapshot] = await tx.select().from(snapshots).where(and(
-      eq(snapshots.personaRunId, runId), eq(snapshots.revision, current.cursor),
+      eq(snapshots.personaRunId, runId), frozen
+        ? eq(snapshots.id, frozen.snapshotId) : eq(snapshots.revision, current.cursor),
     ));
     if (!snapshot || current.status !== "closed" || snapshot.blockedReasons.length) {
       throw new LedgerError("snapshot_evaluation_pending");

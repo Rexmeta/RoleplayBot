@@ -53,7 +53,7 @@ export function AvatarTestSessionView({ test, assistantName = "Lucy" }: { test: 
         <p className="mt-1 text-xs text-muted-foreground">텍스트 또는 최대 15초 음성 · 동의한 입력만 외부 AI 처리</p>
         <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
           <input className="mt-0.5 h-3.5 w-3.5 accent-primary" type="checkbox" checked={test.audioConfirmed} onChange={(event) => test.setAudioConfirmed(event.target.checked)} />
-          <span>텍스트·녹음의 OpenAI 처리와 생성된 응답 음성의 AvatarRouter·Tavus·LiveKit 전송 및 AI 사용료 발생 가능성에 동의합니다. 세션 복구 시 다시 확인해야 합니다.</span>
+          <span>텍스트와 녹음이 음성 인식·응답 생성에 처리되고, 생성된 응답 음성이 외부 서비스로 전송되며 AI 사용료가 발생할 수 있음에 동의합니다. 세션 복구 시 다시 확인해야 합니다.</span>
         </label>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">

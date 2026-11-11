@@ -20,6 +20,7 @@ vi.mock("../../server/middleware/authMiddleware", () => ({
 }));
 
 import createSystemAdminRouter from "../../server/routes/systemAdmin";
+import { BASELINE_DUPLEX_CONFIG } from '../../shared/duplexMode';
 
 function makeApp() {
   const app = express();
@@ -55,6 +56,29 @@ describe("OpenRouter system admin controls", () => {
       key: "model_conversation",
       value: JSON.stringify({ provider: "openrouter", model: "anthropic/claude-3.5-sonnet" }),
     }));
+  });
+  it('validates supported Duplex settings and rejects unverified backchannels/dependency errors', async () => {
+    for (const value of [
+      { ...BASELINE_DUPLEX_CONFIG, voiceBackchannel: true },
+      { ...BASELINE_DUPLEX_CONFIG, expressionSync: true },
+      '{invalid json',
+    ]) {
+      expect((await request(makeApp()).put('/api/system-admin/settings').send({
+        category: 'voice_duplex', key: 'config', value,
+      })).status).toBe(400);
+    }
+    expect(upsertSystemSetting).not.toHaveBeenCalled();
+    expect((await request(makeApp()).put('/api/system-admin/settings').send({
+      category: 'voice_duplex', key: 'config', value: BASELINE_DUPLEX_CONFIG,
+    })).status).toBe(200);
+  });
+  it('rejects invalid Duplex batch values before writing unrelated entries', async () => {
+    const response = await request(makeApp()).put('/api/system-admin/settings/batch').send({ settings: [
+      { category: 'other', key: 'example', value: 'value' },
+      { category: 'voice_duplex', key: 'config', value: { ...BASELINE_DUPLEX_CONFIG, playbackLifecycle: true } },
+    ] });
+    expect(response.status).toBe(400);
+    expect(upsertSystemSetting).not.toHaveBeenCalled();
   });
 
   it("rejects OpenRouter for realtime and media features", async () => {

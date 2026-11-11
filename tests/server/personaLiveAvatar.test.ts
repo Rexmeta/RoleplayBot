@@ -28,6 +28,19 @@ beforeEach(() => {
 });
 
 describe("persona project catalog and inactive drafts", () => {
+  it("saves an available Anam stock reference as Anam, not Tavus or a custom asset", async () => {
+    const anam = stock({ id: "anam-persona-default", providerId: "anam", name: "Anam" });
+    call.mockImplementation(async (_user, _path, schema) => schema.parse([anam]));
+    const liveAvatar = {
+      kind: "stock", avatarId: anam.id, providerId: "anam", voiceMode: "roleplayx",
+      activation: "draft", validationStatus: "unverified",
+    };
+    expect(await catalog.normalize("operator", { avatarMode: "live", liveAvatar })).toMatchObject({
+      avatarMode: "live", liveAvatar: { ...liveAvatar, projectId: "project-one" },
+    });
+    expect(call).toHaveBeenCalledWith("operator", "/avatars", expect.anything());
+    expect(call.mock.calls.every(c => c[3] === undefined)).toBe(true);
+  });
   it("only performs reads and separates provisioning from live validation", async () => {
     const list = await catalog.list("operator");
     expect(list).toMatchObject({

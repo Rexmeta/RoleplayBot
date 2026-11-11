@@ -102,6 +102,42 @@ describe('createMessageHandler — barge-in state machine', () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
+  it('deduplicates provider event IDs and rejects audio after a completed response ID', () => {
+    handleMessage({ type: 'response.created', response: { id: 'one' } });
+    const packet = { type: 'response.audio.delta', response_id: 'one', event_id: 'chunk-one', delta: 'AQ==' };
+    handleMessage(packet);
+    handleMessage(packet);
+    expect(sendToClient.mock.calls.filter(([, message]) => message.type === 'audio.delta')).toHaveLength(1);
+    handleMessage({ type: 'response.done', response: { id: 'one', status: 'completed' } });
+    handleMessage({ ...packet, event_id: 'late-new-event' });
+    expect(sendToClient.mock.calls.filter(([, message]) => message.type === 'audio.delta')).toHaveLength(1);
+  });
+  it('allows a new response before the old cancel ACK without letting the ACK cancel the new output', () => {
+    handleMessage({ type: 'response.created', response: { id: 'old' } });
+    session.cancelledProviderResponseIds = ['old'];
+    session.awaitingOutputBoundary = { providerGeneration: session.providerConnectionGeneration ?? 0, responseId: 'old' };
+    session.isInterrupted = true;
+    session.turnSeq++;
+    handleMessage({ type: 'response.audio.delta', response_id: 'old', delta: 'old' });
+    handleMessage({ type: 'response.created', response: { id: 'new' } });
+    handleMessage({ type: 'response.audio.delta', response_id: 'new', delta: 'new' });
+    handleMessage({ type: 'response.done', response: { id: 'old', status: 'cancelled' } });
+    handleMessage({ type: 'response.audio.delta', response_id: 'new', delta: 'newer' });
+    const audio = sendToClient.mock.calls.filter(([, message]) => message.type === 'audio.delta');
+    expect(audio.map(([, message]) => message.delta)).toEqual(['new', 'newer']);
+    expect(session.providerOutputInProgress).toBe(true);
+    expect(session.isInterrupted).toBe(false);
+  });
+  it('does not promote failed generation or an idempotent cancel error into final speech', () => {
+    handleMessage({ type: 'response.audio_transcript.delta', delta: 'partial' });
+    sendToClient.mockClear();
+    handleMessage({ type: 'response.done', response: { status: 'failed' } });
+    expect(sendToClient.mock.calls.some(([, message]) => message.type === 'ai.transcription.done')).toBe(false);
+    expect(sendToClient.mock.calls.some(([, message]) => message.type === 'response.interrupted')).toBe(true);
+    sendToClient.mockClear();
+    handleMessage({ type: 'error', error: { code: 'response_cancel_not_active' } });
+    expect(sendToClient).not.toHaveBeenCalled();
+  });
 
   it('ignores a late final emitted by an older provider connection', () => {
     session.providerConnectionGeneration = 2;
