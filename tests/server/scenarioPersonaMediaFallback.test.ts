@@ -158,40 +158,6 @@ describe('FileManagerService — scenario persona media enrichment', () => {
     expect(persona.videos).toEqual(MBTI_VIDEOS);
   });
 
-  it('repairs a saved portrait after both gender and persona reference change', async () => {
-    storageMock.getScenario.mockResolvedValue(
-      dbScenario([{ id: 'istj', name: '박선우', gender: 'female', personaRef: 'cp',
-        image: 'personas/istj/male/neutral.webp' }]),
-    );
-
-    const scenario = await manager.getScenarioById('scenario-1');
-    expect(scenario!.personas![0].image).toBe('personas/cp/female/neutral.webp');
-  });
-
-  it('never repairs a female portrait using the other gender when its images are missing', async () => {
-    storageMock.getMbtiPersona.mockResolvedValue({
-      images: { male: MBTI_IMAGES.male, base: MBTI_IMAGES.base },
-    });
-    storageMock.getScenario.mockResolvedValue(
-      dbScenario([{ id: 'istj', name: '박선우', gender: 'female', personaRef: 'cp',
-        image: '/personas/istj/male/neutral.webp' }]),
-    );
-
-    const scenario = await manager.getScenarioById('scenario-1');
-    expect(scenario!.personas![0].image).toBe('personas/cp/female/neutral.webp');
-  });
-
-  it('repairs stale convention portraits even if the persona lookup fails', async () => {
-    storageMock.getMbtiPersona.mockRejectedValue(new Error('db down'));
-    storageMock.getScenario.mockResolvedValue(
-      dbScenario([{ id: 'istj', name: '박선우', gender: 'female', personaRef: 'cp.json',
-        image: 'personas/istj/male/neutral.webp' }]),
-    );
-
-    const scenario = await manager.getScenarioById('scenario-1');
-    expect(scenario!.personas![0].image).toBe('personas/cp/female/neutral.webp');
-  });
-
   it('does not overwrite explicit clips already present on the persona', async () => {
     const ownClips = { enabled: true, clips: { male: { listening_neutral: 'videos/own-listening-neutral.mp4' } } };
     storageMock.getScenario.mockResolvedValue(

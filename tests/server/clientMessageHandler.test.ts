@@ -3,15 +3,6 @@ import { summarizeOlderMessages } from '../../server/services/voice/clientMessag
 import { handleClientMessage } from '../../server/services/voice/clientMessageHandler';
 import type { RealtimeSession } from '../../server/services/voice/types';
 import { makeSession } from './helpers/voiceSession';
-import { BASELINE_DUPLEX_CONFIG, initialCharacterEmotion } from '../../shared/duplexMode';
-import { beginVoiceFinalization } from '../../server/services/conversationLedger/voiceAdapter';
-
-vi.mock('../../server/services/conversationLedger/voiceAdapter', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/services/conversationLedger/voiceAdapter')>(),
-  // Hold storage/freeze pending to exercise the admission window immediately
-  // after the close packet, not merely after the barrier has already resolved.
-  finalizeLedgerVoiceCommand: vi.fn(() => new Promise(() => {})),
-}));
 
 vi.mock('../../server/services/voice/textFilter', () => ({
   filterThinkingText: vi.fn((text: string) => text),
@@ -739,46 +730,6 @@ describe('handleClientMessage — 30-message threshold boundary', () => {
 });
 
 describe('handleClientMessage — guard logic and switch-case branches', () => {
-  it.each(['closing', 'frozen'] as const)('rejects new output/text/evidence immediately after close while preserving existing observations (%s)', finalState => {
-    const provider = { sendClientContent: vi.fn(), sendRealtimeInput: vi.fn() };
-    const clientCommand = vi.fn();
-    const session = makeSession({
-      geminiSession: provider as any, turnSeq: 7, providerOutputInProgress: true,
-      ledgerAdapter: { generation: 0, clientCommand } as any,
-      duplexRuntime: { version: 1, epoch: 1, personaId: 'persona-1', personaIndex: 0, personaGeneration: 0,
-        character: initialCharacterEmotion(), config: { ...BASELINE_DUPLEX_CONFIG,
-          interaction: true, playbackLifecycle: true, evaluationSnapshot: true } },
-    });
-    const sessions = new Map([[session.id, session]]);
-    const emit = vi.fn();
-    const close = { eventId: '00000000-0000-4000-8000-000000000001', generation: 0,
-      payload: { kind: 'session.close', reason: 'user_end' } };
-    handleClientMessage(session.id, { type: 'ledger.command', command: close }, sessions, emit);
-    expect(session.finalizationState).toBe('closing');
-    expect(session.finalizationOutputGeneration).toBe(7);
-    // Re-entering the drain after a storage await cannot widen admission.
-    session.turnSeq = 8;
-    beginVoiceFinalization(session);
-    expect(session.finalizationOutputGeneration).toBe(7);
-    session.finalizationState = finalState;
-    for (const packet of [
-      { type: 'response.create' },
-      { type: 'conversation.item.create', item: { content: [{ text: 'new text after close' }] } },
-      { type: 'ledger.command', command: { ...close, eventId: 'new-text', payload: {
-        kind: 'text.submit', utteranceId: '00000000-0000-4000-8000-000000000002', text: 'new evidence' } } },
-      { type: 'ledger.command', command: { ...close, eventId: 'new-utterance', payload: {
-        kind: 'utterance.register', utteranceId: '00000000-0000-4000-8000-000000000003',
-        speaker: 'user', mode: 'voice', personaId: 'persona-1', provider: 'gemini' } } },
-    ]) handleClientMessage(session.id, packet, sessions, emit);
-    expect(provider.sendClientContent).not.toHaveBeenCalled();
-    expect(provider.sendRealtimeInput).not.toHaveBeenCalled();
-    expect(clientCommand).not.toHaveBeenCalled();
-    expect(session.recentMessages).toEqual([]);
-    const observation = { ...close, eventId: 'playback-existing', payload: {
-      kind: 'playback.observed', utteranceId: '00000000-0000-4000-8000-000000000004', state: 'completed' } };
-    handleClientMessage(session.id, { type: 'ledger.command', command: observation }, sessions, emit);
-    expect(clientCommand).toHaveBeenCalledExactlyOnceWith(observation);
-  });
   let sendToClient: ReturnType<typeof vi.fn>;
 
   function makeGeminiSession() {
@@ -1082,7 +1033,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
 
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
 
-      expect(sendToClient).toHaveBeenCalledWith(session, expect.objectContaining({ type: 'response.interrupted' }));
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.interrupted' });
     });
 
     it('clears currentTranscript after barge-in', () => {
@@ -1120,7 +1071,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
 
       expect(sendToClient).toHaveBeenCalledTimes(2);
-      expect(sendToClient).toHaveBeenNthCalledWith(1, session, expect.objectContaining({ type: 'response.interrupted' }));
+      expect(sendToClient).toHaveBeenNthCalledWith(1, session, { type: 'response.interrupted' });
       expect(sendToClient).toHaveBeenNthCalledWith(2, session, expect.objectContaining({ type: 'response.ready' }));
     });
 
@@ -1132,7 +1083,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       handleClientMessage(session.id, { type: 'response.cancel' }, sessions, sendToClient);
 
       expect(sendToClient).toHaveBeenCalledTimes(1);
-      expect(sendToClient).toHaveBeenCalledWith(session, expect.objectContaining({ type: 'response.ready', turnSeq: 3 }));
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.ready', turnSeq: 3 });
     });
 
     it('response.ready on first cancel carries the incremented turnSeq value', () => {
@@ -1146,7 +1097,7 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
       expect(readyCalls).toHaveLength(1);
       // turnSeq is incremented before sending response.ready so in-flight audio
       // from the cancelled turn (old turnSeq=7) is filtered on the client side.
-      expect(readyCalls[0][1]).toEqual(expect.objectContaining({ type: 'response.ready', turnSeq: 8 }));
+      expect(readyCalls[0][1]).toEqual({ type: 'response.ready', turnSeq: 8 });
     });
 
     it('cancelledTurnSeq is set to the session turnSeq at the time of the first cancel', () => {

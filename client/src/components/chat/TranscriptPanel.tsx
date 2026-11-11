@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { ChevronRight, MessageCircle, X, ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ConversationMessage } from "@shared/schema";
@@ -27,7 +27,6 @@ interface TranscriptPanelProps {
   viewportHeight?: number | null;
   viewportOffsetTop?: number;
   recognitionRunId?: string;
-  notice?: ReactNode;
 }
 
 export function TranscriptPanel({
@@ -44,7 +43,6 @@ export function TranscriptPanel({
   viewportHeight,
   viewportOffsetTop = 0,
   recognitionRunId,
-  notice,
 }: TranscriptPanelProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -213,7 +211,6 @@ export function TranscriptPanel({
       </button>
 
       <div
-        data-testid="transcript-panel"
         className={`pointer-events-auto absolute top-0 right-0 bottom-0 z-30 bg-white/95 backdrop-blur-md border-l border-white/30 shadow-2xl flex flex-col ${
           isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
         }`}
@@ -223,7 +220,6 @@ export function TranscriptPanel({
         }}
       >
         {renderHeader()}
-        {notice}
         {renderMessages()}
       </div>
     </div>

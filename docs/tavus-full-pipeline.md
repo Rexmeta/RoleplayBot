@@ -1,8 +1,5 @@
 # Tavus Full Pipeline through AvatarRouter
 
-New native Tavus and Anam sessions now use the [API 0.9 common integration](avatarrouter-unified-integration.md).
-The Daily-specific connection behavior below describes the retained legacy-session path.
-
 ## Current scope
 
 The user approved enabling the currently available AvatarRouter API 0.6 behavior

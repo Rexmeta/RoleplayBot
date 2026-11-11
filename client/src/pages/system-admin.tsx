@@ -32,7 +32,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import DuplexSettingsPanel from "@/components/admin/DuplexSettingsPanel";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -2130,8 +2129,6 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
-
-            <DuplexSettingsPanel />
 
             <Card>
               <CardHeader>

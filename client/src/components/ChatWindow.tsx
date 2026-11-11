@@ -23,7 +23,6 @@ import SimulationPanel from "@/components/SimulationPanel";
 
 import { useConversationTimer, formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
-import { ConversationLanguageNotice } from "@/components/chat/ConversationLanguageNotice";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import { useAvatarRenderer } from "@/hooks/chat/useAvatarRenderer";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
@@ -35,13 +34,12 @@ import { resolvePersonaAfterSwitch } from "@/components/chat/resolvePersonaAfter
 import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
-import { VoiceControlSurface, VoiceOverlayHeader } from "@/components/chat/VoiceConversationChrome";
-import { LiveAvatarEntry, useLiveAvatarSelection } from "@/components/chat/LiveAvatarEntry";
+import { LiveAvatarChoice } from "@/components/chat/LiveAvatarChoice";
+import { LiveAvatarEntry, useLiveAvatarSelection, type LiveAvatarPlaybackState } from "@/components/chat/LiveAvatarEntry";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
 import type { VideoAvatarRenderer } from "@/lib/avatar/VideoAvatarRenderer";
 import { ChatInputBar } from "@/components/chat/ChatInputBar";
-import { ConversationModeMenu } from "@/components/chat/ConversationModeMenu";
 import { useAvatarStateMachine } from "@/hooks/useAvatarStateMachine";
 import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 import { isIOSWebKitAudioPlatform } from "@/lib/iosAudioSession";
@@ -76,10 +74,10 @@ export interface ChatWindowProps {
 
 interface StandardChatWindowProps extends Omit<ChatWindowProps, 'initialInputMode'> {
   initialInputMode?: 'text' | 'realtime-voice';
-  onSelectLiveAvatar?: () => void;
+  onSelectTavus?: () => void;
 }
 
-function StandardChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting, onSelectLiveAvatar }: StandardChatWindowProps) {
+function StandardChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting, onSelectTavus }: StandardChatWindowProps) {
   const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -126,6 +124,8 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
+  const [liveAvatarOptionsRequest, setLiveAvatarOptionsRequest] = useState(0);
+  const [liveAvatarPortraitHost, setLiveAvatarPortraitHost] = useState<HTMLDivElement | null>(null);
   const [isSilenceIdle, setIsSilenceIdle] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState<number>(0);
@@ -160,7 +160,9 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
   const { toast } = useToast();
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const tavusText = (key: string, english: string, korean: string) =>
+    t(`chat.tavus.${key}`, { defaultValue: i18n.language?.startsWith("ko") ? korean : english });
 
   const getPersonaGender = (): 'male' | 'female' => persona.gender ?? 'male';
 
@@ -189,6 +191,10 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const personaSwitchBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePersona, setActivePersona] = useState<ScenarioPersona>(persona);
   const liveAvatarSelection = useLiveAvatarSelection(conversationId, activePersona.id);
+  const [liveAvatarPlayback, setLiveAvatarPlayback] = useState<{ actorId: string; state: LiveAvatarPlaybackState } | null>(null);
+  const updateLiveAvatarPlayback = useCallback((state: LiveAvatarPlaybackState) => {
+    setLiveAvatarPlayback({ actorId: activePersona.id, state });
+  }, [activePersona.id]);
   const [personaSwitchAnnounced, setPersonaSwitchAnnounced] = useState(false);
   const conversationLedger = useConversationLedger(conversationId);
 
@@ -278,6 +284,10 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     },
     onMessageComplete: (message, emotion, emotionReason, userAffect, interrupted) => {
       setPendingAiMessage(false);
+      isAISpeakingForBargeInRef.current = false;
+      if (emotion) {
+        setEmotion(emotion);
+      }
       if (conversationLedger.enabled) {
         conversationLedger.refetch();
         return;
@@ -340,9 +350,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
       setPendingAiMessage(true); isAISpeakingForBargeInRef.current = true;
       dispatchAvatarEvent({ type: 'TTSStart' });
     },
-    onExpressionPresentation: setEmotion,
-    onLedgerUpdate: () => { if (conversationLedger.enabled) conversationLedger.refetch(); },
-    onListeningReaction: () => dispatchAvatarEvent({ type: 'ListeningReaction' }),
     onUserSpeakingStart: () => {
       setPendingUserMessage(true); setPendingUserText(''); setPendingUserVoiceTurnId('');
       hasUserSpokenRef.current = true; setShowMicPrompt(false);
@@ -388,7 +395,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     const wasAISpeaking = prevIsAISpeakingRef.current;
     prevIsAISpeakingRef.current = realtimeVoice.isAISpeaking;
     if (wasAISpeaking && !realtimeVoice.isAISpeaking) {
-      isAISpeakingForBargeInRef.current = false;
       dispatchAvatarEvent({ type: 'TTSEnd' });
     }
   }, [realtimeVoice.isAISpeaking, dispatchAvatarEvent]);
@@ -439,7 +445,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     }
   }, [earlyConnect, inputMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { data: conversation, error } = useQuery<Conversation & { language?: import("@shared/conversationLanguage").ConversationLanguage }>({
+  const { data: conversation, error } = useQuery<Conversation>({
     queryKey: ["/api/conversations", conversationId],
     enabled: !!conversationId,
     refetchOnWindowFocus: realtimeVoice.conversationPhase !== 'active',
@@ -457,19 +463,10 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const overrideMetadata = (runData?.scenarioSnapshot?._organizationOverride ??
     runData?.scenarioSnapshot?.scenarioSnapshot?._organizationOverride ?? null) as OrganizationOverrideMetadata;
 
-  const switchToLiveAvatar = async () => {
-    if (!onSelectLiveAvatar || isSwitchingMode) return;
-    setIsSwitchingMode(true);
-    try {
-      await flushRealtimeMessagesRef.current?.(false);
-      realtimeVoice.disconnect();
-      onSelectLiveAvatar();
-    } catch {
-      toast({ title: t("chat.liveAvatarSwitchFailed", { defaultValue: "대화 기록을 저장하지 못했습니다. 다시 시도해 주세요." }), variant: "destructive" });
-    } finally {
-      setIsSwitchingMode(false);
-    }
-  };
+  const openLiveAvatarOptions = useCallback(() => {
+    setIsTopMenuOpen(true);
+    setLiveAvatarOptionsRequest(value => value + 1);
+  }, []);
 
   const { elapsedTime, setConversationStartTime, setElapsedTime } = useConversationTimer({
     conversation, maxTurns: MAX_TURNS,
@@ -480,7 +477,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   }, [setConversationStartTime, setElapsedTime]);
 
   const { isRecording, speechSupported, startRecording, stopRecording, removeInterimText, cleanup: cleanupVoiceRecording } = useVoiceRecording({
-    language: conversation?.language,
     onTranscript: (transcript) => setUserInput(prev => { const t = removeInterimText(prev); return t + (t ? ' ' : '') + transcript; }),
     onInterimTranscript: (interim) => {
       if (interim === '') setUserInput(prev => removeInterimText(prev));
@@ -885,6 +881,14 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
   // Keep this hook above every loading/error/ending exit so native chat calls
   // the same hooks before and after its conversation query resolves.
+  const { data: tavusConfig, isError: tavusConfigError, isLoading: isTavusConfigLoading } = useQuery<{ available: boolean; selectable?: boolean; blockers: string[] }>({
+    queryKey: ["/api/tavus/config", conversationId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`);
+      return response.json();
+    },
+  });
+
   if (error) return (
     <div className="text-center py-8">
       <p className="text-red-600">대화를 불러올 수 없습니다.</p>
@@ -961,16 +965,23 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     onRequestInputPermission: realtimeVoice.requestInputDevicePermission,
     isSwitchingMode,
   };
-  const ConversationSurface = inputMode === "realtime-voice" ? VoiceControlSurface : Card;
 
   return (
     <>
       <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)}>
         {inputMode === "realtime-voice" && scenarioRunQuery.isSuccess && <ScenarioOverrideSummary metadata={overrideMetadata} />}
+        {liveAvatarSelection.data?.configured && <LiveAvatarChoice
+          key={conversationId}
+          conversationId={conversationId}
+          voiceMode={inputMode === 'realtime-voice'}
+          portraitHost={liveAvatarPortraitHost}
+          actorId={activePersona.id}
+          optionsRequest={liveAvatarOptionsRequest}
+          onPlaybackStateChange={updateLiveAvatarPlayback}
+        />}
       </TopMenuPanel>
 
       <div className="chat-window relative">
-        <ConversationLanguageNotice language={conversation?.language} />
         {scenarioRunId && (
           <div className="mx-auto mb-3 max-w-5xl px-3 sm:px-4">
             {scenarioRunQuery.isLoading
@@ -1093,7 +1104,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
                 <div className="relative flex-1 overflow-hidden">
                   {/* Mobile overlay header – unified bar: avatar + name/role + progress + elapsed + NPC toggle + end button */}
-                  <VoiceOverlayHeader className="lg:hidden absolute top-0 left-0 right-0 z-20 px-3 pt-2 pb-2">
+                  <div className="lg:hidden absolute top-0 left-0 right-0 z-20 bg-black/50 backdrop-blur-sm px-3 pt-2 pb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {/* Persona avatar thumbnail */}
                       <div className="relative shrink-0">
@@ -1175,7 +1186,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                         style={{ width: `${progressPercentage}%` }}
                       />
                     </div>
-                  </VoiceOverlayHeader>
+                  </div>
 
                   {(renderer as VideoAvatarRenderer).containerEl ? (
                     <VideoAvatarPortrait
@@ -1192,12 +1203,18 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       isTransitioning={isTransitioning} isSessionEnding={isSessionEnding}
                       isTextMode={inputMode !== 'realtime-voice'} avatarState={avatarState} />
                   )}
+                  <div
+                    ref={setLiveAvatarPortraitHost}
+                    data-testid="live-avatar-portrait-host"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-[5] overflow-hidden"
+                  />
                   <LiveAvatarEntry
                     conversationId={conversationId}
                     actorId={activePersona.id}
-                    optionsOpen={false}
-                    onOpenOptions={switchToLiveAvatar}
-                    playbackState="idle"
+                    optionsOpen={isTopMenuOpen}
+                    onOpenOptions={openLiveAvatarOptions}
+                    playbackState={liveAvatarPlayback?.actorId === activePersona.id ? liveAvatarPlayback.state : "idle"}
                   />
 
                   {latestPersonaSwitch && (
@@ -1240,11 +1257,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-[12]"
                       style={{ height: '40%', background: 'linear-gradient(to top, rgba(34, 197, 94, 0.20) 0%, rgba(16, 185, 129, 0.08) 40%, transparent 100%)', animation: 'beamPulse 2s ease-in-out infinite' }} />
                   )}
-                  {realtimeVoice.externalPlaybackUnverified && (
-                    <span role="status" data-testid="external-playback-unverified" className="absolute top-12 left-0 right-0 text-center text-xs text-muted-foreground pointer-events-none">
-                      외부 음성의 실제 재생 상태는 확인할 수 없습니다
-                    </span>
-                  )}
                   <AISpeechParticleLayer amplitude={realtimeVoice.audioAmplitude} isActive={realtimeVoice.isAISpeaking && !realtimeVoice.isReconnecting} />
                   <UserSpeechParticleLayer amplitude={realtimeVoice.userAudioAmplitude} isActive={realtimeVoice.isRecording && !realtimeVoice.isAISpeaking} />
 
@@ -1264,6 +1276,32 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
                   )}
 
+                  {onSelectTavus && (
+                    <div className="absolute top-16 right-4 z-[18] max-w-[min(22rem,calc(100%-2rem))]">
+                      <button
+                        type="button"
+                        onClick={onSelectTavus}
+                        disabled={!(tavusConfig?.selectable ?? tavusConfig?.available)}
+                        data-testid="tavus-mode-entry"
+                        className="rounded-xl border border-white/25 bg-slate-950/75 px-4 py-3 text-left text-white shadow-lg backdrop-blur-md transition hover:bg-slate-900/90 disabled:cursor-not-allowed disabled:opacity-90"
+                      >
+                        <span className="block text-sm font-semibold">{tavusText("entry", "Try Tavus Full Pipeline", "Tavus 전체 파이프라인 사용")}</span>
+                        <span className="mt-1 block text-xs text-white/70">
+                          {tavusConfig?.blockers?.includes("avatar_router_full_pipeline_contract_required")
+                            ? tavusText("routerContractRequired", "Requires AvatarRouter Full Pipeline API support", "아바타 라우터의 Full Pipeline API 지원이 필요합니다")
+                            : tavusConfig?.available
+                            ? tavusText("entryAvailable", "Join a provider-hosted avatar conversation", "외부 제공자의 아바타 대화에 참여합니다")
+                            : tavusConfig?.selectable
+                              ? tavusText("entryCheckRuntime", "View runtime status and admission restrictions", "실행 상태 및 차단 사유 확인")
+                            : tavusConfigError
+                              ? tavusText("availabilityError", "Availability could not be checked", "사용 가능 여부를 확인할 수 없습니다")
+                              : tavusConfig
+                              ? `${tavusText("unavailable", "Unavailable", "사용할 수 없음")}${tavusConfig.blockers?.length ? `: ${tavusConfig.blockers.join(", ")}` : ` ${tavusText("rightNow", "right now", "현재")}`}`
+                              : isTavusConfigLoading ? tavusText("checkingAvailability", "Checking availability", "사용 가능 여부 확인 중") : tavusText("availabilityUnavailable", "Availability unavailable", "사용 가능 여부를 확인할 수 없습니다")}
+                        </span>
+                      </button>
+                    </div>
+                  )}
 
                   {inputMode === 'realtime-voice' && (
                     <TranscriptPanel isOpen={isTranscriptPanelOpen} onToggle={() => setIsTranscriptPanelOpen(v => !v)}
@@ -1292,7 +1330,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     className={inputMode !== 'realtime-voice' ? "absolute inset-0 z-20 flex flex-col" : "absolute left-1/2 transform -translate-x-1/2 z-20 w-full max-w-4xl lg:max-w-6xl xl:max-w-[90%] px-4"}
                     style={inputMode === 'realtime-voice' ? { bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' } : undefined}
                   >
-                    <ConversationSurface className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
+                    <Card className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
                       {inputMode === 'realtime-voice' ? (
                         <>
                           {isInlineTextOpen && (
@@ -1370,7 +1408,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                               onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
                               isRecording={isRecording} speechSupported={speechSupported}
                               mode="realtime-voice" realtimeVoiceProps={rvBarProps}
-                              onLiveAvatarOptions={liveAvatarSelection.data?.configured ? switchToLiveAvatar : undefined}
                               onTextModeToggle={() => {
                                 if (handleSwitchToTextModeRef.current) {
                                   handleSwitchToTextModeRef.current();
@@ -1421,6 +1458,14 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                               </div>
                               {!showInputMode && (
                                 <div className="border-t border-slate-200/30 px-4 py-2 flex justify-between items-center">
+                                  <button
+                                    onClick={() => setShowVoiceModeConfirmDialog(true)}
+                                    className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-purple-300 transition-colors"
+                                    data-testid="button-switch-to-voice-collapsed"
+                                  >
+                                    <i className="fas fa-microphone text-purple-500 text-xs"></i>
+                                    <span className="text-slate-600">{t('chat.switchToVoice', { defaultValue: '음성으로 전환' })}</span>
+                                  </button>
                                   <Button onClick={() => setShowInputMode(true)} className="bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-start-chat-inline" size="sm">
                                     <i className="fas fa-comment mr-1"></i>{t('chat.startChat')}
                                   </Button>
@@ -1442,16 +1487,16 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                                   <Button variant="outline" size="sm" onClick={handleSkipTurn} disabled={isLoading} data-testid="button-skip-turn-text">Skip</Button>
                                 </div>
                               </div>
-                            </div>
-                          )}
-                          {conversation.turnCount < MAX_TURNS && (
-                            <div className="flex shrink-0 justify-center border-t border-slate-100 px-3 py-2">
-                              <ConversationModeMenu
-                                currentMode="text"
-                                onVoiceModeToggle={() => setShowVoiceModeConfirmDialog(true)}
-                                onLiveAvatarOptions={liveAvatarSelection.data?.configured ? switchToLiveAvatar : undefined}
-                                disabled={isSwitchingMode || isLoading}
-                              />
+                              <div className="flex justify-center mt-3 pt-2 border-t border-slate-100">
+                                <button
+                                  onClick={() => setShowVoiceModeConfirmDialog(true)}
+                                  className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-full bg-white hover:bg-slate-50 hover:border-purple-300 transition-colors"
+                                  data-testid="button-switch-to-voice"
+                                >
+                                  <i className="fas fa-microphone text-purple-500 text-xs"></i>
+                                  <span className="text-slate-600">{t('chat.switchToVoice', { defaultValue: '음성으로 전환' })}</span>
+                                </button>
+                              </div>
                             </div>
                           )}
                           {conversation.turnCount >= MAX_TURNS && (
@@ -1523,7 +1568,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                           </Button>
                         </div>
                       )}
-                    </ConversationSurface>
+                    </Card>
                   </div>
                 </div>
             </div>
@@ -1849,9 +1894,9 @@ export default function ChatWindow(props: ChatWindowProps) {
               {restoreText("textMode", "Text conversation", "텍스트 대화")}
             </Button>
             <Button variant="outline" onClick={() => { setStandardMode("realtime-voice"); setMode("standard"); }}>
-              {restoreText("voiceMode", "Voice conversation", "음성 대화")}
+              {restoreText("nativeMode", "Existing realtime voice", "기존 실시간 음성 대화")}
             </Button>
-            <Button onClick={() => setMode("tavus")}>{t("chat.liveAvatar", "라이브 아바타")}</Button>
+            <Button onClick={() => setMode("tavus")}>Tavus Full Pipeline</Button>
             <Button variant="ghost" onClick={props.onExit}>{restoreText("exit", "Exit", "나가기")}</Button>
           </div>
         </section>
@@ -1867,10 +1912,7 @@ export default function ChatWindow(props: ChatWindowProps) {
         onChatComplete={props.onChatComplete}
         onExit={props.onExit}
         onReady={notifyReady}
-        onExitMode={nextMode => {
-          if (nextMode) setStandardMode(nextMode);
-          setMode('standard');
-        }}
+        onExitMode={() => setMode('standard')}
       />
     );
   }
@@ -1881,7 +1923,7 @@ export default function ChatWindow(props: ChatWindowProps) {
       {...standardProps}
       initialInputMode={standardMode ?? (initialInputMode === 'text' || initialInputMode === 'realtime-voice' ? initialInputMode : undefined)}
       onReady={notifyReady}
-      onSelectLiveAvatar={() => setMode('tavus')}
+      onSelectTavus={() => setMode('tavus')}
     />
   );
 }

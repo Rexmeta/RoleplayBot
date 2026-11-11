@@ -2,8 +2,6 @@ import { Router } from "express";
 import { createConversationLedgerRouter } from "./conversationLedger";
 import { ledgerRolloutEnabled, enrollNewWebRun } from "../services/conversationLedger/enrollment";
 import { usesLedger } from "../services/conversationLedger/transcript";
-import { ledgerRuntimeBinding } from "../services/conversationLedger/transcript";
-import { resolveConversationLanguage } from "../../shared/conversationLanguage";
 import { beginLedgerTextTurn } from "../services/conversationLedger/textTurn";
 import { conversationLedgerRuns } from "@shared/schema";
 import { listRecognitionEvidence, confirmRecognition } from '../services/voice/recognitionEvidence';
@@ -42,7 +40,7 @@ import { buildRuleFallbackPatch, resolveStageTransition, inferIncidentCandidate,
 import { buildSimulationStateBlock } from "../services/simulation/simulationPrompt";
 import { handleToolCall } from "../services/simulation/simulationToolHandler";
 import { v4 as uuidv4 } from "uuid";
-import { captureOrganizationRunSnapshot, resolveConversationOrganization } from "../services/scenarios/organizationOverride";
+import { captureOrganizationRunSnapshot, resolveExecutionOrganization } from "../services/scenarios/organizationOverride";
 import { checkTokenQuota } from "../middleware/tokenQuotaMiddleware";
 import {
   EVALUATION_CRITERIA_SNAPSHOT_KEY,
@@ -188,7 +186,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
       const sameScenarioRuns = existingRuns.filter(r => r.scenarioId === validatedData.scenarioId);
       const attemptNumber = sameScenarioRuns.length + 1;
 
-      const organizationId = await resolveConversationOrganization(user, validatedData.scenarioId);
+      const organizationId = await resolveExecutionOrganization(user);
       // Check learner content rights before storing any snapshot of private/paid content.
       if (user?.role !== "admin" && user?.role !== "operator") {
         const source = await storage.getScenario(validatedData.scenarioId);
@@ -327,7 +325,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
     if (ledgerRolloutEnabled()) {
       const bound = await enrollNewWebRun(personaRun.id, personaId, scenarioObj, scenarioPersona,
         (scenarioRun as any).evaluationHarnessSnapshot ?? scenarioObj.evaluationHarness,
-        resolveConversationLanguage(undefined, personaRun.language, user?.preferredLanguage), !!(scenarioRun as any).scenarioSnapshot, personaRun.difficulty ?? 4);
+        user?.preferredLanguage ?? "ko", !!(scenarioRun as any).scenarioSnapshot, personaRun.difficulty ?? 4);
       personaRun.transcriptProtocol = "ledger-v1";
       personaRun.personaSnapshot = bound.boundContext.personaSnapshot as Record<string, any>;
     }
@@ -386,7 +384,6 @@ export default function createConversationsRouter(isAuthenticated: any) {
       personaSnapshot: validatedData.personaSnapshot,
       messages: [],
       transcriptProtocol: personaRun.transcriptProtocol,
-      language: personaRun.language,
       turnCount: 0,
       status: 'active',
       mode: validatedData.mode,
@@ -460,8 +457,6 @@ export default function createConversationsRouter(isAuthenticated: any) {
       throw createHttpError(403, "Unauthorized access");
     }
 
-    const runtimeLanguage = resolveConversationLanguage(
-      (await ledgerRuntimeBinding(personaRunId))?.language, personaRun.language);
     const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
 
     const messages = chatMessages.map(msg => ({
@@ -548,7 +543,6 @@ export default function createConversationsRouter(isAuthenticated: any) {
       personaSnapshot: personaRun.personaSnapshot,
       messages,
       transcriptProtocol: personaRun.transcriptProtocol,
-      language: runtimeLanguage,
       turnCount: personaRun.turnCount,
       status: personaRun.status,
       mode: personaRun.mode || scenarioRun.mode,
@@ -627,12 +621,10 @@ export default function createConversationsRouter(isAuthenticated: any) {
     let { personaRun, scenarioRun } = await verifyPersonaRunOwnership(personaRunId, userId);
     if (personaRun.mode === "tavus_full") throw createHttpError(409, "tavus_full_pipeline_active");
     const ledgerEnabled = usesLedger(personaRun);
-    let boundLanguage: unknown;
     if (ledgerEnabled) {
       const [bound] = await db.select().from(conversationLedgerRuns)
         .where(eq(conversationLedgerRuns.personaRunId, personaRunId));
       if (!bound) throw createHttpError(409, "ledger_protocol_storage_missing");
-      boundLanguage = bound.boundContext.language;
       scenarioRun = { ...scenarioRun,
         scenarioSnapshot: bound.boundContext.scenarioSnapshot,
         evaluationHarnessSnapshot: bound.boundContext.evaluationHarnessSnapshot,
@@ -724,7 +716,7 @@ export default function createConversationsRouter(isAuthenticated: any) {
 
     const personaId = personaRun!.personaId;
 
-    const userLanguage = resolveConversationLanguage(boundLanguage, personaRun.language, user?.preferredLanguage);
+    const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
     const userName = normalizeProfileName(user?.name);
 
     let persona: any;
@@ -1809,7 +1801,7 @@ ${userNameLine}
         },
         scenario: scenarioObj,
         persona,
-        language: resolveConversationLanguage(undefined, personaRun.language, user?.preferredLanguage),
+        language: (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko',
         evaluationHarnessSnapshot: (scenarioRun as any).evaluationHarnessSnapshot,
       });
       await storage.updatePersonaRun(personaRunId, completionUpdate);
@@ -2041,8 +2033,7 @@ ${userNameLine}
     const persona = findRuntimePersona(scenarioObj, personaRun.personaId) || personas[0];
 
     const user = await storage.getUser(userId);
-    const userLanguage = resolveConversationLanguage(
-      (await ledgerRuntimeBinding(personaRunId))?.language, personaRun.language, user?.preferredLanguage);
+    const userLanguage = (user?.preferredLanguage as 'ko' | 'en' | 'ja' | 'zh') || 'ko';
 
     const job = await enqueueFeedbackJob({ conversationId: personaRunId, conversation, scenario: scenarioObj, persona, language: userLanguage, evaluationHarnessSnapshot: (scenarioRun as any).evaluationHarnessSnapshot });
     res.status(202).json({ status: job.status });

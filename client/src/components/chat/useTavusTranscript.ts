@@ -88,7 +88,6 @@ export function useTavusTranscript<T extends TranscriptSession>({
   }, [conversationId, effectiveState, isBoundToConversation, isCurrent]);
 
   const sync = useCallback(async () => {
-    if (!evaluationAvailable) return;
     if (!isBoundToConversation || syncRequestInFlightRef.current || pollRequestInFlightRef.current || !conversationId) return;
     const requestGeneration = generationRef.current;
     if (!isCurrent(requestGeneration, conversationId)) return;
@@ -119,7 +118,7 @@ export function useTavusTranscript<T extends TranscriptSession>({
         setSyncing(false);
       }
     }
-  }, [applySession, conversationId, evaluationAvailable, isBoundToConversation, isCurrent]);
+  }, [applySession, conversationId, isBoundToConversation, isCurrent]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -148,8 +147,8 @@ export function useTavusTranscript<T extends TranscriptSession>({
   useEffect(() => {
     if (!isBoundToConversation) return;
     if (session.state !== "ended" || !evaluationAvailable) return;
-    // Availability comes from the session's creation-time contract, not current
-    // project capabilities. Undisclosed historical calls must stay unavailable.
+    // A previous session may predate the router's transcript capability. A fresh
+    // positive capability check permits one recovery attempt, never a caption fallback.
     if (["completed", "empty", "failed"].includes(effectiveState || "")) return;
     if (autoSyncForIdRef.current === conversationId) return;
     autoSyncForIdRef.current = conversationId;

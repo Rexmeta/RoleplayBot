@@ -105,10 +105,9 @@ export default function createScenariosRouter(isAuthenticated: any) {
       }
     }
 
-    {
+    if (userLanguage !== 'ko') {
       const translatedScenarios = await Promise.all(
         filteredScenarios.map(async (scenario: any) => {
-          if ((scenario.sourceLocale || "ko") === userLanguage) return scenario;
           try {
             const translation = await storage.getScenarioTranslation(scenario.id, userLanguage);
             if (translation) {
@@ -145,6 +144,9 @@ export default function createScenariosRouter(isAuthenticated: any) {
       return res.json(transformedScenarios);
     }
 
+    console.log(`[Scenarios API] Returning ${filteredScenarios.length} scenarios (language: ${userLanguage})`);
+    const transformedScenarios = await transformScenariosMedia(filteredScenarios);
+    res.json(transformedScenarios);
   }));
 
   router.get("/:scenarioId", isAuthenticated, asyncHandler(async (req, res) => {

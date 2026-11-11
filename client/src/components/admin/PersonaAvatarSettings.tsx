@@ -6,7 +6,6 @@ import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCat
 import { PersonaAvatarCreationPanel } from '@/components/admin/PersonaAvatarCreationPanel';
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 import { LiveAvatarTestPanel } from '@/components/admin/LiveAvatarTestPanel';
-import { AnamAvatarTestPanel } from '@/components/admin/AnamAvatarTestPanel';
 export type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
 
 type AvatarAsset = {
@@ -42,10 +41,6 @@ type Props = {
 };
 
 let catalogRequestSequence = 0;
-
-function displayCatalogName(name: string): string {
-  return name.replace(/\b(Tavus|Anam)\b/gi, '아바타');
-}
 
 const provisioningLabels: Record<AvatarAsset['status'], string> = {
   queued: '대기 중',
@@ -121,8 +116,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset && !selectedStock);
   const selectedTavusCustom = Boolean(liveAvatar && liveAvatar.kind !== 'stock' && liveAvatar.providerId === 'tavus');
   const selectedLucy = liveAvatar?.kind === 'stock' && liveAvatar.providerId === 'tavus' && liveAvatar.avatarId === 'tavus-stock-lucy';
-  const selectedAnam = liveAvatar?.kind === 'stock' && liveAvatar.providerId === 'anam' && liveAvatar.avatarId === 'anam-persona-default';
-  const hasSelectedTest = Boolean(selectedTavusCustom || selectedLucy || selectedAnam);
+  const hasSelectedTest = Boolean(selectedTavusCustom || selectedLucy);
   const selectableAssets = (assets ?? []).filter(asset =>
     asset.status === 'ready' &&
     asset.capabilities.reusable &&
@@ -157,7 +151,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
     const avatar = stockAvatars?.find(candidate => candidate.id === avatarId && isSelectableStockAvatar(candidate));
     if (!avatar) return;
     onLiveAvatarChange({
-      kind: 'stock', avatarId: avatar.id, providerId: avatar.providerId as 'tavus' | 'anam',
+      kind: 'stock', avatarId: avatar.id, providerId: 'tavus',
       voiceMode: 'roleplayx', validationStatus: 'unverified', activation: 'draft',
       ...(projectId ? { projectId } : {}),
     });
@@ -186,7 +180,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
         {([
           ['image', '이미지'],
           ['video', '비디오'],
-          ['live', '라이브 아바타'],
+          ['live', 'Live'],
         ] as const).map(([value, label]) => (
           <button
             key={value}
@@ -214,7 +208,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="아바타 종류">
               {([
                 ['stock', '기본 아바타'],
-                ['custom', '맞춤 아바타'],
+                ['custom', '커스텀 아바타'],
               ] as const).map(([kind, label]) => (
                 <button
                   key={kind}
@@ -276,7 +270,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 <div>
                     <p className="font-semibold text-slate-800">연결된 아바타</p>
                   <p className="mt-1 break-all text-slate-600">
-                    {liveAvatar.kind === 'stock' ? '기본 아바타' : '맞춤 아바타'} · 외부 서비스 연결
+                    {liveAvatar.kind === 'stock' ? `기본 아바타 ID: ${liveAvatar.avatarId}` : `자산 ID: ${liveAvatar.assetId}`} · 제공자: {liveAvatar.providerId}
                   </p>
                   <p className="mt-1 text-slate-600">Live 검증: {liveAvatar.validationStatus === 'live_verified' ? '검증됨' : '미검증'}</p>
                 </div>
@@ -290,7 +284,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           {selectedKind === 'stock' && liveAvatar?.kind === 'stock' && selectedStock && (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
               <p className="font-semibold text-slate-800">선택한 기본 아바타</p>
-               <p className="mt-1 text-slate-600">{displayCatalogName(selectedStock.name)} · {isSelectableStockAvatar(selectedStock) ? '선택 가능' : '현재 선택 불가'}</p>
+              <p className="mt-1 text-slate-600">{selectedStock.name} · {isSelectableStockAvatar(selectedStock) ? '선택 가능' : '현재 선택 불가'}</p>
             </div>
           )}
           {selectedKind === 'stock' && liveAvatar?.kind === 'stock' && selectedMissing && (
@@ -312,12 +306,12 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 <option value="">기본 아바타 선택</option>
                 {stockAvatars.map(avatar => (
                   <option key={avatar.id} value={avatar.id} disabled={!isSelectableStockAvatar(avatar)}>
-                    {displayCatalogName(avatar.name)} · 외부 서비스{!isSelectableStockAvatar(avatar) ? ' · 선택 불가' : ''}
+                    {avatar.name} · {avatar.providerId}{!isSelectableStockAvatar(avatar) ? ' · 선택 불가' : ''}
                   </option>
                 ))}
               </select>
               {stockAvatars.length === 0 && <p className="text-xs text-slate-500">조회 가능한 기본 아바타가 없습니다.</p>}
-              <p className="text-xs text-slate-500">기본 아바타는 맞춤 아바타 자산과 별도로 저장됩니다. 선택·저장은 무료이며 세션을 시작하지 않습니다. 실제 라이브 사용은 별도 비용 동의가 필요합니다.</p>
+              <p className="text-xs text-slate-500">기본 아바타는 커스텀 자산과 별도로 저장됩니다. 선택·저장은 무료이며 세션을 시작하지 않습니다. 실제 Live 사용은 별도 비용 동의가 필요합니다.</p>
             </div>
           )}
 
@@ -342,7 +336,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             assets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
                 조회 가능한 프로젝트 소유 커스텀 자산이 없습니다. Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
-                기본 아바타 중 일부는 커스텀 자산 목록에 포함되지 않으며 별도의 관리자 라이브 테스트에서 확인할 수 있습니다.
+                기본 Lucy는 커스텀 자산 목록에 포함되지 않으며 별도의 관리자 Live 테스트에서 확인할 수 있습니다.
                 준비 완료·재사용 가능 자산만 선택할 수 있습니다.
               </div>
             ) : (
@@ -360,14 +354,14 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                     const eligible = selectableAssets.some(candidate => candidate.id === asset.id);
                     return (
                       <option key={asset.id} value={asset.id} disabled={!eligible}>
-                        {displayCatalogName(asset.name)} · 외부 서비스 · {provisioningLabels[asset.status]}
+                        {asset.name} · {asset.providerId} · {provisioningLabels[asset.status]}
                         {!eligible ? ' · 선택 불가' : ''}
                       </option>
                     );
                   })}
                 </select>
                 <p className="text-xs leading-relaxed text-slate-500">
-                  선택 조건: 준비 완료, 재사용 가능, 서비스 아바타 ID 보유. 미리보기 URL은 제공되지 않습니다.
+                  선택 조건: 준비 완료, 재사용 가능, 제공자 아바타 ID 보유. 미리보기 URL은 제공되지 않습니다.
                   자산 준비 상태와 Live 검증 상태는 별도로 표시됩니다.
                 </p>
               </div>
@@ -399,15 +393,14 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             ) : (
               <p role="note" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 {liveAvatar.kind !== 'stock'
-                  ? '선택한 외부 서비스 아바타는 이 관리자 재생 테스트에서 지원되지 않습니다.'
-                  : '선택한 기본 아바타는 이 관리자 테스트에서 지원되지 않습니다. 현재 일부 기본 아바타만 테스트할 수 있습니다.'}
+                  ? `${liveAvatar.providerId} 제공자는 이 관리자 재생 테스트에서 지원되지 않습니다.`
+                  : '선택한 기본 아바타는 이 관리자 테스트에서 지원되지 않습니다. 현재 Lucy만 테스트할 수 있습니다.'}
               </p>
             )}
             {testEntryOpen && liveAvatar.kind !== 'stock' && selectedTavusCustom && (
-                <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={displayCatalogName(selectedAsset?.name ?? '저장된 커스텀 자산')} onReported={() => void loadAssets()} onActivityChange={setTestBusy} />
+                <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={selectedAsset?.name ?? '저장된 Tavus 자산'} onReported={() => void loadAssets()} onActivityChange={setTestBusy} />
             )}
             {testEntryOpen && selectedLucy && <LiveAvatarTestPanel onActivityChange={setTestBusy} />}
-            {testEntryOpen && selectedAnam && <AnamAvatarTestPanel onActivityChange={setTestBusy} />}
           </div>}
         </div>
       )}

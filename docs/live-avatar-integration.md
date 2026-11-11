@@ -1,31 +1,13 @@
 # 선택형 AvatarRouter 연동
 
-현재 네이티브 Tavus·Anam 경로는 [API 0.9 공통 연동](avatarrouter-unified-integration.md)을 따른다.
-아래 초기 구현·공개 점검 기록의 미지원 표시는 당시 상태이며 현재 공통 계약을 대신하지 않는다.
-
 ## 페르소나의 기본/커스텀 아바타 초안 선택
 
 관리자 페르소나 편집의 Live 탭에서 **아바타 목록 조회**를 누르면, 로그인한 관리자의
 프로젝트·사용자 연결을 통해 두 목록을 읽는다. 자동 생성·유료 세션 시작은 하지 않는다.
 
 - **기본 아바타**: `/avatars`의 stock 참조. 현재 `configured: true`인 Tavus
-  `tavus-stock-lucy`와 Anam `anam-persona-default`를 초안 선택할 수 있다. mock 또는 지원 계약이 없는 참조는 비활성화한다.
+  `tavus-stock-lucy`만 초안 선택 가능하다. mock 또는 다른 configured 참조는 비활성화한다.
   저장 형태: `{ kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", ... }`.
-- **Anam 실행**: 저장·재조회 시 `providerId: "anam"`을 보존한다. 페르소나 테스트와
-  시나리오의 독립 Full Pipeline 화면에서 `pipeline: "anam_full"`로 연결한다.
-  API 0.8의 `unified_client_connection`, `hosted_browser_client`, `anam_full_pipeline`
-  기능을 확인한 뒤 라우터의 `/client-connection`을 POST로 한 번만 호출하고,
-  운영자가 고정한 라우터 origin의 `/sdk/avatarrouter-client.js`로 재생한다.
-  Anam SDK 직접 설치·LiveKit 재사용·Gemini 음성 중계는 하지 않는다.
-  사용자 동의, 사용자/프로젝트 소유권, Anam 전용 사용량, 생성 결과 불명확 시 차단,
-  서버 종료·정리 확인을 유지한다. 임시 연결 정보는 메모리에만 두며 저장하지 않는다.
-   API 0.9는 같은 `fullPipeline` 컨텍스트를 두 제공자에 적용한다.
-   `unified_final_transcript`를 확인한 뒤 Anam 원본 출처로 최종 기록을 저장하고 평가한다.
-   `docs/anam-final-transcript-proposal.md`는 과거 협의안이며 실제 응답 스키마가 아니다.
-  참고 계약: `/roleplayx/anam-integration.md`, `/roleplayx/managed-client-integration.md`.
-   고정 실행 스냅샷에서 구성한 배역·시나리오·조직 지침만 전송한다.
-   과거 [세션 컨텍스트 제안](anam-session-context-proposal.md)의 필드는 보내지 않는다.
-   실제 발화에서 지침을 준수하는지는 별도 승인된 통화로 확인해야 한다.
 - **커스텀 자산**: `/avatar-assets`의 UUID 자산. 기존 준비 완료·재사용 가능 조건과
   프로젝트/사용자 소유권 검사를 유지한다.
   새 선택 저장 형태: `{ kind: "custom", assetId: "<UUID>", providerId: "tavus", ... }`.

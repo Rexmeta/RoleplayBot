@@ -23,7 +23,7 @@ export class AvatarProjectClient {
     const assetWrite = body !== undefined && /^\/(?:assets\/images|avatar-assets(?:\/[a-fA-F0-9-]{36}\/live-validation)?)$/.test(path);
     const imageRead = body === undefined && path === "/assets/images";
     const stockRead = body === undefined && path === "/avatars";
-    if (!catalogRead && !assetWrite && !imageRead && !stockRead && !/^\/(?:live-limits(?:\?providerId=anam)?|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:client-connection|connection|full-connection|transcript|audio|interrupt|end))?)?)$/.test(path)) {
+    if (!catalogRead && !assetWrite && !imageRead && !stockRead && !/^\/(?:live-limits|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:connection|full-connection|transcript|audio|interrupt|end))?)?)$/.test(path)) {
       throw new AvatarIdentityError("avatar_test_path_invalid", 400);
     }
     const identity = await resolveAvatarIdentity(this.store, userId);
@@ -40,9 +40,8 @@ export class AvatarProjectClient {
         const status = [400, 401, 403, 404, 409, 413, 415, 422, 429, 503].includes(response.status) ? response.status : 502;
         throw new AvatarIdentityError(`avatar_test_upstream_${status}`, status);
       }
-      const maxBytes = body === undefined && path.endsWith("/transcript") ? 2 * 1024 * 1024 : 262_144;
       if (!response.headers.get("content-type")?.includes("application/json") ||
-          Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error();
+          Number(response.headers.get("content-length")) > 262_144 || !response.body) throw new Error();
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
       let bytes = 0;
@@ -51,7 +50,7 @@ export class AvatarProjectClient {
           const { done, value } = await reader.read();
           if (done) break;
           bytes += value.length;
-          if (bytes > maxBytes) throw new Error();
+          if (bytes > 262_144) throw new Error();
           chunks.push(value);
         }
       } finally { await reader.cancel().catch(() => {}); }

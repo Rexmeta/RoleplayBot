@@ -65,24 +65,20 @@ function setup(voiceMode = true) {
 afterEach(() => { cleanup(); api.mockReset(); });
 
 describe("visible learner live-avatar entry", () => {
-  it("hides the idle status card while keeping controls available in the top menu", async () => {
+  it("discovers the run's selection visibly without recovery, provider checks, consent, or paid creation", async () => {
     mockFlow();
     setup();
-    await waitFor(() => expect(api).toHaveBeenCalledWith("GET", "/api/live-avatar/conversations/conversation/selection"));
-    expect(screen.queryByText("라이브 아바타 연결 대기")).toBeNull();
-    expect(screen.queryByRole("button", { name: "라이브 아바타 옵션 열기" })).toBeNull();
-    fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
-    fireEvent.click(await screen.findByRole("button", { name: "실시간 아바타 옵션 보기" }));
-    expect(await screen.findByRole("checkbox")).toBeTruthy();
-    expect(api.mock.calls[0]).toEqual(["GET", "/api/live-avatar/conversations/conversation/selection"]);
-    expect(api.mock.calls.some(([method]) => method === "POST")).toBe(false);
+    const entry = await screen.findByRole("button", { name: "라이브 아바타 옵션 열기" });
+    expect(entry.closest("[inert]")).toBeNull();
+    expect(entry.closest('[aria-hidden="true"]')).toBeNull();
+    expect(screen.getByTestId("visible-portrait").contains(entry)).toBe(true);
+    expect(api.mock.calls).toEqual([["GET", "/api/live-avatar/conversations/conversation/selection"]]);
   });
 
-  it("opens consent from the top menu and creates only on explicit consent plus Start", async () => {
+  it("opens consent directly from the visible entry and creates only on explicit consent plus Start", async () => {
     mockFlow();
     setup();
-    fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
-    fireEvent.click(await screen.findByRole("button", { name: "실시간 아바타 옵션 보기" }));
+    fireEvent.click(await screen.findByRole("button", { name: "라이브 아바타 옵션 열기" }));
     const consent = await screen.findByRole("checkbox");
     const start = await screen.findByRole("button", { name: "실시간 아바타 시작" });
     await screen.findByText("사용 가능");
@@ -125,11 +121,9 @@ describe("visible learner live-avatar entry", () => {
   it("does not label a saved selection as playing and shows real renderer startup after explicit Start", async () => {
     mockFlow();
     setup();
-    await waitFor(() => expect(api).toHaveBeenCalledWith("GET", "/api/live-avatar/conversations/conversation/selection"));
-    expect(screen.queryByText("라이브 아바타 연결 대기")).toBeNull();
+    await screen.findByText("라이브 아바타 연결 대기");
     expect(screen.queryByText("라이브 아바타 재생 중")).toBeNull();
-    fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
-    fireEvent.click(await screen.findByRole("button", { name: "실시간 아바타 옵션 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "라이브 아바타 옵션 열기" }));
     await screen.findByText("사용 가능");
     fireEvent.click(screen.getByRole("checkbox"));
     const start = screen.getByRole("button", { name: "실시간 아바타 시작" });
@@ -154,8 +148,7 @@ describe("visible learner live-avatar entry", () => {
       return original(method, path);
     });
     setup();
-    fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
-    fireEvent.click(await screen.findByRole("button", { name: "실시간 아바타 옵션 보기" }));
+    fireEvent.click(await screen.findByRole("button", { name: "라이브 아바타 옵션 열기" }));
     await screen.findByText("라이브 아바타 연결 실패");
     expect(screen.getByText(/외부 아바타 제공자가 생성 결과를 확정하지 못했습니다/)).toBeTruthy();
     fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
@@ -166,8 +159,7 @@ describe("visible learner live-avatar entry", () => {
   it("shows the voice-only restriction for text conversations rather than creating a live session", async () => {
     mockFlow();
     setup(false);
-    fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
-    fireEvent.click(await screen.findByRole("button", { name: "실시간 아바타 옵션 보기" }));
+    fireEvent.click(await screen.findByRole("button", { name: "라이브 아바타 옵션 열기" }));
     await screen.findByText("라이브 아바타는 실시간 음성 대화에서만 사용할 수 있습니다.");
     fireEvent.click(screen.getByRole("checkbox"));
     expect(screen.getByRole("button", { name: "실시간 아바타 시작" }).hasAttribute("disabled")).toBe(true);

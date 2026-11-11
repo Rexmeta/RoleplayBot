@@ -37,7 +37,7 @@ export function transitionUtterance(current: LedgerUtterance, event: LedgerPaylo
       }
       row.providerState = "final"; row.providerText = event.text;
       row.providerEventId = event.providerEventId ?? row.providerEventId;
-      if (event.metadata) row.metadata = { ...row.metadata, ...event.metadata };
+      if (event.metadata) row.metadata = event.metadata;
       if (row.recognitionState === "not_required") row.canonicalText = event.text;
       break;
     case "provider.interrupted":
@@ -73,13 +73,10 @@ export function transitionUtterance(current: LedgerUtterance, event: LedgerPaylo
       break;
     case "playback.observed":
       if (row.speaker !== "ai" || row.mode !== "voice") throw new LedgerError("playback_not_applicable");
-      if (["completed", "interrupted", "not_played", "failed"].includes(row.playbackState) && row.playbackState !== event.state) {
+      if (["completed", "interrupted"].includes(row.playbackState) && row.playbackState !== event.state) {
         throw new LedgerError("playback_observation_terminal");
       }
       row.playbackState = event.state;
-      if (event.playedMs !== undefined || event.scope !== undefined) {
-        row.metadata = { ...row.metadata, playback: { playedMs: event.playedMs, scope: event.scope } };
-      }
       break;
     default: throw new LedgerError("invalid_utterance_transition", 400);
   }

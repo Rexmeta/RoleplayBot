@@ -7,22 +7,6 @@ import { adaptTavusTranscript, transcriptIdentity } from "../../server/services/
 import { ledgerPayloadSchema } from "../../shared/conversationLedger";
 
 describe("Tavus dynamic context", () => {
-  it.each(["ko", "en", "ja", "zh"])("keeps %s in the avatar context after profile changes", async language => {
-    const deps: any = {
-      storage: {
-        getPersonaRun: vi.fn(async () => ({ personaId: "p", scenarioRunId: "sr", difficulty: 3, language: "en" })),
-        getScenarioRun: vi.fn(async () => ({ userId: "owner", scenarioId: "s" })),
-        getScenario: vi.fn(), getMbtiPersona: vi.fn(),
-        getUser: vi.fn(async () => ({ preferredLanguage: "zh" })),
-      }, fileManager: { getAllScenarios: vi.fn() },
-      ledgerRuntimeBinding: vi.fn(async () => ({ language, scenarioSnapshot: {
-        id: "s", title: "Frozen", personas: [{ id: "p", name: "Actor", _runtimeProfile: {} }],
-      } })),
-    };
-    const result = await resolveTavusContext("owner", "run", deps);
-    expect(result.language).toBe(language);
-    expect(result.context).toContain(`"language":"${language}"`);
-  });
   it("varies character and scenario without changing the common PAL", () => {
     const first = buildTavusContext({ title: "납기 협상", objectives: ["일정 합의"] },
       { name: "김 팀장", personality: "단호함", goal: "품질 보장" }, "ko", 4);
@@ -74,38 +58,6 @@ describe("Tavus dynamic context", () => {
     expect((await resolveTavusContext("owner", "run", deps)).context).toContain("차분하게");
     expect(deps.storage.getScenario).not.toHaveBeenCalled();
     expect(deps.storage.getMbtiPersona).not.toHaveBeenCalled();
-  });
-
-  it("keeps ledger-bound actor role and organization instructions instead of later run or authoring edits", async () => {
-    const frozen = {
-      id: "s", title: "Frozen negotiation", _overridePromptBlock: "Frozen organization instructions",
-      personas: [{ id: "p", name: "Frozen actor", role: "Supplier",
-        _runtimeProfile: { communication_style: "Calm", communication_patterns: { win_conditions: ["Protect quality"] } } }],
-      evaluationHarness: { privateRubric: "Do not export this rubric" },
-    };
-    const original = structuredClone(frozen);
-    const deps: any = {
-      storage: {
-        getPersonaRun: vi.fn(async () => ({ personaId: "p", scenarioRunId: "sr", difficulty: 3 })),
-        getScenarioRun: vi.fn(async () => ({
-          userId: "owner", scenarioId: "s",
-          scenarioSnapshot: { ...frozen, _overridePromptBlock: "Later organization instructions", personas: [] },
-        })),
-        getScenario: vi.fn(), getMbtiPersona: vi.fn(),
-        getUser: vi.fn(async () => ({ preferredLanguage: "ko" })),
-      },
-      fileManager: { getAllScenarios: vi.fn() },
-      ledgerRuntimeBinding: vi.fn(async () => ({ scenarioSnapshot: frozen })),
-    };
-    const result = await resolveTavusContext("owner", "run", deps);
-    expect(result.context).toContain('"role":"Supplier"');
-    expect(result.context).toContain("Frozen organization instructions");
-    expect(result.context).toContain("Protect quality");
-    expect(result.context).not.toMatch(/Later organization|privateRubric|Do not export/);
-    expect(deps.storage.getScenario).not.toHaveBeenCalled();
-    expect(deps.storage.getMbtiPersona).not.toHaveBeenCalled();
-    expect(deps.fileManager.getAllScenarios).not.toHaveBeenCalled();
-    expect(frozen).toEqual(original);
   });
 });
 

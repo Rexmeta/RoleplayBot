@@ -2,7 +2,7 @@ import { Router } from "express";
 import { asyncHandler, createHttpError, verifyPersonaRunOwnership } from "./routerHelpers";
 import { applyLedgerCommand, readLedgerProjection, readLedgerSnapshot } from "../services/conversationLedger/service";
 import { LedgerError } from "../services/conversationLedger/policy";
-import { drainLedgerVoice, finalizeLedgerVoiceCommand } from "../services/conversationLedger/voiceAdapter";
+import { drainLedgerVoice } from "../services/conversationLedger/voiceAdapter";
 import { db } from "../storage/db";
 import { conversationLedgerReports } from "../../shared/schema/conversationLedger";
 import { eq, desc } from "drizzle-orm";
@@ -38,11 +38,6 @@ export function createConversationLedgerRouter(isAuthenticated: any) {
     // Operators/admins may read, but may not write to another user's ledger.
     const { personaRun } = await verifyPersonaRunOwnership(req.params.id, req.user.id);
     if (personaRun.mode === "tavus_full") throw createHttpError(409, "tavus_full_pipeline_active");
-    if (req.body?.payload?.kind === "session.close" && personaRun.duplexRuntime?.config.evaluationSnapshot) {
-      const ack = await handle(() => finalizeLedgerVoiceCommand(req.params.id, req.body));
-      res.json({ type: 'ledger.ack', ack });
-      return;
-    }
     if (req.body?.payload?.kind === "session.close") await drainLedgerVoice(req.params.id);
     const ack = await handle(() => applyLedgerCommand(req.params.id, req.body, "client"));
     res.json({ type: "ledger.ack", ack }); // applyLedgerCommand has already committed.

@@ -51,10 +51,6 @@ beforeEach(() => {
   mocks.toast.mockReset();
   mocks.api.mockReset().mockImplementation(async (method: string, url: string, body?: any) => {
     calls.push({ method, url, body });
-    if (method === "GET" && url.endsWith("/rubric")) return jsonResponse({
-      id: "selected-rubric", name: "시나리오 전용 루브릭", version: 3,
-      dimensions: [{ key: "clarity", name: "명확성", baseWeight: 2, weight: 2, normalizedPercent: 100 }],
-    });
     if (method === "GET" && url.includes("/scenario-overrides/org-")) return jsonResponse(stored?.organizationId === url.split("/").at(-2) && stored?.scenarioId === url.split("/").at(-1) ? stored : null);
     if (method === "POST" && url.endsWith("/preview")) {
       return jsonResponse({
@@ -135,14 +131,9 @@ describe("ScenarioOverrideManager", () => {
     stored = null;
     let finishA: ((value: any) => void) | undefined;
     let finishB: ((value: any) => void) | undefined;
-    let finishRubricB: ((value: any) => void) | undefined;
     const { user } = setup();
     mocks.api.mockImplementation(async (method: string, url: string, body?: any) => {
       calls.push({ method, url, body });
-      if (method === "GET" && url.endsWith("/rubric")) {
-        if (url.includes("/org-b/")) return new Promise(resolve => { finishRubricB = resolve; });
-        return jsonResponse({ id: "a", name: "A rubric", dimensions: [{ key: "clarity", name: "명확성" }] });
-      }
       if (method === "GET" && url.includes("/scenario-overrides/org-")) return jsonResponse(null);
       if (method === "POST" && url.includes("/org-a/")) return new Promise(resolve => { finishA = resolve; });
       if (method === "POST" && url.includes("/org-b/")) return new Promise(resolve => { finishB = resolve; });
@@ -155,9 +146,6 @@ describe("ScenarioOverrideManager", () => {
     finishA!(jsonResponse({ base: {}, override: {}, effective: {}, errors: [], organizationActive: true, dimensions: [{ key: "clarity", name: "명확성", baseWeight: 1, weight: 1, normalizedPercent: 100 }] }));
     await waitFor(() => expect(screen.getAllByRole("combobox")[4].hasAttribute("disabled")).toBe(true));
     finishB!(jsonResponse({ base: {}, override: {}, effective: {}, errors: [], organizationActive: true, dimensions: [{ key: "empathy", name: "공감", baseWeight: 1, weight: 1, normalizedPercent: 100 }] }));
-    await waitFor(() => expect(finishRubricB).toBeDefined());
-    finishRubricB!(jsonResponse({ id: "b", name: "B rubric", dimensions: [{ key: "empathy", name: "공감" }] }));
-    await waitFor(() => expect(screen.getAllByRole("combobox")[4].hasAttribute("disabled")).toBe(false));
     await user.click((await screen.findAllByRole("combobox"))[4]);
     expect(await screen.findByRole("option", { name: "공감" })).toBeTruthy();
   });

@@ -58,29 +58,11 @@ describe("selected conversation avatar resolution", () => {
   }
   it("uses the exact saved persona selection and never creates a session in availability resolution", async () => {
     const { deps } = fixture();
-    expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual({ ...target, providerId: "tavus" });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual(target);
     expect(deps.client.call.mock.calls.map((c: any) => c[1])).toEqual(["/avatars"]);
     expect(deps.fileManager.getPersonaAvatarSettings).toHaveBeenCalledWith("ENTJ.json");
     expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
     expect(store.upsertSystemSetting).not.toHaveBeenCalled();
-  });
-  it("resolves the saved Anam provider without requiring Gemini audio scopes or substituting Lucy", async () => {
-    const { deps, profile } = fixture();
-    profile.liveAvatar = { ...profile.liveAvatar, providerId: "anam", avatarId: "anam-persona-default" };
-    connection.check.mockResolvedValue({ ...auth, scopes: [
-      "live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end", "assets:read",
-    ] });
-    deps.client.call.mockImplementation(async (_u, _p, schema) => schema.parse([{
-      id: "anam-persona-default", providerId: "anam", name: "Anam", description: "native",
-      kind: "configured", configured: true, languages: [],
-    }]));
-    expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual({
-      projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null, personaId: "actor",
-    });
-  });
-  it("never routes Anam through the external Gemini PCM renderer", async () => {
-    const native = new ConversationAvatarSessions({ resolve: vi.fn(async () => ({ ...target, providerId: "anam" })) } as any);
-    await expect(native.create("owner", "conversation")).rejects.toMatchObject({ code: "avatar_native_pipeline_required" });
   });
   it("resolves a non-MBTI saved persona reference such as cc even when its actor id is istj", async () => {
     const { deps, actor, personaRun } = fixture();
@@ -99,7 +81,7 @@ describe("selected conversation avatar resolution", () => {
     const { deps } = fixture();
     deps.storage.getSystemSetting.mockResolvedValue({ value: "false" });
     expect(await inspectConversationAvatarSelection("owner", "conversation", deps)).toEqual({
-      configured: true, enabled: false, allowed: false, personaId: "actor", providerId: "tavus",
+      configured: true, enabled: false, allowed: false, personaId: "actor",
       blockers: ["globally_disabled", "scenario_not_allowed"],
     });
     expect(deps.client.call).not.toHaveBeenCalled();
@@ -116,7 +98,7 @@ describe("selected conversation avatar resolution", () => {
     });
     profile.avatarMode = "image";
     profile.liveAvatar.avatarId = "changed-master";
-    expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual({ ...target, providerId: "tavus" });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual(target);
     expect((await inspectConversationAvatarSelection("owner", "conversation", deps)).configured).toBe(true);
     expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
   });
@@ -166,7 +148,7 @@ describe("selected conversation avatar resolution", () => {
     expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
     deps.ledgerRuntimeBinding.mockResolvedValue({ scenarioSnapshot: { personas: [{ id: "actor",
       _runtimeProfile: { avatarMode: "live", liveAvatar: reference } }] } });
-    expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual({ ...target, providerId: "tavus" });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual(target);
     expect(deps.fileManager.getAllScenarios).not.toHaveBeenCalled();
   });
   it("rejects a different external project and missing read scopes without falling back to stock", async () => {

@@ -20,8 +20,6 @@ interface SetupVADParams {
   onBargeIn?: () => void;
   onVoiceStart?: (duringPlayback: boolean) => void;
   onVoiceEnd?: () => void;
-  bargeInPolicy?: 'baseline' | 'candidate' | 'confirmed';
-  onVoiceConfirmed?: () => void;
 }
 
 interface UseVADReturn {
@@ -79,8 +77,6 @@ export function useVoiceActivityDetection(): UseVADReturn {
     onBargeIn,
     onVoiceStart,
     onVoiceEnd,
-    bargeInPolicy = 'baseline',
-    onVoiceConfirmed,
   }: SetupVADParams) => {
     entryThresholdRef.current = entryThreshold ?? DEFAULT_ENTRY_THRESHOLD;
     exitThresholdRef.current = exitThreshold ?? DEFAULT_EXIT_THRESHOLD;
@@ -92,9 +88,6 @@ export function useVoiceActivityDetection(): UseVADReturn {
     isVoiceActiveRef.current = false;
 
     const vadProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-    let voiceConfirmed = false;
-    const decisionDelay = bargeInPolicy === 'candidate' ? 0
-      : bargeInPolicy === 'confirmed' ? MIN_VOICE_DURATION_MS : BARGE_IN_DELAY_MS;
     vadProcessorRef.current = vadProcessor;
 
     vadProcessor.onaudioprocess = (e) => {
@@ -127,23 +120,18 @@ export function useVoiceActivityDetection(): UseVADReturn {
         isVoiceActiveRef.current = true;
 
         if (voiceActivityStartRef.current === null) {
-          voiceConfirmed = false;
           voiceActivityStartRef.current = Date.now();
            onVoiceStart?.(isPlaybackRunning);
         }
 
         const voiceDuration = Date.now() - voiceActivityStartRef.current;
-        if (!voiceConfirmed && voiceDuration >= MIN_VOICE_DURATION_MS) {
-          voiceConfirmed = true;
-          onVoiceConfirmed?.();
-        }
 
         if (voiceDuration >= MIN_VOICE_DURATION_MS && voiceDuration < MIN_VOICE_DURATION_MS + 100) {
           console.log(`🎤 Voice activity confirmed (${MIN_VOICE_DURATION_MS}ms sustained)`);
         }
 
-        if (voiceDuration >= decisionDelay && !bargeInTriggeredRef.current && isPlaybackRunning) {
-          console.log(`🎤 ${decisionDelay}ms VAD decision threshold reached - triggering barge-in (${bargeInPolicy})`);
+        if (voiceDuration >= BARGE_IN_DELAY_MS && !bargeInTriggeredRef.current && isPlaybackRunning) {
+          console.log(`🎤 ${BARGE_IN_DELAY_MS}ms voice detected - triggering barge-in`);
           bargeInTriggeredRef.current = true;
           onBargeInRef.current?.();
 
@@ -182,7 +170,6 @@ export function useVoiceActivityDetection(): UseVADReturn {
           bargeInTriggeredRef.current = false;
         }
         voiceActivityStartRef.current = null;
-        voiceConfirmed = false;
         highRmsStartRef.current = null;
       }
     };

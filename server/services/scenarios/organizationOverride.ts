@@ -37,24 +37,6 @@ export async function assertOrganizationContentAccess(organizationId: string | n
   if (scenario.isDeleted) throw createHttpError(410, "삭제된 시나리오입니다");
 }
 
-/** Staff tests use the content's organization, never turn delegation into learner membership. */
-export async function resolveConversationOrganization(user: any, scenarioId: string): Promise<string | null> {
-  if (!["admin", "operator"].includes(user?.role)) return resolveExecutionOrganization(user);
-  if (user.isActive === false) throw createHttpError(403, "비활성 사용자는 실행할 수 없습니다");
-  const source = await storage.getScenario(scenarioId);
-  if (!source) throw createHttpError(404, "시나리오를 찾을 수 없습니다");
-  const category = source.categoryId ? await storage.getCategory(String(source.categoryId)) : null;
-  const owner = source.organizationId ?? category?.organizationId ?? null;
-  if (user.role === "operator") {
-    const allowed = owner
-      ? await storage.canOperatorManageOrganization(user.id, owner)
-      : source.categoryId && await storage.canOperatorManageCategory(user.id, String(source.categoryId));
-    if (!allowed) throw createHttpError(403, "위임받은 조직 또는 카테고리의 시나리오만 테스트할 수 있습니다");
-  }
-  // Staff do not inherit their unrelated learner assignment when testing shared content.
-  return resolveExecutionOrganization({ id: user.id, role: user.role, organizationId: owner });
-}
-
 /** Returns a copy. Published/ContentX source objects are never modified. */
 export async function loadOverrideBase(scenarioId: string, language = "ko") {
   const source = await storage.getScenario(scenarioId);

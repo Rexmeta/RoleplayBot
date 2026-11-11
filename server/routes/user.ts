@@ -6,7 +6,6 @@ import { z } from "zod";
 import { asyncHandler, createHttpError } from "./routerHelpers";
 import { generateSceneOpeningLine } from "../services/personaSceneGenerator";
 import { normalizeProfileName } from "../services/conversationContextBuilder";
-import { defaultPersonaGreeting, resolveConversationLanguage } from "../../shared/conversationLanguage";
 
 const sceneSchema = z.object({
   title: z.string().max(200).optional(),
@@ -376,7 +375,6 @@ export default function createUserRouter(isAuthenticated: any) {
 
     const chatUser = await storage.getUser(userId);
     const userName = normalizeProfileName(chatUser?.name);
-    const language = resolveConversationLanguage(undefined, personaRun.language, chatUser?.preferredLanguage);
 
     if (mode === "realtime_voice") {
       return res.json({
@@ -386,7 +384,6 @@ export default function createUserRouter(isAuthenticated: any) {
         scenarioName,
         personaId: persona.id,
         personaSnapshot,
-        language,
         turnCount: 0,
         status: "active",
         mode,
@@ -399,15 +396,7 @@ export default function createUserRouter(isAuthenticated: any) {
 
     // Build scene-aware greeting/opening line (text mode only - after early return for realtime_voice)
     let greetingText: string;
-    if (language !== "ko") {
-      try {
-        greetingText = await generateSceneOpeningLine(persona.name,
-          { setting: scene?.setting || persona.description || persona.name, mood: scene?.mood || "", genre: scene?.genre },
-          persona.description ?? undefined, userName, language, scene?.openingLine || persona.greeting || undefined);
-      } catch {
-        greetingText = defaultPersonaGreeting(persona.name, language);
-      }
-    } else if (scene && scene.openingLine) {
+    if (scene && scene.openingLine) {
       greetingText = scene.openingLine;
     } else if (scene && scene.setting) {
       try {
@@ -415,13 +404,13 @@ export default function createUserRouter(isAuthenticated: any) {
           persona.name,
           { setting: scene.setting, mood: scene.mood, genre: scene.genre },
           persona.description ?? undefined,
-          userName, language
+          userName
         );
       } catch {
-        greetingText = persona.greeting || defaultPersonaGreeting(persona.name, language);
+        greetingText = persona.greeting || `안녕하세요! 저는 ${persona.name}입니다. 무슨 이야기든 편하게 나눠요.`;
       }
     } else {
-      greetingText = persona.greeting || defaultPersonaGreeting(persona.name, language);
+      greetingText = persona.greeting || `안녕하세요! 저는 ${persona.name}입니다. 무슨 이야기든 편하게 나눠요.`;
     }
 
     await storage.createChatMessage({
@@ -440,7 +429,6 @@ export default function createUserRouter(isAuthenticated: any) {
       scenarioName,
       personaId: persona.id,
       personaSnapshot,
-      language,
       turnCount: 0,
       status: "active",
       mode,

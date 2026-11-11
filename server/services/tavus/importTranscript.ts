@@ -10,10 +10,6 @@ import { TavusError } from "./client";
 import { transcriptIdentity, type TavusMessage } from "./transcriptAdapter";
 import type { resolveTavusContext } from "./context";
 
-export type RouterTranscriptProvenance = {
-  provider: "tavus" | "anam"; projectId: string; sessionId: string; revision: string;
-};
-
 /** Reserve a fresh run before provider creation. Existing Gemini/text evidence is never replaced. */
 export async function reserveTavusRun(runId: string) {
   await db.transaction(async tx => {
@@ -38,44 +34,30 @@ export async function reserveTavusRun(runId: string) {
 export async function importTavusTranscript(
   binding: Awaited<ReturnType<typeof resolveTavusContext>>,
   providerConversationId: string, messages: TavusMessage[],
-  provenance?: RouterTranscriptProvenance,
 ) {
   const runId = binding.run.id;
-  const provider = provenance?.provider ?? "tavus";
-  // Keep existing Tavus IDs immutable; Anam imports are project/run/session namespaced.
-  const identity = provider === "tavus" ? providerConversationId :
-    JSON.stringify([provider, provenance!.projectId, runId, providerConversationId]);
-  const source = { provider, conversationId: providerConversationId, kind: "final_transcript",
-    ...(provenance ? { projectId: provenance.projectId, routerSessionId: provenance.sessionId,
-      revision: provenance.revision } : {}) };
   if (usesLedger(binding.run)) {
     const view = await readLedgerProjection(runId);
     if (view.version === "legacy") throw new TavusError("tavus_ledger_missing");
-    const expectedIds = new Set(messages.map((_, index) => transcriptIdentity(identity, index)));
-    if (view.utterances.some(row => row.provider !== provider || !expectedIds.has(row.id) ||
-        provenance && row.metadata?.routerTranscript &&
-        (["provider", "projectId", "sessionId", "revision"] as const)
-          .some(key => row.metadata!.routerTranscript![key] !== provenance[key]))) {
-      throw new TavusError("tavus_mixed_transcript");
-    }
+    if (view.utterances.some(row => row.provider !== "tavus")) throw new TavusError("tavus_mixed_transcript");
     // Text is the import transport. Do not forge capture/STT verification or playback observations.
     for (let index = 0; index < messages.length; index++) {
       const message = messages[index];
-      const utteranceId = transcriptIdentity(identity, index);
+      const utteranceId = transcriptIdentity(providerConversationId, index);
       await applyLedgerCommand(runId, {
-        eventId: transcriptIdentity(identity, index, "register"), generation: view.generation,
+        eventId: transcriptIdentity(providerConversationId, index, "register"), generation: view.generation,
         payload: { kind: "utterance.register", utteranceId, speaker: message.sender, mode: "text",
-          personaId: binding.run.personaId, provider,
-          providerResponseId: provider === "tavus" ? `${providerConversationId}:${index}` : utteranceId },
+          personaId: binding.run.personaId, provider: "tavus",
+          providerResponseId: `${providerConversationId}:${index}` },
       }, "server");
       await applyLedgerCommand(runId, {
-        eventId: transcriptIdentity(identity, index, "final"), generation: view.generation,
+        eventId: transcriptIdentity(providerConversationId, index, "final"), generation: view.generation,
         payload: { kind: "provider.final", utteranceId, text: message.message,
-          metadata: { sourceTimestamp: message.timestamp, ...(provenance ? { routerTranscript: provenance } : {}) } },
+          metadata: { sourceTimestamp: message.timestamp } },
       }, "server");
     }
     await applyLedgerCommand(runId, {
-      eventId: transcriptIdentity(identity, -1, "close"), generation: view.generation,
+      eventId: transcriptIdentity(providerConversationId, -1, "close"), generation: view.generation,
       payload: { kind: "session.close", reason: "user_end" },
     }, "server");
   } else {
@@ -83,7 +65,7 @@ export async function importTavusTranscript(
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${runId}))`);
       for (let index = 0; index < messages.length; index++) {
         const message = messages[index];
-        const messageId = transcriptIdentity(identity, index);
+        const messageId = transcriptIdentity(providerConversationId, index);
         const [existing] = await tx.select({ id: chatMessages.id }).from(chatMessages).where(and(
           eq(chatMessages.personaRunId, runId), eq(chatMessages.turnIndex, index), eq(chatMessages.sender, message.sender),
         ));
@@ -100,7 +82,7 @@ export async function importTavusTranscript(
     const job = await enqueueFeedbackJob({
       conversationId: runId,
       conversation: { id: runId, mode: "realtime_voice", messages,
-        transcriptSource: source },
+        transcriptSource: { provider: "tavus", conversationId: providerConversationId, kind: "final_transcript" } },
       scenario: binding.scenario, persona: binding.persona, language: binding.language,
       evaluationHarnessSnapshot: binding.evaluationHarnessSnapshot,
     });

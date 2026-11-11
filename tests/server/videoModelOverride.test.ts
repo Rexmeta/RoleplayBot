@@ -10,14 +10,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Model precedence must not depend on native FFmpeg startup or invalid-video
-// decoding. Native processing belongs to the separate media integration tests.
-vi.mock('child_process', () => ({
-  exec: Object.assign(vi.fn(), {
-    [Symbol.for('nodejs.util.promisify.custom')]: vi.fn(async () => ({ stdout: '', stderr: '' })),
-  }),
-}));
-
 // ── Hoist mock refs ───────────────────────────────────────────────────────────
 const { mockGetModelForFeature, mockGenerateVideos } = vi.hoisted(() => ({
   mockGetModelForFeature: vi.fn().mockResolvedValue('veo-3.1-lite-generate-preview'),
@@ -29,7 +21,7 @@ vi.mock('@google/genai', () => {
   const fakeOp = {
     done: true,
     response: {
-      generatedVideos: [{ video: { videoBytes: 'GkXfowABAg==' } }], // synthetic WebM magic, not playable media
+      generatedVideos: [{ video: { videoBytes: 'AA==' } }],
     },
   };
   mockGenerateVideos.mockResolvedValue(fakeOp);
@@ -47,7 +39,6 @@ vi.mock('@google/genai', () => {
 vi.mock('../../server/services/mediaStorage', () => ({
   mediaStorage: {
     saveVideo: vi.fn().mockResolvedValue('/scenarios/videos/test.webm'),
-    saveToFixedPath: vi.fn().mockResolvedValue('/videos/test-avatar.mp4'),
     readImageBuffer: vi.fn().mockResolvedValue(null),
   },
 }));
@@ -73,7 +64,7 @@ function resetMocks() {
   mockGetModelForFeature.mockReset().mockResolvedValue('veo-3.1-lite-generate-preview');
   const fakeOp = {
     done: true,
-    response: { generatedVideos: [{ video: { videoBytes: 'GkXfowABAg==' } }] },
+    response: { generatedVideos: [{ video: { videoBytes: 'AA==' } }] },
   };
   mockGenerateVideos.mockReset().mockResolvedValue(fakeOp);
 }

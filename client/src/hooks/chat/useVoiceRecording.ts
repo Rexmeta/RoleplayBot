@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
-import { conversationSpeechLocale, type ConversationLanguage } from "@shared/conversationLanguage";
 
 declare global {
   interface Window {
@@ -9,6 +8,17 @@ declare global {
     webkitSpeechRecognition: any;
   }
 }
+
+const getSpeechSynthesisLang = (langCode: string): string => {
+  const base = langCode ? langCode.split('-')[0].toLowerCase() : 'ko';
+  const langMap: Record<string, string> = {
+    'ko': 'ko-KR',
+    'en': 'en-US',
+    'ja': 'ja-JP',
+    'zh': 'zh-CN'
+  };
+  return langMap[base] || 'ko-KR';
+};
 
 const VOICE_INPUT_MARKER = '🎤';
 
@@ -18,19 +28,16 @@ const removeInterimText = (text: string): string => {
 };
 
 interface UseVoiceRecordingOptions {
-  language?: ConversationLanguage;
   onTranscript: (text: string) => void;
   onInterimTranscript: (text: string) => void;
 }
 
-export function useVoiceRecording({ onTranscript, onInterimTranscript, language }: UseVoiceRecordingOptions) {
+export function useVoiceRecording({ onTranscript, onInterimTranscript }: UseVoiceRecordingOptions) {
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
-  const { t } = useTranslation();
-  const feedbackRef = useRef({ toast, t });
-  feedbackRef.current = { toast, t };
+  const { i18n, t } = useTranslation();
 
   // Fix 4: stale closure 방지 - 콜백을 ref로 감싸서 항상 최신 참조를 사용
   const onTranscriptRef = useRef(onTranscript);
@@ -41,8 +48,6 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript, language 
   }, [onTranscript, onInterimTranscript]);
 
   useEffect(() => {
-    setIsRecording(false);
-    let active = true;
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
@@ -50,16 +55,14 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript, language 
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = true;
-        recognition.lang = conversationSpeechLocale(language ?? "ko");
+        recognition.lang = getSpeechSynthesisLang(i18n.resolvedLanguage || i18n.language);
         recognition.maxAlternatives = 1;
 
         recognition.onstart = () => {
-          if (!active) return;
           setIsRecording(true);
         };
 
         recognition.onresult = (event: any) => {
-          if (!active) return;
           const result = event.results[0];
           const transcript = result[0].transcript;
 
@@ -71,8 +74,6 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript, language 
         };
 
         recognition.onerror = (event: any) => {
-          if (!active) return;
-          const { toast, t } = feedbackRef.current;
           console.error('Speech recognition error:', event.error);
           setIsRecording(false);
 
@@ -95,26 +96,18 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript, language 
         };
 
         recognition.onend = () => {
-          if (!active) return;
           setIsRecording(false);
           onInterimTranscriptRef.current('');
         };
 
         recognitionRef.current = recognition;
-        return () => {
-          active = false;
-          recognition.onstart = recognition.onresult = recognition.onerror = recognition.onend = null;
-          recognition.abort();
-          if (recognitionRef.current === recognition) recognitionRef.current = null;
-        };
       } else {
         setSpeechSupported(false);
       }
     }
-  }, [language]);
+  }, [toast, i18n.language, i18n.resolvedLanguage, t]);
 
   const startRecording = () => {
-    if (!language) return; // Wait for the server-owned conversation language.
     if (!speechSupported) {
       toast({
         title: t('voice.notSupported'),
@@ -157,7 +150,7 @@ export function useVoiceRecording({ onTranscript, onInterimTranscript, language 
 
   return {
     isRecording,
-    speechSupported: speechSupported && !!language,
+    speechSupported,
     recognitionRef,
     startRecording,
     stopRecording,
