@@ -32,24 +32,11 @@ describe("free avatar preflight control", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "무료 사전 점검 실행" }));
     await screen.findByRole("status");
-    expect(screen.getByText(/맞춤 아바타 후보: Custom one/)).toBeTruthy();
+    expect(screen.getByText(/Tavus 후보: Custom one/)).toBeTruthy();
     expect(screen.getByText(/일반 대화 라이브는 아직 사용 불가/)).toBeTruthy();
     expect(screen.getByText(/현재 이미지 hash\/version/)).toBeTruthy();
     expect(apiRequest).toHaveBeenCalledExactlyOnceWith("POST", "/api/live-avatar/runtime/preflight", {});
     expect(screen.queryByRole("button", { name: /세션 생성|시작/ })).toBeNull();
-  });
-
-  it("normalizes provider branding in dynamically supplied candidate names", async () => {
-    vi.mocked(apiRequest).mockResolvedValue({ json: async () => ({
-      ...result,
-      candidate: { ...result.candidate, name: "Tavus / Anam candidate" },
-    }) } as Response);
-    mount();
-    fireEvent.click(screen.getByRole("button", { name: "무료 사전 점검 실행" }));
-    const candidate = await screen.findByText(/맞춤 아바타 후보/);
-    expect(candidate.textContent).toContain("아바타 / 아바타 candidate");
-    expect(candidate.textContent).not.toMatch(/\b(Tavus|Anam)\b/i);
-    expect(candidate.textContent).toContain(result.candidate.assetId);
   });
 
   it("hides stale results during a recheck and after failure, with no automatic retry", async () => {

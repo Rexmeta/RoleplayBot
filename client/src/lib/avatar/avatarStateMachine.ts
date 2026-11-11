@@ -23,9 +23,6 @@ export function transition(state: AvatarState, event: AvatarEvent): AvatarState 
   // ── Global overrides ──────────────────────────────────────────────────────
   if (event.type === 'ConversationEnd') return 'idle';
   if (event.type === 'UserSpeechStart') return 'listening';
-  if (event.type === 'ListeningReaction') {
-    return state === 'listening' || state === 'listening_nod' ? 'listening_nod' : state;
-  }
 
   // TTS / LLM response start moves us to speaking from any state
   if (event.type === 'TTSStart' || event.type === 'LLMResponseStart') return 'speaking';

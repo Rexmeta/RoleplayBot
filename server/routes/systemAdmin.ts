@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { duplexConfigSchema } from '@shared/duplexMode';
 import { storage } from "../storage";
 import { isSystemAdmin } from "../middleware/authMiddleware";
 import { asyncHandler, createHttpError } from "./routerHelpers";
@@ -400,12 +399,6 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
     if (!category || !key) {
       throw createHttpError(400, "Category and key are required");
     }
-    if (category === 'voice_duplex') {
-      let parsed;
-      try { parsed = duplexConfigSchema.safeParse(typeof value === 'string' ? JSON.parse(value) : value); }
-      catch { throw createHttpError(400, 'invalid_duplex_config'); }
-      if (key !== 'config' || !parsed.success) throw createHttpError(400, 'invalid_duplex_config');
-    }
     if (category === "live_avatar" || category === "live_avatar_policy" || category === "live_avatar_test_attempt" || category === "persona_avatar_creation_attempt" || category === "live_avatar_conversation") {
       throw createHttpError(400, "Use the dedicated live avatar settings endpoint");
     }
@@ -440,15 +433,6 @@ export default function createSystemAdminRouter(isAuthenticated: any) {
 
     const user = req.user;
     const savedSettings = [];
-
-    // Validate all Duplex entries before any batch write can partially succeed.
-    for (const setting of settings) {
-      if (setting.category !== 'voice_duplex') continue;
-      let parsed;
-      try { parsed = duplexConfigSchema.safeParse(typeof setting.value === 'string' ? JSON.parse(setting.value) : setting.value); }
-      catch { throw createHttpError(400, 'invalid_duplex_config'); }
-      if (setting.key !== 'config' || !parsed.success) throw createHttpError(400, 'invalid_duplex_config');
-    }
 
     for (const setting of settings) {
       const { category, key, value, description } = setting;

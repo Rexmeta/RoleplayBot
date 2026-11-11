@@ -1,7 +1,6 @@
 import WebSocket from 'ws';
 import { RealtimeSession, PendingOutgoingMessage } from './types';
 import { analyzeEmotion, analyzeUserEmotion, NEUTRAL_USER_AFFECT } from './emotionAnalyzer';
-import { bindVoiceInteraction } from './interactionContract';
 import { stripInternalActionMarkers, collapseDoubledTranscript } from './textFilter';
 import { GoogleGenAI } from '@google/genai';
 import {
@@ -40,7 +39,6 @@ const SILENT_EVENT_TYPES = new Set([
 export interface OpenAIRealtimeSessionAdapter {
   sendRealtimeInput(data: any): void;
   sendClientContent(data: any): void;
-  cancelResponse?(): void;
   sendToolResponse?(data: any): void;
   close(): void;
 }
@@ -72,7 +70,7 @@ function resample16kTo24k(inputBase64: string): string {
 
 export function createMessageHandler(
   session: RealtimeSession,
-  emit: SendToClient,
+  sendToClient: SendToClient,
   providerGeneration?: number,
 ) {
   let aiTranscriptBuffer = '';
@@ -80,7 +78,6 @@ export function createMessageHandler(
   let accumulatedUserTranscript = '';
   let accumulatedUserProviderEventId: string | null = null;
   let latestUserAffect: import('./emotionAnalyzer').UserAffectState = { ...NEUTRAL_USER_AFFECT };
-  const processedProviderEvents = new Set<string>();
 
   return function handleMessage(msg: any): void {
     if (
@@ -90,62 +87,9 @@ export function createMessageHandler(
       console.log(`[voice-provider-drop] stale OpenAI event generation=${providerGeneration}`);
       return;
     }
-    if (typeof msg.event_id === 'string') {
-      if (processedProviderEvents.has(msg.event_id)) return;
-      processedProviderEvents.add(msg.event_id);
-      if (processedProviderEvents.size > 2048) {
-        const oldest = processedProviderEvents.values().next().value;
-        if (oldest) processedProviderEvents.delete(oldest);
-      }
-    }
     session.lastActivityTime = Date.now();
-    const sendToClient = bindVoiceInteraction(session, emit);
-    const responseId: string | undefined = msg.response_id ?? msg.response?.id;
-    const pendingBoundary = session.awaitingOutputBoundary;
-    if (pendingBoundary && pendingBoundary.providerGeneration !== (session.providerConnectionGeneration ?? 0)) {
-      session.awaitingOutputBoundary = undefined;
-    }
-    if (responseId && session.cancelledProviderResponseIds?.includes(responseId)) {
-      if (['response.done', 'response.cancelled'].includes(msg.type) &&
-          session.awaitingOutputBoundary?.responseId === responseId) {
-        session.providerOutputInProgress = false;
-        session.awaitingOutputBoundary = undefined;
-        session.isInterrupted = false;
-        session.cancelledTurnSeq = -1;
-        aiTranscriptBuffer = '';
-        session.currentTranscript = '';
-        sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-      }
-      return;
-    }
-    if (responseId && session.activeProviderResponseId &&
-        responseId !== session.activeProviderResponseId && msg.type !== 'response.created') return;
-    if (session.awaitingOutputBoundary &&
-        ['response.audio.delta', 'response.audio_transcript.delta'].includes(msg.type)) return;
 
     switch (msg.type) {
-      case 'response.created': {
-        if (responseId && session.awaitingOutputBoundary?.responseId === responseId) break;
-        if (session.finalizationState) {
-          session.geminiSession?.cancelResponse?.();
-          break;
-        }
-        session.providerOutputInProgress = true;
-        if (responseId) {
-          session.activeProviderResponseId = responseId;
-          if (session.awaitingOutputBoundary) {
-            // A distinct provider response ID is a sufficient new-output
-            // boundary, even if cancellation ACK for the old ID arrives later.
-            session.awaitingOutputBoundary = undefined;
-            session.isInterrupted = false;
-            session.cancelledTurnSeq = -1;
-            aiTranscriptBuffer = '';
-            session.currentTranscript = '';
-            sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-          }
-        }
-        break;
-      }
       case 'session.created':
       case 'session.updated': {
         if (!sessionReadySent) {
@@ -158,9 +102,7 @@ export function createMessageHandler(
       }
 
       case 'response.audio.delta': {
-        if (session.finalizationState && session.finalizationOutputGeneration !== session.turnSeq) break;
         if (msg.delta) {
-          session.providerOutputInProgress = true;
           // Suppress audio when barge-in is active and this turn's audio has been cancelled.
           // The client also gates on turnSeq, but dropping server-side avoids unnecessary
           // network traffic and matches the Gemini handler's behaviour.
@@ -190,7 +132,6 @@ export function createMessageHandler(
       }
 
       case 'response.audio_transcript.delta': {
-        if (session.finalizationState && session.finalizationOutputGeneration !== session.turnSeq) break;
         if (msg.delta) {
           // Provisional barge-in guard: if new AI transcript arrives while the session is
           // still marked as interrupted (race condition where the new response beats the
@@ -217,30 +158,6 @@ export function createMessageHandler(
       }
 
       case 'response.done': {
-        session.providerOutputInProgress = false;
-        if (responseId) {
-          session.cancelledProviderResponseIds = [
-            ...(session.cancelledProviderResponseIds ?? []), responseId,
-          ].slice(-128);
-        }
-        if (session.awaitingOutputBoundary) {
-          session.awaitingOutputBoundary = undefined;
-          session.isInterrupted = false;
-          session.cancelledTurnSeq = -1;
-          aiTranscriptBuffer = '';
-          session.currentTranscript = '';
-          sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-          break;
-        }
-        if (msg.response?.status && msg.response.status !== 'completed') {
-          session.ledgerAdapter?.interruptAi(aiTranscriptBuffer);
-          aiTranscriptBuffer = '';
-          session.currentTranscript = '';
-          sendToClient(session, { type: 'response.interrupted' });
-          session.turnSeq++;
-          sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-          break;
-        }
         // Safety net: strip any internal markers that slipped through the delta
         // path and collapse an exact back-to-back duplication of the whole turn.
         const fullTranscript = collapseDoubledTranscript(
@@ -408,12 +325,6 @@ export function createMessageHandler(
       }
 
       case 'response.cancelled': {
-        session.cancelledOutputKeys = [
-          ...(session.cancelledOutputKeys ?? []),
-          `${session.providerConnectionGeneration ?? 0}:${session.turnSeq}`,
-        ].slice(-256);
-        session.providerOutputInProgress = false;
-        session.awaitingOutputBoundary = undefined;
         aiTranscriptBuffer = '';
         session.currentTranscript = '';
         if (accumulatedUserTranscript.trim()) {
@@ -460,7 +371,6 @@ export function createMessageHandler(
       }
 
       case 'error': {
-        if (msg.error?.code === 'response_cancel_not_active') break;
         console.error('[OpenAI Realtime] API error:', JSON.stringify(msg.error));
         sendToClient(session, {
           type: 'error',
@@ -586,9 +496,6 @@ export function connectOpenAIRealtime(
       },
       sendToolResponse(_data: any) {
         console.log('[OpenAI Realtime] Tool responses not supported in OpenAI Realtime mode');
-      },
-      cancelResponse() {
-        sendToOpenAI({ type: 'response.cancel' });
       },
       close() {
         if (!closed) {

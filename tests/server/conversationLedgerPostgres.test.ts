@@ -6,9 +6,6 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 import { initializeLedger, applyLedgerCommand, readLedgerProjection, withCurrentLedgerSnapshot } from "../../server/services/conversationLedger/service";
 import type { LedgerPayload } from "../../shared/conversationLedger";
-import { BASELINE_DUPLEX_CONFIG, initialCharacterEmotion } from '../../shared/duplexMode';
-import { pinDuplexRuntime, acceptCharacterEmotion, resetCharacterPersona } from '../../server/services/voice/duplexRuntime';
-import type { RealtimeSession } from '../../server/services/voice/types';
 
 // Tests use connection-local TEMP tables. No public rows are added or changed.
 describe.skipIf(!process.env.DATABASE_URL)("ledger PostgreSQL transactional contract", () => {
@@ -33,7 +30,6 @@ describe.skipIf(!process.env.DATABASE_URL)("ledger PostgreSQL transactional cont
       .replaceAll("CREATE TABLE IF NOT EXISTS", "CREATE TEMP TABLE");
     await client.query(migration);
     await client.query(readFileSync("migrations/0018_ledger_runtime_bridge.sql", "utf8"));
-    await client.query(readFileSync("migrations/0023_duplex_runtime.sql", "utf8"));
     database = drizzle(client);
     runId = randomUUID();
     await client.query("INSERT INTO persona_runs (id, persona_id) VALUES ($1, 'persona')", [runId]);
@@ -52,114 +48,6 @@ describe.skipIf(!process.env.DATABASE_URL)("ledger PostgreSQL transactional cont
     expect(view.cursor).toBe(2);
     const result = await client.query("SELECT count(*)::int AS count FROM conversation_ledger_events");
     expect(result.rows[0].count).toBe(2);
-  });
-  async function enhancedRuntime() {
-    await client.query('UPDATE persona_runs SET duplex_runtime=$1::jsonb WHERE id=$2', [JSON.stringify({
-      version: 1, epoch: 1, personaId: 'persona', personaIndex: 0, personaGeneration: 0,
-      config: { ...BASELINE_DUPLEX_CONFIG, interaction: true, playbackLifecycle: true, evaluationSnapshot: true },
-      character: initialCharacterEmotion(),
-    }), runId]);
-  }
-  const barrier = (outcome: 'settled' | 'timeout') => ({
-    startedAt: 1000, deadlineAt: 11000, timeoutMs: 10000, outcome,
-  });
-  it('pins mode, restores character across reconnects and fences old epochs/personas/cancelled output without rolling back scenario affect', async () => {
-    const session = {
-      id: 'first', personaRunId: runId, personaId: 'persona', activePersonaIndex: 0,
-      providerConnectionGeneration: 1, turnSeq: 0,
-    } as RealtimeSession;
-    const config = { ...BASELINE_DUPLEX_CONFIG, interaction: true, playbackLifecycle: true,
-      characterEmotion: true, expressionSync: true };
-    await pinDuplexRuntime(session, database, async () => [{ key: 'config', value: JSON.stringify(config) }]);
-    const origin = { runId, sessionId: 'first', logicalTurnId: 'user-final-1', providerConnectionGeneration: 1,
-      personaId: 'persona', personaIndex: 0, personaGeneration: 0, outputGeneration: 0 };
-    const proposal = { ...session.duplexRuntime!.character, emotion: 'happy', confidence: 0.8, intensity: 0.7,
-      source: 'character_response_analysis' as const,
-      cause: { kind: 'output' as const, id: 'output-0', sequence: 1, outputGeneration: 0, providerConnectionGeneration: 1 },
-    };
-    const first = await acceptCharacterEmotion(session, origin, proposal, database);
-    expect(first?.revision).toBe(1);
-    session.cancelledOutputKeys = ['1:0'];
-    expect(await acceptCharacterEmotion(session, origin, { ...proposal, cause: { ...proposal.cause, sequence: 2 } }, database)).toBeNull();
-    const scenario = { ...proposal, source: 'simulation' as const,
-      cause: { kind: 'scenario' as const, id: 'event', userTurnId: 'user-final-1', sequence: 3, scenarioVersion: 1 } };
-    const persistent = await acceptCharacterEmotion(session, null, scenario, database);
-    expect(persistent?.revision).toBe(2);
-    const next = { ...session, id: 'reconnected', duplexRuntime: undefined, cancelledOutputKeys: [] } as RealtimeSession;
-    await pinDuplexRuntime(next, database, async () => [{ key: 'config', value: JSON.stringify(BASELINE_DUPLEX_CONFIG) }]);
-    expect(next.duplexRuntime!.config).toEqual(config);
-    expect(next.duplexRuntime!.character).toEqual(persistent);
-    expect(next.duplexRuntime!.epoch).toBe(2);
-    expect(await acceptCharacterEmotion(session, null, { ...scenario, cause: { ...scenario.cause, sequence: 99, scenarioVersion: 2 } }, database)).toBeNull();
-    next.personaId = 'replacement';
-    next.activePersonaIndex = 1;
-    await resetCharacterPersona(next, database);
-    expect(next.duplexRuntime!.character).toMatchObject({ emotion: 'neutral', revision: 0, personaGeneration: 1 });
-    expect(await acceptCharacterEmotion(next, null, { ...scenario, cause: { ...scenario.cause, sequence: 100, scenarioVersion: 2 } }, database)).toBeNull();
-  });
-  it('keeps the job snapshot and token immutable across late observations and end/page-exit duplicates', async () => {
-    await enhancedRuntime();
-    await applyLedgerCommand(runId, command({ kind: 'text.submit', utteranceId: randomUUID(), text: '확정 학습자 발화' }), 'client', database);
-    const ai = randomUUID();
-    await applyLedgerCommand(runId, command({ kind: 'utterance.register', utteranceId: ai, speaker: 'ai', mode: 'voice', personaId: 'persona', provider: 'gemini' }), 'server', database);
-    await applyLedgerCommand(runId, command({ kind: 'provider.final', utteranceId: ai, text: '생성된 전체 응답' }), 'server', database);
-    await applyLedgerCommand(runId, command({ kind: 'playback.observed', utteranceId: ai, state: 'completed', scope: 'local_audio_context', playedMs: 900 }), 'client', database);
-    const ack = await applyLedgerCommand(runId, command({ kind: 'session.close', reason: 'user_end' }), 'client', database, { barrier: barrier('settled') });
-    // Feedback may be pending without completing the parent persona run.
-    await client.query("UPDATE persona_runs SET status='active' WHERE id=$1", [runId]);
-    const before = (await client.query('SELECT feedback_job_token, feedback_job_payload, duplex_runtime FROM persona_runs WHERE id=$1', [runId])).rows[0];
-    const snapshot = (await client.query('SELECT * FROM conversation_ledger_snapshots WHERE id=$1', [ack.snapshotId])).rows[0];
-    const reconnect = { id: 'after-close', personaRunId: runId, personaId: 'persona', activePersonaIndex: 0 } as RealtimeSession;
-    await expect(pinDuplexRuntime(reconnect, database, async () => [{
-      key: 'config', value: JSON.stringify(BASELINE_DUPLEX_CONFIG),
-    }])).rejects.toThrow('duplex_run_finalized');
-    expect(reconnect.duplexRuntime).toBeUndefined();
-    // Also fence a persona-switch promise that captured runtime before close.
-    const pendingSwitch = { ...reconnect, personaId: 'late-persona', activePersonaIndex: 1,
-      duplexRuntime: { ...before.duplex_runtime, finalization: undefined } } as RealtimeSession;
-    await resetCharacterPersona(pendingSwitch, database);
-    const preserved = (await client.query('SELECT duplex_runtime FROM persona_runs WHERE id=$1', [runId])).rows[0].duplex_runtime;
-    expect(preserved).toEqual(before.duplex_runtime);
-    await applyLedgerCommand(runId, command({ kind: 'playback.observed', utteranceId: ai, state: 'completed', scope: 'local_audio_context', playedMs: 950 }), 'client', database);
-    const duplicate = await applyLedgerCommand(runId, command({ kind: 'session.close', reason: 'page_exit' }), 'client', database);
-    expect(duplicate.snapshotId).toBe(ack.snapshotId);
-    expect(duplicate.cursor).toBe(ack.cursor);
-    const after = (await client.query('SELECT feedback_job_token, feedback_job_payload, duplex_runtime FROM persona_runs WHERE id=$1', [runId])).rows[0];
-    expect(after).toEqual(before);
-    expect(snapshot.content.utterances.find((row: any) => row.id === ai).metadata.playback.playedMs).toBe(900);
-    await expect(withCurrentLedgerSnapshot(runId, snapshot.id, snapshot.hash, async () => 'published', database)).resolves.toBe('published');
-  });
-  it('does not reopen a closed Ledger even when no enhanced finalization field exists', async () => {
-    const session = { id: 'baseline', personaRunId: runId, personaId: 'persona', activePersonaIndex: 0 } as RealtimeSession;
-    await pinDuplexRuntime(session, database, async () => []);
-    await applyLedgerCommand(runId, command({ kind: 'text.submit', utteranceId: randomUUID(), text: '확정 발화' }), 'client', database);
-    await applyLedgerCommand(runId, command({ kind: 'session.close', reason: 'user_end' }), 'client', database);
-    await client.query("UPDATE persona_runs SET status='active' WHERE id=$1", [runId]);
-    const before = (await client.query('SELECT duplex_runtime FROM persona_runs WHERE id=$1', [runId])).rows[0];
-    expect(before.duplex_runtime.finalization).toBeUndefined();
-    const reconnect = { ...session, id: 'closed-baseline' } as RealtimeSession;
-    await expect(pinDuplexRuntime(reconnect, database, async () => [])).rejects.toThrow('duplex_ledger_closed');
-    expect((await client.query('SELECT duplex_runtime FROM persona_runs WHERE id=$1', [runId])).rows[0]).toEqual(before);
-    expect((await readLedgerProjection(runId, 0, database)).status).toBe('closed');
-  });
-  it('preserves provisional text and unknown playback after timeout and never replaces the frozen input with a late final', async () => {
-    await enhancedRuntime();
-    await applyLedgerCommand(runId, command({ kind: 'text.submit', utteranceId: randomUUID(), text: '확정 학습자 발화' }), 'client', database);
-    const ai = randomUUID();
-    await applyLedgerCommand(runId, command({ kind: 'utterance.register', utteranceId: ai, speaker: 'ai', mode: 'voice', personaId: 'persona', provider: 'openai' }), 'server', database);
-    await applyLedgerCommand(runId, command({ kind: 'provider.interrupted', utteranceId: ai, text: '부분 원문' }), 'server', database);
-    const ack = await applyLedgerCommand(runId, command({ kind: 'session.close', reason: 'user_end' }), 'client', database, { barrier: barrier('timeout') });
-    const before = (await client.query('SELECT feedback_job_payload FROM persona_runs WHERE id=$1', [runId])).rows[0];
-    await applyLedgerCommand(runId, command({ kind: 'provider.final', utteranceId: ai, text: '더 완전한 provider 원문' }), 'server', database);
-    const frozen = (await client.query('SELECT content, blocked_reasons FROM conversation_ledger_snapshots WHERE id=$1', [ack.snapshotId])).rows[0];
-    expect(frozen.blocked_reasons.length).toBeGreaterThan(0);
-    const row = frozen.content.utterances.find((entry: any) => entry.id === ai);
-    expect(row.providerState).toBe('interrupted');
-    expect(row.playbackState).toBe('not_observed');
-    expect(row.canonicalText).toBeNull();
-    expect((await client.query('SELECT feedback_job_payload FROM persona_runs WHERE id=$1', [runId])).rows[0]).toEqual(before);
-    const live = await readLedgerProjection(runId, 0, database);
-    expect(live.utterances.find(entry => entry.id === ai)?.providerState).toBe('final');
   });
   it("rolls back state and events on commit failure; no durable ACK escapes", async () => {
     const failing = { transaction: (work: any) => database.transaction(async tx => {

@@ -31,9 +31,6 @@ export function createLiveAvatarTestRouter(service: AdminAvatarTestService = adm
   router.get("/sessions/:id", handle(async (req, res) => res.json(await service.session(req.user.id, req.params.id))));
   router.get("/sessions/:id/connection", handle(async (req, res) =>
     res.json(await service.connectionToken(req.user.id, req.params.id))));
-  router.post("/sessions/:id/client-connection", handle(async (req, res) => {
-    if (empty(req, res)) res.json(await service.managedConnection(req.user.id, req.params.id));
-  }));
   router.post("/sessions/:id/turn", handle(async (req, res) => {
     const parsed = testTurnSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ code: "avatar_test_invalid_input" }); return; }

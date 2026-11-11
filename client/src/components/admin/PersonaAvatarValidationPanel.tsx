@@ -142,7 +142,7 @@ export function PersonaAvatarValidationPanel({ assetId, assetName, onReported, o
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h4 id="persona-live-validation-title" className="flex items-center gap-2 text-sm font-bold text-slate-900">
-          <Video className="h-4 w-4 text-indigo-700" />맞춤 아바타 실제 재생 점검
+          <Video className="h-4 w-4 text-indigo-700" />Tavus 실제 재생 점검
         </h4>
         <p className="mt-1 text-xs leading-relaxed text-slate-600">{assetName} · 학습자 대화와 분리된 관리자 전용 테스트 세션입니다.</p>
       </div>
@@ -150,7 +150,7 @@ export function PersonaAvatarValidationPanel({ assetId, assetName, onReported, o
     </header>
     <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700">
       <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-indigo-700" />
-      <p>영상 프레임은 브라우저 재생 요소에서 직접 확인하고, 오디오 재생 준비와 성공한 테스트 턴을 확인합니다. 영상 시청 및 음성 청취 체크는 운영자가 직접 확인해야 합니다. 보고는 별도 버튼으로만 전송되며 외부 서비스나 실제 학습자 런타임의 독립 인증을 의미하지 않습니다.</p>
+      <p>영상 프레임은 브라우저 재생 요소에서 직접 확인하고, 오디오 재생 준비와 성공한 테스트 턴을 확인합니다. 영상 시청 및 음성 청취 체크는 운영자가 직접 확인해야 합니다. 보고는 별도 버튼으로만 전송되며 Tavus 제공자나 실제 학습자 런타임의 독립 인증을 의미하지 않습니다.</p>
     </div>
     <AvatarTestHeader test={test} />
     {test.preflight?.runtimeError && <p role="alert" className="text-xs text-amber-900">

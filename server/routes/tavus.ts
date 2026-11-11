@@ -39,8 +39,6 @@ export default function createTavusRouter(isAuthenticated: any, service = tavusS
   router.post("/pal", isSystemAdmin, handle(async () => ({ palId: await service.ensurePal() })));
   router.get("/conversations/:id/session", handle(req => service.session(req.user.id, req.params.id)));
   router.get("/conversations/:id/connection", handle(req => service.connection(req.user.id, req.params.id)));
-  router.post("/conversations/:id/client-connection", handle(req => service.managedConnection(req.user.id, req.params.id)));
-  router.post("/conversations/:id/interrupt", handle(req => service.interrupt(req.user.id, req.params.id)));
   router.post("/conversations/:id/start", handle(req => {
     const parsed = z.object({ consent: z.literal(true) }).strict().safeParse(req.body);
     if (!parsed.success) throw new TavusError("tavus_consent_required", 400);

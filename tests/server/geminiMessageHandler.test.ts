@@ -27,7 +27,7 @@ import { evaluateUserResponse } from '../../server/services/simulation/evaluateU
 function makeSession(overrides: Partial<RealtimeSession> = {}): RealtimeSession {
   return {
     id: 'test-session',
-    personaRunId: 'conv-1',
+    conversationId: 'conv-1',
     scenarioId: 'scenario-1',
     personaId: 'persona-1',
     personaName: 'TestPersona',
@@ -89,33 +89,30 @@ describe('handleGeminiMessage', () => {
     vi.clearAllMocks();
   });
 
-  describe('output boundary and source deduplication', () => {
+  describe('output dropout characterization (not a playback policy fix)', () => {
     const first = Buffer.alloc(9600, 1).toString('base64');
     const different = Buffer.alloc(9600, 2).toString('base64');
     const inline = (data: string) => ({ serverContent: { modelTurn: { parts: [{ inlineData: { data, mimeType: 'audio/pcm;rate=24000' } }] } } });
-    it.each(['top', 'inline'])('quarantines residual %s bytes until the provider boundary', source => {
+    it.each(['top', 'inline'])('forwards pre-cancel residual %s bytes as the incremented local turn without a provider boundary', source => {
       session.turnSeq = 18;
       session.geminiSession = { sendRealtimeInput: vi.fn() };
       handleClientMessage(session.id, { type: 'response.cancel' }, new Map([[session.id, session]]), sendToClient);
       expect(session.isInterrupted).toBe(true);
       expect(session.cancelledTurnSeq).toBe(18);
-      expect(sendToClient).toHaveBeenCalledWith(session, expect.objectContaining({ type: 'response.ready', turnSeq: 19 }));
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'response.ready', turnSeq: 19 });
       vi.advanceTimersByTime(86);
       handleGeminiMessage(session, source === 'top' ? { data: first } : inline(first), sendToClient, null, proactiveReconnect);
-      expect(session.awaitingOutputBoundary).toBeDefined();
-      expect(sendToClient).not.toHaveBeenCalledWith(session, expect.objectContaining({ type: 'audio.delta' }));
-      handleGeminiMessage(session, { serverContent: { interrupted: true } }, sendToClient, null, proactiveReconnect);
-      handleGeminiMessage(session, source === 'top' ? { data: different } : inline(different), sendToClient, null, proactiveReconnect);
-      expect(sendToClient).toHaveBeenCalledWith(session, expect.objectContaining({
-        type: 'audio.delta', delta: different, turnSeq: 19,
-      }));
+      expect(session.isInterrupted).toBe(false);
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'audio.delta', delta: first, turnSeq: 19,
+        pcmSampleRate: source === "inline" ? 24000 : undefined });
+      // No provider turnComplete or new input was delivered by this synthetic fixture.
     });
-    it('preserves legacy turnSeq-based resume when there is no pending explicit cancel', () => {
+    it('also accepts genuine new-turn audio, but the same local gate cannot identify residual audio', () => {
       session.isInterrupted = true;
       session.cancelledTurnSeq = 18;
       session.turnSeq = 19;
       handleGeminiMessage(session, inline(different), sendToClient, null, proactiveReconnect);
-      expect(sendToClient).toHaveBeenCalledWith(session, expect.objectContaining({ type: 'audio.delta', delta: different, turnSeq: 19, pcmSampleRate: 24000 }));
+      expect(sendToClient).toHaveBeenCalledWith(session, { type: 'audio.delta', delta: different, turnSeq: 19, pcmSampleRate: 24000 });
     });
     it.each(['top-inline', 'inline-top'])('drops distinct content on cross-frame source switch %s', order => {
       const messages = order === 'top-inline' ? [{ data: first }, inline(different)] : [inline(first), { data: different }];

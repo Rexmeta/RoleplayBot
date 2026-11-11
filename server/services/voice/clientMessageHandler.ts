@@ -6,9 +6,6 @@ import { storage } from '../../storage';
 import { finalizeUserTranscript, realtimeVoiceProvider } from './transcriptionIntegrity';
 import { beginRecognitionCapture, appendRecognitionAudio, finishRecognitionCapture } from './utteranceCapture';
 import { enableOutputDiagnostic } from './outputDiagnostic';
-import { bindVoiceInteraction } from './interactionContract';
-import { beginVoiceFinalization, finalizeLedgerVoiceCommand } from '../conversationLedger/voiceAdapter';
-import { ledgerCommandSchema } from '@shared/conversationLedger';
 
 function pushPending(session: RealtimeSession, msg: PendingOutgoingMessage): void {
   session.pendingMessages.push(msg);
@@ -86,33 +83,12 @@ export function handleClientMessage(
     console.error(`Session not found: ${sessionId}`);
     return;
   }
-  sendToClient = bindVoiceInteraction(session, sendToClient);
 
   session.lastActivityTime = Date.now();
   if (message.type === "ledger.command" && session.ledgerAdapter) {
-    if (message.command?.payload?.kind === 'session.close' && session.duplexRuntime?.config.evaluationSnapshot) {
-      const parsed = ledgerCommandSchema.safeParse(message.command);
-      if (parsed.success && parsed.data.generation === session.ledgerAdapter.generation) {
-        beginVoiceFinalization(session);
-      }
-      void finalizeLedgerVoiceCommand(session.personaRunId, message.command)
-        .then(ack => sendToClient(session, { type: 'ledger.ack', ack }))
-        .catch(() => sendToClient(session, { type: 'ledger.error', reason: 'finalization_failed' }));
-      return;
-    }
-    if (session.finalizationState && ![
-      'playback.observed', 'capture.commit', 'capture.gap', 'recognition.confirm',
-    ].includes(message.command?.payload?.kind)) {
-      sendToClient(session, { type: 'ledger.error', reason: 'ledger_closing', eventId: message.command?.eventId });
-      return;
-    }
     session.ledgerAdapter.clientCommand(message.command);
     return;
   }
-  if (session.finalizationState && [
-    'input_audio_buffer.append', 'client.user_speech.started', 'response.cancel', 'client.ready',
-    'response.create', 'conversation.item.create',
-  ].includes(message.type)) return;
 
   if (!session.geminiSession) {
     if (message.type === 'client.ready') {
@@ -433,7 +409,7 @@ export function handleClientMessage(
     }
 
     case 'response.cancel':
-      if (session.isInterrupted || session.awaitingOutputBoundary) {
+      if (session.isInterrupted) {
         console.log(`⚡ Duplicate barge-in cancel — re-syncing client with turnSeq=${session.turnSeq}`);
         sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
         break;
@@ -442,19 +418,6 @@ export function handleClientMessage(
       console.log(`⚡ Barge-in: Canceling turn ${session.turnSeq}`);
       session.isInterrupted = true;
       session.cancelledTurnSeq = session.turnSeq;
-      session.cancelledOutputKeys = [
-        ...(session.cancelledOutputKeys ?? []),
-        `${session.providerConnectionGeneration ?? 0}:${session.turnSeq}`,
-      ].slice(-256);
-      session.awaitingOutputBoundary = session.providerOutputInProgress === false ? undefined : {
-        providerGeneration: session.providerConnectionGeneration ?? 0,
-        responseId: session.activeProviderResponseId,
-      };
-      if (session.activeProviderResponseId) {
-        session.cancelledProviderResponseIds = [
-          ...(session.cancelledProviderResponseIds ?? []), session.activeProviderResponseId,
-        ].slice(-128);
-      }
 
       if (session.currentTranscript.trim()) {
         const partialTranscript = filterThinkingText(session.currentTranscript, session.userLanguage);
@@ -507,10 +470,6 @@ export function handleClientMessage(
 
       sendToClient(session, { type: 'response.interrupted' });
       sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-      // Optional native OpenAI adapter capability. Gemini retains automatic
-      // activity detection; do not inject incompatible manual activity events.
-      try { session.geminiSession.cancelResponse?.(); }
-      catch { console.warn('[voice-cancel] Provider cancel failed; local output remains invalidated'); }
       break;
 
     case 'ping':

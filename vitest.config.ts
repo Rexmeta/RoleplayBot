@@ -14,7 +14,6 @@ export default defineConfig({
       '**/dist/**',
       // Downloaded/generated external projects are not this application's tests.
       '**/generated-artifacts/**',
-      '**/.local/avatarrouter-stt-pr/**',
       '**/*.smoke.test.ts',
     ],
     environmentMatchGlobs: [

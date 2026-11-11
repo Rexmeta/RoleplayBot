@@ -87,7 +87,7 @@ export function AvatarTestPreflightView({ test }: { test: TestState }) {
       </label>
       <label className="flex cursor-pointer items-start gap-3 text-sm">
         <input className="mt-1 h-4 w-4 accent-primary" type="checkbox" checked={test.audioConfirmed} onChange={(event) => test.setAudioConfirmed(event.target.checked)} />
-        <span>입력한 텍스트와 마이크 녹음은 음성 인식·응답·음성 생성에 처리되고, 생성된 응답 음성은 외부 서비스로 전달됨에 동의합니다. 마이크 원음은 별도의 실시간 미디어 연결로 게시하지 않습니다.</span>
+        <span>입력한 텍스트·마이크 녹음은 OpenAI의 인식·응답·음성 생성에, 생성된 응답 음성은 AvatarRouter·Tavus·LiveKit에 전달됨에 동의합니다. 마이크 원음은 LiveKit에 게시하지 않습니다.</span>
       </label>
       <p className="text-xs text-muted-foreground">테스트 AI: OpenAI gpt-4o-mini / whisper-1 / tts-1. 아바타 서비스와 별도로 AI 사용료가 발생할 수 있습니다. 이 대화는 시나리오 기록·평가에 저장되지 않습니다.</p>
       <Button type="button" onClick={() => void test.createSession()} disabled={!canCreate}>

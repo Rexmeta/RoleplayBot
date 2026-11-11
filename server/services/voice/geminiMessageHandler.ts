@@ -3,7 +3,6 @@ import { observeOutputFrame } from './outputDiagnostic';
 import { RealtimeSession } from './types';
 import { filterThinkingText, isThinkingText, stripSimulationToolCallText, collapseDoubledTranscript } from './textFilter';
 import { analyzeEmotion, analyzeUserEmotion, NEUTRAL_USER_AFFECT } from './emotionAnalyzer';
-import { bindVoiceInteraction } from './interactionContract';
 import { GoogleGenAI } from '@google/genai';
 import { handleToolCall } from '../simulation/simulationToolHandler';
 import { getOrCreateSessionContext, applySimulationPatch, getSessionState, setSessionState, getSessionEvaluationHarness, getSessionHarnessConfig, getSessionFlowGraph } from '../simulation/simulationEngine';
@@ -143,68 +142,8 @@ export function handleGeminiMessage(
   genAI: GoogleGenAI | null,
   proactiveReconnect: ProactiveReconnect
 ): void {
-  const emit = sendToClient;
-  sendToClient = bindVoiceInteraction(session, sendToClient);
   sendToClient = observeOutputFrame(session, message, sendToClient);
   session.lastActivityTime = Date.now();
-  if (session.finalizationState && message.toolCall) message = { ...message, toolCall: undefined };
-  if (session.finalizationState &&
-      session.finalizationOutputGeneration !== session.turnSeq) {
-    message = { ...message, data: undefined, toolCall: undefined,
-      serverContent: message.serverContent ? {
-        ...message.serverContent, modelTurn: undefined, outputTranscription: undefined,
-      } : undefined,
-    };
-  }
-
-  const pendingBoundary = session.awaitingOutputBoundary;
-  if (pendingBoundary && pendingBoundary.providerGeneration !== (session.providerConnectionGeneration ?? 0)) {
-    session.awaitingOutputBoundary = undefined;
-  } else if (pendingBoundary) {
-    const content = message.serverContent;
-    const boundaryObserved = content?.interrupted === true || content?.turnComplete === true;
-    // Gemini supplies no per-chunk response ID. Only its explicit boundary
-    // releases quarantined output. Preserve microphone transcription in the
-    // same frame; a local cancel is NOT a user transcription finality event.
-    message = { ...message, data: undefined, toolCall: undefined };
-    if (content) {
-      message.serverContent = {
-        ...content, modelTurn: undefined, outputTranscription: undefined,
-        turnComplete: undefined,
-      };
-    }
-    if (boundaryObserved) {
-      session.awaitingOutputBoundary = undefined;
-      session.providerOutputInProgress = false;
-      session.isInterrupted = false;
-      session.cancelledTurnSeq = -1;
-      session.currentTranscript = '';
-      session.audioSourceThisTurn = null;
-      session.transcriptSourceThisTurn = null;
-      sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-    }
-  } else if (message.serverContent?.interrupted === true) {
-    session.cancelledOutputKeys = [
-      ...(session.cancelledOutputKeys ?? []),
-      `${session.providerConnectionGeneration ?? 0}:${session.turnSeq}`,
-    ].slice(-256);
-    sendToClient(session, { type: 'response.interrupted' });
-    session.turnSeq++;
-    session.currentTranscript = '';
-    session.audioSourceThisTurn = null;
-    session.transcriptSourceThisTurn = null;
-    sendToClient(session, { type: 'response.ready', turnSeq: session.turnSeq });
-    message = { ...message, data: undefined, serverContent: {
-      ...message.serverContent, modelTurn: undefined, outputTranscription: undefined, turnComplete: undefined,
-    } };
-  }
-  const outputContent = message.serverContent;
-  if (message.data || outputContent?.modelTurn || outputContent?.outputTranscription) {
-    session.providerOutputInProgress = true;
-  }
-  if (outputContent?.turnComplete || outputContent?.interrupted) {
-    session.providerOutputInProgress = false;
-  }
 
   if (message.goAway) {
     const timeLeft = message.goAway.timeLeft || 0;
@@ -451,7 +390,7 @@ export function handleGeminiMessage(
           }
           // Emit transition line as a text overlay so the client shows it while Gemini finishes the turn
           if (switched.transitionLine) {
-            bindVoiceInteraction(session, emit)(session, {
+            sendToClient(session, {
               type: 'ai.transcription.done',
               text: switched.transitionLine,
               turnSeq: session.turnSeq,

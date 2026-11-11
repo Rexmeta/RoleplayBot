@@ -32,47 +32,6 @@ const messages: any = [
 ];
 
 describe("Tavus final transcript to existing evaluation", () => {
-  it.each(["anam", "tavus"] as const)("keeps %s provenance through ledger finality and durable feedback", async provider => {
-    const provenance = { provider, projectId: "project", sessionId: "router-session", revision: "a".repeat(64) };
-    await importTavusTranscript(binding, "router-session", messages, provenance);
-    expect(mocks.apply.mock.calls[0][1].payload).toMatchObject({ provider, mode: "text" });
-    expect(mocks.apply.mock.calls[1][1].payload.metadata).toEqual({
-      sourceTimestamp: messages[0].timestamp, routerTranscript: provenance,
-    });
-    expect(mocks.enqueue.mock.calls[0][0].conversation.transcriptSource).toMatchObject({
-      provider, projectId: "project", routerSessionId: "router-session", revision: "a".repeat(64),
-    });
-  });
-  it("separates Anam IDs across projects and runs without changing old Tavus identities", async () => {
-    const provenance = { provider: "anam" as const, projectId: "one", sessionId: "same-session", revision: "a".repeat(64) };
-    await importTavusTranscript(binding, "same-session", messages, provenance);
-    const first = mocks.apply.mock.calls[0][1].payload.utteranceId;
-    mocks.apply.mockClear();
-    await importTavusTranscript(binding, "same-session", messages, { ...provenance, projectId: "two" });
-    expect(mocks.apply.mock.calls[0][1].payload.utteranceId).not.toBe(first);
-    mocks.apply.mockClear();
-    await importTavusTranscript({ ...binding, run: { ...binding.run, id: "other-run" } }, "same-session", messages, provenance);
-    expect(mocks.apply.mock.calls[0][1].payload.utteranceId).not.toBe(first);
-  });
-  it("rejects records from a different provider before writing an Anam transcript", async () => {
-    mocks.read.mockResolvedValue({ version: "ledger-v1", generation: 3, utterances: [{ provider: "tavus" }] });
-    await expect(importTavusTranscript(binding, "room", messages, {
-      provider: "anam", projectId: "project", sessionId: "room", revision: "a".repeat(64),
-    })).rejects.toMatchObject({ code: "tavus_mixed_transcript" });
-    expect(mocks.apply).not.toHaveBeenCalled();
-  });
-  it("accepts identical Anam retries after JSONB reorders provenance keys, but rejects another session", async () => {
-    const provenance = { provider: "anam" as const, projectId: "project", sessionId: "room", revision: "a".repeat(64) };
-    await importTavusTranscript(binding, "room", messages, provenance);
-    const id = mocks.apply.mock.calls[0][1].payload.utteranceId;
-    const reordered = { revision: provenance.revision, sessionId: "room", projectId: "project", provider: "anam" };
-    mocks.read.mockResolvedValue({ version: "ledger-v1", generation: 3,
-      utterances: [{ id, provider: "anam", metadata: { routerTranscript: reordered } }] });
-    await expect(importTavusTranscript(binding, "room", messages, provenance)).resolves.toBeUndefined();
-    reordered.sessionId = "other";
-    await expect(importTavusTranscript(binding, "room", messages, provenance))
-      .rejects.toMatchObject({ code: "tavus_mixed_transcript" });
-  });
   it("imports text with provider provenance and original timestamps before closing and enqueueing", async () => {
     await importTavusTranscript(binding, "provider-room", messages);
     const commands = mocks.apply.mock.calls.map(call => call[1]);
