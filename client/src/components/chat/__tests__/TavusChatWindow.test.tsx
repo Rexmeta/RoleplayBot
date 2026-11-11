@@ -353,6 +353,7 @@ describe("TavusChatWindow Daily pipeline", () => {
     await screen.findByTestId("mock-daily-room");
     expect(onChatComplete).not.toHaveBeenCalled();
     expect(syncs).toBe(0);
+    expect(screen.getByTestId("tavus-end").textContent).toContain("Finish conversation and generate report");
     fireEvent.click(screen.getByTestId("tavus-end"));
     await screen.findByTestId("tavus-feedback-waiting");
     await waitFor(() => expect(syncs).toBe(1));
