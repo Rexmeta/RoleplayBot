@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Mic2, Video } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Mic2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { ConversationMessage } from "@shared/schema";
@@ -40,6 +40,8 @@ type Props = {
   onExit: () => void;
   onReady?: () => void;
   onExitMode: (mode?: "text" | "realtime-voice") => void;
+  /** Only an explicit learner selection may create a new billable session. */
+  autoStart?: boolean;
 };
 
 const sessionUrl = (id: string) => `/api/tavus/conversations/${encodeURIComponent(id)}`;
@@ -64,7 +66,7 @@ function errorDetails(error: unknown) {
 }
 
 export default function TavusChatWindow({
-  scenario, persona, conversationId, onChatComplete, onExit, onReady, onExitMode,
+  scenario, persona, conversationId, onChatComplete, onExit, onReady, onExitMode, autoStart = false,
 }: Props) {
   const { t, i18n } = useTranslation();
   const text = (key: string, english: string, korean: string) =>
@@ -84,7 +86,6 @@ export default function TavusChatWindow({
   const displayError = (details: { code: string; message: string }) => reasonText(details.code);
   const [session, setSession] = useState<Session>({ state: "idle" });
   const [config, setConfig] = useState<Config | null>(null);
-  const [consent, setConsent] = useState(false);
   const [starting, setStarting] = useState(false);
   const [ending, setEnding] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,6 +96,8 @@ export default function TavusChatWindow({
   const [endFailed, setEndFailed] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const startedRef = useRef(false);
+  const autoStartAttemptedRef = useRef(false);
+  const startRefusedRef = useRef(false);
   const sessionStateRef = useRef<SessionState>("idle");
   const endRequestedRef = useRef(false);
   const endInFlightRef = useRef(false);
@@ -257,7 +260,15 @@ export default function TavusChatWindow({
       if (sessionStateRef.current === "idle") {
         const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`);
         const nextConfig = await response.json() as Config;
-        if (mountedRef.current) setConfig(nextConfig);
+        if (mountedRef.current) {
+          // Only a proven pre-create refusal permits another attempt after this
+          // explicit, fresh availability check. Unknown paid outcomes stay fenced.
+          if (startRefusedRef.current && nextConfig.available) {
+            autoStartAttemptedRef.current = false;
+            startRefusedRef.current = false;
+          }
+          setConfig(nextConfig);
+        }
       }
       if (next.state === "active") void checkConnection();
       if (next.state === "ended") {
@@ -340,10 +351,11 @@ export default function TavusChatWindow({
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [session.state, connection, requestSession, checkConnection, updateSession, endFailed]);
 
-  const start = async () => {
-    if (!consent || startedRef.current || starting || !config?.available) return;
+  const start = useCallback(async () => {
+    if (startedRef.current || autoStartAttemptedRef.current || starting || !config?.available) return;
+    autoStartAttemptedRef.current = true;
     startedRef.current = true;
-    // Request synchronously from the user's tap before any network awaits.
+    // Entering live mode is the learner's single start action.
     requestScreenWakeLock();
     setStarting(true);
     setError(null);
@@ -368,6 +380,7 @@ export default function TavusChatWindow({
       if (mountedRef.current) {
         const details = errorDetails(cause);
         if (details.creationAttempted === false) {
+          startRefusedRef.current = true;
           startedRef.current = false;
           releaseScreenWakeLock();
           updateSession({ state: "idle" });
@@ -379,7 +392,13 @@ export default function TavusChatWindow({
     } finally {
       if (mountedRef.current) setStarting(false);
     }
-  };
+  }, [starting, config?.available, requestScreenWakeLock, requestSession,
+    endKeepalive, updateSession, checkConnection, releaseScreenWakeLock]);
+
+  useEffect(() => {
+    if (!autoStart || loading || error || statusChecking || session.state !== "idle") return;
+    void start();
+  }, [autoStart, loading, error, statusChecking, session.state, start]);
 
   const end = async () => {
     if (endInFlightRef.current || session.state === "ended") return;
@@ -409,6 +428,8 @@ export default function TavusChatWindow({
   };
 
   const started = startedRef.current || session.state !== "idle";
+  const preparingFeedback = session.state === "ended" && evaluationAvailable &&
+    !["unavailable", "empty", "failed"].includes(transcript.transcriptState || "");
   const busy = starting || ending || session.state === "creating" || session.state === "ending";
   const labels: Record<SessionState, string> = {
     idle: text("status.ready", "Ready when you are", "준비되었습니다"),
@@ -441,17 +462,20 @@ export default function TavusChatWindow({
       {persona.image && <img src={toMediaUrl(persona.image)} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />}
       <div className="absolute inset-0 bg-black/30" />
       <div className="relative mb-4 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-black/30 text-white/80 backdrop-blur-sm">
-        {busy || loading ? <LoaderCircle className="h-7 w-7 animate-spin" /> : <Mic2 className="h-7 w-7" />}
+        {busy || loading || preparingFeedback ? <LoaderCircle className="h-7 w-7 animate-spin" /> : <Mic2 className="h-7 w-7" />}
       </div>
       <h2 className="relative text-lg font-semibold text-white">
-        {session.state === "ended" ? text("closedTitle", "This session is closed", "이 세션은 종료되었습니다") :
+        {preparingFeedback ? text("preparingFeedbackTitle", "Preparing your feedback report", "피드백 리포트를 준비하고 있습니다") :
+          session.state === "ended" ? text("closedTitle", "This session is closed", "이 세션은 종료되었습니다") :
           loading ? text("loading", "Checking session availability", "세션 상태를 확인하고 있습니다") :
             text("voiceReady", "Ready to talk", "대화할 준비가 되었습니다")}
       </h2>
       <p className="relative mt-2 max-w-md break-words text-sm leading-6 text-white/80">
-        {session.state === "ended"
+        {preparingFeedback
+          ? text("preparingFeedbackHint", "Saving confirmed conversation history and opening feedback automatically. No further action is needed.", "확정 대화 기록을 저장한 후 자동으로 피드백 생성 화면으로 이동합니다. 추가로 누를 버튼은 없습니다.")
+          : session.state === "ended"
           ? text("closedDescription", "The room is closed. Confirmed history will appear in the conversation panel when available.", "대화 공간이 종료되었습니다. 확인된 기록은 제공되는 대로 대화 패널에 표시됩니다.")
-          : text("liveReadyHint", "Use the controls below to review consent and begin.", "하단에서 이용 동의를 확인한 뒤 대화를 시작하세요.")}
+          : text("autoConnectingHint", "Connecting automatically after your live avatar selection. Allow microphone access if your browser asks.", "라이브 아바타 선택에 따라 자동으로 연결합니다. 브라우저가 요청하면 마이크 사용을 허용해 주세요.")}
       </p>
     </div>
   );
@@ -549,13 +573,7 @@ export default function TavusChatWindow({
       <p className="text-center text-[11px] text-slate-600">{text("inlineLimit", "Up to 120 seconds, including connection time.", "연결 준비를 포함해 최대 120초 동안 이용할 수 있습니다.")}</p>
       <p className="text-center text-[11px] text-slate-600">{text("inlineUnifiedContext", "Uses this session's persona and scenario instructions. Confirmed history is saved after the session ends when supported.", "이 실행의 페르소나·시나리오 지침을 사용합니다. 지원되는 경우 확정 기록은 세션 종료 후 저장합니다.")}</p>
       {!loading && config && !config.available && <p role="status" className="text-center text-xs text-amber-800">{text("inlineUnavailable", "Live avatar is temporarily unavailable. Check connection status for details.", "현재 라이브 아바타를 시작할 수 없습니다. 연결 상태를 확인해 주세요.")}</p>}
-      <label className="flex cursor-pointer items-start justify-center gap-2">
-        <input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-purple-600" data-testid="tavus-consent" />
-        <span className="text-xs leading-5 text-slate-600">{text("unifiedLiveConsent", "I consent to usage charges and sending my audio, persona, scenario and applicable organization instructions to the external live avatar service. Nothing starts until I choose Start.", "이용 요금과 음성·페르소나·시나리오·적용된 조직 지침을 외부 라이브 아바타 서비스에 전송하는 데 동의합니다. 시작 버튼을 눌러야 연결됩니다.")}</span>
-      </label>
-      <button type="button" onClick={() => void start()} disabled={!consent || busy || loading || !config?.available || startedRef.current} className="flex w-full items-center justify-center gap-2 rounded-full bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50" data-testid="tavus-start">
-        {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}{text("liveStart", "Start live avatar", "라이브 아바타 시작")}
-      </button>
+      <p className="text-center text-xs leading-5 text-slate-600">{text("singleActionNotice", "Selecting live avatar starts a usage-billed connection and sends audio, persona, scenario and applicable organization instructions to the external service.", "라이브 아바타 선택 시 이용 요금이 발생하는 연결을 시작하며, 음성·페르소나·시나리오·적용된 조직 지침을 외부 서비스에 전송합니다.")}</p>
     </div>
   ) : null;
 
@@ -580,7 +598,7 @@ export default function TavusChatWindow({
           data-testid="tavus-exit"
         >
           {started ? <CheckCircle2 className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
-          {started ? session.state === "ended" ? text("close", "Close session", "세션 닫기") : endFailed ? text("exitAnyway", "Exit anyway", "종료하고 나가기") : text("endAndExit", "End and exit", "종료하고 나가기") : text("back", "Back to chat modes", "채팅 모드로 돌아가기")}
+          {started ? session.state === "ended" ? text("close", "Close session", "세션 닫기") : endFailed ? text("exitAnyway", "Exit anyway", "종료하고 나가기") : evaluationAvailable ? text("finishWithReport", "Finish conversation and generate report", "대화 종료 및 리포트 생성") : text("endAndExit", "End and exit", "종료하고 나가기") : text("back", "Back to chat modes", "채팅 모드로 돌아가기")}
         </button>
       }
       stage={roomStage}

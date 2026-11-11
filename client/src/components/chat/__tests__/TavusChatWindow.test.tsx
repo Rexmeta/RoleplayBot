@@ -75,6 +75,62 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it("never creates a new session merely because the recovery screen was mounted", async () => {
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="recovery-only"
+      onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await screen.findByText(/Selecting live avatar starts a usage-billed connection/);
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+    expect(screen.queryByTestId("tavus-consent")).toBeNull();
+    expect(screen.queryByTestId("tavus-start")).toBeNull();
+  });
+
+  it("does not auto-create when the existing session cannot be checked", async () => {
+    apiRequestMock.mockImplementation(async (_method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true });
+      throw new Error("503: session status unavailable");
+    });
+    render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="status-failed"
+      onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await screen.findByTestId("tavus-error");
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
+
+  it.each(["tavus", "anam"])("automatically follows %s natural end and delayed history into feedback without any further click", async providerId => {
+    vi.useFakeTimers();
+    const onChatComplete = vi.fn();
+    let current: Record<string, unknown> = { state: "idle" };
+    const contract = { providerId, managedClient: true, evaluationAvailable: true };
+    apiRequestMock.mockImplementation(async (method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, ...contract });
+      if (url.endsWith("/start")) current = { state: "active", ...contract };
+      if (url === "/api/conversations/natural-end") return response({ messages: [] });
+      return response(current);
+    });
+    let view: ReturnType<typeof render> | undefined;
+    try {
+      await act(async () => {
+        view = render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="natural-end"
+          onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
+      });
+      expect(screen.getByTestId("mock-managed-room")).toBeTruthy();
+      current = { state: "ended", ...contract, transcriptState: "pending" };
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+      expect(screen.getByText("Preparing your feedback report")).toBeTruthy();
+      expect(onChatComplete).not.toHaveBeenCalled();
+      expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/sync"))).toHaveLength(1);
+      current = { state: "ended", ...contract, transcriptState: "completed" };
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+      expect(onChatComplete).toHaveBeenCalledTimes(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+      expect(onChatComplete).toHaveBeenCalledTimes(1);
+      expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/start"))).toHaveLength(1);
+      expect(apiRequestMock.mock.calls.some(([method, url]) => method === "POST" && url.endsWith("/end"))).toBe(false);
+    } finally {
+      view?.unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it.each([false, undefined])("does not recover a legacy Anam call with session availability %s after capabilities change", async evaluationAvailable => {
     const onChatComplete = vi.fn();
     apiRequestMock.mockImplementation(async (_method: string, url: string) => {
@@ -111,19 +167,20 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(apiRequestMock.mock.calls.some(call => call[1].endsWith("/client-connection"))).toBe(false);
     expect(apiRequestMock.mock.calls.some(call => call[0] === "POST")).toBe(false);
   });
-  it("opens directly on the avatar canvas with inline consent and neutral copy, not a settings screen", async () => {
+  it("starts once on explicit live entry without another checkbox or start button", async () => {
     apiRequestMock.mockImplementation(async (_method: string, url: string) => {
       if (url.startsWith("/api/tavus/config?")) return response({ available: true, providerId: "anam", blockers: [] });
+      if (url.endsWith("/start")) return response({ state: "active", providerId: "anam" });
       return response({ state: "idle" });
     });
-    const view = render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="direct-live" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    await waitFor(() => expect(screen.getByTestId("tavus-control-surface").textContent).toContain("session's persona"));
+    const view = render(<React.StrictMode><TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="direct-live" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} /></React.StrictMode>);
+    await screen.findByTestId("mock-managed-room");
     expect((screen.getByTestId("live-avatar-options-dialog") as HTMLDialogElement).open).toBe(false);
-    expect(screen.getByTestId("tavus-control-surface").contains(screen.getByTestId("tavus-consent"))).toBe(true);
-    expect(screen.getByTestId("tavus-control-surface").contains(screen.getByTestId("tavus-start"))).toBe(true);
+    expect(screen.queryByTestId("tavus-consent")).toBeNull();
+    expect(screen.queryByTestId("tavus-start")).toBeNull();
     expect(view.container.textContent).not.toMatch(/\b(Anam|Tavus)\b/i);
-    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
-    expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(true);
+    expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/start"))).toHaveLength(1);
+    expect(apiRequestMock).toHaveBeenCalledWith("POST", "/api/tavus/conversations/direct-live/start", { consent: true });
   });
 
   it("keeps the phone screen awake during a live session and releases it on end", async () => {
@@ -144,9 +201,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       if (url.endsWith("/end")) return response({ state: "ended", evaluationAvailable: false });
       return response({ state: "idle" });
     });
-    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="wake-lock-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    fireEvent.click(await screen.findByTestId("tavus-consent"));
-    fireEvent.click(screen.getByTestId("tavus-start"));
+    render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="wake-lock-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
 
     await waitFor(() => expect(request).toHaveBeenCalledWith("screen"));
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
@@ -169,10 +224,8 @@ describe("TavusChatWindow Daily pipeline", () => {
       ] });
       return response({ state: "idle" });
     });
-    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="common-run"
+    render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="common-run"
       onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    fireEvent.click(await screen.findByTestId("tavus-consent"));
-    fireEvent.click(screen.getByTestId("tavus-start"));
     await screen.findByTestId("mock-managed-room");
     fireEvent.click(screen.getByTestId("emit-router-caption"));
     expect(await screen.findByText("Unified provisional caption")).toBeTruthy();
@@ -183,7 +236,7 @@ describe("TavusChatWindow Daily pipeline", () => {
     await waitFor(() => expect(onChatComplete).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("Unified provisional caption")).toBeNull();
   });
-  it("requires explicit consent, starts a single session, retrieves Daily credentials separately, then closes without completion", async () => {
+  it("starts on entry, retrieves Daily credentials separately, and does not invent unsupported feedback", async () => {
     const onChatComplete = vi.fn();
     const onExit = vi.fn();
     apiRequestMock.mockImplementation(async (method: string, url: string) => {
@@ -193,16 +246,11 @@ describe("TavusChatWindow Daily pipeline", () => {
       if (url.endsWith("/end")) return response({ state: "ended", evaluationAvailable: false });
       return response({ state: "idle" });
     });
-    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="run-1" onChatComplete={onChatComplete} onExit={onExit} onExitMode={vi.fn()} />);
-
-    expect(await screen.findByTestId("tavus-start")).toBeTruthy();
-    expect(screen.getByText(/120 seconds, including queue and startup time/)).toBeTruthy();
-    expect(screen.getByText(/Confirmed history, when supported, becomes available after the session ends/)).toBeTruthy();
+    render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="run-1" onChatComplete={onChatComplete} onExit={onExit} onExitMode={vi.fn()} />);
+    expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     expect(screen.queryByText(/Live captions are not shown/)).toBeNull();
     fireEvent.click(screen.getByTestId("button-toggle-transcript"));
     expect(screen.getByTestId("button-toggle-transcript")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("tavus-consent"));
-    fireEvent.click(screen.getByTestId("tavus-start"));
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && String(url).endsWith("/start"))).toHaveLength(1);
     expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/tavus/conversations/run-1/session", undefined);
@@ -224,10 +272,9 @@ describe("TavusChatWindow Daily pipeline", () => {
       if (url.startsWith("/api/tavus/config?")) return response({ available: false, blockers: ["Provider is not configured"] });
       return response({ state: "idle" });
     });
-    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="blocked-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="blocked-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
     expect(await screen.findByTestId("tavus-blockers")).toBeTruthy();
-    fireEvent.click(screen.getByTestId("tavus-consent"));
-    expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId("tavus-start")).toBeNull();
     expect(apiRequestMock.mock.calls.some(([method, url]) => method === "POST" && String(url).endsWith("/start"))).toBe(false);
   });
 
@@ -239,9 +286,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       if (url.endsWith("/end")) return response({ state: "ended" });
       return response({ state: "idle" });
     });
-    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="unknown-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    fireEvent.click(await screen.findByTestId("tavus-consent"));
-    fireEvent.click(screen.getByTestId("tavus-start"));
+    render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="unknown-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
     expect(await screen.findByTestId("tavus-error")).toBeTruthy();
     await waitFor(() => expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && String(url).endsWith("/start"))).toHaveLength(1));
     expect(screen.queryByTestId("tavus-start")).toBeNull();
@@ -260,14 +305,13 @@ describe("TavusChatWindow Daily pipeline", () => {
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="capacity" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
     expect(await screen.findByText(/live avatar service is not ready/)).toBeTruthy();
     expect(screen.getByTestId("tavus-runtime-limits").textContent).toContain("80s");
-    fireEvent.click(screen.getByTestId("tavus-consent"));
-    expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId("tavus-start")).toBeNull();
     blocked = false;
     fireEvent.click(screen.getByTestId("tavus-availability-retry"));
-    await waitFor(() => expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(screen.queryByTestId("tavus-blockers")).toBeNull());
     expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
   });
-  it("allows manual retry only after an explicit pre-create refusal and a fresh free check", async () => {
+  it("retries only after a proven pre-create refusal and an explicit fresh availability check", async () => {
     let attempts = 0;
     apiRequestMock.mockImplementation(async (method: string, url: string) => {
       if (url.startsWith("/api/tavus/config?")) return response({ available: true, blockers: [] });
@@ -279,18 +323,13 @@ describe("TavusChatWindow Daily pipeline", () => {
       }
       return response({ state: "idle" });
     });
-    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="safe-retry" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    fireEvent.click(await screen.findByTestId("tavus-consent"));
-    fireEvent.click(screen.getByTestId("tavus-start"));
+    render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="safe-retry" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
     await screen.findByTestId("tavus-error");
     expect(screen.getByTestId("tavus-session-status").textContent).toContain("Ready when you are");
-    expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId("tavus-start")).toBeNull();
     expect(attempts).toBe(1);
     expect(screen.queryByTestId("tavus-end-retry")).toBeNull();
     fireEvent.click(screen.getByTestId("tavus-availability-retry"));
-    await waitFor(() => expect((screen.getByTestId("tavus-start") as HTMLButtonElement).disabled).toBe(false));
-    expect(attempts).toBe(1);
-    fireEvent.click(screen.getByTestId("tavus-start"));
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     expect(attempts).toBe(2);
   });
@@ -347,15 +386,14 @@ describe("TavusChatWindow Daily pipeline", () => {
       if (url === "/api/conversations/report-flow") return response({ messages: [] });
       return response({ state: "idle" });
     });
-    const view = render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="report-flow" onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    fireEvent.click(await screen.findByTestId("tavus-consent"));
-    fireEvent.click(screen.getByTestId("tavus-start"));
+    const view = render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="report-flow" onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
     await screen.findByTestId("mock-daily-room");
     expect(onChatComplete).not.toHaveBeenCalled();
     expect(syncs).toBe(0);
     expect(screen.getByTestId("tavus-end").textContent).toContain("Finish conversation and generate report");
     fireEvent.click(screen.getByTestId("tavus-end"));
     await screen.findByTestId("tavus-feedback-waiting");
+    expect(screen.getByText("Preparing your feedback report")).toBeTruthy();
     await waitFor(() => expect(syncs).toBe(1));
     expect(onChatComplete).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("tavus-transcript-retry"));
@@ -542,9 +580,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       }
       return response({ state: "ended", evaluationAvailable: true, transcriptState: "completed" });
     });
-    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="caption-final" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    fireEvent.click(await screen.findByTestId("tavus-consent"));
-    fireEvent.click(screen.getByTestId("tavus-start"));
+    render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="caption-final" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     act(() => {
       roomMock.mock.calls.at(-1)?.[0].onCaption?.({

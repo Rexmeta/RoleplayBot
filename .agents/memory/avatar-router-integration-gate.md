@@ -113,7 +113,13 @@ Saved persona live configuration is a reference, not permission to auto-create a
 
 **Why:** The user requested both selected-avatar testing in persona editing and functioning scenario live avatars, while preserving existing behavior remains an explicit requirement.
 
-**How to apply:** Require global/scenario permission, the run's own selected persona reference, current provider readiness, and explicit cost/audio-transfer consent. Custom provisioning/ready status is not playback validation. Keep old snapshot-bound conversations immutable.
+**How to apply:** Require global/scenario permission, the run's own selected persona reference, current provider readiness, and explicit learner selection of live playback. Custom provisioning/ready status is not playback validation. Keep old snapshot-bound conversations immutable.
+
+학습자 라이브 아바타는 진입 후 동의 체크와 다시 시작 버튼을 요구하지 않는다. 라이브 선택 한 번으로 연결하고 대화 종료 후 피드백 리포트 생성 과정으로 자동 진행한다.
+
+**Why:** 사용자가 학습자 진입의 중복 동의·시작 단계를 제거하고 종료 후 자동 리포트 진행을 명시했다.
+
+**How to apply:** 이용 요금·외부 전송 안내와 명시적 라이브 선택은 유지하되 별도 체크박스를 추가하지 않는다. 단순 복구 화면 진입이나 관리자 설정 열기로 유료 세션을 생성하지 않는다. 확정 기록 저장·피드백 작업 접수 조건과 불확실한 유료 생성의 재시도 차단은 유지한다. 관리자 진단의 별도 동의 정책은 이 변경의 대상이 아니다.
 
 Implementation approval is not permission to execute paid/media E2E during development or publish production changes. A client playback report is an operator observation, not independent provider certification.
 
