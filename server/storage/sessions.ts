@@ -3,6 +3,28 @@ import { db } from "./db";
 import { eq, asc, desc, inArray, and, isNotNull, ne, sql, gte, like, notLike } from "drizzle-orm";
 import { hasLedgerProtocol, ledgerChatMessages } from "../services/conversationLedger/transcript";
 import { LedgerError } from "../services/conversationLedger/policy";
+import { users } from "@shared/schema";
+import { ledgerRuntimeBinding } from "../services/conversationLedger/transcript";
+import { resolveConversationLanguage } from "../../shared/conversationLanguage";
+import { isNull } from "drizzle-orm";
+
+async function ownerLanguage(scenarioRunId: string) {
+  const [owner] = await db.select({ language: users.preferredLanguage }).from(scenarioRuns)
+    .innerJoin(users, eq(users.id, scenarioRuns.userId)).where(eq(scenarioRuns.id, scenarioRunId));
+  return owner?.language;
+}
+
+/** Compare-and-set keeps concurrent first accesses from changing a legacy run. */
+async function pinLanguage(run: PersonaRun | undefined): Promise<PersonaRun | undefined> {
+  if (!run || run.language != null) return run;
+  const bound = run.transcriptProtocol === "ledger-v1" ? await ledgerRuntimeBinding(run.id) : null;
+  const language = resolveConversationLanguage(bound?.language, undefined, await ownerLanguage(run.scenarioRunId));
+  const [pinned] = await db.update(personaRuns).set({ language })
+    .where(and(eq(personaRuns.id, run.id), isNull(personaRuns.language))).returning();
+  if (pinned) return pinned;
+  const [winner] = await db.select().from(personaRuns).where(eq(personaRuns.id, run.id));
+  return winner;
+}
 
 export type ScenarioRunWithPersonaRuns = ScenarioRun & { personaRuns: PersonaRun[] };
 export type EmotionStat = { emotion: string; count: number };
@@ -119,18 +141,20 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
     }
 
     async createPersonaRun(insertPersonaRun: InsertPersonaRun): Promise<PersonaRun> {
-      const [personaRun] = await db.insert(personaRuns).values(insertPersonaRun).returning();
+      const language = resolveConversationLanguage(undefined, insertPersonaRun.language,
+        insertPersonaRun.language == null ? await ownerLanguage(insertPersonaRun.scenarioRunId) : undefined);
+      const [personaRun] = await db.insert(personaRuns).values({ ...insertPersonaRun, language }).returning();
       return personaRun;
     }
 
     async getPersonaRun(id: string): Promise<PersonaRun | undefined> {
       const [personaRun] = await db.select().from(personaRuns).where(eq(personaRuns.id, id));
-      return personaRun;
+      return pinLanguage(personaRun);
     }
 
     async getPersonaRunByConversationId(conversationId: string): Promise<PersonaRun | undefined> {
       const [personaRun] = await db.select().from(personaRuns).where(eq(personaRuns.conversationId, conversationId));
-      return personaRun;
+      return pinLanguage(personaRun);
     }
 
     async updatePersonaRun(id: string, updates: Partial<PersonaRun>): Promise<PersonaRun> {

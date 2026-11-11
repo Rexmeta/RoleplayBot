@@ -15,6 +15,7 @@ import { supportsAvatarFinalTranscript } from "../../../shared/avatar/personaAva
 
 type State = "creating" | "create_unknown" | "active" | "ending" | "ended";
 export interface TavusSession {
+  language?: import("../../../shared/conversationLanguage").ConversationLanguage;
   state: State; token: string; userId: string; runId: string; createdAt: string;
   sessionId?: string; projectId?: string; avatarId?: string; assetId?: string | null;
   expiresAt?: string; lastError?: string;
@@ -91,6 +92,7 @@ export class TavusSessions {
     const transcriptState = untrustedAnam ? "unavailable" :
       session?.transcriptState ?? "unavailable";
     return { state: session?.state ?? "idle",
+      ...(session?.language ? { language: session.language } : {}),
       ...(session?.sessionId ? { id: session.sessionId } : {}),
       ...(session?.rendererState !== undefined ? { rendererState: session.rendererState } : {}),
       ...(session?.cleanupPending !== undefined ? { cleanupPending: session.cleanupPending } : {}),
@@ -168,6 +170,7 @@ export class TavusSessions {
     const token = randomUUID();
     const pending = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => current ?? {
       state: "creating", token, userId, runId, createdAt: new Date().toISOString(),
+      language: binding.language,
       projectId: target.projectId, avatarId: target.avatarId, assetId: target.assetId,
       providerId: target.providerId ?? "tavus",
       managedClient: true,
@@ -264,8 +267,10 @@ export class TavusSessions {
     await this.session(userId, runId);
     const { session } = await this.owned(userId, runId);
     const trusted = session?.providerId !== "anam" || session.transcriptContract === "router-unified-v1";
-    if (!session || session.state !== "ended" ||
-        trusted && (session.transcriptState === "completed" || session.transcriptState === "empty")) return this.publicSession(session);
+    // Anam calls that began without retention/evaluation disclosure cannot be
+    // upgraded by a later project capability change.
+    if (!session || !trusted || session.state !== "ended" ||
+        session.transcriptState === "completed" || session.transcriptState === "empty") return this.publicSession(session);
     // Discovery is fresh and independent of runtime budget/worker availability.
     const auth = await this.deps.connection.check(userId);
     if (auth.projectId !== session.projectId) throw new TavusError("persona_avatar_project_mismatch", 409);
@@ -280,7 +285,8 @@ export class TavusSessions {
     const token = randomUUID();
     const claimed = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => {
       if (!current || current.state !== "ended" ||
-          trusted && (current.transcriptState === "completed" || current.transcriptState === "empty") ||
+          (current.providerId === "anam" && current.transcriptContract !== "router-unified-v1") ||
+          current.transcriptState === "completed" || current.transcriptState === "empty" ||
           (current.transcriptLeaseUntil ?? 0) > now ||
           (current.transcriptRetryAt ?? 0) > now) return current!;
       return { ...current, transcriptState: "importing", transcriptLeaseToken: token,

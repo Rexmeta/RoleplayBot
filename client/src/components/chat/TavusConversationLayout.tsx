@@ -10,8 +10,10 @@ import { TranscriptPanel } from "./TranscriptPanel";
 import { ConversationModeMenu } from "./ConversationModeMenu";
 import { LiveAvatarOptionsDialog } from "./LiveAvatarOptionsDialog";
 import { VoiceControlSurface, VoiceOverlayHeader } from "./VoiceConversationChrome";
+import { ConversationLanguageNotice } from "./ConversationLanguageNotice";
 
 export interface TavusConversationLayoutProps {
+  language?: import("@shared/conversationLanguage").ConversationLanguage;
   scenario: ComplexScenario;
   persona: ScenarioPersona;
   statusLabel: string;
@@ -36,6 +38,7 @@ function formatRemainingTime(seconds: number) {
 }
 
 export default function TavusConversationLayout({
+  language,
   scenario,
   persona,
   statusLabel,
@@ -220,6 +223,7 @@ export default function TavusConversationLayout({
           <LiveAvatarOptionsDialog open={isOptionsOpen} onClose={() => setIsOptionsOpen(false)}>
             <div className="space-y-4">
               <section aria-label={tx("chat.settings", "Conversation settings", "대화 설정")}>
+                <ConversationLanguageNotice language={language} />
                 {sessionControls}
               </section>
               <details className="border-t border-slate-200 pt-3 text-sm text-slate-700">

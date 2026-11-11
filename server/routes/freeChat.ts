@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { storage } from "../storage";
+import { resolveConversationLanguage } from "../../shared/conversationLanguage";
 import { generateAIResponse } from "../services/aiServiceFactory";
 import { buildFreeChatPersona, buildFreeChatScenario, asyncHandler, createHttpError } from "./routerHelpers";
 import { normalizeProfileName } from "../services/conversationContextBuilder";
@@ -76,6 +77,7 @@ export default function createFreeChatRouter(isAuthenticated: any) {
       scenarioName: `자유 대화 - ${mbtiPersona.mbti}`,
       personaId: mbtiPersona.id,
       personaSnapshot,
+      language: personaRun.language,
       turnCount: 0,
       status: "active",
       mode,
@@ -90,7 +92,7 @@ export default function createFreeChatRouter(isAuthenticated: any) {
 
     const persona = buildFreeChatPersona(mbtiPersona);
     const freeChatScenario = buildFreeChatScenario(mbtiPersona, difficulty);
-    const userLanguage = (user?.preferredLanguage as "ko" | "en" | "ja" | "zh") || "ko";
+    const userLanguage = resolveConversationLanguage(undefined, personaRun.language, user?.preferredLanguage);
     const userName = normalizeProfileName(user?.name);
 
     const aiResult = await Promise.race([

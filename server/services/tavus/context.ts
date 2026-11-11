@@ -3,6 +3,7 @@ import { fileManager } from "../fileManager";
 import { ledgerRuntimeBinding } from "../conversationLedger/transcript";
 import { assertImportedSnapshotComplete, buildRuntimePersonaProfile, findRuntimePersona, resolveRuntimeScenario } from "../runtimeScenario";
 import { TavusError } from "./client";
+import { resolveConversationLanguage } from "../../../shared/conversationLanguage";
 
 export const ROLEPLAY_PAL_PROMPT = `You are RoleplayX's role-playing actor, not a coach or evaluator.
 Each conversation supplies ROLEPLAY_SESSION_DATA containing your assigned character and scenario.
@@ -78,9 +79,7 @@ export async function resolveTavusContext(userId: string, runId: string, deps = 
   const persona = { ...(profile ?? actor._runtimeProfile ?? {}), ...actor,
     ...buildRuntimePersonaProfile(actor, profile, !!bound.scenarioSnapshot) };
   const user = await deps.storage.getUser(userId);
-  const preferredLanguage = ledger?.language ?? user?.preferredLanguage;
-  const language = (["ko", "en", "ja", "zh"].includes(preferredLanguage ?? "")
-    ? preferredLanguage : "ko") as "ko" | "en" | "ja" | "zh";
+  const language = resolveConversationLanguage(ledger?.language, run.language, user?.preferredLanguage);
   return { run, scenarioRun, scenario, persona, language,
     immutableContext: !!bound.scenarioSnapshot || synthetic,
     evaluationHarnessSnapshot: bound.evaluationHarnessSnapshot as Record<string, any> | null,

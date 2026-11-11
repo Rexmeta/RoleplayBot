@@ -617,6 +617,7 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
       const personaRun = await storage.createPersonaRun({
         scenarioRunId: scenarioRun.id,
         personaId,
+        language,
         personaName: scenarioPersona.name,
         personaSnapshot: {},
         mbtiType: scenarioPersona.mbti ?? scenarioPersona.personaRef?.replace(".json", "") ?? null,

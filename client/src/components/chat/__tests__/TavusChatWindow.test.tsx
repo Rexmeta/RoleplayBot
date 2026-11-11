@@ -75,6 +75,23 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it.each([false, undefined])("does not recover a legacy Anam call with session availability %s after capabilities change", async evaluationAvailable => {
+    const onChatComplete = vi.fn();
+    apiRequestMock.mockImplementation(async (_method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({
+        available: true, providerId: "anam", managedClient: true, evaluationAvailable: true,
+      });
+      return response({
+        state: "ended", providerId: "anam", managedClient: true,
+        evaluationAvailable, transcriptState: "unavailable",
+      });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="legacy-anam"
+      onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTestId("tavus-session-status").textContent).toContain("Session closed"));
+    expect(apiRequestMock.mock.calls.some(([method, url]) => method === "POST" && url.endsWith("/sync"))).toBe(false);
+    expect(onChatComplete).not.toHaveBeenCalled();
+  });
   it.each([undefined, false])("recovers a persisted legacy Daily call with managedClient=%s despite new config defaults", async managedClient => {
     apiRequestMock.mockImplementation(async (method: string, url: string) => {
       if (url.startsWith("/api/tavus/config?")) return response({
@@ -346,10 +363,10 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("recovers an older unavailable session when fresh discovery advertises confirmed transcripts", async () => {
+  it("preserves older Tavus recovery when fresh discovery advertises confirmed transcripts", async () => {
     const onChatComplete = vi.fn();
     apiRequestMock.mockImplementation(async (method: string, url: string) => {
-      if (url.startsWith("/api/tavus/config?")) return response({ available: true, evaluationAvailable: true });
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, providerId: "tavus", evaluationAvailable: true });
       if (method === "POST" && url.endsWith("/sync")) return response({
         state: "ended", evaluationAvailable: true, transcriptState: "completed",
       });

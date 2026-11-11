@@ -164,6 +164,21 @@ describe('RealtimeVoiceService — session.recentMessages population on createSe
   });
 
   describe('createSession (scenario persona)', () => {
+    it.each(['en', 'ja', 'zh', 'ko'] as const)('keeps pinned %s after a profile language change in both persona paths', async language => {
+      const transcript = await import('../../server/services/conversationLedger/transcript');
+      vi.mocked(transcript.ledgerRuntimeBinding).mockResolvedValue(null);
+      mockGetPersonaRun.mockResolvedValue({ language, voiceRecognitionRequired: false });
+      const profileLanguage = language === "en" ? "ko" : "en";
+      await service.createSession(SESSION_ID, CONVERSATION_ID, SCENARIO_ID, PERSONA_ID, USER_ID,
+        { readyState: 1, send: vi.fn() } as any, 4, profileLanguage);
+      expect((service as any).sessions.get(SESSION_ID).userLanguage).toBe(language);
+      mockGetUserPersonaById.mockResolvedValue({ id: "custom", name: "Custom", personality: {} });
+      vi.mocked(transcript.ledgerRuntimeBinding).mockResolvedValue({ language });
+      await service.createSession("custom-session", CONVERSATION_ID, "__user_persona__:custom", "custom", USER_ID,
+        { readyState: 1, send: vi.fn() } as any, 4, profileLanguage);
+      expect((service as any).sessions.get("custom-session").userLanguage).toBe(language);
+      vi.mocked(transcript.ledgerRuntimeBinding).mockResolvedValue(null);
+    });
     it.each(['en', 'ja', 'zh', 'ko'] as const)('preserves %s/legacy voice and AI context when verification is not required', async language => {
       mockGetChatMessagesByPersonaRun.mockResolvedValue([
         { sender: 'user', message: 'Original voice transcript', voiceTurnId: 'voice-user:legacy:1' },

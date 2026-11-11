@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { resolveConversationLanguage } from '../../shared/conversationLanguage';
 import { conversationAvatarSessions } from './liveAvatar/conversationSessions';
 import { finishRecognitionCapture } from './voice/utteranceCapture';
 import { listRecognitionEvidence } from './voice/recognitionEvidence';
@@ -288,19 +289,19 @@ export class RealtimeVoiceService {
 
     console.log(`🎙️ Creating realtime voice session: ${sessionId} (${currentSessionCount + 1}/${MAX_CONCURRENT_SESSIONS})`);
 
+    const ledgerBinding = await ledgerRuntimeBinding(conversationId);
+    const languageRun = await storage.getPersonaRun(conversationId);
+    userLanguage = resolveConversationLanguage(ledgerBinding?.language, languageRun?.language, userLanguage);
     if (scenarioId.startsWith('__user_persona__:')) {
       return this.createUserPersonaSession(
         sessionId, conversationId, scenarioId, personaId, userId, clientWs, userLanguage, sessionStartTime
       );
     }
-
-    const ledgerBinding = await ledgerRuntimeBinding(conversationId);
     if (ledgerBinding) {
       boundScenarioRun = {
         ...boundScenarioRun, scenarioId, scenarioSnapshot: ledgerBinding.scenarioSnapshot,
         evaluationHarnessSnapshot: ledgerBinding.evaluationHarnessSnapshot,
       };
-      userLanguage = normalizeVoiceLanguage(ledgerBinding.language);
       userSelectedDifficulty = ledgerBinding.difficulty;
     }
     const liveScenario = boundScenarioRun?.scenarioSnapshot

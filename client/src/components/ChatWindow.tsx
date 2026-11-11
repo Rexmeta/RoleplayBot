@@ -23,6 +23,7 @@ import SimulationPanel from "@/components/SimulationPanel";
 
 import { useConversationTimer, formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
+import { ConversationLanguageNotice } from "@/components/chat/ConversationLanguageNotice";
 import { emotionEmojis } from "@/hooks/chat/useEmotionState";
 import { useAvatarRenderer } from "@/hooks/chat/useAvatarRenderer";
 import { useChatMessages } from "@/hooks/chat/useChatMessages";
@@ -438,7 +439,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     }
   }, [earlyConnect, inputMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { data: conversation, error } = useQuery<Conversation>({
+  const { data: conversation, error } = useQuery<Conversation & { language?: import("@shared/conversationLanguage").ConversationLanguage }>({
     queryKey: ["/api/conversations", conversationId],
     enabled: !!conversationId,
     refetchOnWindowFocus: realtimeVoice.conversationPhase !== 'active',
@@ -479,6 +480,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   }, [setConversationStartTime, setElapsedTime]);
 
   const { isRecording, speechSupported, startRecording, stopRecording, removeInterimText, cleanup: cleanupVoiceRecording } = useVoiceRecording({
+    language: conversation?.language,
     onTranscript: (transcript) => setUserInput(prev => { const t = removeInterimText(prev); return t + (t ? ' ' : '') + transcript; }),
     onInterimTranscript: (interim) => {
       if (interim === '') setUserInput(prev => removeInterimText(prev));
@@ -968,6 +970,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
       </TopMenuPanel>
 
       <div className="chat-window relative">
+        <ConversationLanguageNotice language={conversation?.language} />
         {scenarioRunId && (
           <div className="mx-auto mb-3 max-w-5xl px-3 sm:px-4">
             {scenarioRunQuery.isLoading

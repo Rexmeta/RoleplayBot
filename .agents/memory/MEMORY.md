@@ -37,3 +37,4 @@
 - [Audit cursor timestamp precision](audit-cursor-timestamp-precision.md) — PostgreSQL timestamp를 JS Date로 변환하면 마이크로초 정밀도가 사라져 커서 경계에서 중복·누락이 생길 수 있다.
 - [로컬 PostgreSQL 통합 테스트](isolated-postgres-test-runtime.md) — 임시 DB 서버와 Vitest는 한 셸 호출에서 실행하고, 로컬 접속은 `sslmode=disable`로 설정한다.
 - [자동 충돌 병합 검증](conflict-merge-validation.md) — 표시된 충돌 밖에서도 선언이 중복될 수 있으므로 병합 계속 전에 타입 검사와 관련 테스트를 실행한다.
+- [대화 언어 고정 정책](conversation-language-policy.md) — 실행 언어는 모드 간 유지하고 프로필 변경은 새 대화에 적용; 과거 언어 기록이 없으면 복구했다고 주장하지 않는다.

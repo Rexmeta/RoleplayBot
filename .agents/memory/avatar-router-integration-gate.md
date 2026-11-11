@@ -48,6 +48,18 @@ Provider availability does not establish transport or dialogue ownership. Check 
 
 **How to apply:** Prefer the router-hosted common client when its live advertised contract supports it. Keep native microphone/dialogue ownership exclusive, single-start handoffs non-retryable, and unsupported scenario-context/transcript capabilities explicit rather than pretending to preserve them.
 
+Historical Anam calls started while feedback was disclosed as unavailable must
+not gain transcript retention or evaluation after router capabilities change.
+
+**Why:** A current capability does not supply creation-time consent for externally
+held conversation transcripts. Tavus legacy recovery has a different existing
+disclosure contract and must not be conflated with undisclosed Anam retention.
+
+**How to apply:** Require Anam's creation-time transcript contract before import,
+including the atomic import claim. Existing Anam UI sessions use their own
+availability, not current project discovery. Keep new-session imports and
+previously supported Tavus recovery covered by regression tests.
+
 Anam session role/organization instructions require a ratified router contract
 and an explicit deployed capability, not just native full-pipeline support.
 Proposed capability names are not authorization to send new request fields.

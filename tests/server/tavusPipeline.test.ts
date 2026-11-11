@@ -98,7 +98,7 @@ describe("AvatarRouter Full Pipeline", () => {
       });
       deps.connection.check.mockResolvedValue({
         projectId: "project", integration: {
-          features: ["anam_full_pipeline", "anam_final_transcript_v1", "tavus_final_transcript_v1"],
+          features: ["anam_full_pipeline", "anam_final_transcript_v1", "tavus_final_transcript_v1", "unified_final_transcript"],
         },
       });
       expect(await service.session("owner", "run")).toMatchObject({
@@ -110,6 +110,7 @@ describe("AvatarRouter Full Pipeline", () => {
       expect(deps.client.call).not.toHaveBeenCalled();
       expect(deps.resolve).not.toHaveBeenCalled();
       expect(deps.importTranscript).not.toHaveBeenCalled();
+      expect(rows.get("run:run")).not.toHaveProperty("transcriptContract");
     },
   );
   it("rejects another user's Anam history before any router read or import", async () => {

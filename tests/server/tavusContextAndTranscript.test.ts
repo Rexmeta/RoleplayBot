@@ -7,6 +7,22 @@ import { adaptTavusTranscript, transcriptIdentity } from "../../server/services/
 import { ledgerPayloadSchema } from "../../shared/conversationLedger";
 
 describe("Tavus dynamic context", () => {
+  it.each(["ko", "en", "ja", "zh"])("keeps %s in the avatar context after profile changes", async language => {
+    const deps: any = {
+      storage: {
+        getPersonaRun: vi.fn(async () => ({ personaId: "p", scenarioRunId: "sr", difficulty: 3, language: "en" })),
+        getScenarioRun: vi.fn(async () => ({ userId: "owner", scenarioId: "s" })),
+        getScenario: vi.fn(), getMbtiPersona: vi.fn(),
+        getUser: vi.fn(async () => ({ preferredLanguage: "zh" })),
+      }, fileManager: { getAllScenarios: vi.fn() },
+      ledgerRuntimeBinding: vi.fn(async () => ({ language, scenarioSnapshot: {
+        id: "s", title: "Frozen", personas: [{ id: "p", name: "Actor", _runtimeProfile: {} }],
+      } })),
+    };
+    const result = await resolveTavusContext("owner", "run", deps);
+    expect(result.language).toBe(language);
+    expect(result.context).toContain(`"language":"${language}"`);
+  });
   it("varies character and scenario without changing the common PAL", () => {
     const first = buildTavusContext({ title: "납기 협상", objectives: ["일정 합의"] },
       { name: "김 팀장", personality: "단호함", goal: "품질 보장" }, "ko", 4);

@@ -14,6 +14,7 @@ import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../S
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
+  language?: import("@shared/conversationLanguage").ConversationLanguage;
   state: SessionState;
   providerId?: "tavus" | "anam";
   managedClient?: boolean;
@@ -161,7 +162,9 @@ export default function TavusChatWindow({
   const usesManagedClient = session.state === "idle"
     ? config?.managedClient ?? isAnam
     : session.managedClient ?? isAnam;
-  const evaluationAvailable = session.evaluationAvailable === true || config?.evaluationAvailable === true;
+  const evaluationAvailable = isAnam && session.state !== "idle"
+    ? session.evaluationAvailable === true
+    : session.evaluationAvailable === true || config?.evaluationAvailable === true;
   const transcript = useTavusTranscript<Session>({
     conversationId,
     session,
@@ -561,6 +564,7 @@ export default function TavusChatWindow({
       scenario={scenario}
       persona={persona}
       statusLabel={labels[session.state]}
+      language={session.language}
       active={session.state === "active"}
       elapsedSeconds={elapsedSeconds}
       remainingSeconds={remainingSeconds}
