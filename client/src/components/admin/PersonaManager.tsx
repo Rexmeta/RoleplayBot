@@ -1741,7 +1741,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                   image: (formData.gender === 'male'
                     ? formData.images.male?.expressions?.중립
                     : formData.images.female?.expressions?.중립) || formData.images.base || '',
-                  names: getPersonaUsageInScenarios(formData.id).filter(usage => usage.name?.trim()),
+                  personaId: formData.id,
                 }}
                 videoManagementAllowed={canManageVideoAvatar}
                 activeVideoEnabled={formData.videos?.enabled ?? false}

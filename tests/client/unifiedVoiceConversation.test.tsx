@@ -31,6 +31,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("shared voice and live-avatar conversation experience", () => {
+  it("shows the assigned scenario name rather than the reusable avatar's persona ID", () => {
+    const { rerender } = render(<TavusConversationLayout {...props}
+      persona={{ ...props.persona, id: "entj", name: "김 팀장", liveAvatar: { name: "entj" } } as any} />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("김 팀장");
+    rerender(<TavusConversationLayout {...props}
+      persona={{ ...props.persona, id: "entj", name: "박 부장", liveAvatar: { name: "entj" } } as any} />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("박 부장");
+    expect(screen.queryByText("entj")).toBeNull();
+  });
   it("uses the same header/control primitives as the existing voice screen", () => {
     const standard = readFileSync("client/src/components/ChatWindow.tsx", "utf8");
     const live = readFileSync("client/src/components/chat/TavusConversationLayout.tsx", "utf8");

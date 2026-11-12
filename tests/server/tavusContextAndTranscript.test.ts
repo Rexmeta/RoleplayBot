@@ -48,13 +48,17 @@ describe("Tavus dynamic context", () => {
         getScenarioRun: vi.fn(async () => ({ userId: "owner", scenarioId: "scenario" })),
         getScenario: vi.fn(async () => ({ id: "scenario", title: "Negotiation",
           personas: [{ id: "actor", name: "Manager", personaRef: "ENTJ.json" }] })),
-        getMbtiPersona: vi.fn(async () => ({ communication_style: "직설적", communication_patterns: { opening_style: "짧게" } })),
+        getMbtiPersona: vi.fn(async () => ({ name: "entj", liveAvatar: { name: "entj" },
+          communication_style: "직설적", communication_patterns: { opening_style: "짧게" } })),
         getUser: vi.fn(async () => ({ preferredLanguage: "ko" })),
       },
       fileManager: { getAllScenarios: vi.fn() }, ledgerRuntimeBinding: vi.fn(async () => null),
     };
     const result = await resolveTavusContext("owner", "run", deps);
     expect(result.context).toContain("직설적");
+    expect(result.persona.name).toBe("Manager");
+    expect(result.context).toContain('"name":"Manager"');
+    expect(result.context).not.toContain('"name":"entj"');
     expect(deps.storage.getMbtiPersona).toHaveBeenCalledWith("entj");
     await expect(resolveTavusContext("other", "run", deps)).rejects.toMatchObject({ status: 403 });
     expect(deps.storage.getScenario).toHaveBeenCalledTimes(1);

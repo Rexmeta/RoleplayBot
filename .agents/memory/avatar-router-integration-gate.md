@@ -121,11 +121,11 @@ Saved persona live configuration is a reference, not permission to auto-create a
 
 **How to apply:** 이용 요금·외부 전송 안내와 명시적 라이브 선택은 유지하되 별도 체크박스를 추가하지 않는다. 단순 복구 화면 진입이나 관리자 설정 열기로 유료 세션을 생성하지 않는다. 확정 기록 저장·피드백 작업 접수 조건과 불확실한 유료 생성의 재시도 차단은 유지한다. 관리자 진단의 별도 동의 정책은 이 변경의 대상이 아니다.
 
-페르소나 내부 커스텀 아바타 생성은 등록된 합성 인물의 기본·중립 이미지를 재사용하고, 표시 이름은 시나리오의 페르소나 정보에서 가져온다.
+페르소나 내부 커스텀 아바타 생성은 등록된 합성 인물의 기본·중립 이미지를 재사용한다. 생성 이름은 페르소나 ID를 사용하고, 실제 대화창과 역할 지침의 이름은 시나리오에 배정된 이름을 사용한다.
 
-**Why:** 사용자가 이미지·인물 유형을 다시 입력하지 않고 기존 페르소나 정보를 사용하도록 요청했다. 공용 페르소나는 시나리오마다 이름이 다를 수 있다.
+**Why:** 사용자가 재사용 가능한 아바타 자산의 생성 이름과 시나리오별 대화 이름을 분리하도록 명시했다. 기존 이미지·합성 인물 설정을 재사용하라는 요구는 유지된다.
 
-**How to apply:** 선택 성별의 중립 이미지를 우선 사용한다. 여러 시나리오에 연결됐으면 사용할 시나리오를 명시적으로 선택하게 하고, 이름이 없으면 MBTI나 임의의 이름으로 대체하지 않는다. 외부 전송·권리·비용 확인은 별도로 유지한다.
+**How to apply:** 선택 성별의 중립 이미지를 우선 사용하고, 생성할 때 시나리오 선택을 요구하지 않는다. 자산 이름이나 페르소나 ID로 시나리오의 배역 이름을 덮어쓰지 않는다. 외부 전송·권리·비용 확인은 별도로 유지한다.
 
 Implementation approval is not permission to execute paid/media E2E during development or publish production changes. A client playback report is an operator observation, not independent provider certification.
 

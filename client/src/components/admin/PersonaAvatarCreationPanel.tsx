@@ -7,7 +7,7 @@ import { toMediaUrl } from "@/lib/mediaUrl";
 
 export type PersonaAvatarSource = {
   image: string;
-  names: Array<{ scenarioId: string; scenarioTitle: string; name: string }>;
+  personaId: string;
 };
 
 async function readPersonaImage(image: string): Promise<string> {
@@ -85,12 +85,9 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange, sour
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [scenarioId, setScenarioId] = useState("");
   const submittedSource = useRef<string | null>(null);
-  const selectedName = source?.names.find(option => option.scenarioId === scenarioId) ??
-    (source?.names.length === 1 ? source.names[0] : undefined);
-  const effectiveName = source ? selectedName?.name.trim() ?? "" : name.trim();
-  const sourceKey = source ? JSON.stringify([source.image, selectedName?.scenarioId, effectiveName]) : "";
+  const effectiveName = source ? source.personaId.trim() : name.trim();
+  const sourceKey = source ? JSON.stringify([source.image, effectiveName]) : "";
   const currentSource = useRef(sourceKey);
   currentSource.current = sourceKey;
   const sourceChanged = Boolean(source && submittedSource.current && submittedSource.current !== sourceKey);
@@ -226,22 +223,12 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange, sour
       동의 검토가 끝날 때까지 학습용 사용은 차단됩니다. 검토 완료 후 상태를 다시 조회하고, 서버가 같은 이미지의 재개를 허용하면 선택된 동일 이미지로 수동 제출할 수 있습니다.
     </div>}
     {source ? <div className="mt-4 space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs text-slate-600">등록된 페르소나의 기본·중립 이미지와 시나리오의 이름을 사용합니다. 인물 유형은 합성 인물입니다.</p>
+      <p className="text-xs text-slate-600">등록된 기본·중립 이미지를 사용하며, 인물 유형은 합성 인물입니다. 생성 이름은 페르소나 ID를 사용하고 실제 대화에서는 시나리오에 배정된 이름을 사용합니다.</p>
       {source.image ? <img src={toMediaUrl(source.image)} alt="커스텀 아바타에 사용할 페르소나 기본 이미지" className="h-32 w-32 rounded-md object-cover" /> :
         <p role="alert" className="text-xs text-red-800">페르소나에 기본·중립 이미지를 먼저 등록하세요.</p>}
-      {source.names.length > 1 ? <label className="block text-xs font-semibold text-slate-700">이름을 사용할 시나리오
-        <select value={selectedName?.scenarioId ?? ""} disabled={busy || Boolean(state && state.stage !== "idle")}
-          onChange={event => {
-            setScenarioId(event.target.value);
-            setRightsConfirmed(false); setTransferConfirmed(false); setCostConfirmed(false);
-          }} className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3">
-          <option value="">시나리오를 선택하세요</option>
-          {source.names.map(option => <option key={option.scenarioId} value={option.scenarioId}>{option.scenarioTitle} · {option.name}</option>)}
-        </select>
-      </label> : null}
-      <p className="text-sm text-slate-800">표시 이름: <strong>{effectiveName || "시나리오의 페르소나 이름이 필요합니다"}</strong></p>
-      {effectiveName.length > 80 && <p role="alert" className="text-xs text-red-800">시나리오의 페르소나 이름은 80자 이하여야 합니다.</p>}
-      {!source.names.length && <p role="alert" className="text-xs text-red-800">이 페르소나를 사용하는 시나리오에 이름을 먼저 등록하세요.</p>}
+      <p className="text-sm text-slate-800">생성 이름 · 페르소나 ID: <strong>{effectiveName || "페르소나 ID가 필요합니다"}</strong></p>
+      {effectiveName.length > 80 && <p role="alert" className="text-xs text-red-800">생성에 사용할 페르소나 ID는 80자 이하여야 합니다.</p>}
+      {!effectiveName && <p role="alert" className="text-xs text-red-800">페르소나 ID를 먼저 등록하세요.</p>}
       {sourceChanged && <p role="alert" className="text-xs text-red-800">진행 중인 작업과 페르소나 정보가 다릅니다. 기존 작업 상태를 먼저 확인하세요.</p>}
     </div> : <div className="mt-4 grid gap-3 md:grid-cols-2">
       <label className="text-xs font-semibold text-slate-700">표시 이름
