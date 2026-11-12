@@ -81,6 +81,27 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it("shows the router's exhausted budget instead of claiming the saved stock avatar is ready or auto-connecting", async () => {
+    apiRequestMock.mockImplementation(async (_method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({
+        available: false, selectable: true, providerId: "tavus",
+        blockers: ["avatar_runtime_user_budget_insufficient", "avatar_runtime_creation_blocked"],
+        runtime: { userRemainingSeconds: 0, globalRemainingSeconds: 3600, sessionSeconds: 600,
+          resetsAt: "2026-11-13T00:00:00.000Z" },
+      });
+      return response({ state: "idle" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="stock-budget"
+      onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    const status = await screen.findByTestId("tavus-stage-status");
+    expect(status.textContent).toContain("Your remaining avatar time is shorter than one session");
+    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe("Connection unavailable");
+    expect(screen.queryByText("Ready to talk")).toBeNull();
+    expect(screen.queryByText(/Connecting automatically/)).toBeNull();
+    expect((screen.getByTestId("button-live-avatar-microphone") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("button-live-avatar-microphone"));
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
   it("uses the voice-style early-exit header and leaves mode switching to the bottom menu", async () => {
     const exit = vi.fn();
     const exitMode = vi.fn();
@@ -108,6 +129,8 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(screen.queryByText(/including connection time/)).toBeNull();
     expect(screen.queryByText(/Uses this session's persona and scenario instructions/)).toBeNull();
     expect(screen.queryByText(/Press the microphone to start a usage-billed connection/)).toBeNull();
+    expect(screen.queryByText(/Connecting automatically/)).toBeNull();
+    expect(screen.queryByTestId("tavus-stage-status")).toBeNull();
     expect(screen.getByTestId("tavus-runtime-limits").textContent).toContain("600s");
     expect(screen.queryByText(/120 seconds/)).toBeNull();
     expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
@@ -355,7 +378,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       return response({ state: "idle" });
     });
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="capacity" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    expect(await screen.findByText(/live avatar service is not ready/)).toBeTruthy();
+    expect((await screen.findByTestId("tavus-stage-status")).textContent).toMatch(/live avatar service is not ready/);
     expect(screen.getByTestId("tavus-runtime-limits").textContent).toContain("80s");
     expect(screen.queryByTestId("tavus-start")).toBeNull();
     blocked = false;

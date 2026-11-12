@@ -447,6 +447,7 @@ export default function TavusChatWindow({
     ended: text("status.ended", "Session closed", "세션 종료됨"),
   };
   const blockers = config?.blockers || [];
+  const idleUnavailable = session.state === "idle" && !loading && !config?.available;
   const elapsedSeconds = session.createdAt && Number.isFinite(Date.parse(session.createdAt))
     ? Math.max(0, Math.floor((clockNow - Date.parse(session.createdAt)) / 1000))
     : 0;
@@ -469,21 +470,27 @@ export default function TavusChatWindow({
       {persona.image && <img src={toMediaUrl(persona.image)} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />}
       <div className="absolute inset-0 bg-black/30" />
       <div className="relative mb-4 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-black/30 text-white/80 backdrop-blur-sm">
-        {busy || loading || preparingFeedback ? <LoaderCircle className="h-7 w-7 animate-spin" /> : <Mic2 className="h-7 w-7" />}
+        {busy || loading || preparingFeedback ? <LoaderCircle className="h-7 w-7 animate-spin" />
+          : idleUnavailable ? <CircleAlert className="h-7 w-7" /> : <Mic2 className="h-7 w-7" />}
       </div>
       <h2 className="relative text-lg font-semibold text-white">
         {preparingFeedback ? text("preparingFeedbackTitle", "Preparing your feedback report", "피드백 리포트를 준비하고 있습니다") :
           session.state === "ended" ? text("closedTitle", "This session is closed", "이 세션은 종료되었습니다") :
           loading ? text("loading", "Checking session availability", "세션 상태를 확인하고 있습니다") :
+            idleUnavailable ? labels.idle :
             text("voiceReady", "Ready to talk", "대화할 준비가 되었습니다")}
       </h2>
-      <p className="relative mt-2 max-w-md break-words text-sm leading-6 text-white/80">
+      {(session.state !== "idle" || idleUnavailable) && <p
+        data-testid="tavus-stage-status"
+        role={idleUnavailable ? "status" : undefined}
+        className="relative mt-2 max-w-md break-words text-sm leading-6 text-white/80">
         {preparingFeedback
           ? text("preparingFeedbackHint", "Saving confirmed conversation history and opening feedback automatically. No further action is needed.", "확정 대화 기록을 저장한 후 자동으로 피드백 생성 화면으로 이동합니다. 추가로 누를 버튼은 없습니다.")
           : session.state === "ended"
           ? text("closedDescription", "The room is closed. Confirmed history will appear in the conversation panel when available.", "대화 공간이 종료되었습니다. 확인된 기록은 제공되는 대로 대화 패널에 표시됩니다.")
-          : text("autoConnectingHint", "Connecting automatically after your live avatar selection. Allow microphone access if your browser asks.", "라이브 아바타 선택에 따라 자동으로 연결합니다. 브라우저가 요청하면 마이크 사용을 허용해 주세요.")}
-      </p>
+          : idleUnavailable ? reasonText(error?.code ?? blockers[0] ?? "REQUEST_FAILED")
+          : text("connectingMedia", "Connecting to the live avatar. Allow microphone access if your browser asks.", "라이브 아바타에 연결하고 있습니다. 브라우저가 요청하면 마이크 사용을 허용해 주세요.")}
+      </p>}
     </div>
   );
   const historyContent = session.state !== "ended" ? (
