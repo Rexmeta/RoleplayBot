@@ -1737,6 +1737,12 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
               </div>
 
               <PersonaAvatarSettings
+                creationSource={{
+                  image: (formData.gender === 'male'
+                    ? formData.images.male?.expressions?.중립
+                    : formData.images.female?.expressions?.중립) || formData.images.base || '',
+                  names: getPersonaUsageInScenarios(formData.id).filter(usage => usage.name?.trim()),
+                }}
                 videoManagementAllowed={canManageVideoAvatar}
                 activeVideoEnabled={formData.videos?.enabled ?? false}
                 mode={formData.avatarMode ?? (formData.videos?.enabled ? 'video' : 'image')}

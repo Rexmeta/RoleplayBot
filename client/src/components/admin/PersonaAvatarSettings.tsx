@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
 import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar } from '@shared/avatar/personaAvatar';
 import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
-import { PersonaAvatarCreationPanel } from '@/components/admin/PersonaAvatarCreationPanel';
+import { PersonaAvatarCreationPanel, type PersonaAvatarSource } from '@/components/admin/PersonaAvatarCreationPanel';
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 import { LiveAvatarTestPanel } from '@/components/admin/LiveAvatarTestPanel';
 import { AnamAvatarTestPanel } from '@/components/admin/AnamAvatarTestPanel';
@@ -33,6 +33,7 @@ type AvatarAsset = {
 type AssetResponse = { projectId: string; assets: AvatarAsset[]; stockAvatars: PersonaStockAvatar[]; runtimeAvailable: false };
 
 type Props = {
+  creationSource?: PersonaAvatarSource;
   mode: PersonaAvatarMode;
   liveAvatar: PersonaLiveAvatar | null;
   videoManagementAllowed?: boolean;
@@ -68,7 +69,7 @@ function errorMessage(error: unknown): string {
   return message || '아바타 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
-export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false }: Props) {
+export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false, creationSource }: Props) {
   const [assets, setAssets] = useState<AvatarAsset[] | null>(null);
   const [stockAvatars, setStockAvatars] = useState<PersonaStockAvatar[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -387,7 +388,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 </Button>
               </div>
               <div className={creationOpen ? 'mt-3' : ''} hidden={!creationOpen} aria-hidden={!creationOpen}>
-                <PersonaAvatarCreationPanel onSubmitted={() => void loadAssets()} onActivityChange={setCreationBusy} />
+                <PersonaAvatarCreationPanel source={creationSource} onSubmitted={() => void loadAssets()} onActivityChange={setCreationBusy} />
               </div>
             </section>
           )}

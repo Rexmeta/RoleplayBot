@@ -3,6 +3,30 @@ import { AlertTriangle, CheckCircle2, RefreshCw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import type { PersonaAvatarCreationInput, PersonaAvatarCreationState } from "@shared/avatar/personaAvatarCreation";
+import { toMediaUrl } from "@/lib/mediaUrl";
+
+export type PersonaAvatarSource = {
+  image: string;
+  names: Array<{ scenarioId: string; scenarioTitle: string; name: string }>;
+};
+
+async function readPersonaImage(image: string): Promise<string> {
+  const url = new URL(toMediaUrl(image), window.location.origin);
+  // Never send app credentials to an externally hosted existing persona image.
+  if (url.protocol !== "https:" && url.origin !== window.location.origin) throw new Error("기본 이미지 주소를 확인하세요.");
+  const response = url.origin === window.location.origin
+    ? await apiRequest("GET", `${url.pathname}${url.search}`)
+    : await fetch(url.href, { credentials: "omit", redirect: "error" });
+  if (!response.ok) throw new Error("등록된 기본 이미지를 읽지 못했습니다.");
+  if (Number(response.headers.get("content-length")) > 4_500_000) throw new Error("기본 이미지는 4.5MB 이하여야 합니다.");
+  const blob = await response.blob();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(blob.type) || blob.size > 4_500_000) {
+    throw new Error("기본 이미지는 4.5MB 이하의 JPEG, PNG 또는 WebP여야 합니다.");
+  }
+  const encoded = await imageAsBase64(new File([blob], "persona-default", { type: blob.type }));
+  if (encoded.length > 6_000_000) throw new Error("이미지 크기가 허용 범위를 초과합니다.");
+  return encoded;
+}
 
 const endpoint = "/api/admin/personas/live-avatar/creation";
 
@@ -43,7 +67,11 @@ const stageLabels: Record<PersonaAvatarCreationState["stage"], string> = {
   provisioning: "제공자 작업 중", submitted: "제출 완료",
 };
 
-export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { onSubmitted: () => void; onActivityChange?: (active: boolean) => void }) {
+export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange, source }: {
+  onSubmitted: () => void;
+  onActivityChange?: (active: boolean) => void;
+  source?: PersonaAvatarSource;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const [likeness, setLikeness] = useState<"synthetic" | "real_person">("synthetic");
@@ -57,6 +85,15 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [scenarioId, setScenarioId] = useState("");
+  const submittedSource = useRef<string | null>(null);
+  const selectedName = source?.names.find(option => option.scenarioId === scenarioId) ??
+    (source?.names.length === 1 ? source.names[0] : undefined);
+  const effectiveName = source ? selectedName?.name.trim() ?? "" : name.trim();
+  const sourceKey = source ? JSON.stringify([source.image, selectedName?.scenarioId, effectiveName]) : "";
+  const currentSource = useRef(sourceKey);
+  currentSource.current = sourceKey;
+  const sourceChanged = Boolean(source && submittedSource.current && submittedSource.current !== sourceKey);
   const mounted = useRef(false);
   const fileSequence = useRef(0);
   const onActivityChangeRef = useRef(onActivityChange);
@@ -65,6 +102,10 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
     mounted.current = true;
     return () => { mounted.current = false; fileSequence.current++; };
   }, []);
+  useEffect(() => {
+    if (!source) return;
+    setRightsConfirmed(false); setTransferConfirmed(false); setCostConfirmed(false);
+  }, [sourceKey]);
 
   const selectFile = async (file?: File) => {
     if (!file) return;
@@ -106,7 +147,8 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
     (state.consentStatus === "verified" || state.consentStatus === "not_required");
   const imageLocked = Boolean(state?.imageId && imageBase64 && state.stage !== "idle");
   const blocked = Boolean(state?.uncertain || state?.stage === "ingesting" || state?.stage === "provisioning" || state?.stage === "submitted");
-  const canSubmit = Boolean(name.trim() && imageBase64 && rightsConfirmed && transferConfirmed && costConfirmed &&
+  const canSubmit = Boolean(effectiveName && effectiveName.length <= 80 && (source ? source.image : imageBase64) &&
+    !sourceChanged && rightsConfirmed && transferConfirmed && costConfirmed &&
     (likeness !== "real_person" || consentReference.trim()) && !busy && !blocked && !pendingReview &&
     (!state || state.stage === "idle" || resumeReady));
   useEffect(() => {
@@ -116,12 +158,20 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
   const submit = async () => {
     if (!canSubmit) return;
     setBusy(true); setError(""); setNotice("");
-    const payload: PersonaAvatarCreationInput = {
-      name: name.trim(), imageBase64, likeness,
-      ...(likeness === "real_person" ? { consentReference: consentReference.trim() } : {}),
-      rightsConfirmed: true, transferConfirmed: true, costConfirmed: true,
-    };
+    let postAttempted = false;
     try {
+      const encoded = source ? await readPersonaImage(source.image) : imageBase64;
+      if (!mounted.current || (source && currentSource.current !== sourceKey)) {
+        if (mounted.current) setError("페르소나 정보가 변경되었습니다. 현재 정보를 확인하고 다시 제출하세요.");
+        return;
+      }
+      const payload: PersonaAvatarCreationInput = {
+        name: effectiveName, imageBase64: encoded, likeness: source ? "synthetic" : likeness,
+        ...(!source && likeness === "real_person" ? { consentReference: consentReference.trim() } : {}),
+        rightsConfirmed: true, transferConfirmed: true, costConfirmed: true,
+      };
+      postAttempted = true;
+      submittedSource.current = sourceKey;
       const response = await apiRequest("POST", endpoint, payload);
       const result = await response.json() as { state: unknown };
       if (!mounted.current) return;
@@ -137,6 +187,10 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
       }
     } catch (cause) {
       if (!mounted.current) return;
+      if (!postAttempted) {
+        setError(messageFor(cause));
+        return;
+      }
       // This exact code is returned before image ingestion or paid provisioning.
       // Keep all ambiguous POST outcomes fenced; never generalize this to other 409s.
       if (cause instanceof Error && /persona_avatar_contract_upgrade_required/.test(cause.message)) {
@@ -171,7 +225,25 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
     {pendingReview && <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
       동의 검토가 끝날 때까지 학습용 사용은 차단됩니다. 검토 완료 후 상태를 다시 조회하고, 서버가 같은 이미지의 재개를 허용하면 선택된 동일 이미지로 수동 제출할 수 있습니다.
     </div>}
-    <div className="mt-4 grid gap-3 md:grid-cols-2">
+    {source ? <div className="mt-4 space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs text-slate-600">등록된 페르소나의 기본·중립 이미지와 시나리오의 이름을 사용합니다. 인물 유형은 합성 인물입니다.</p>
+      {source.image ? <img src={toMediaUrl(source.image)} alt="커스텀 아바타에 사용할 페르소나 기본 이미지" className="h-32 w-32 rounded-md object-cover" /> :
+        <p role="alert" className="text-xs text-red-800">페르소나에 기본·중립 이미지를 먼저 등록하세요.</p>}
+      {source.names.length > 1 ? <label className="block text-xs font-semibold text-slate-700">이름을 사용할 시나리오
+        <select value={selectedName?.scenarioId ?? ""} disabled={busy || Boolean(state && state.stage !== "idle")}
+          onChange={event => {
+            setScenarioId(event.target.value);
+            setRightsConfirmed(false); setTransferConfirmed(false); setCostConfirmed(false);
+          }} className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3">
+          <option value="">시나리오를 선택하세요</option>
+          {source.names.map(option => <option key={option.scenarioId} value={option.scenarioId}>{option.scenarioTitle} · {option.name}</option>)}
+        </select>
+      </label> : null}
+      <p className="text-sm text-slate-800">표시 이름: <strong>{effectiveName || "시나리오의 페르소나 이름이 필요합니다"}</strong></p>
+      {effectiveName.length > 80 && <p role="alert" className="text-xs text-red-800">시나리오의 페르소나 이름은 80자 이하여야 합니다.</p>}
+      {!source.names.length && <p role="alert" className="text-xs text-red-800">이 페르소나를 사용하는 시나리오에 이름을 먼저 등록하세요.</p>}
+      {sourceChanged && <p role="alert" className="text-xs text-red-800">진행 중인 작업과 페르소나 정보가 다릅니다. 기존 작업 상태를 먼저 확인하세요.</p>}
+    </div> : <div className="mt-4 grid gap-3 md:grid-cols-2">
       <label className="text-xs font-semibold text-slate-700">표시 이름
         <input value={name} onChange={event => setName(event.target.value.slice(0, 80))} maxLength={80} className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal" placeholder="예: 고객 상담 코치" />
       </label>
@@ -192,7 +264,7 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
           <span className="min-w-0 break-all text-xs text-slate-600">{imageName || "파일을 직접 선택하세요. 선택 전에는 업로드되지 않습니다."}</span>
         </div>
       </div>
-    </div>
+    </div>}
     <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 text-xs text-slate-700 md:grid-cols-3">
       <Confirm checked={rightsConfirmed} onChange={setRightsConfirmed} label="이미지 사용 권리와 초상 사용 권한을 확인했습니다." />
       <Confirm checked={transferConfirmed} onChange={setTransferConfirmed} label="이미지가 외부 서비스에 전송됨을 확인했습니다." />
@@ -204,6 +276,7 @@ export function PersonaAvatarCreationPanel({ onSubmitted, onActivityChange }: { 
       </Button>
       {state?.stage === "submitted" && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => {
         fileSequence.current++;
+        submittedSource.current = null;
         setState(null); setImageBase64(""); setImageName(""); setName("");
         setConsentReference(""); setLikeness("synthetic");
         setRightsConfirmed(false); setTransferConfirmed(false); setCostConfirmed(false);
