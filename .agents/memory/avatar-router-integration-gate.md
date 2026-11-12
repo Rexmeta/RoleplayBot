@@ -127,6 +127,12 @@ Saved persona live configuration is a reference, not permission to auto-create a
 
 **How to apply:** 선택 성별의 중립 이미지를 우선 사용하고, 생성할 때 시나리오 선택을 요구하지 않는다. 자산 이름이나 페르소나 ID로 시나리오의 배역 이름을 덮어쓰지 않는다. 외부 전송·권리·비용 확인은 별도로 유지한다.
 
+등록된 기본 이미지가 Tavus 학습 요건을 충족한다고 가정하지 않는다. 사용자는 실제 학습 실패 사유로 배꼽 아래·전신 구도와 가슴 위로 올린 손·팔 제한을 전달했다.
+
+**Why:** 일반 페르소나 표시용 이미지와 제공자의 학습용 이미지 요건은 다르다. 중립 표정만 선택해도 구도·자세 조건까지 보장되지는 않는다.
+
+**How to apply:** 현재 모델의 공식 이미지 요건을 확인하고 원본을 보존한 학습용 파생 이미지 또는 라우터 측 보정을 검토한다. Phoenix-4.5 이미지 문서는 JPG/PNG, 최소 512×512, 상반신·내린 팔을 요구하며 `auto_fix_training_image`를 안내한다. 이 제공자 옵션을 앱에서 직접 호출하거나 미지원 공통 API 필드로 보내지 않는다. 커스텀 학습 실패와 기본 아바타의 통화 생성 실패는 세션 연결 근거 없이 같은 원인으로 단정하지 않는다.
+
 Implementation approval is not permission to execute paid/media E2E during development or publish production changes. A client playback report is an operator observation, not independent provider certification.
 
 **Why:** External image/audio transfer, likeness rights, provider charges and production changes have separate consent boundaries.
