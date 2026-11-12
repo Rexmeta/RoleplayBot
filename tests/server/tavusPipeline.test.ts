@@ -12,6 +12,7 @@ vi.mock("../../server/storage", () => ({ storage: {} }));
 import { TavusSessions } from "../../server/services/tavus/sessions";
 import { TavusError, TavusClient, createdPalSchema } from "../../server/services/tavus/client";
 import { dailyConnectionSchema } from "../../server/services/tavus/routerContracts";
+import { tavusLimitsSchema } from "../../server/services/tavus/runtimeLimits";
 import { createHash } from "node:crypto";
 
 let rows: Map<string, any>, deps: any, service: TavusSessions, remote: any, limits: any;
@@ -190,6 +191,18 @@ describe("AvatarRouter Full Pipeline", () => {
     expect(deps.client.call.mock.calls.map((call: any[]) => call[1])).toEqual(["/live-limits"]);
     deps.selection.mockResolvedValue({ blockers: ["avatar_persona_not_selected"] });
     expect(await service.config("owner", "run")).toMatchObject({ available: false, selectable: false, blockers: ["avatar_persona_not_selected"] });
+  });
+  it("accepts the router's 600-second full-pipeline limit and starts once without the old diagnostic cap", async () => {
+    limits.sessionSeconds = 600;
+    expect(tavusLimitsSchema.safeParse(limits).success).toBe(true);
+    expect(await service.config("owner", "run")).toMatchObject({
+      available: true, maxSeconds: 600, runtime: { sessionSeconds: 600 },
+    });
+    await service.start("owner", "run", true);
+    expect(deps.client.call.mock.calls.filter((call: any[]) => call[1] === "/sessions")).toHaveLength(1);
+  });
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY, "600"])("rejects invalid router session duration %s", sessionSeconds => {
+    expect(tavusLimitsSchema.safeParse({ ...limits, sessionSeconds }).success).toBe(false);
   });
   it.each([
     [{ workerReady: false }, "avatar_runtime_worker_unavailable"],

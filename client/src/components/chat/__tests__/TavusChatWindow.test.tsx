@@ -11,6 +11,7 @@ const { apiRequestMock, roomMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/queryClient", () => ({ apiRequest: apiRequestMock }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "test-user" } }) }));
 vi.mock("../DailyAvatarRoom", () => ({ default: roomMock }));
 vi.mock("../ManagedAvatarRoom", () => ({ default: (props: any) => (
   <div data-testid="mock-managed-room">
@@ -75,6 +76,19 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it("shows the router's current 600-second limit rather than the legacy 120-second notice", async () => {
+    apiRequestMock.mockImplementation(async (_method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({
+        available: true, runtime: { sessionSeconds: 600, userRemainingSeconds: 3000, globalRemainingSeconds: 6600, resetsAt: "tomorrow" },
+      });
+      return response({ state: "idle" });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="duration"
+      onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTestId("tavus-duration-notice").textContent).toContain("600 seconds"));
+    expect(screen.queryByText(/120 seconds/)).toBeNull();
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
   it("never creates a new session merely because the recovery screen was mounted", async () => {
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="recovery-only"
       onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
@@ -325,7 +339,7 @@ describe("TavusChatWindow Daily pipeline", () => {
     });
     render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="safe-retry" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
     await screen.findByTestId("tavus-error");
-    expect(screen.getByTestId("tavus-session-status").textContent).toContain("Ready when you are");
+    expect(screen.getByTestId("tavus-session-status").textContent).toContain("Connection unavailable");
     expect(screen.queryByTestId("tavus-start")).toBeNull();
     expect(attempts).toBe(1);
     expect(screen.queryByTestId("tavus-end-retry")).toBeNull();
