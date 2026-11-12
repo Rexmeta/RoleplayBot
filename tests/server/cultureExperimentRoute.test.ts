@@ -26,6 +26,10 @@ vi.mock("../../server/services/aiUsageTracker", () => ({
 }));
 vi.mock("../../server/services/cultureMap/experiment", () => ({ runCultureExperiment: mocks.run }));
 import createCultureExperimentRouter from "../../server/routes/cultureExperiment";
+import { ExperimentLeaseStore, EXPERIMENT_LEASE_MS } from "../../server/services/cultureMap/experimentLease";
+
+vi.mock("../../server/storage/db", () => ({ db: {} }));
+const leases = new Map<string, { token: string; expiresAt: number }>();
 
 const variant = { enabled: true, profileId: "00000000-0000-4000-8000-000000000001", profileVersion: 1, intensity: 70, overrides: {} };
 const input = (mode = "provider") => ({ mode, confirmPaidRun: true, fixed: DEFAULT_EXPERIMENT_FIXED, variants: [variant], repetitions: 1 });
@@ -39,6 +43,22 @@ function app(role = "admin") {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  leases.clear();
+  vi.spyOn(ExperimentLeaseStore.prototype, "acquire").mockImplementation(async (userId, token) => {
+    const active = [...leases.entries()].filter(([, lease]) => lease.expiresAt > Date.now());
+    if (active.some(([id]) => id === userId) || active.length >= 2) return false;
+    leases.set(userId, { token, expiresAt: Date.now() + EXPERIMENT_LEASE_MS });
+    return true;
+  });
+  vi.spyOn(ExperimentLeaseStore.prototype, "renew").mockImplementation(async (userId, token) => {
+    const lease = leases.get(userId);
+    if (!lease || lease.token !== token || lease.expiresAt <= Date.now()) return false;
+    lease.expiresAt = Date.now() + EXPERIMENT_LEASE_MS;
+    return true;
+  });
+  vi.spyOn(ExperimentLeaseStore.prototype, "release").mockImplementation(async (userId, token) => {
+    if (leases.get(userId)?.token === token) leases.delete(userId);
+  });
   mocks.policy.mockResolvedValue({ provider: "gemini", model: "test-model" });
   mocks.create.mockReturnValue({ generateStreamingResponse: vi.fn(), generateText: mocks.text });
   mocks.list.mockResolvedValue([{ id: variant.profileId, version: 1, name: "프로필", country: "국가", dimensions: newCultureValues() }]);
@@ -170,7 +190,7 @@ describe("explicit AI autofill", () => {
     expect(response.text).not.toContain("SECRET");
     expect((await request(api).post(path).send({})).status).toBe(200);
   });
-  it("times out, aborts the text request and allows retry", async () => {
+  it("times out, aborts the text request and quarantines the lease until expiry", async () => {
     const api = app();
     let started!: () => void;
     const ready = new Promise<void>(resolve => { started = resolve; });
@@ -190,6 +210,73 @@ describe("explicit AI autofill", () => {
       expect(response.status).toBe(504);
       expect(signal.aborted).toBe(true);
     } finally { vi.useRealTimers(); }
-    expect((await request(api).post(path).send({})).status).toBe(200);
+    expect((await request(app()).post(path).send({})).status).toBe(409);
+    leases.get("user")!.expiresAt = 0;
+    expect((await request(app()).post(path).send({})).status).toBe(200);
+  });
+  it("fails closed on lock-store outage without exposing internal errors or starting AI", async () => {
+    vi.mocked(ExperimentLeaseStore.prototype.acquire).mockRejectedValue(new Error("SECRET_CONNECTION"));
+    for (const [path, body] of [
+      ["/api/simulation/culture-experiment/autofill", {}],
+      ["/api/simulation/culture-experiment", input()],
+    ] as const) {
+      const response = await request(app()).post(path).send(body);
+      expect(response.status).toBe(503);
+      expect(response.text).not.toContain("SECRET");
+    }
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("rechecks ownership just before autofill's paid call", async () => {
+    vi.mocked(ExperimentLeaseStore.prototype.renew).mockResolvedValue(false);
+    expect((await request(app()).post(path).send({})).status).toBe(503);
+    expect(mocks.text).not.toHaveBeenCalled();
+    expect(ExperimentLeaseStore.prototype.release).not.toHaveBeenCalled();
+  });
+  it("aborts on heartbeat failure and suppresses an SDK result that arrives late", async () => {
+    let finish!: (value: string) => void;
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => { started = resolve; });
+    let signal!: AbortSignal;
+    mocks.text.mockImplementationOnce((_prompt, options) => {
+      signal = options.signal;
+      started();
+      return new Promise<string>(resolve => { finish = resolve; });
+    });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const first = request(app()).post(path).send({}).then(response => response);
+      await ready;
+      vi.mocked(ExperimentLeaseStore.prototype.renew).mockRejectedValue(new Error("DB down"));
+      await vi.advanceTimersByTimeAsync(20000);
+      expect((await first).status).toBe(503);
+      expect(signal.aborted).toBe(true);
+      finish(JSON.stringify({ fixed: DEFAULT_EXPERIMENT_FIXED, variants: [{ profileId: variant.profileId, profileVersion: 1, intensity: 50 }] }));
+      await Promise.resolve();
+      expect(ExperimentLeaseStore.prototype.release).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it("renews a healthy long-running request beyond the original lease expiry", async () => {
+    let finish!: (value: string) => void;
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => { started = resolve; });
+    mocks.text.mockImplementationOnce(() => {
+      started();
+      return new Promise<string>(resolve => { finish = resolve; });
+    });
+    // Exercise the same guard through comparison, which has no autofill deadline.
+    mocks.run.mockImplementationOnce(async (_input, _variants, deps) => {
+      await deps.assertActive();
+      return mocks.text();
+    });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      const first = request(app()).post("/api/simulation/culture-experiment").send(input()).then(response => response);
+      await ready;
+      await vi.advanceTimersByTimeAsync(EXPERIMENT_LEASE_MS + 1000);
+      expect((await request(app()).post(path).send({})).status).toBe(409);
+      finish("completed");
+      expect((await first).status).toBe(200);
+      expect(leases.size).toBe(0);
+    } finally { vi.useRealTimers(); }
   });
 });
