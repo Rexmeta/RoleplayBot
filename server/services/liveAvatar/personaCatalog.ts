@@ -25,7 +25,7 @@ export class PersonaAvatarCatalog {
   async list(userId: string) {
     const auth = await this.authorize(userId);
     const assets = await this.client.call(userId, "/avatar-assets", z.array(personaAvatarAssetSchema).max(500));
-    const stockAvatars = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500));
+    const stockAvatars = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000));
     return {
       projectId: auth.projectId, runtimeAvailable: false as const,
       stockAvatars,
@@ -69,7 +69,7 @@ export class PersonaAvatarCatalog {
     }
     if (parsed.data.kind === "stock") {
       const reference = parsed.data;
-      const stock = (await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500)))
+      const stock = (await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000)))
         .find(avatar => avatar.id === reference.avatarId && avatar.providerId === reference.providerId);
       if (!stock || !isSelectableStockAvatar(stock)) {
         throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
