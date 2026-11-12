@@ -9,7 +9,7 @@ export default function createTavusRouter(isAuthenticated: any, service = tavusS
   const router = Router();
   router.use(isAuthenticated);
   router.use((req, res, next) => {
-    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Cache-Control", "private, no-store");
     // Cookie-authenticated lifecycle writes must originate in this application.
     const origin = req.headers.origin;
     if (req.method !== "GET" && origin) {
