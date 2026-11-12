@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Mic2 } from "lucide-react";
+import { CheckCircle2, CircleAlert, LoaderCircle, Mic2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { ConversationMessage } from "@shared/schema";
@@ -435,10 +436,6 @@ export default function TavusChatWindow({
   const preparingFeedback = session.state === "ended" && evaluationAvailable &&
     !["unavailable", "empty", "failed"].includes(transcript.transcriptState || "");
   const busy = starting || ending || session.state === "creating" || session.state === "ending";
-  const durationNotice = config?.runtime
-    ? text("routerDuration", `Up to ${config.runtime.sessionSeconds} seconds, including connection time.`,
-      `연결 준비를 포함해 최대 ${config.runtime.sessionSeconds}초 동안 이용할 수 있습니다.`)
-    : text("routerDurationPending", "Checking the session time limit.", "세션 이용 한도를 확인하고 있습니다.");
   const labels: Record<SessionState, string> = {
     idle: loading ? text("status.checking", "Checking connection", "연결 상태 확인 중")
       : !config?.available ? text("status.unavailable", "Connection unavailable", "연결할 수 없습니다")
@@ -578,18 +575,15 @@ export default function TavusChatWindow({
     utteranceId: caption.id,
   })) as unknown as ConversationMessage[];
   const transcriptMessages = canonicalTranscriptReady ? transcript.messages : provisionalMessages;
-  const startControls = !started ? (
+  const startControls = !started && !loading && config && !config.available ? (
     <div className="w-full space-y-2">
-      <p className="text-center text-[11px] text-slate-600" data-testid="tavus-duration-notice">{durationNotice}</p>
-      <p className="text-center text-[11px] text-slate-600">{text("inlineUnifiedContext", "Uses this session's persona and scenario instructions. Confirmed history is saved after the session ends when supported.", "이 실행의 페르소나·시나리오 지침을 사용합니다. 지원되는 경우 확정 기록은 세션 종료 후 저장합니다.")}</p>
-      {!loading && config && !config.available && <div role="status" className="text-center text-xs text-amber-800">
+      <div role="status" className="text-center text-xs text-amber-800">
         <p>{text("inlineUnavailable", "Live avatar is temporarily unavailable. Check connection status for details.", "현재 라이브 아바타를 시작할 수 없습니다. 연결 상태를 확인해 주세요.")}</p>
         {blockers.map((blocker, index) => <p key={`${blocker}-${index}`}>{reasonText(blocker)}</p>)}
         <button type="button" onClick={() => void refreshStatus()} disabled={statusChecking || busy} className="mt-2 underline disabled:opacity-50">
           {statusChecking ? text("checking", "Checking…", "확인 중…") : text("retryStatus", "Check status", "상태 확인")}
         </button>
-      </div>}
-      <p className="text-center text-xs leading-5 text-slate-600">{text("microphoneStartNotice", "Press the microphone to start a usage-billed connection and send audio, persona, scenario and applicable organization instructions to the external service. Press it again to end the session.", "마이크를 누르면 요금이 발생하는 연결을 시작하며, 음성·페르소나·시나리오·적용된 조직 지침을 외부 서비스에 전송합니다. 다시 누르면 대화를 종료합니다.")}</p>
+      </div>
     </div>
   ) : null;
 
@@ -611,16 +605,20 @@ export default function TavusChatWindow({
       onExitMode={!started ? onExitMode : undefined}
       requiresAttention={Boolean(apiDisplayError) || session.state === "create_unknown" || session.state === "ended"}
       headerActions={
-        <button
+        <Button
           type="button"
-          onClick={() => started ? session.state === "ended" || endFailed ? onExit() : void end() : onExitMode()}
+          size="sm"
+          variant="outline"
+          onClick={() => !started || session.state === "ended" || endFailed ? onExit() : void end()}
           disabled={busy && !endFailed}
-          className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-white/35 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:opacity-60"
+          className="shrink-0 text-xs h-7 px-2 border text-slate-400 border-slate-200 hover:bg-slate-50"
           data-testid="tavus-exit"
         >
-          {started ? <CheckCircle2 className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
-          {started ? session.state === "ended" ? text("close", "Close session", "세션 닫기") : endFailed ? text("exitAnyway", "Exit anyway", "종료하고 나가기") : evaluationAvailable ? text("finishWithReport", "Finish conversation and generate report", "대화 종료 및 리포트 생성") : text("endAndExit", "End and exit", "종료하고 나가기") : text("back", "Back to chat modes", "채팅 모드로 돌아가기")}
-        </button>
+          {session.state === "ended" ? text("close", "Close session", "세션 닫기")
+            : endFailed ? text("exitAnyway", "Exit anyway", "종료하고 나가기")
+            : started ? t("chat.endConversation", { defaultValue: i18n.language?.startsWith("ko") ? "대화 종료" : "End conversation" })
+            : t("chat.endEarly", { defaultValue: i18n.language?.startsWith("ko") ? "조기 종료" : "End early" })}
+        </Button>
       }
       stage={roomStage}
       transcriptMessages={transcriptMessages}
@@ -633,7 +631,6 @@ export default function TavusChatWindow({
               disabled={ending || !user} onRefresh={() => void cleanup.refresh()} />}
           {!started && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
             <p>{text("unifiedContext", "The live avatar service receives this session's persona, scenario and applicable organization instructions. Confirmed history is saved after the session ends when supported.", "라이브 아바타 서비스에 이 실행의 페르소나·시나리오·적용된 조직 지침을 전달합니다. 지원되는 경우 확정 기록은 세션 종료 후 저장합니다.")}</p>
-            <p className="mt-2 font-medium text-[#40595e]">{durationNotice}</p>
             <p className="mt-2">{text("noticeTranscript", "Confirmed history, when supported, becomes available after the session ends.", "지원되는 경우 확인된 대화 기록은 세션 종료 후 제공됩니다.")}</p>
           </div>}
           {!started && config && !config.available && <div className="rounded-xl border border-[#ead7b3] bg-[#fff9ec] p-3 text-xs leading-5 text-[#725a32]" role="status" data-testid="tavus-blockers">

@@ -81,7 +81,20 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
-  it("shows the router's current 600-second limit rather than the legacy 120-second notice", async () => {
+  it("uses the voice-style early-exit header and leaves mode switching to the bottom menu", async () => {
+    const exit = vi.fn();
+    const exitMode = vi.fn();
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="header-menu"
+      onChatComplete={vi.fn()} onExit={exit} onExitMode={exitMode} />);
+    await waitFor(() => expect((screen.getByTestId("button-live-avatar-microphone") as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.getByTestId("tavus-exit").textContent).toBe("End early");
+    expect(screen.queryByText("Back to chat modes")).toBeNull();
+    fireEvent.click(screen.getByTestId("tavus-exit"));
+    expect(exit).toHaveBeenCalledTimes(1);
+    expect(exitMode).not.toHaveBeenCalled();
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
+  it("omits introductory notices while keeping the router's current limit in settings", async () => {
     apiRequestMock.mockImplementation(async (_method: string, url: string) => {
       if (url.startsWith("/api/tavus/config?")) return response({
         available: true, runtime: { sessionSeconds: 600, userRemainingSeconds: 3000, globalRemainingSeconds: 6600, resetsAt: "tomorrow" },
@@ -90,14 +103,19 @@ describe("TavusChatWindow Daily pipeline", () => {
     });
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="duration"
       onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    await waitFor(() => expect(screen.getByTestId("tavus-duration-notice").textContent).toContain("600 seconds"));
+    await waitFor(() => expect((screen.getByTestId("button-live-avatar-microphone") as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByTestId("tavus-duration-notice")).toBeNull();
+    expect(screen.queryByText(/including connection time/)).toBeNull();
+    expect(screen.queryByText(/Uses this session's persona and scenario instructions/)).toBeNull();
+    expect(screen.queryByText(/Press the microphone to start a usage-billed connection/)).toBeNull();
+    expect(screen.getByTestId("tavus-runtime-limits").textContent).toContain("600s");
     expect(screen.queryByText(/120 seconds/)).toBeNull();
     expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
   });
   it("never creates a new session merely because the recovery screen was mounted", async () => {
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="recovery-only"
       onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    await screen.findByText(/Press the microphone to start a usage-billed connection/);
+    await waitFor(() => expect((screen.getByTestId("button-live-avatar-microphone") as HTMLButtonElement).disabled).toBe(false));
     expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
     expect(screen.queryByTestId("tavus-consent")).toBeNull();
     expect(screen.queryByTestId("tavus-start")).toBeNull();
