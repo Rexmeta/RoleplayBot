@@ -15,6 +15,8 @@ const basePath = (personaId: string) =>
 function messageFor(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
   if (/persona_seed_save_image_first/.test(message)) return "기본 이미지를 먼저 저장하세요. 저장된 이미지만 시드로 사용할 수 있습니다.";
+  if (/persona_seed_reset_blocked/.test(message)) return "생성 진행 중이거나 결과가 불확실하여 초기화할 수 없습니다. 상태를 조회하고 작업 완료 또는 조정 후 다시 시도하세요.";
+  if (/persona_seed_reset_stale/.test(message)) return "다른 화면에서 준비 상태가 변경되었습니다. 상태를 다시 조회하세요.";
   if (/403|scope|forbidden/i.test(message)) return "시드 라이브 설정 권한을 확인하세요.";
   if (/fetch|network/i.test(message)) return "서버에 연결하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
   return "요청을 완료하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
@@ -58,6 +60,7 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [validateOpen, setValidateOpen] = useState<string | null>(null);
   const [validationBusy, setValidationBusy] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const cbRef = useRef({ onDraftChange, onSelect, onActivityChange });
   cbRef.current = { onDraftChange, onSelect, onActivityChange };
 
@@ -98,6 +101,7 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     setState(null); setUncertainFence(false); setError(""); setNotice("");
     setRightsConfirmed(false); setTransferConfirmed(false); setCostConfirmed(false);
     setLikeness("synthetic"); setConsentReference(""); setSelectedId(null); setValidateOpen(null);
+    setResetOpen(false);
     setBusy(false); setLoading(false);
     if (effectIdentityRef.current !== identity) {
       cbRef.current.onSelect(null);
@@ -119,7 +123,7 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     cbRef.current.onActivityChange?.(validationBusy || busy || loading || uncertain || state?.stage === "registering" || state?.stage === "creating");
   }, [validationBusy, busy, loading, uncertain, state?.stage]);
 
-  const post = async (suffix: string, body: unknown, ok: string) => {
+  const post = async (suffix: string, body: unknown, ok: string, onSuccess?: () => void) => {
     if (postingRef.current) return;
     postingRef.current = true;
     ++requestRef.current;
@@ -132,10 +136,11 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
       apply(next);
       if (next.uncertain) setUncertainFence(true);
       setNotice(ok);
+      onSuccess?.();
     } catch (cause) {
       if (!live(epoch)) return;
       const msg = cause instanceof Error ? cause.message : "";
-      if (!/persona_seed_save_image_first/.test(msg)) {
+      if (!/persona_seed_save_image_first|persona_seed_reset_blocked|persona_seed_reset_stale/.test(msg)) {
         setUncertainFence(true);
         setNotice("요청 결과가 불확실할 수 있습니다. 다시 요청하지 말고 먼저 상태를 조회하세요.");
       }
@@ -151,6 +156,12 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     (!state || state.stage === "idle" || !state.draft));
   const canCreate = Boolean(state?.draft && state.options?.canProvision && costConfirmed && !busy && !loading && !validationBusy && !uncertain &&
     state.stage === "registered");
+  const canReset = Boolean(state?.draft && state.options && !busy && !loading && !validationBusy && !uncertain &&
+    state.stage !== "registering" &&
+    ((state.stage !== "submitted" && state.stage !== "creating") || state.options.candidates.length > 0) &&
+    state.options.candidates.every(c => ["ready", "failed", "deleted"].includes(c.status) &&
+      c.nextAction !== "reconcile" && c.failure?.creationOutcome !== "unknown" &&
+      c.failure?.nextAction !== "operator_reconcile"));
 
   const register = () => canRegister && void post("", {
     rightsConfirmed: true, transferConfirmed: true, likeness,
@@ -158,6 +169,13 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
   }, "저장된 기본 이미지를 시드로 등록했습니다. 아직 생성 요청은 보내지 않았습니다.");
   const create = () => canCreate && void post("/create", { costConfirmed: true },
     "생성 요청을 보냈습니다. 준비 후 초안에 연결할 후보를 직접 선택하세요.");
+  const reset = () => canReset && void post("/reset", { confirmed: true, draft: state!.draft },
+    "생성 준비 상태를 초기화했습니다. 권리·전송 동의를 다시 확인하고 이미지를 등록한 후 새 생성 요청을 제출하세요.", () => {
+      setRightsConfirmed(false); setTransferConfirmed(false); setCostConfirmed(false);
+      setLikeness("synthetic"); setConsentReference(""); setSelectedId(null); setValidateOpen(null);
+      setResetOpen(false);
+      cbRef.current.onSelect(null);
+    });
 
   const select = (c: Candidate) => {
     if (!state?.draft || busy || validationBusy || c.status === "deleting" || c.status === "deleted") return;
@@ -218,8 +236,17 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
       <Confirm checked={costConfirmed} onChange={setCostConfirmed} label="외부 제공자 비용이 발생할 수 있음을 확인했습니다." />
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" size="sm" onClick={create} disabled={!canCreate} data-testid="button-seed-create">{busy ? "처리 중…" : "라이브 아바타 생성 요청"}</Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => setResetOpen(true)} disabled={!canReset} data-testid="button-seed-reset">초기화하고 다시 제출</Button>
         {!state.options?.canProvision && <span className="text-xs text-slate-500">현재 상태에서는 새 생성이 허용되지 않습니다.</span>}
       </div>
+      {!canReset && !busy && !loading && <p className="text-xs text-slate-500">진행 중이거나 결과가 불확실한 작업은 완료 또는 조정 후 초기화할 수 있습니다.</p>}
+      {resetOpen && <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950" role="group" aria-label="생성 준비 초기화 확인">
+        <p>현재 초안 연결과 생성 준비 상태를 초기화합니다. 기존 아바타 자산은 삭제하지 않으며, 저장된 페르소나는 저장 전까지 변경되지 않습니다. 다시 제출하면 새 생성 비용이 발생할 수 있습니다.</p>
+        <div className="flex gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => setResetOpen(false)} disabled={busy}>취소</Button>
+          <Button type="button" size="sm" onClick={reset} disabled={!canReset} data-testid="button-seed-reset-confirm">초기화 확인</Button>
+        </div>
+      </div>}
     </div>}
 
     {state?.options && state.options.candidates.length > 0 && <ul className="mt-4 space-y-2">

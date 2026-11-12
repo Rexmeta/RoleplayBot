@@ -61,4 +61,54 @@ describe("seed editor mock UI", () => {
     expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toHaveLength(1);
     expect(mocks.api.mock.calls.find(c => c[0] === "POST")?.[2]).toEqual({ costConfirmed: true });
   });
+  it("confirms reset, clears selection and consents, then allows explicit registration and resubmission", async () => {
+    mocks.api.mockResolvedValueOnce(response({ ...state([candidate]), stage: "submitted" }));
+    const p = props(); render(<PersonaSeedLivePanel {...p} />);
+    await screen.findByTestId(`card-seed-candidate-${assetId}`);
+    fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+    fireEvent.click(screen.getByTestId("button-seed-reset"));
+    expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+    expect(screen.getByText(/기존 아바타 자산은 삭제하지/)).toBeTruthy();
+    mocks.api.mockResolvedValueOnce(response({ stage: "idle", draft: null, options: null, uncertain: false }));
+    fireEvent.click(screen.getByTestId("button-seed-reset-confirm"));
+    await screen.findByTestId("button-seed-register");
+    expect(p.onSelect).toHaveBeenCalledWith(null);
+    expect(p.onDraftChange).toHaveBeenLastCalledWith(null);
+    expect(mocks.api.mock.calls.find(c => c[0] === "POST")).toEqual([
+      "POST", expect.stringContaining("/seed/reset?"), { confirmed: true, draft },
+    ]);
+    expect((screen.getByTestId("button-seed-register") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("이미지 사용 권리와 초상 사용 권한을 확인했습니다."));
+    fireEvent.click(screen.getByLabelText("저장된 이미지가 외부 서비스에 전송됨을 확인했습니다."));
+    mocks.api.mockResolvedValueOnce(response(state()));
+    fireEvent.click(screen.getByTestId("button-seed-register"));
+    await screen.findByTestId("button-seed-create");
+    expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+    mocks.api.mockResolvedValueOnce(response({ ...state(), stage: "submitted" }));
+    fireEvent.click(screen.getByTestId("button-seed-create"));
+    await waitFor(() => expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toHaveLength(3));
+    expect(mocks.api.mock.calls.filter(c => c[0] === "POST").map(c => c[1])).toEqual([
+      expect.stringContaining("/seed/reset?"), expect.stringContaining("/seed?"), expect.stringContaining("/seed/create?"),
+    ]);
+  });
+  it.each(["queued", "processing", "reconciliation_required"])("disables reset for %s candidates", async status => {
+    mocks.api.mockResolvedValueOnce(response({ ...state([{ ...candidate, status }]), stage: "submitted" }));
+    render(<PersonaSeedLivePanel {...props()} />);
+    await screen.findByTestId("button-seed-reset");
+    expect((screen.getByTestId("button-seed-reset") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("button-seed-reset"));
+    expect(screen.queryByTestId("button-seed-reset-confirm")).toBeNull();
+    expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+  });
+  it("cancels reset without a POST and keeps the current candidate", async () => {
+    mocks.api.mockResolvedValueOnce(response({ ...state([candidate]), stage: "submitted" }));
+    render(<PersonaSeedLivePanel {...props()} />);
+    await screen.findByTestId("button-seed-reset");
+    fireEvent.click(screen.getByTestId("button-seed-reset"));
+    fireEvent.click(screen.getByText("취소"));
+    expect(screen.queryByTestId("button-seed-reset-confirm")).toBeNull();
+    expect(screen.getByTestId(`card-seed-candidate-${assetId}`)).toBeTruthy();
+    expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+  });
 });

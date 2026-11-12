@@ -32,6 +32,8 @@ export function createPersonaAvatarOperationsRouter(
     res.status(201).json(await seed.register(req.user.id, req.params.personaId, source(req), req.body))));
   router.post("/personas/:personaId/seed/create", handle(async (req, res) =>
     res.status(202).json(await seed.create(req.user.id, req.params.personaId, source(req), req.body))));
+  router.post("/personas/:personaId/seed/reset", handle(async (req, res) =>
+    res.json(await seed.reset(req.user.id, req.params.personaId, source(req), req.body))));
   router.get("/creation", handle(async (req, res) => res.json(await creation.status(req.user.id))));
   router.post("/creation", handle(async (req, res) => {
     const input = valid(personaAvatarCreationInput, req, res);

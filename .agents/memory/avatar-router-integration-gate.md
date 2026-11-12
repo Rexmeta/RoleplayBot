@@ -198,3 +198,15 @@ unverified claims of completed cleanup.
 
 **How to apply:** Preserve the original binding and fence; use provider-confirmed
 conversation evidence through the operator workflow before permitting new work.
+
+Custom-avatar preparation reset is not cancellation or deletion of the external
+job. Preserve existing assets and require fresh rights, transfer and cost consent
+for a new submission; do not let reset release a pending or uncertain operation.
+
+**Why:** The user requested reset and resubmission after an initial submission.
+Resetting only browser state would retain the server block, while discarding the
+server fence during active work could duplicate provider charges.
+
+**How to apply:** Permit a new preparation cycle only after the old outcome is
+resolved. Keep prior image-version lineage, and distinguish local draft reset
+from saving the persona and from deleting remote assets.
