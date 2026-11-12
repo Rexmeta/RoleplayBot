@@ -105,7 +105,7 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
     throw new AvatarIdentityError("persona_avatar_project_mismatch", 409);
   }
   if (selected.kind === "stock") {
-    const stock = await deps.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500));
+    const stock = await deps.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000));
     if (!stock.some(a => a.id === selected.avatarId && a.providerId === selected.providerId && isSelectableStockAvatar(a))) {
       throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
     }

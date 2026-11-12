@@ -50,11 +50,15 @@ export const personaStockAvatarSchema = z.object({
   kind: z.enum(["mock", "configured"]),
   configured: z.boolean(),
   languages: z.array(z.string()),
+  thumbnailUrl: z.string().url().nullable().optional(),
+  previewVideoUrl: z.string().url().nullable().optional(),
+  model: z.string().max(100).optional(),
+  stock: z.boolean().optional(),
 });
 export type PersonaStockAvatar = z.infer<typeof personaStockAvatarSchema>;
 
 export function isSelectableStockAvatar(avatar: PersonaStockAvatar): boolean {
-  const supported = (avatar.id === "tavus-stock-lucy" && avatar.providerId === "tavus") ||
+  const supported = ((avatar.id === "tavus-stock-lucy" || avatar.stock === true && /^tavus-stock-[a-zA-Z0-9_-]{1,128}$/.test(avatar.id)) && avatar.providerId === "tavus") ||
     (avatar.id === "anam-persona-default" && avatar.providerId === "anam");
   return supported && avatar.kind === "configured" && avatar.configured;
 }
