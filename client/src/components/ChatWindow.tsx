@@ -114,11 +114,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
       return next;
     });
   };
-  const [desktopInfoSection, setDesktopInfoSection] = useState<'role' | 'goals' | 'npc' | null>('goals');
-  const setDesktopInfoSectionAndClearIncidents = (section: 'role' | 'goals' | 'npc' | null) => {
-    setDesktopInfoSection(section);
-    if (section === 'npc') clearIncidentCount();
-  };
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const [isInlineTextOpen, setIsInlineTextOpen] = useState(false);
@@ -1087,8 +1082,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar"
                     isSimulationEnabled={isSimulationEnabled} simulationState={simulationState} newIncident={newIncident}
                     latestTurnScore={latestTurnScore} evaluationSkipped={lastScoreSkipped} hasActiveIncident={hasActiveIncident}
-                    desktopSection={desktopInfoSection}
-                    onToggleDesktopSection={setDesktopInfoSectionAndClearIncidents} />
+                    onNpcOpen={clearIncidentCount} />
                 )}
 
                 <div className="relative flex-1 overflow-hidden">
