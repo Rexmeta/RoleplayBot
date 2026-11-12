@@ -25,7 +25,7 @@ export class PersonaAvatarCatalog {
   async list(userId: string) {
     const auth = await this.authorize(userId);
     const assets = await this.client.call(userId, "/avatar-assets", z.array(personaAvatarAssetSchema).max(500));
-    const stockAvatars = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500));
+    const stockAvatars = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000));
     return {
       projectId: auth.projectId, runtimeAvailable: false as const,
       stockAvatars,
@@ -54,6 +54,9 @@ export class PersonaAvatarCatalog {
     if (input.liveAvatar === null) return { ...result, liveAvatar: null };
     const parsed = personaLiveAvatarSchema.safeParse(input.liveAvatar);
     if (!parsed.success) throw new AvatarIdentityError("persona_live_avatar_invalid", 400);
+    if (parsed.data.kind !== "stock" && (parsed.data.seedImageAssetId || parsed.data.seedImageVersion || parsed.data.seedSourceFingerprint)) {
+      throw new AvatarIdentityError("persona_seed_draft_required", 409);
+    }
     // Preserve unchanged drafts during unrelated edits, including when the provider is offline.
     // Their stored validation is historical only: activation remains unconditionally draft.
     if (existing?.liveAvatar?.activation === "draft" &&
@@ -66,7 +69,7 @@ export class PersonaAvatarCatalog {
     }
     if (parsed.data.kind === "stock") {
       const reference = parsed.data;
-      const stock = (await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500)))
+      const stock = (await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000)))
         .find(avatar => avatar.id === reference.avatarId && avatar.providerId === reference.providerId);
       if (!stock || !isSelectableStockAvatar(stock)) {
         throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);

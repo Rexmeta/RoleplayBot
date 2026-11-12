@@ -11,9 +11,13 @@ import TavusConversationLayout from "./TavusConversationLayout";
 import { useTavusTranscript, type TranscriptState } from "./useTavusTranscript";
 import { useBrowserCaptions } from "./tavusBrowserCaptions";
 import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../ScenarioOverrideSummary";
+import { useAuth } from "@/hooks/useAuth";
+import { useAvatarCleanup } from "./useAvatarCleanup";
+import { AvatarCleanupNotice } from "./AvatarCleanupNotice";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
+  id?: string;
   language?: import("@shared/conversationLanguage").ConversationLanguage;
   state: SessionState;
   providerId?: "tavus" | "anam";
@@ -85,6 +89,9 @@ export default function TavusChatWindow({
   // Keep provider codes/messages for internal recovery, never as learner-facing copy.
   const displayError = (details: { code: string; message: string }) => reasonText(details.code);
   const [session, setSession] = useState<Session>({ state: "idle" });
+  const { user } = useAuth();
+  const cleanup = useAvatarCleanup(`${user?.id ?? "signed-out"}:${conversationId}`,
+    `${sessionUrl(conversationId)}/session`, session.id);
   const [config, setConfig] = useState<Config | null>(null);
   const [starting, setStarting] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -402,6 +409,7 @@ export default function TavusChatWindow({
 
   const end = async () => {
     if (endInFlightRef.current || session.state === "ended") return;
+    cleanup.invalidate();
     releaseScreenWakeLock();
     endInFlightRef.current = true;
     setEnding(true);
@@ -416,6 +424,7 @@ export default function TavusChatWindow({
       if (!mountedRef.current) return;
       updateSession(next.state === "active" ? { ...next, state: "ending" } : next);
       if (next.state === "ended") setEndFailed(false);
+      await cleanup.refresh();
     } catch (cause) {
       if (mountedRef.current) {
         setError(errorDetails(cause));
@@ -607,6 +616,9 @@ export default function TavusChatWindow({
       hasCaptionEvents={browserCaptions.captions.length > 0}
       sessionControls={
         <div className="space-y-4">
+          {started && ["ending", "ended", "create_unknown"].includes(session.state) &&
+            <AvatarCleanupNotice result={cleanup.result} checking={cleanup.checking}
+              disabled={ending || !user} onRefresh={() => void cleanup.refresh()} />}
           {!started && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
             <p>{text("unifiedContext", "The live avatar service receives this session's persona, scenario and applicable organization instructions. Confirmed history is saved after the session ends when supported.", "라이브 아바타 서비스에 이 실행의 페르소나·시나리오·적용된 조직 지침을 전달합니다. 지원되는 경우 확정 기록은 세션 종료 후 저장합니다.")}</p>
             <p className="mt-2 font-medium text-[#40595e]">{text("noticeLimit", "Maximum duration: 120 seconds, including queue and startup time.", "최대 이용 시간: 대기 및 시작을 포함해 120초입니다.")}</p>

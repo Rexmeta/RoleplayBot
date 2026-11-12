@@ -49,10 +49,10 @@ describe("persona avatar settings", () => {
     ] }) });
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
-    const option = await screen.findByRole("option", { name: /아바타 saved persona · 외부 서비스/ });
-    expect(option.hasAttribute("disabled")).toBe(false);
+    const option = await screen.findByRole("radio", { name: /아바타 saved persona 외부 서비스/ });
+    expect(option.getAttribute("aria-disabled")).toBe("false");
     expect(option.textContent).not.toMatch(/\b(Tavus|Anam)\b/i);
-    fireEvent.change(screen.getByLabelText("기본 아바타"), { target: { value: "anam-persona-default" } });
+    fireEvent.click(option);
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toMatchObject({
       kind: "stock", avatarId: "anam-persona-default", providerId: "anam",
       projectId: "project-one", activation: "draft", validationStatus: "unverified",
@@ -149,10 +149,10 @@ describe("persona avatar settings", () => {
     fireEvent.click(screen.getByRole("radio", { name: /^기본 아바타/ }));
     expect(screen.getByTestId("draft").textContent).toBe("null");
     await screen.findByLabelText("기본 아바타");
-    expect(screen.getByRole("option", { name: /Orbit.*선택 불가/ }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("radio", { name: /Orbit.*선택 불가/ }).getAttribute("aria-disabled")).toBe("true");
     // An existing custom draft mounts its read-only preflight before we switch.
     api.mockClear();
-    fireEvent.change(screen.getByLabelText("기본 아바타"), { target: { value: "tavus-stock-lucy" } });
+    fireEvent.click(screen.getByRole("radio", { name: /Lucy 외부 서비스/ }));
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({
       kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", voiceMode: "roleplayx",
       validationStatus: "unverified", activation: "draft", projectId: "project-one",
@@ -253,7 +253,7 @@ describe("persona avatar settings", () => {
     }) });
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
-    const stockOption = await screen.findByRole("option", { name: /아바타 saved persona · 외부 서비스/ });
+    const stockOption = await screen.findByRole("radio", { name: /아바타 saved persona 외부 서비스/ });
     expect(stockOption.textContent).not.toMatch(/\b(Tavus|Anam)\b/i);
     fireEvent.click(screen.getByRole("radio", { name: "맞춤 아바타" }));
     const assetOption = await screen.findByRole("option", { name: /아바타 custom asset · 외부 서비스 · 준비 완료/ });

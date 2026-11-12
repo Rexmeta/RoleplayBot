@@ -7,6 +7,9 @@ import { PersonaAvatarCreationPanel, type PersonaAvatarSource } from '@/componen
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 import { LiveAvatarTestPanel } from '@/components/admin/LiveAvatarTestPanel';
 import { AnamAvatarTestPanel } from '@/components/admin/AnamAvatarTestPanel';
+import { PersonaSeedLivePanel } from './PersonaSeedLivePanel';
+import { StockAvatarGallery } from './StockAvatarGallery';
+import type { PersonaSeedDraft } from '@shared/avatar/personaSeedLive';
 export type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
 
 type AvatarAsset = {
@@ -34,6 +37,10 @@ type AssetResponse = { projectId: string; assets: AvatarAsset[]; stockAvatars: P
 
 type Props = {
   creationSource?: PersonaAvatarSource;
+  personaId?: string;
+  seedSource?: string;
+  seedDraft?: PersonaSeedDraft | null;
+  onSeedDraftChange?: (draft: PersonaSeedDraft | null) => void;
   mode: PersonaAvatarMode;
   liveAvatar: PersonaLiveAvatar | null;
   videoManagementAllowed?: boolean;
@@ -69,7 +76,8 @@ function errorMessage(error: unknown): string {
   return message || '아바타 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
-export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false, creationSource }: Props) {
+export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false,
+  creationSource, personaId, seedSource = '', seedDraft = null, onSeedDraftChange }: Props) {
   const [assets, setAssets] = useState<AvatarAsset[] | null>(null);
   const [stockAvatars, setStockAvatars] = useState<PersonaStockAvatar[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,6 +90,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const [creationOpen, setCreationOpen] = useState(false);
   const mountedRef = useRef(false);
   const requestRef = useRef(0);
+  const seedFlow = Boolean(personaId && onSeedDraftChange);
 
   useEffect(() => {
     if (liveAvatar) setSelectedKind(liveAvatar.kind === 'stock' ? 'stock' : 'custom');
@@ -302,23 +311,19 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
 
           {selectedKind === 'stock' && stockAvatars !== null && !loading && !error && (
             <div className="space-y-2">
-              <label htmlFor="live-avatar-stock" className="text-sm font-semibold text-slate-700">기본 아바타</label>
-              <select
-                id="live-avatar-stock"
-                value={selectedStock ? stockAvatarId ?? '' : ''}
+              <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-xs leading-relaxed text-indigo-900" role="note">
+                읽기 전용 카탈로그입니다. 목록은 연결된 서비스 계정에서 현재 구성·제공하는 기본 아바타를 그대로 보여 주며, 요금제에 따라 개수가 달라질 수 있습니다.
+              </div>
+              <p className="text-sm font-semibold text-slate-700">기본 아바타</p>
+              <StockAvatarGallery
+                avatars={stockAvatars}
+                selectedId={selectedStock ? stockAvatarId : null}
+                selectedProviderId={selectedStock ? liveAvatar?.providerId ?? null : null}
                 disabled={testBusy}
-                onChange={event => chooseStock(event.target.value)}
-                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800"
-              >
-                <option value="">기본 아바타 선택</option>
-                {stockAvatars.map(avatar => (
-                  <option key={avatar.id} value={avatar.id} disabled={!isSelectableStockAvatar(avatar)}>
-                    {displayCatalogName(avatar.name)} · 외부 서비스{!isSelectableStockAvatar(avatar) ? ' · 선택 불가' : ''}
-                  </option>
-                ))}
-              </select>
-              {stockAvatars.length === 0 && <p className="text-xs text-slate-500">조회 가능한 기본 아바타가 없습니다.</p>}
-              <p className="text-xs text-slate-500">기본 아바타는 맞춤 아바타 자산과 별도로 저장됩니다. 선택·저장은 무료이며 세션을 시작하지 않습니다. 실제 라이브 사용은 별도 비용 동의가 필요합니다.</p>
+                onSelect={chooseStock}
+                displayName={displayCatalogName}
+              />
+              <p className="text-xs text-slate-500">카탈로그에서 선택한 것은 재생 검증 근거가 아닙니다. 선택은 초안으로만 반영되며 저장해도 유료 세션이 생성되거나 업로드가 일어나지 않습니다. 실제 라이브 사용은 별도 비용 동의가 필요합니다.</p>
             </div>
           )}
 
@@ -339,7 +344,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             </p>
           )}
 
-          {selectedKind === 'custom' && assets !== null && !loading && !error && (
+          {selectedKind === 'custom' && !seedFlow && assets !== null && !loading && !error && (
             assets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
                 조회 가능한 프로젝트 소유 커스텀 자산이 없습니다. Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
@@ -376,6 +381,10 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           )}
 
           {selectedKind === 'custom' && (
+            personaId && onSeedDraftChange ? <PersonaSeedLivePanel
+              personaId={personaId} source={seedSource} draft={seedDraft}
+              onDraftChange={onSeedDraftChange} onSelect={onLiveAvatarChange} onActivityChange={setCreationBusy}
+            /> :
             <section className="rounded-md border border-slate-200 bg-white p-3" aria-labelledby="persona-create-disclosure">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -392,7 +401,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               </div>
             </section>
           )}
-          {liveAvatar && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && <div className="space-y-2">
+          {liveAvatar && !(seedFlow && liveAvatar.kind !== 'stock') && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && <div className="space-y-2">
             {hasSelectedTest ? (
               <Button type="button" variant="outline" disabled={testBusy} onClick={() => setTestEntryOpen(open => !open)}>
                 {testEntryOpen ? '선택 아바타 테스트 닫기' : '선택 아바타 테스트'}

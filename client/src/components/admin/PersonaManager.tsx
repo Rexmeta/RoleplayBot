@@ -20,6 +20,7 @@ import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 import { PersonaAvatarSettings, type PersonaAvatarMode, type PersonaLiveAvatar } from './PersonaAvatarSettings';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { useAuth } from '@/hooks/useAuth';
+import type { PersonaSeedDraft } from '@shared/avatar/personaSeedLive';
 
 /**
  * Video avatar clip library: behaviour (decided by the audio stream) × emotion
@@ -217,6 +218,7 @@ interface MBTIPersona {
   };
   avatarMode?: PersonaAvatarMode;
   liveAvatar?: PersonaLiveAvatar | null;
+  liveAvatarSeed?: PersonaSeedDraft | null;
 }
 
 // 시나리오별 페르소나 정보
@@ -321,6 +323,7 @@ interface MBTIPersonaFormData {
   };
   avatarMode?: PersonaAvatarMode;
   liveAvatar?: PersonaLiveAvatar | null;
+  liveAvatarSeed?: PersonaSeedDraft | null;
 }
 
 interface PersonaManagerProps {
@@ -418,6 +421,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
     storePackId: null,
     avatarMode: 'image',
     liveAvatar: null,
+    liveAvatarSeed: null,
     images: {
       base: '',
       style: '',
@@ -1049,6 +1053,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       storePackId: null,
       avatarMode: 'image',
       liveAvatar: null,
+      liveAvatarSeed: null,
       images: {
         base: '',
         style: '',
@@ -1138,6 +1143,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       // Preserve legacy absence; the selector derives a display-only image/video mode.
       avatarMode: persona.avatarMode ?? undefined,
       liveAvatar: persona.liveAvatar ?? null,
+      liveAvatarSeed: persona.liveAvatarSeed ?? null,
       videos: (() => {
         const pv = (persona as any).videos;
         if (!pv) return { enabled: false, avatarId: persona.id, clips: { male: {}, female: {} }, clipModels: { male: {}, female: {} } };
@@ -1743,6 +1749,10 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                     : formData.images.female?.expressions?.중립) || formData.images.base || '',
                   personaId: formData.id,
                 }}
+                personaId={editingPersona?.id ?? formData.id}
+                seedSource={formData.images?.base ?? ''}
+                seedDraft={formData.liveAvatarSeed ?? null}
+                onSeedDraftChange={liveAvatarSeed => setFormData(prev => ({ ...prev, liveAvatarSeed }))}
                 videoManagementAllowed={canManageVideoAvatar}
                 activeVideoEnabled={formData.videos?.enabled ?? false}
                 mode={formData.avatarMode ?? (formData.videos?.enabled ? 'video' : 'image')}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { provisioningFailureSchema } from "./personaSeedLive";
 
 export const personaAvatarModeSchema = z.enum(["image", "video", "live"]);
 export type PersonaAvatarMode = z.infer<typeof personaAvatarModeSchema>;
@@ -21,7 +22,12 @@ const liveDraftShape = {
 const stockReferenceSchema = z.object({
   kind: z.literal("stock"), avatarId: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
 }).strict();
-const customReferenceSchema = z.object({ kind: z.literal("custom"), assetId: z.string().uuid() }).strict();
+const customReferenceSchema = z.object({
+  kind: z.literal("custom"), assetId: z.string().uuid(),
+  seedImageAssetId: z.string().uuid().optional(),
+  seedImageVersion: z.number().int().positive().optional(),
+  seedSourceFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict();
 export const personaAvatarReferenceSchema = z.discriminatedUnion("kind", [
   stockReferenceSchema, customReferenceSchema,
 ]);
@@ -44,11 +50,15 @@ export const personaStockAvatarSchema = z.object({
   kind: z.enum(["mock", "configured"]),
   configured: z.boolean(),
   languages: z.array(z.string()),
+  thumbnailUrl: z.string().url().nullable().optional(),
+  previewVideoUrl: z.string().url().nullable().optional(),
+  model: z.string().max(100).optional(),
+  stock: z.boolean().optional(),
 });
 export type PersonaStockAvatar = z.infer<typeof personaStockAvatarSchema>;
 
 export function isSelectableStockAvatar(avatar: PersonaStockAvatar): boolean {
-  const supported = (avatar.id === "tavus-stock-lucy" && avatar.providerId === "tavus") ||
+  const supported = ((avatar.id === "tavus-stock-lucy" || avatar.stock === true && /^tavus-stock-[a-zA-Z0-9_-]{1,128}$/.test(avatar.id)) && avatar.providerId === "tavus") ||
     (avatar.id === "anam-persona-default" && avatar.providerId === "anam");
   return supported && avatar.kind === "configured" && avatar.configured;
 }
@@ -65,6 +75,8 @@ export const personaAvatarAssetSchema = z.object({
     validation: z.enum(["documentation_only", "provisioned", "live_verified"]),
   }),
   imageAssetId: z.string().optional(),
+  errorCode: z.string().max(200).nullable().optional(),
+  failure: provisioningFailureSchema.nullable().optional(),
   liveValidation: z.object({
     status: z.enum(["unvalidated", "validated"]),
     runtimeSupported: z.boolean(),

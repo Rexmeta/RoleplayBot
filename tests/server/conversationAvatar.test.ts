@@ -147,6 +147,30 @@ describe("selected conversation avatar resolution", () => {
     });
     expect(deps.fileManager.getPersonaByMBTI).not.toHaveBeenCalled();
   });
+  it("rechecks seed version, activation and exact provider reference before using a custom face", async () => {
+    const { deps, profile } = fixture();
+    const imageId = "22345678-1234-4234-8234-123456789abc";
+    profile.liveAvatar = { kind: "custom", assetId, providerId: "tavus", projectId: "project",
+      voiceMode: "roleplayx", activation: "draft", validationStatus: "live_verified",
+      seedImageAssetId: imageId, seedImageVersion: 1, seedSourceFingerprint: "a".repeat(64) };
+    const options = { imageAssetId: imageId, imageVersion: 1, providerId: "tavus", canProvision: false, nextAction: "select",
+      candidates: [{ avatarAssetId: assetId, status: "ready", canActivate: true, nextAction: "select",
+        liveReference: { providerId: "tavus", avatarId: "face", avatarAssetId: assetId, pipeline: "tavus_full" } }] };
+    const face = { id: assetId, name: "coach", imageAssetId: imageId, providerId: "tavus", providerAvatarId: "face", status: "ready",
+      capabilities: { reusable: true, liveRendering: true, validation: "live_verified" },
+      liveValidation: { status: "validated", runtimeSupported: true, method: "client_playback_report",
+        sessionId: "proof-session", validatedAt: "2026-11-01" } };
+    deps.client.call.mockImplementation(async (_u: string, path: string, schema: any) =>
+      schema.parse(path.endsWith("live-options") ? options : face));
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "face", assetId });
+    options.candidates[0].canActivate = false;
+    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_playback_validation_required" });
+    options.candidates[0].canActivate = true; options.imageVersion = 2;
+    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_playback_validation_required" });
+    options.imageVersion = 1; face.providerAvatarId = "changed-face";
+    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_playback_validation_required" });
+    expect(deps.client.call.mock.calls.every((call: any[]) => call[3] === undefined)).toBe(true);
+  });
   it("rejects another owner, completed runs, non-live mode and disabled policy before provider reads", async () => {
     const { deps, scenarioRun, profile } = fixture();
     await expect(resolveConversationAvatar("other", "conversation", deps)).rejects.toMatchObject({ status: 403 });
