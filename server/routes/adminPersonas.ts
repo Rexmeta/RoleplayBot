@@ -20,6 +20,7 @@ import { hasVideoAvatarConfiguration, requireVideoAvatarManagementAccess } from 
 import { personaAvatarCatalog } from "../services/liveAvatar/personaCatalog";
 import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 import { createPersonaAvatarOperationsRouter } from "./personaAvatarOperations";
+import { personaSeedLive } from "../services/liveAvatar/personaSeedLive";
 
 const videoUpload = multer({
   storage: multer.memoryStorage(),
@@ -72,10 +73,14 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
   }));
 
   router.post("/api/admin/personas", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
-    let avatar;
-    try { avatar = await personaAvatarCatalog.normalize(req.user.id, req.body); }
+    let avatar, seed;
+    try {
+      seed = await personaSeedLive.normalize(req.user.id, req.body);
+      avatar = await personaAvatarCatalog.normalize(req.user.id,
+        { ...req.body, ...("liveAvatar" in seed ? { liveAvatar: undefined } : {}) });
+    }
     catch (error) { catalogError(error, res); return; }
-    const input = { ...req.body, ...avatar };
+    const input = { ...req.body, ...avatar, ...seed };
     if (hasVideoAvatarConfiguration(input.videos)) {
       await requireVideoAvatarManagementAccess(req);
     }
@@ -86,10 +91,14 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
 
   router.put("/api/admin/personas/:id", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const existing = await storage.getMbtiPersona(req.params.id);
-    let avatar;
-    try { avatar = await personaAvatarCatalog.normalize(req.user.id, req.body, existing); }
+    let avatar, seed;
+    try {
+      seed = await personaSeedLive.normalize(req.user.id, req.body, existing);
+      avatar = await personaAvatarCatalog.normalize(req.user.id,
+        { ...req.body, ...("liveAvatar" in seed ? { liveAvatar: undefined } : {}) }, existing);
+    }
     catch (error) { catalogError(error, res); return; }
-    const input = { ...req.body, ...avatar };
+    const input = { ...req.body, ...avatar, ...seed };
     if ((req as any).user.role === "operator" && input.videos !== undefined) {
       if (JSON.stringify(existing?.videos ?? null) !== JSON.stringify(input.videos ?? null)) {
         await requireVideoAvatarManagementAccess(req);

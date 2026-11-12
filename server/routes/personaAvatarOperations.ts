@@ -5,10 +5,11 @@ import { personaAvatarCreation } from "../services/liveAvatar/personaCreation";
 import { personaAvatarValidation } from "../services/liveAvatar/personaValidation";
 import { personaAvatarCreationInput } from "../../shared/avatar/personaAvatarCreation";
 import { testTurnSchema, testSessionSchema } from "../services/liveAvatar/testContracts";
+import { personaSeedLive } from "../services/liveAvatar/personaSeedLive";
 
 /** Mounted behind existing login + operator/admin guard. No provider credentials from browsers. */
 export function createPersonaAvatarOperationsRouter(
-  creation = personaAvatarCreation, validation = personaAvatarValidation,
+  creation = personaAvatarCreation, validation = personaAvatarValidation, seed = personaSeedLive,
 ) {
   const router = Router();
   router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
@@ -24,6 +25,13 @@ export function createPersonaAvatarOperationsRouter(
     if (result.success) return result.data;
     res.status(400).json({ code: "persona_avatar_invalid_input" });
   };
+  const source = (req: any) => typeof req.query.source === "string" ? req.query.source : "";
+  router.get("/personas/:personaId/seed", handle(async (req, res) =>
+    res.json(await seed.status(req.user.id, req.params.personaId, source(req)))));
+  router.post("/personas/:personaId/seed", handle(async (req, res) =>
+    res.status(201).json(await seed.register(req.user.id, req.params.personaId, source(req), req.body))));
+  router.post("/personas/:personaId/seed/create", handle(async (req, res) =>
+    res.status(202).json(await seed.create(req.user.id, req.params.personaId, source(req), req.body))));
   router.get("/creation", handle(async (req, res) => res.json(await creation.status(req.user.id))));
   router.post("/creation", handle(async (req, res) => {
     const input = valid(personaAvatarCreationInput, req, res);

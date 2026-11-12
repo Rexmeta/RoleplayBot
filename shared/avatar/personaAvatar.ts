@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { provisioningFailureSchema } from "./personaSeedLive";
 
 export const personaAvatarModeSchema = z.enum(["image", "video", "live"]);
 export type PersonaAvatarMode = z.infer<typeof personaAvatarModeSchema>;
@@ -21,7 +22,12 @@ const liveDraftShape = {
 const stockReferenceSchema = z.object({
   kind: z.literal("stock"), avatarId: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
 }).strict();
-const customReferenceSchema = z.object({ kind: z.literal("custom"), assetId: z.string().uuid() }).strict();
+const customReferenceSchema = z.object({
+  kind: z.literal("custom"), assetId: z.string().uuid(),
+  seedImageAssetId: z.string().uuid().optional(),
+  seedImageVersion: z.number().int().positive().optional(),
+  seedSourceFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict();
 export const personaAvatarReferenceSchema = z.discriminatedUnion("kind", [
   stockReferenceSchema, customReferenceSchema,
 ]);
@@ -65,6 +71,8 @@ export const personaAvatarAssetSchema = z.object({
     validation: z.enum(["documentation_only", "provisioned", "live_verified"]),
   }),
   imageAssetId: z.string().optional(),
+  errorCode: z.string().max(200).nullable().optional(),
+  failure: provisioningFailureSchema.nullable().optional(),
   liveValidation: z.object({
     status: z.enum(["unvalidated", "validated"]),
     runtimeSupported: z.boolean(),

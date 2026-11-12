@@ -40,6 +40,7 @@ Preferred communication style: Simple, everyday language.
 - **Free Avatar Preflight**: Admin-triggered `/api/live-avatar/runtime/preflight` reads official project authentication, custom Tavus catalog and capacity only; no sessions, media transfer or reconciliation writes. Diagnostic candidates never activate personas; existing learner gates remain closed. See `docs/live-avatar-integration.md` for approval boundaries and outstanding checks.
 
 ## Data Storage
+- **Persona seed live drafts**: `mbti_personas.live_avatar_seed` persists project/image-version metadata only. Explicit seed registration reads the saved base image from existing storage; editor entry and persona save do not send media or create paid resources. Seed candidates and save/runtime checks use AvatarRouter `live-options`; unvalidated candidates stay drafts. Existing Gemini and scenario policy gates are unchanged. See `docs/persona-seed-live.md`.
 - **ORM**: Drizzle ORM (PostgreSQL dialect). Schema is split into domain modules under `shared/schema/`.
 - **Database**: PostgreSQL (Neon serverless).
 - **Schema modules**:

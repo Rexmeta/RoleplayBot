@@ -54,6 +54,9 @@ export class PersonaAvatarCatalog {
     if (input.liveAvatar === null) return { ...result, liveAvatar: null };
     const parsed = personaLiveAvatarSchema.safeParse(input.liveAvatar);
     if (!parsed.success) throw new AvatarIdentityError("persona_live_avatar_invalid", 400);
+    if (parsed.data.kind !== "stock" && (parsed.data.seedImageAssetId || parsed.data.seedImageVersion || parsed.data.seedSourceFingerprint)) {
+      throw new AvatarIdentityError("persona_seed_draft_required", 409);
+    }
     // Preserve unchanged drafts during unrelated edits, including when the provider is offline.
     // Their stored validation is historical only: activation remains unconditionally draft.
     if (existing?.liveAvatar?.activation === "draft" &&

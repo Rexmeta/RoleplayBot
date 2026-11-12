@@ -7,6 +7,8 @@ import { PersonaAvatarCreationPanel } from '@/components/admin/PersonaAvatarCrea
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 import { LiveAvatarTestPanel } from '@/components/admin/LiveAvatarTestPanel';
 import { AnamAvatarTestPanel } from '@/components/admin/AnamAvatarTestPanel';
+import { PersonaSeedLivePanel } from './PersonaSeedLivePanel';
+import type { PersonaSeedDraft } from '@shared/avatar/personaSeedLive';
 export type { PersonaAvatarMode, PersonaLiveAvatar } from '@shared/avatar/personaAvatar';
 
 type AvatarAsset = {
@@ -33,6 +35,10 @@ type AvatarAsset = {
 type AssetResponse = { projectId: string; assets: AvatarAsset[]; stockAvatars: PersonaStockAvatar[]; runtimeAvailable: false };
 
 type Props = {
+  personaId?: string;
+  seedSource?: string;
+  seedDraft?: PersonaSeedDraft | null;
+  onSeedDraftChange?: (draft: PersonaSeedDraft | null) => void;
   mode: PersonaAvatarMode;
   liveAvatar: PersonaLiveAvatar | null;
   videoManagementAllowed?: boolean;
@@ -68,7 +74,8 @@ function errorMessage(error: unknown): string {
   return message || '아바타 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
-export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false }: Props) {
+export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAvatarChange, videoManagementAllowed = true, activeVideoEnabled = false,
+  personaId, seedSource = '', seedDraft = null, onSeedDraftChange }: Props) {
   const [assets, setAssets] = useState<AvatarAsset[] | null>(null);
   const [stockAvatars, setStockAvatars] = useState<PersonaStockAvatar[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,6 +88,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const [creationOpen, setCreationOpen] = useState(false);
   const mountedRef = useRef(false);
   const requestRef = useRef(0);
+  const seedFlow = Boolean(personaId && onSeedDraftChange);
 
   useEffect(() => {
     if (liveAvatar) setSelectedKind(liveAvatar.kind === 'stock' ? 'stock' : 'custom');
@@ -338,7 +346,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             </p>
           )}
 
-          {selectedKind === 'custom' && assets !== null && !loading && !error && (
+          {selectedKind === 'custom' && !seedFlow && assets !== null && !loading && !error && (
             assets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
                 조회 가능한 프로젝트 소유 커스텀 자산이 없습니다. Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
@@ -375,6 +383,10 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           )}
 
           {selectedKind === 'custom' && (
+            personaId && onSeedDraftChange ? <PersonaSeedLivePanel
+              personaId={personaId} source={seedSource} draft={seedDraft}
+              onDraftChange={onSeedDraftChange} onSelect={onLiveAvatarChange} onActivityChange={setCreationBusy}
+            /> :
             <section className="rounded-md border border-slate-200 bg-white p-3" aria-labelledby="persona-create-disclosure">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -391,7 +403,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               </div>
             </section>
           )}
-          {liveAvatar && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && <div className="space-y-2">
+          {liveAvatar && !(seedFlow && liveAvatar.kind !== 'stock') && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && <div className="space-y-2">
             {hasSelectedTest ? (
               <Button type="button" variant="outline" disabled={testBusy} onClick={() => setTestEntryOpen(open => !open)}>
                 {testEntryOpen ? '선택 아바타 테스트 닫기' : '선택 아바타 테스트'}
