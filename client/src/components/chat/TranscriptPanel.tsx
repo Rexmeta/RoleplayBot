@@ -118,7 +118,7 @@ export function TranscriptPanel({
                 const e = msg.voiceTurnId ? canonical.get(msg.voiceTurnId) : undefined;
                 if (!e) return msg.message;
                 if (e.status === 'confirmed' || e.status === 'verified') return e.canonicalText;
-                return <><span className="font-semibold">인식 확인 필요 · Live 원문</span><br />{msg.message}</>;
+                return msg.message;
               })()}
             </div>
           </div>
