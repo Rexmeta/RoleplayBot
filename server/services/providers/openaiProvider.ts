@@ -825,14 +825,14 @@ JSON 형식으로 응답:
     };
   }
 
-  async generateText(prompt: string): Promise<string> {
+  async generateText(prompt: string, options?: { signal?: AbortSignal }): Promise<string> {
     const startTime = Date.now();
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 4096,
       temperature: 0.3,
-    });
+    }, { signal: options?.signal });
     const tokens = extractOpenAITokens(response);
     trackUsage({
       feature: 'other',

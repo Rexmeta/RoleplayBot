@@ -1780,11 +1780,12 @@ ${language === 'ko' ? '격려적인 톤을 유지하되 구체적인 피드백�
     }
   }
 
-  async generateText(prompt: string): Promise<string> {
+  async generateText(prompt: string, options?: { signal?: AbortSignal }): Promise<string> {
     const isFlash25 = this.model.includes('gemini-2.5-flash') || this.model.includes('gemini-2.5-pro');
     const response = await this.genAI.models.generateContent({
       model: this.model,
       config: {
+        abortSignal: options?.signal,
         maxOutputTokens: 4096,
         temperature: 0.3,
         ...(isFlash25 ? { thinkingConfig: { thinkingBudget: 0 } } : {}),

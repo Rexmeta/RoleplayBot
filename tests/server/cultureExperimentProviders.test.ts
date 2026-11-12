@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { newCultureValues } from "../../shared/cultureMap";
 import type { ScenarioPersona } from "../../server/services/aiService";
-const sdk = vi.hoisted(() => ({ gemini: vi.fn(), openai: vi.fn() }));
+const sdk = vi.hoisted(() => ({ gemini: vi.fn(), text: vi.fn(), openai: vi.fn() }));
 vi.mock("@google/genai", () => ({
-  GoogleGenAI: class { models = { generateContentStream: sdk.gemini }; },
+  GoogleGenAI: class { models = { generateContentStream: sdk.gemini, generateContent: sdk.text }; },
 }));
 vi.mock("openai", () => ({
   default: class { chat = { completions: { create: sdk.openai } }; },
@@ -13,6 +13,10 @@ vi.mock("../../server/utils/globalMBTICache", () => ({
 }));
 vi.mock("../../server/services/aiUsageTracker", () => ({
   trackUsage: vi.fn(), getModelPricingKey: (model: string) => model,
+  extractOpenAITokens: (response: any) => ({
+    promptTokens: response.usage?.prompt_tokens ?? 0,
+    completionTokens: response.usage?.completion_tokens ?? 0,
+  }),
 }));
 vi.mock("../../server/utils/concurrency", () => ({
   conversationSemaphore: { run: (fn: any) => fn() },
@@ -75,5 +79,17 @@ describe("culture experiment existing provider SDK payloads (mock SDK only)", ()
   it("strict creation refuses unimplemented providers rather than silently switching models", () => {
     expect(() => AIServiceFactory.createServiceWithPolicy({ provider: "claude", model: "claude-test" }, { strict: true })).toThrow("does not support");
     expect(() => AIServiceFactory.createServiceWithPolicy({ provider: "custom", model: "custom-test" }, { strict: true })).toThrow("does not support");
+  });
+  it.each(["gemini", "openai", "openrouter"])("%s forwards the autofill abort signal and pinned model to its text SDK", async kind => {
+    sdk.text.mockResolvedValue({ text: "{}" });
+    sdk.openai.mockResolvedValue({ choices: [{ message: { content: "{}" } }], usage: { prompt_tokens: 20, completion_tokens: 2 } });
+    const controller = new AbortController();
+    const provider = kind === "gemini" ? new OptimizedGeminiProvider("test", "gemini-2.5-flash")
+      : kind === "openai" ? new OpenAIProvider("test", "gpt-4o-mini")
+      : new OpenRouterProvider("test", "openai/gpt-4o-mini");
+    expect(await provider.generateText("자동 채움 JSON", { signal: controller.signal })).toBe("{}");
+    const call = (kind === "gemini" ? sdk.text : sdk.openai).mock.calls[0];
+    expect(call[0].model).toBe(kind === "gemini" ? "gemini-2.5-flash" : kind === "openai" ? "gpt-4o-mini" : "openai/gpt-4o-mini");
+    expect(kind === "gemini" ? call[0].config.abortSignal : call[1].signal).toBe(controller.signal);
   });
 });

@@ -38,6 +38,15 @@ export const cultureExperimentRequestSchema = z.object({
   repetitions: z.number().int().min(1).max(2).default(1),
 }).strict();
 export type CultureExperimentRequest = z.infer<typeof cultureExperimentRequestSchema>;
+// Reuse the experiment's exact limits; suggestions cannot edit repetitions or situations.
+export const cultureExperimentAutofillRequestSchema = z.object({}).strict();
+export const cultureExperimentAutofillSchema = z.object({
+  fixed: cultureExperimentRequestSchema.shape.fixed,
+  variants: z.array(cultureSelectionSchema.pick({
+    profileId: true, profileVersion: true, intensity: true,
+  })).min(1).max(3),
+}).strict();
+export type CultureExperimentAutofill = z.infer<typeof cultureExperimentAutofillSchema>;
 export const DEFAULT_EXPERIMENT_FIXED: CultureExperimentRequest["fixed"] = {
   name: "업무 담당자", personality: "책임감 있고 신중하다. 핵심 문제를 숨기지 않으며 상대를 존중한다.",
   organization: "제품 개발팀. 안전과 품질을 중시하며 고객과의 약속을 지킨다.",

@@ -77,6 +77,7 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  options?: { signal?: AbortSignal },
 ): Promise<Response> {
   const token = localStorage.getItem("authToken");
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
@@ -86,6 +87,7 @@ export async function apiRequest(
   }
 
   const res = await fetch(url, {
+    signal: options?.signal,
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
