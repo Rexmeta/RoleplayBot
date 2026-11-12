@@ -44,7 +44,7 @@ type Props = {
   onExit: () => void;
   onReady?: () => void;
   onExitMode: (mode?: "text" | "realtime-voice") => void;
-  /** Only an explicit learner selection may create a new billable session. */
+  /** @deprecated Entering live mode never starts billing; use the microphone. */
   autoStart?: boolean;
 };
 
@@ -70,7 +70,7 @@ function errorDetails(error: unknown) {
 }
 
 export default function TavusChatWindow({
-  scenario, persona, conversationId, onChatComplete, onExit, onReady, onExitMode, autoStart = false,
+  scenario, persona, conversationId, onChatComplete, onExit, onReady, onExitMode,
 }: Props) {
   const { t, i18n } = useTranslation();
   const text = (key: string, english: string, korean: string) =>
@@ -362,7 +362,7 @@ export default function TavusChatWindow({
     if (startedRef.current || autoStartAttemptedRef.current || starting || !config?.available) return;
     autoStartAttemptedRef.current = true;
     startedRef.current = true;
-    // Entering live mode is the learner's single start action.
+    // Only the microphone action may start a new paid connection.
     requestScreenWakeLock();
     setStarting(true);
     setError(null);
@@ -401,11 +401,6 @@ export default function TavusChatWindow({
     }
   }, [starting, config?.available, requestScreenWakeLock, requestSession,
     endKeepalive, updateSession, checkConnection, releaseScreenWakeLock]);
-
-  useEffect(() => {
-    if (!autoStart || loading || error || statusChecking || session.state !== "idle") return;
-    void start();
-  }, [autoStart, loading, error, statusChecking, session.state, start]);
 
   const end = async () => {
     if (endInFlightRef.current || session.state === "ended") return;
@@ -594,7 +589,7 @@ export default function TavusChatWindow({
           {statusChecking ? text("checking", "Checking…", "확인 중…") : text("retryStatus", "Check status", "상태 확인")}
         </button>
       </div>}
-      <p className="text-center text-xs leading-5 text-slate-600">{text("singleActionNotice", "Selecting live avatar starts a usage-billed connection and sends audio, persona, scenario and applicable organization instructions to the external service.", "라이브 아바타 선택 시 이용 요금이 발생하는 연결을 시작하며, 음성·페르소나·시나리오·적용된 조직 지침을 외부 서비스에 전송합니다.")}</p>
+      <p className="text-center text-xs leading-5 text-slate-600">{text("microphoneStartNotice", "Press the microphone to start a usage-billed connection and send audio, persona, scenario and applicable organization instructions to the external service. Press it again to end the session.", "마이크를 누르면 요금이 발생하는 연결을 시작하며, 음성·페르소나·시나리오·적용된 조직 지침을 외부 서비스에 전송합니다. 다시 누르면 대화를 종료합니다.")}</p>
     </div>
   ) : null;
 
@@ -605,6 +600,11 @@ export default function TavusChatWindow({
       statusLabel={labels[session.state]}
       language={session.language}
       active={session.state === "active"}
+      microphoneState={busy || loading || statusChecking ? "busy" : session.state === "active" ? "active"
+        : session.state === "ended" ? "ended" : session.state === "create_unknown" ? "unknown" : "idle"}
+      microphoneDisabled={busy || loading || statusChecking || session.state === "ended" ||
+        session.state === "create_unknown" || (session.state === "idle" && !config?.available)}
+      onMicrophoneClick={() => { if (session.state === "active") void end(); else if (!started) void start(); }}
       elapsedSeconds={elapsedSeconds}
       remainingSeconds={remainingSeconds}
       preStartControls={startControls}

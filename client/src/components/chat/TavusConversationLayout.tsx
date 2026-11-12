@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Clock3, Play, Settings2 } from "lucide-react";
+import { Clock3, LoaderCircle, Mic, MicOff, Settings2 } from "lucide-react";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
@@ -24,6 +24,9 @@ export interface TavusConversationLayoutProps {
   stage: ReactNode;
   sessionControls: ReactNode;
   preStartControls?: ReactNode;
+  microphoneState: "idle" | "busy" | "active" | "ended" | "unknown";
+  microphoneDisabled: boolean;
+  onMicrophoneClick: () => void;
   history: ReactNode;
   transcriptMessages: ConversationMessage[];
   captionsAreProvisional: boolean;
@@ -49,6 +52,9 @@ export default function TavusConversationLayout({
   stage,
   sessionControls,
   preStartControls,
+  microphoneState,
+  microphoneDisabled,
+  onMicrophoneClick,
   history,
   transcriptMessages,
   captionsAreProvisional,
@@ -175,33 +181,49 @@ export default function TavusConversationLayout({
               data-testid="tavus-control-surface"
               className="mx-auto flex w-full max-w-4xl flex-col items-center gap-1 px-3 py-2 lg:max-w-6xl xl:max-w-[90%]"
             >
-              {preStartControls}
-              <div className="flex min-w-0 items-center gap-2 text-[11px] text-slate-600">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${active ? "bg-emerald-500" : "bg-slate-400"}`} />
-                <span className="truncate">{statusLabel}</span>
-              </div>
-              <div className="flex shrink-0 items-center justify-center gap-3">
-                {!preStartControls && <button
-                  type="button"
-                  onClick={() => setIsOptionsOpen(true)}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white shadow-md transition-colors hover:bg-purple-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
-                  aria-label={onExitMode
-                    ? tx("chat.liveAvatarStartSettings", "Review consent and start", "동의 확인 후 대화 시작")
-                    : tx("chat.liveAvatarOptionsTitle", "Conversation settings", "대화 설정")}
-                  title={onExitMode
-                    ? tx("chat.liveAvatarStartSettings", "Review consent and start", "동의 확인 후 대화 시작")
-                    : tx("chat.liveAvatarOptionsTitle", "Conversation settings", "대화 설정")}
-                  data-testid="button-open-live-avatar-settings"
-                >
-                  {onExitMode ? <Play className="h-5 w-5" aria-hidden="true" /> : <Settings2 className="h-5 w-5" aria-hidden="true" />}
-                </button>}
+              <div className="flex w-full min-w-0 items-center gap-2 px-1 py-1.5 sm:gap-3" data-testid="live-avatar-control-row">
                 <ConversationModeMenu
                   currentMode="live-avatar"
                   onTextModeToggle={onExitMode ? () => onExitMode("text") : undefined}
                   onVoiceModeToggle={onExitMode ? () => onExitMode("realtime-voice") : undefined}
                   disabled={!onExitMode || active}
                 />
+                <button
+                  type="button"
+                  onClick={onMicrophoneClick}
+                  disabled={microphoneDisabled}
+                  className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55 ${
+                    microphoneState === "active"
+                      ? "bg-red-500 hover:bg-red-600"
+                      : "bg-purple-600 hover:bg-purple-700"
+                  }`}
+                  aria-label={microphoneState === "active"
+                    ? tx("chat.endConversation", "End conversation", "대화 종료")
+                    : tx("chat.startConversation", "Start conversation", "대화 시작")}
+                  aria-pressed={microphoneState === "active"}
+                  title={microphoneState === "active"
+                    ? tx("chat.endConversation", "End conversation", "대화 종료")
+                    : tx("chat.startConversation", "Start conversation", "대화 시작")}
+                  data-testid="button-live-avatar-microphone"
+                >
+                  {microphoneState === "busy"
+                    ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+                    : microphoneState === "active"
+                      ? <MicOff className="h-5 w-5" aria-hidden="true" />
+                      : <Mic className="h-5 w-5" aria-hidden="true" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOptionsOpen(true)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                  aria-label={tx("chat.liveAvatarOptionsTitle", "Conversation settings", "대화 설정")}
+                  title={tx("chat.liveAvatarOptionsTitle", "Conversation settings", "대화 설정")}
+                  data-testid="button-open-live-avatar-settings"
+                >
+                  <Settings2 className="h-4 w-4" aria-hidden="true" />
+                </button>
               </div>
+              {preStartControls}
             </VoiceControlSurface>
           </div>
 

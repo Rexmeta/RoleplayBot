@@ -62,6 +62,11 @@ const persona = { id: "persona", name: "Mina Park", role: "Operations director",
 const active = { state: "active" };
 const connection = { transport: "daily", pipeline: "tavus_full", url: "https://daily.example/room", token: "ephemeral-secret" };
 const response = (body: unknown) => ({ json: async () => body });
+async function pressMicrophone() {
+  const microphone = await screen.findByTestId("button-live-avatar-microphone") as HTMLButtonElement;
+  await waitFor(() => expect(microphone.disabled).toBe(false));
+  fireEvent.click(microphone);
+}
 
 beforeEach(() => {
   apiRequestMock.mockReset();
@@ -92,7 +97,7 @@ describe("TavusChatWindow Daily pipeline", () => {
   it("never creates a new session merely because the recovery screen was mounted", async () => {
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="recovery-only"
       onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-    await screen.findByText(/Selecting live avatar starts a usage-billed connection/);
+    await screen.findByText(/Press the microphone to start a usage-billed connection/);
     expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
     expect(screen.queryByTestId("tavus-consent")).toBeNull();
     expect(screen.queryByTestId("tavus-start")).toBeNull();
@@ -126,6 +131,7 @@ describe("TavusChatWindow Daily pipeline", () => {
         view = render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="natural-end"
           onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
       });
+      await act(async () => { fireEvent.click(screen.getByTestId("button-live-avatar-microphone")); });
       expect(screen.getByTestId("mock-managed-room")).toBeTruthy();
       current = { state: "ended", ...contract, transcriptState: "pending" };
       await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
@@ -181,13 +187,20 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(apiRequestMock.mock.calls.some(call => call[1].endsWith("/client-connection"))).toBe(false);
     expect(apiRequestMock.mock.calls.some(call => call[0] === "POST")).toBe(false);
   });
-  it("starts once on explicit live entry without another checkbox or start button", async () => {
+  it("starts only on the microphone click, fences double clicks, and ends on the same microphone", async () => {
     apiRequestMock.mockImplementation(async (_method: string, url: string) => {
       if (url.startsWith("/api/tavus/config?")) return response({ available: true, providerId: "anam", blockers: [] });
       if (url.endsWith("/start")) return response({ state: "active", providerId: "anam" });
+      if (url.endsWith("/end")) return response({ state: "ended", providerId: "anam" });
       return response({ state: "idle" });
     });
     const view = render(<React.StrictMode><TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="direct-live" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} /></React.StrictMode>);
+    await waitFor(() => expect((screen.getByTestId("button-live-avatar-microphone") as HTMLButtonElement).disabled).toBe(false));
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+    act(() => {
+      fireEvent.click(screen.getByTestId("button-live-avatar-microphone"));
+      fireEvent.click(screen.getByTestId("button-live-avatar-microphone"));
+    });
     await screen.findByTestId("mock-managed-room");
     expect((screen.getByTestId("live-avatar-options-dialog") as HTMLDialogElement).open).toBe(false);
     expect(screen.queryByTestId("tavus-consent")).toBeNull();
@@ -195,6 +208,10 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(view.container.textContent).not.toMatch(/\b(Anam|Tavus)\b/i);
     expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/start"))).toHaveLength(1);
     expect(apiRequestMock).toHaveBeenCalledWith("POST", "/api/tavus/conversations/direct-live/start", { consent: true });
+    expect(screen.getByTestId("button-live-avatar-microphone").getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByTestId("button-live-avatar-microphone"));
+    await waitFor(() => expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/end"))).toHaveLength(1));
+    await waitFor(() => expect((screen.getByTestId("button-live-avatar-microphone") as HTMLButtonElement).disabled).toBe(true));
   });
 
   it("keeps the phone screen awake during a live session and releases it on end", async () => {
@@ -216,7 +233,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       return response({ state: "idle" });
     });
     render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="wake-lock-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
-
+    await pressMicrophone();
     await waitFor(() => expect(request).toHaveBeenCalledWith("screen"));
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     fireEvent.click(await screen.findByTestId("tavus-end"));
@@ -240,6 +257,7 @@ describe("TavusChatWindow Daily pipeline", () => {
     });
     render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="common-run"
       onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await pressMicrophone();
     await screen.findByTestId("mock-managed-room");
     fireEvent.click(screen.getByTestId("emit-router-caption"));
     expect(await screen.findByText("Unified provisional caption")).toBeTruthy();
@@ -261,6 +279,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       return response({ state: "idle" });
     });
     render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="run-1" onChatComplete={onChatComplete} onExit={onExit} onExitMode={vi.fn()} />);
+    await pressMicrophone();
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     expect(screen.queryByText(/Live captions are not shown/)).toBeNull();
     fireEvent.click(screen.getByTestId("button-toggle-transcript"));
@@ -301,6 +320,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       return response({ state: "idle" });
     });
     render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="unknown-1" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await pressMicrophone();
     expect(await screen.findByTestId("tavus-error")).toBeTruthy();
     await waitFor(() => expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && String(url).endsWith("/start"))).toHaveLength(1));
     expect(screen.queryByTestId("tavus-start")).toBeNull();
@@ -338,12 +358,14 @@ describe("TavusChatWindow Daily pipeline", () => {
       return response({ state: "idle" });
     });
     render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="safe-retry" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await pressMicrophone();
     await screen.findByTestId("tavus-error");
     expect(screen.getByTestId("tavus-session-status").textContent).toContain("Connection unavailable");
     expect(screen.queryByTestId("tavus-start")).toBeNull();
     expect(attempts).toBe(1);
     expect(screen.queryByTestId("tavus-end-retry")).toBeNull();
     fireEvent.click(screen.getByTestId("tavus-availability-retry"));
+    await pressMicrophone();
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     expect(attempts).toBe(2);
   });
@@ -401,6 +423,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       return response({ state: "idle" });
     });
     const view = render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="report-flow" onChatComplete={onChatComplete} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await pressMicrophone();
     await screen.findByTestId("mock-daily-room");
     expect(onChatComplete).not.toHaveBeenCalled();
     expect(syncs).toBe(0);
@@ -595,6 +618,7 @@ describe("TavusChatWindow Daily pipeline", () => {
       return response({ state: "ended", evaluationAvailable: true, transcriptState: "completed" });
     });
     render(<TavusChatWindow autoStart scenario={scenario} persona={persona} conversationId="caption-final" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await pressMicrophone();
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     act(() => {
       roomMock.mock.calls.at(-1)?.[0].onCaption?.({
