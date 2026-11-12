@@ -6,6 +6,7 @@ import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbti
 import { storage } from '../storage';
 import { assertSafePathSegment, assertSafeJoinedPath } from '../utils/htmlEscape';
 import type { PersonaAvatarMode, PersonaLiveAvatar } from '../../shared/avatar/personaAvatar';
+import { seedSourceIdentity, type PersonaSeedDraft } from '../../shared/avatar/personaSeedLive';
 
 const SCENARIOS_DIR = 'scenarios';
 const PERSONAS_DIR = 'personas';
@@ -661,6 +662,7 @@ export class FileManagerService {
   async getPersonaAvatarSettings(personaRef: string): Promise<{
     avatarMode: PersonaAvatarMode | null;
     liveAvatar: PersonaLiveAvatar | null;
+    liveAvatarSeed: PersonaSeedDraft | null;
   } | null> {
     const id = personaRef.trim().replace(/\.json$/i, '').toLowerCase();
     if (!id) return null;
@@ -671,6 +673,7 @@ export class FileManagerService {
     return {
       avatarMode: persona.avatarMode ?? null,
       liveAvatar: persona.liveAvatar ? structuredClone(persona.liveAvatar) : null,
+      liveAvatarSeed: persona.liveAvatarSeed ? structuredClone(persona.liveAvatarSeed) : null,
     };
   }
 
@@ -735,6 +738,7 @@ export class FileManagerService {
       videos: dbPersona.videos ?? null,
       avatarMode: dbPersona.avatarMode ?? null,
       liveAvatar: dbPersona.liveAvatar ?? null,
+      liveAvatarSeed: dbPersona.liveAvatarSeed ?? null,
       freeChatAvailable: dbPersona.freeChatAvailable || false,
       freeChatDescription: dbPersona.freeChatDescription || '',
       storeListed: dbPersona.storeListed || false,
@@ -767,6 +771,7 @@ export class FileManagerService {
           videos: personaData.videos || null,
           avatarMode: personaData.avatarMode ?? null,
           liveAvatar: personaData.liveAvatar ?? null,
+          liveAvatarSeed: personaData.liveAvatarSeed ?? null,
           storeListed: personaData.storeListed || false,
           storePriceUsd: personaData.storePriceUsd ?? null,
           storePackId: personaData.storePackId ?? null,
@@ -800,6 +805,17 @@ export class FileManagerService {
   async updateMBTIPersona(id: string, personaData: any): Promise<any> {
     try {
       if (USE_DATABASE) {
+        // Image generation/update routes also use this path, not just the editor.
+        // A new base image must never retain the old seed-backed live reference.
+        if (personaData.images !== undefined) {
+          const existing = await storage.getMbtiPersona(id);
+          if (existing?.liveAvatarSeed &&
+              seedSourceIdentity(personaData.images?.base) !== seedSourceIdentity(existing.images?.base)) {
+            const selection = personaData.liveAvatar === undefined ? existing.liveAvatar : personaData.liveAvatar;
+            personaData = { ...personaData, liveAvatarSeed: null,
+              ...(selection?.kind !== "stock" ? { liveAvatar: null } : {}) };
+          }
+        }
         await storage.updateMbtiPersona(id, {
           mbti: personaData.mbti,
           gender: personaData.gender,
@@ -814,6 +830,7 @@ export class FileManagerService {
           ...(personaData.videos !== undefined ? { videos: personaData.videos } : {}),
           ...(personaData.avatarMode !== undefined ? { avatarMode: personaData.avatarMode } : {}),
           ...(personaData.liveAvatar !== undefined ? { liveAvatar: personaData.liveAvatar } : {}),
+          ...(personaData.liveAvatarSeed !== undefined ? { liveAvatarSeed: personaData.liveAvatarSeed } : {}),
           freeChatAvailable: personaData.freeChatAvailable ?? false,
           freeChatDescription: personaData.freeChatDescription ?? '',
           storeListed: personaData.storeListed ?? false,

@@ -21,7 +21,8 @@ export class AvatarProjectClient {
     if (!/^ar_sk_[\x21-\x7e]{14,1018}$/.test(key)) throw new AvatarIdentityError("avatar_connection_invalid", 503);
     const catalogRead = body === undefined && /^\/avatar-assets(?:\/[a-fA-F0-9-]{36})?$/.test(path);
     const assetWrite = body !== undefined && /^\/(?:assets\/images|avatar-assets(?:\/[a-fA-F0-9-]{36}\/live-validation)?)$/.test(path);
-    const imageRead = body === undefined && path === "/assets/images";
+    const imageRead = body === undefined && (path === "/assets/images" ||
+      /^\/assets\/images\/[a-fA-F0-9-]{36}\/live-options$/.test(path));
     const stockRead = body === undefined && path === "/avatars";
     if (!catalogRead && !assetWrite && !imageRead && !stockRead && !/^\/(?:live-limits(?:\?providerId=anam)?|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:client-connection|connection|full-connection|transcript|audio|interrupt|end))?)?)$/.test(path)) {
       throw new AvatarIdentityError("avatar_test_path_invalid", 400);

@@ -19,6 +19,17 @@ const draft = {
 };
 beforeEach(() => rows.clear());
 describe("persona draft storage compatibility", () => {
+  it("round-trips seed metadata without activation, and disconnects it for non-editor image updates", async () => {
+    const seed = { imageAssetId: "22345678-1234-4234-8234-123456789abc", imageVersion: 1,
+      projectId: "project-one", sourceFingerprint: "a".repeat(64) };
+    await fileManager.createMBTIPersona({ id: "coach", mbti: "INTJ", images: { base: "personas/a.webp" },
+      liveAvatarSeed: seed, liveAvatar: draft, avatarMode: "live" });
+    expect((await fileManager.getAllMBTIPersonas())[0]).toMatchObject({ liveAvatarSeed: seed, liveAvatar: draft });
+    await fileManager.updateMBTIPersona("coach", { motivation: "ordinary edit" });
+    expect(rows.get("coach").liveAvatarSeed).toEqual(seed);
+    await fileManager.updateMBTIPersona("coach", { images: { base: "personas/b.webp" } });
+    expect(rows.get("coach")).toMatchObject({ liveAvatarSeed: null, liveAvatar: null, avatarMode: "live" });
+  });
   it("round-trips stock references without manufacturing an asset UUID or changing fallback media", async () => {
     const stockDraft = {
       kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus", projectId: "project-one",

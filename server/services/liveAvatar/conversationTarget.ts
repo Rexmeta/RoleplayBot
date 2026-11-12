@@ -11,6 +11,7 @@ import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
 import { testScopes } from "./testContracts";
 import { nativeScopes } from "./managedClient";
+import { seedLiveOptionsSchema } from "../../../shared/avatar/personaSeedLive";
 
 export const conversationTargetDeps = {
   storage, fileManager, ledgerRuntimeBinding,
@@ -114,9 +115,20 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
   if (selected.providerId !== "tavus" || !supportsCustomLiveContract(auth.integration)) {
     throw new AvatarIdentityError("persona_avatar_custom_runtime_unavailable", 409);
   }
+  let seedProviderAvatarId: string | undefined;
+  if (selected.seedImageAssetId) {
+    const options = await deps.client.call(userId, `/assets/images/${selected.seedImageAssetId}/live-options`, seedLiveOptionsSchema);
+    const candidate = options.candidates.find(c => c.avatarAssetId === selected.assetId);
+    if (options.imageAssetId !== selected.seedImageAssetId || options.imageVersion !== selected.seedImageVersion ||
+        !candidate?.canActivate || candidate.liveReference?.avatarAssetId !== selected.assetId) {
+      throw new AvatarIdentityError("persona_avatar_playback_validation_required", 409);
+    }
+    seedProviderAvatarId = candidate.liveReference.avatarId;
+  }
   const asset = await deps.client.call(userId, `/avatar-assets/${selected.assetId}`, personaAvatarAssetSchema);
   if (asset.id !== selected.assetId || asset.providerId !== selected.providerId ||
-      !asset.liveValidation?.runtimeSupported || !isLiveValidatedPersonaAvatar(asset)) {
+      !asset.liveValidation?.runtimeSupported || !isLiveValidatedPersonaAvatar(asset) ||
+      seedProviderAvatarId && asset.providerAvatarId !== seedProviderAvatarId) {
     throw new AvatarIdentityError("persona_avatar_playback_validation_required", 409);
   }
   return { projectId: auth.projectId, avatarId: asset.providerAvatarId!, assetId: asset.id, providerId: selected.providerId,
