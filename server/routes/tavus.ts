@@ -4,6 +4,7 @@ import { TavusError } from "../services/tavus/client";
 import { tavusSessions } from "../services/tavus/sessions";
 import { isSystemAdmin } from "../middleware/authMiddleware";
 import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
+import { videoObservationSchema } from "../../shared/avatar/sessionTiming";
 
 export default function createTavusRouter(isAuthenticated: any, service = tavusSessions) {
   const router = Router();
@@ -40,6 +41,11 @@ export default function createTavusRouter(isAuthenticated: any, service = tavusS
   router.get("/conversations/:id/session", handle(req => service.session(req.user.id, req.params.id)));
   router.get("/conversations/:id/connection", handle(req => service.connection(req.user.id, req.params.id)));
   router.post("/conversations/:id/client-connection", handle(req => service.managedConnection(req.user.id, req.params.id)));
+  router.post("/conversations/:id/video-playing", handle(req => {
+    const body = videoObservationSchema.safeParse(req.body);
+    if (!body.success) throw new TavusError("avatar_video_observation_invalid", 400);
+    return service.videoPlaying(req.user.id, req.params.id, body.data);
+  }));
   router.post("/conversations/:id/interrupt", handle(req => service.interrupt(req.user.id, req.params.id)));
   router.post("/conversations/:id/start", handle(req => {
     const parsed = z.object({ consent: z.literal(true) }).strict().safeParse(req.body);

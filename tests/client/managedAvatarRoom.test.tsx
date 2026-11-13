@@ -33,6 +33,43 @@ async function loadScript() {
   fireEvent.load(document.querySelector('script[src*="/sdk/avatarrouter-client.js"]')!);
 }
 describe("managed native browser handoff", () => {
+  it("does not report connected/playing state alone, reports a hosted first-frame observation once, and rejects foreign/late calls", async () => {
+    const onTimingReport = vi.fn();
+    const { unmount } = render(<ManagedAvatarRoom endpoint="/owned" reportTiming onTimingReport={onTimingReport} />);
+    await loadScript();
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    options.onState("connected"); options.onState("playing");
+    expect(api.mock.calls.filter(c => c[1].endsWith("/video-playing"))).toHaveLength(0);
+    await expect(options.reportVideoPlaying("foreign", { event: "video_frame_presented" })).rejects.toThrow();
+    await expect(options.reportVideoPlaying("owned", { event: "connected" })).rejects.toThrow();
+    await Promise.all([options.reportVideoPlaying("owned", { event: "video_frame_presented" }),
+      options.reportVideoPlaying("owned", { event: "video_frame_presented" })]);
+    expect(api.mock.calls.filter(c => c[1].endsWith("/video-playing")))
+      .toEqual([["POST", "/owned/video-playing", { event: "video_frame_presented" }]]);
+    options.onTimingReport("saved");
+    expect(onTimingReport).toHaveBeenCalledWith("saved");
+    expect(stop).not.toHaveBeenCalled();
+    unmount();
+    await expect(options.reportVideoPlaying("owned", { event: "video_frame_presented" })).rejects.toThrow();
+  });
+  it("keeps observation failure separate from playback errors, without restart or end", async () => {
+    const onError = vi.fn(), onTimingReport = vi.fn();
+    const original = api.getMockImplementation()!;
+    api.mockImplementation((...args) => args[1].endsWith("/video-playing")
+      ? Promise.reject(new Error("observation unavailable")) : original(...args));
+    render(<ManagedAvatarRoom endpoint="/owned" reportTiming onError={onError} onTimingReport={onTimingReport} />);
+    await loadScript();
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    await expect(options.reportVideoPlaying("owned", { event: "video_frame_presented" })).rejects.toThrow();
+    options.onTimingReport("failed");
+    await expect(options.reportVideoPlaying("owned", { event: "video_frame_presented" })).rejects.toThrow();
+    expect(onTimingReport).toHaveBeenCalledWith("failed");
+    expect(onError).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(api.mock.calls.filter(c => c[1].endsWith("/video-playing"))).toHaveLength(1);
+    expect(api.mock.calls.some(c => /\/(end|interrupt|start)$/.test(c[1]))).toBe(false);
+  });
   it.each(["anam_full", "tavus_full"])("uses one common client for %s captions and owned cleanup reads", async pipeline => {
     const original = api.getMockImplementation()!;
     api.mockImplementation(async (...args) => {

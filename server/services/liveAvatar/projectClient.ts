@@ -24,7 +24,7 @@ export class AvatarProjectClient {
     const imageRead = body === undefined && (path === "/assets/images" ||
       /^\/assets\/images\/[a-fA-F0-9-]{36}\/live-options$/.test(path));
     const stockRead = body === undefined && path === "/avatars";
-    if (!catalogRead && !assetWrite && !imageRead && !stockRead && !/^\/(?:live-limits(?:\?providerId=anam)?|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:client-connection|connection|full-connection|transcript|audio|interrupt|end))?)?)$/.test(path)) {
+    if (!catalogRead && !assetWrite && !imageRead && !stockRead && !/^\/(?:live-limits(?:\?providerId=anam)?|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:video-playing|client-connection|connection|full-connection|transcript|audio|interrupt|end))?)?)$/.test(path)) {
       throw new AvatarIdentityError("avatar_test_path_invalid", 400);
     }
     const identity = await resolveAvatarIdentity(this.store, userId);

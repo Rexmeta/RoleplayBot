@@ -61,6 +61,53 @@ beforeEach(() => {
   service = new TavusSessions(deps);
 });
 describe("AvatarRouter Full Pipeline", () => {
+  it.each(["tavus", "anam"] as const)("preserves %s timing in GET and reports only the server-bound session", async provider => {
+    await service.start("owner", "run", true);
+    const row = rows.get("run:run");
+    row.providerId = provider;
+    remote.providerId = provider; remote.pipeline = `${provider}_full`; remote.rendererState = "running";
+    remote.timing = { routerElapsedSeconds: 24, clientVideoReportedAt: "2026-11-13T01:00:09Z",
+      preparationSeconds: 9, connectedSeconds: 15, evidence: "authenticated_client_report" };
+    const before = await service.session("owner", "run");
+    expect(before.timing).toEqual(remote.timing);
+    deps.client.call.mockClear();
+    const reported = await service.videoPlaying("owner", "run", { event: "video_frame_presented" });
+    expect(reported.timing).toEqual(remote.timing);
+    expect(deps.client.call.mock.calls.filter((c: any[]) => c[3] !== undefined).map((c: any[]) => c.slice(0, 2)))
+      .toEqual([["owner", "/sessions/s1/video-playing"]]);
+    expect(rows.get("run:run").state).toBe("active");
+    expect(reported).not.toHaveProperty("token");
+    expect(reported).not.toHaveProperty("projectId");
+    remote.status = "ended"; remote.rendererState = "closed";
+    remote.timing = { ...remote.timing, routerElapsedSeconds: 30, connectedSeconds: 21 };
+    expect((await service.session("owner", "run")).timing?.connectedSeconds).toBe(21);
+    remote.timing.connectedSeconds = 999;
+    expect((await service.session("owner", "run")).timing?.connectedSeconds).toBe(21);
+  });
+  it("report failures and invalid ownership/project/scope/input never create or terminate a paid session", async () => {
+    await service.start("owner", "run", true);
+    remote.rendererState = "running";
+    await service.session("owner", "run");
+    deps.client.call.mockClear();
+    await expect(service.videoPlaying("other", "run", { event: "video_frame_presented" })).rejects.toMatchObject({ status: 403 });
+    await expect(service.videoPlaying("owner", "run", { event: "video_frame_presented", duration: 1 })).rejects.toMatchObject({ status: 400 });
+    const original = deps.connection.check.getMockImplementation();
+    deps.connection.check.mockResolvedValueOnce({ projectId: "project", scopes: [] });
+    await expect(service.videoPlaying("owner", "run", { event: "video_frame_presented" })).rejects.toMatchObject({ status: 403 });
+    deps.connection.check.mockImplementation(async () => ({ ...await original(), projectId: "foreign" }));
+    await expect(service.videoPlaying("owner", "run", { event: "video_frame_presented" })).rejects.toMatchObject({ status: 409 });
+    deps.connection.check.mockImplementation(original);
+    const call = deps.client.call.getMockImplementation();
+    deps.client.call.mockImplementation(async (...args: any[]) => {
+      if (args[1].endsWith("/video-playing")) throw new TavusError("avatar_test_upstream_409", 409);
+      return call(...args);
+    });
+    await expect(service.videoPlaying("owner", "run", { event: "video_frame_presented" })).rejects.toMatchObject({ status: 409 });
+    expect(rows.get("run:run").state).toBe("active");
+    const writes = deps.client.call.mock.calls.filter((c: any[]) => c[3] !== undefined);
+    expect(writes).toHaveLength(1);
+    expect(writes[0][1]).toBe("/sessions/s1/video-playing");
+  });
   it.each(["tavus", "anam"] as const)("uses the same snapshot context and single managed handoff for %s", async provider => {
     vi.stubEnv("AVATAR_ROUTER_BASE_URL", "https://router.example/api/v1");
     const original = deps.connection.check.getMockImplementation();

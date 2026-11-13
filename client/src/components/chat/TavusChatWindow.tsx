@@ -14,6 +14,8 @@ import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../S
 import { useAuth } from "@/hooks/useAuth";
 import { useAvatarCleanup } from "./useAvatarCleanup";
 import { AvatarCleanupNotice } from "./AvatarCleanupNotice";
+import { AvatarSessionTiming } from "./AvatarSessionTiming";
+import type { SessionTiming } from "@shared/avatar/sessionTiming";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
@@ -28,6 +30,7 @@ type Session = {
   evaluationAvailable?: boolean;
   transcriptState?: TranscriptState;
   transcriptError?: string;
+  timing?: SessionTiming;
 };
 type Config = {
   available: boolean; blockers?: string[]; evaluationAvailable?: boolean;
@@ -101,6 +104,7 @@ export default function TavusChatWindow({
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [statusChecking, setStatusChecking] = useState(false);
   const [endFailed, setEndFailed] = useState(false);
+  const [timingReportFailed, setTimingReportFailed] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const startedRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
@@ -449,14 +453,15 @@ export default function TavusChatWindow({
     ended: text("status.ended", "Session closed", "세션 종료됨"),
   };
   const blockers = config?.blockers || [];
-  const elapsedSeconds = session.createdAt && Number.isFinite(Date.parse(session.createdAt))
+  const elapsedSeconds = session.timing?.routerElapsedSeconds ?? (session.createdAt && Number.isFinite(Date.parse(session.createdAt))
     ? Math.max(0, Math.floor((clockNow - Date.parse(session.createdAt)) / 1000))
-    : 0;
+    : 0);
   const remainingSeconds = session.expiresAt && Number.isFinite(Date.parse(session.expiresAt))
     ? Math.max(0, Math.ceil((Date.parse(session.expiresAt) - clockNow) / 1000))
     : null;
   const roomStage = session.state === "active" && usesManagedClient ? (
     <ManagedAvatarRoom endpoint={sessionUrl(conversationId)}
+      reportTiming onTimingReport={result => setTimingReportFailed(result === "failed")}
       statusEndpoint={`${sessionUrl(conversationId)}/session`}
       onCaption={browserCaptions.onCaption}
       onError={message => setConnectionError({ code: "AVATAR_CLIENT_ERROR", message })} />
@@ -616,6 +621,7 @@ export default function TavusChatWindow({
       hasCaptionEvents={browserCaptions.captions.length > 0}
       sessionControls={
         <div className="space-y-4">
+          {started && <AvatarSessionTiming timing={session.timing} reportFailed={timingReportFailed} />}
           {started && ["ending", "ended", "create_unknown"].includes(session.state) &&
             <AvatarCleanupNotice result={cleanup.result} checking={cleanup.checking}
               disabled={ending || !user} onRefresh={() => void cleanup.refresh()} />}

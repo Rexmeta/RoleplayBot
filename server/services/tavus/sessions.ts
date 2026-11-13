@@ -12,6 +12,7 @@ import { inspectTavusLimits, tavusLimitsSchema } from "./runtimeLimits";
 import { dailyConnectionSchema, routerSessionSchema, routerTranscriptSchema } from "./routerContracts";
 import { managedConnectionSchema, managedClientDescriptor } from "../liveAvatar/managedClient";
 import { supportsAvatarFinalTranscript } from "../../../shared/avatar/personaAvatar";
+import { videoObservationSchema, type SessionTiming } from "../../../shared/avatar/sessionTiming";
 
 type State = "creating" | "create_unknown" | "active" | "ending" | "ended";
 export interface TavusSession {
@@ -20,6 +21,7 @@ export interface TavusSession {
   sessionId?: string; projectId?: string; avatarId?: string; assetId?: string | null;
   expiresAt?: string; lastError?: string;
   rendererState?: string | null; cleanupPending?: boolean;
+  timing?: SessionTiming;
   providerId?: "tavus" | "anam";
   managedConnectionClaim?: string;
   managedClient?: boolean;
@@ -96,6 +98,7 @@ export class TavusSessions {
       ...(session?.sessionId ? { id: session.sessionId } : {}),
       ...(session?.rendererState !== undefined ? { rendererState: session.rendererState } : {}),
       ...(session?.cleanupPending !== undefined ? { cleanupPending: session.cleanupPending } : {}),
+      ...(session?.timing ? { timing: session.timing } : {}),
       providerId: session?.providerId ?? "tavus",
       managedClient: session?.managedClient ?? session?.providerId === "anam",
       evaluationAvailable: !untrustedAnam && (!!session?.transcriptContract || transcriptState !== "unavailable"),
@@ -139,6 +142,9 @@ export class TavusSessions {
         current?.state === "ending" && state !== "ended" ? "ending" : state,
       expiresAt: remote.expiresAt,
       rendererState: remote.rendererState, cleanupPending: remote.cleanupPending,
+      timing: current?.state === "ended" ? current.timing
+        : current?.timing?.evidence === "authenticated_client_report" && remote.timing?.evidence !== "authenticated_client_report"
+          ? current.timing : remote.timing,
     }));
     return this.publicSession(saved);
   }
@@ -243,6 +249,31 @@ export class TavusSessions {
     if (state.state !== "active" || !session) throw new TavusError("tavus_session_not_ready", 409);
     await this.deps.client.call(userId, `/sessions/${session.sessionId}/interrupt`, routerSessionSchema, {});
     return { accepted: true };
+  }
+
+  /** Observation only: no start/end, connection token, or lifecycle mutations. */
+  async videoPlaying(userId: string, runId: string, input: unknown) {
+    const observation = videoObservationSchema.safeParse(input);
+    if (!observation.success) throw new TavusError("avatar_video_observation_invalid", 400);
+    const { session } = await this.owned(userId, runId);
+    if (!session?.sessionId) throw new TavusError("tavus_session_binding_missing", 409);
+    const auth = await this.deps.connection.check(userId);
+    if (!auth.scopes.includes("sessions:connect" as any)) throw new TavusError("avatar_video_report_scope_missing", 403);
+    // Revalidate current user/project and exact provider/avatar binding.
+    await this.remote(userId, session);
+    const remote = await this.deps.client.call(userId, `/sessions/${session.sessionId}/video-playing`,
+      routerSessionSchema, observation.data);
+    if (remote.id !== session.sessionId || remote.avatarId !== session.avatarId ||
+        remote.providerId !== (session.providerId ?? "tavus") ||
+        remote.pipeline !== (session.providerId === "anam" ? "anam_full" : "tavus_full") ||
+        (remote.avatarAssetId ?? null) !== (session.assetId ?? null)) throw new TavusError("tavus_session_mismatch", 502);
+    // Router owns the first-receipt boundary. Keep local lifecycle state untouched,
+    // including when this response races with termination.
+    const saved = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => {
+      if (!current || current.sessionId !== session.sessionId || current.projectId !== session.projectId) return current!;
+      return { ...current, timing: current.state === "ended" ? current.timing : remote.timing };
+    });
+    return this.publicSession(saved);
   }
 
   async end(userId: string, runId: string) {
