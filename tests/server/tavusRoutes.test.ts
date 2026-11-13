@@ -25,6 +25,10 @@ beforeEach(() => {
     end: vi.fn(async () => ({ state: "transcript_pending" })),
     sync: vi.fn(async () => ({ state: "completed" })),
     ensurePal: vi.fn(async () => "pal-1"),
+    videoPlaying: vi.fn(async (user: string) => {
+      if (user !== "owner") throw new TavusError("tavus_conversation_forbidden", 403);
+      return { state: "active" };
+    }),
   };
 });
 function app() {
@@ -40,6 +44,22 @@ function app() {
 }
 
 describe("Tavus authenticated routes", () => {
+  it("reports video only through authenticated same-origin, strictly validated requests", async () => {
+    const path = "/api/tavus/conversations/run/video-playing";
+    await request(app()).post(path).send({ event: "video_frame_presented" }).expect(401);
+    await request(app()).post(path).set("x-user", "other").send({ event: "video_frame_presented" }).expect(403);
+    for (const body of [{}, { event: "connected" }, { event: "video_frame_presented", timestamp: "forged" },
+      { event: "video_frame_presented", tenantId: "foreign" }]) {
+      await request(app()).post(path).set("x-user", "owner").send(body).expect(400);
+    }
+    await request(app()).post(path).set("x-user", "owner").set("Host", "app.example")
+      .set("Origin", "https://foreign.example").send({ event: "video_frame_presented" }).expect(403);
+    const result = await request(app()).post(path).set("x-user", "owner").set("Host", "app.example")
+      .set("Origin", "https://app.example").send({ event: "video_frame_presented" }).expect(200);
+    expect(result.headers["cache-control"]).toBe("private, no-store");
+    expect(service.videoPlaying).toHaveBeenLastCalledWith("owner", "run", { event: "video_frame_presented" });
+    for (const method of ["connection", "start", "end", "sync"]) expect(service[method]).not.toHaveBeenCalled();
+  });
   it("requires login for config and room access", async () => {
     await request(app()).get("/api/tavus/config").expect(401);
     await request(app()).get("/api/tavus/conversations/run/session").expect(401);
