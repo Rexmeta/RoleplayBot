@@ -276,7 +276,7 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
   return {
     preflight, session, loading, creating, creationUncertain, costConfirmed,
     setCostConfirmed, stopping, stopped, error, stopWarning, preflightError, pollFailed,
-    connecting: room.connecting, mediaConnected: mediaReady, videoTrack: room.videoTrack,
+    connecting: room.connecting, mediaConnected: mediaReady, videoTrack: room.videoTrack, timingReportFailed: room.timingReportFailed,
     audioBlocked: room.audioBlocked, audioPlaybackReady: room.audioPlaybackReady,
     audioConfirmed: conversation.audioConfirmed, setAudioConfirmed: conversation.setAudioConfirmed,
     message: conversation.message, setMessage: conversation.setMessage, conversation: conversation.conversation,

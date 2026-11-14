@@ -153,6 +153,23 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(screen.queryByText(/120 seconds/)).toBeNull();
     expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
   });
+  it("connects timing reporting and displays server observations without treating report failure as session failure", async () => {
+    apiRequestMock.mockImplementation(async (_method: string, url: string) => {
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, managedClient: true });
+      return response({ id: "owned", state: "active", managedClient: true, providerId: "tavus",
+        timing: { routerElapsedSeconds: 26, clientVideoReportedAt: "2026-11-13T00:00:09Z",
+          preparationSeconds: 9, connectedSeconds: 17, evidence: "authenticated_client_report" } });
+    });
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="timing"
+      onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    expect((await screen.findByTestId("mock-managed-room")).getAttribute("data-report-timing")).toBe("true");
+    expect(screen.getByTestId("avatar-session-timing").textContent).toContain("0:09");
+    expect(screen.getByTestId("avatar-session-timing").textContent).toContain("0:17");
+    fireEvent.click(screen.getByTestId("fail-timing-report"));
+    expect(screen.getByText(/Video timing report failed/)).toBeTruthy();
+    expect(screen.getByTestId("mock-managed-room")).toBeTruthy();
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
   it("never creates a new session merely because the recovery screen was mounted", async () => {
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="recovery-only"
       onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);

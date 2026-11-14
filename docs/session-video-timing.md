@@ -6,7 +6,24 @@
 (`TavusChatWindow → ManagedAvatarRoom`, Tavus/Anam full pipeline)에 연결한다.
 기존 로그인, 대화 소유권, 프로젝트별 서버 전용 API 키와 사용자 컨텍스트는 유지한다.
 브라우저에 Gemini/Tavus/Anam 또는 AvatarRouter 프로젝트 API 키를 전달하지 않는다.
-기존 Daily 세션과 이 옵션을 연결하지 않은 관리자 테스트는 계속 작동하지만 첫 프레임을 추정해 보고하지 않는다.
+관리자 stock/Anam 테스트 및 페르소나 커스텀 검증에도 같은 관측을 연결한다.
+기존 Daily 실제 대화 경로는 첫 프레임을 추정해 보고하지 않는다.
+
+### 관리자·페르소나 진단
+
+- stock: POST /api/live-avatar/test/sessions/:id/video-playing
+- Anam: POST /api/live-avatar/stock/anam-persona-default/test/sessions/:id/video-playing
+- custom: POST /api/admin/personas/live-avatar/assets/:assetId/validation/sessions/:id/video-playing
+
+본문은 아래 실제 대화 경로와 동일한 단일 event만 허용한다.
+관리자 테스트는 기존 시스템 관리자 권한, custom은 기존 운영자/관리자 권한을 유지한다.
+사용자·tenant는 기존 서버 프로젝트 클라이언트가 결정하며 ID, provider/avatar 및 custom asset/purpose를 전후 검증한다.
+영상 관측은 live-validation 완료 보고와 별개다. 음성 전송·생성·종료·에셋 검증을 호출하지 않는다.
+보고 실패는 별도 경고만 표시하고 2초 상태 조회로 전달된 서버 timing을 표시한다.
+stock/custom 영상은 실제 프레임 콜백 또는 advancing media time을 한 번 관측한다.
+트랙 구독, DOM playing, ready/token만으로 보고하지 않으며 이미 보고한 동일 세션은 연결 재시도에서도 다시 시도하지 않는다.
+Anam은 공통 ManagedAvatarRoom/SDK의 같은 첫 프레임 옵션을 사용한다.
+과거 timing 없는 세션은 영상 보고 없음으로 남는다. 종료 시각과 예산·cleanup을 추정 변경하지 않는다.
 
 ## 인증된 프록시
 
@@ -58,7 +75,7 @@ AvatarRouter API/Worker의 nullable 시간 컬럼과 `session_video_timing_v1` �
 운영 적용은 이 소스의 검토·병합·별도 게시 후 이루어진다.
 이 작업은 실제 유료 통화·제공자 생성·운영 데이터 변경·게시를 실행하지 않았다.
 
-검증: 세션 프록시/라우터/공통 클라이언트/대화 화면/시간 표시 관련 104개 fixture 테스트 통과.
+검증: 관리자·페르소나·실제 대화 세션 프록시/공통 클라이언트/시간 표시 관련 203개 fixture 테스트 통과.
 전체 타입 검사는 기존 `server/vite.ts`의 `nanoid` 누락으로 실패했고,
 전체 Vite 빌드는 기존 소개 카드 이미지 파일 누락으로 실패했다.
 이 변경은 그 의존성과 이미지 파일을 수정하거나 전체 빌드 성공을 주장하지 않는다.

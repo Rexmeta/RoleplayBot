@@ -1,12 +1,14 @@
 // @vitest-environment happy-dom
 import React from "react";
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ i18n: { language: "ko" } }) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AnamAvatarTestPanel } from "../../client/src/components/admin/AnamAvatarTestPanel";
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
 vi.mock("../../client/src/components/chat/ManagedAvatarRoom", () => ({
-  default: ({ endpoint }: { endpoint: string }) => <div data-testid="native-room">{endpoint}</div>,
+  default: ({ endpoint, reportTiming, onTimingReport }: any) => <div data-testid="native-room" data-report-timing={String(reportTiming)}>
+    {endpoint}<button onClick={() => onTimingReport?.("failed")}>fail-frame-report</button></div>,
 }));
 const base = "/api/live-avatar/stock/anam-persona-default/test";
 const preflight = {
@@ -35,6 +37,10 @@ describe("default avatar test consent and lifecycle", () => {
     await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(start);
     expect((await screen.findByTestId("native-room")).textContent).toContain(`${base}/sessions/native-one`);
+    expect(screen.getByTestId("native-room").getAttribute("data-report-timing")).toBe("true");
+    fireEvent.click(screen.getByText("fail-frame-report"));
+    expect(screen.getByTestId("avatar-session-timing").textContent).toContain("영상 시간 보고에 실패했습니다");
+    expect(screen.getByTestId("native-room")).toBeTruthy();
     expect(api.mock.calls.filter(c => c[0] === "POST")).toEqual([
       ["POST", `${base}/sessions`, { costConfirmed: true, audioConfirmed: true }],
     ]);

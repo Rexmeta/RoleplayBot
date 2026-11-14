@@ -1,4 +1,5 @@
 /** Isolated stock-avatar diagnostic, not the scenario conversation runtime. */
+import type { SessionTiming } from "./sessionTiming";
 export type AvatarTestSession = {
   id: string;
   providerId: string;
@@ -10,6 +11,9 @@ export type AvatarTestSession = {
   cleanupPending: boolean;
   expiresAt: string;
   errorCode?: string | null;
+  timing?: SessionTiming;
+  avatarAssetId?: string | null;
+  purpose?: "validation" | "conversation";
 };
 export type AvatarTestLimits = {
   userRemainingSeconds: number;

@@ -2,6 +2,7 @@ import { Check, CircleStop, Headphones, Loader2, Mic, MicOff, Send, Video } from
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAdminAvatarTest } from "./useAdminAvatarTest";
+import { AvatarSessionTiming } from "@/components/chat/AvatarSessionTiming";
 
 type TestState = ReturnType<typeof useAdminAvatarTest>;
 
@@ -41,6 +42,7 @@ export function AvatarTestSessionView({ test, assistantName = "Lucy" }: { test: 
         </div>
       </div>
       <div ref={test.audioHost} className="sr-only" aria-label="아바타 음성 출력" />
+      <AvatarSessionTiming timing={session.timing} reportFailed={test.timingReportFailed} />
       <p className="text-xs text-muted-foreground">브라우저를 닫아도 제공자 작업이 즉시 중단됐다는 증거가 되지 않습니다. 서버 워커의 120초 제한과 정리 상태를 확인하세요.</p>
     </div>
 

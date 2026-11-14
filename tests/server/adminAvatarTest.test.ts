@@ -51,6 +51,27 @@ beforeEach(() => {
 });
 
 describe("isolated paid admin diagnostic", () => {
+  it("forwards only a first-frame assertion with the same user and exact session; preserves router timing", async () => {
+    const timing = { routerElapsedSeconds: 20, clientVideoReportedAt: "2026-11-13T00:00:09Z",
+      preparationSeconds: 9, connectedSeconds: 11, evidence: "authenticated_client_report" };
+    client.call.mockImplementation(async (_user, _path, schema) => schema.parse(session({ timing })));
+    expect(await service.videoPlaying("admin-a", "test-session")).toMatchObject({ timing });
+    expect(client.call.mock.calls.map(c => [c[0], c[1], c[3]])).toEqual([
+      ["admin-a", "/sessions/test-session", undefined],
+      ["admin-a", "/sessions/test-session/video-playing", { event: "video_frame_presented" }],
+    ]);
+    expect(dialogue.reply).not.toHaveBeenCalled();
+    expect(attempts.upsertSystemSetting).not.toHaveBeenCalled();
+  });
+  it("never forwards an observation for a mismatched ID or asset-bound stock response", async () => {
+    client.call.mockImplementation(async (_u, _p, schema) => schema.parse(session({ id: "other" })));
+    await expect(service.videoPlaying("admin", "test-session")).rejects.toMatchObject({ code: "avatar_test_session_mismatch" });
+    expect(client.call).toHaveBeenCalledTimes(1);
+    client.call.mockClear();
+    client.call.mockImplementation(async (_u, _p, schema) => schema.parse(session({ avatarAssetId: "12345678-1234-4234-8234-123456789abc" })));
+    await expect(service.videoPlaying("admin", "test-session")).rejects.toMatchObject({ code: "avatar_test_session_mismatch" });
+    expect(client.call).toHaveBeenCalledTimes(1);
+  });
   it("only reads on preflight and does not change global/scenario flags", async () => {
     expect(await service.preflight("admin-a")).toMatchObject({ ready: true, aiReady: true, creationUncertain: false });
     expect(client.call.mock.calls.every(call => call[3] === undefined)).toBe(true);
