@@ -96,6 +96,35 @@ const mediaReady = async (room: any) => {
 };
 
 describe("admin stock-avatar test UI", () => {
+  it("plays a muted inline video with the entire frame visible and retains it across ordinary updates", async () => {
+    const room = await recoverRunning();
+    const video = track("video"), node = video.attach() as HTMLVideoElement;
+    const detach = vi.spyOn(video, "detach");
+    await act(async () => room.handlers.get("sub")?.(video));
+    expect(node.classList.contains("object-contain")).toBe(true);
+    expect(node.classList.contains("object-cover")).toBe(false);
+    expect(node.muted).toBe(true);
+    expect(node.playsInline).toBe(true);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    await act(async () => room.handlers.get("sub")?.(track("audio")));
+    expect(document.body.contains(node)).toBe(true);
+    expect(detach).not.toHaveBeenCalled();
+    expect(createPosts()).toHaveLength(0);
+  });
+  it("retries blocked video playback on the same element without creating or reconnecting a session", async () => {
+    const room = await recoverRunning();
+    const video = track("video"), node = video.attach() as HTMLVideoElement;
+    const detach = vi.spyOn(video, "detach");
+    vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValueOnce(new Error("NotAllowedError"));
+    await act(async () => room.handlers.get("sub")?.(video));
+    const retry = await screen.findByRole("button", { name: "영상 재생 허용" });
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "영상 재생 허용" })).toBeNull());
+    expect(document.body.contains(node)).toBe(true);
+    expect(detach).not.toHaveBeenCalled();
+    expect(room.disconnect).not.toHaveBeenCalled();
+    expect(createPosts()).toHaveLength(0);
+  });
   it("shows the router's 600-second limit in cost consent without creating a paid session", async () => {
     preflight.limits.sessionSeconds = 600;
     render(<LiveAvatarTestPanel />);

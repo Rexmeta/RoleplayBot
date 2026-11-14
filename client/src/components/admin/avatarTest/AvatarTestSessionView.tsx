@@ -11,6 +11,11 @@ export function AvatarTestSessionView({ test, assistantName = "Lucy" }: { test: 
   if (!session) return null;
   const inputDisabled = !test.mediaConnected || !test.ready || !test.audioConfirmed || test.turnBusy ||
     test.stopping || test.recording || test.micPending;
+  const sendText = () => {
+    const text = test.message.trim();
+    if (inputDisabled || !text) return;
+    void test.sendTurn({ text, history: [] });
+  };
   return <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,.85fr)]">
     <div className="space-y-3">
       <div className="relative aspect-video overflow-hidden rounded-lg border bg-slate-950">
@@ -29,6 +34,9 @@ export function AvatarTestSessionView({ test, assistantName = "Lucy" }: { test: 
               session.cleanupPending ? "정리 대기" : `세션 ${session.status} · ${session.rendererState || "renderer 미확인"}`}
         </div>
         <div className="flex gap-2">
+          {test.videoPlaybackBlocked && <Button type="button" size="sm" variant="outline" onClick={() => void test.startVideo()}>
+            영상 재생 허용
+          </Button>}
           {test.audioBlocked && <Button type="button" size="sm" variant="outline" onClick={() => void test.startAudio()}>
             <Headphones className="mr-2 h-4 w-4" />오디오 재생 허용
           </Button>}
@@ -70,15 +78,20 @@ export function AvatarTestSessionView({ test, assistantName = "Lucy" }: { test: 
           </div>)}
         {test.turnBusy && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />응답 생성 중… 중지 버튼은 계속 사용할 수 있습니다.</div>}
       </div>
-      <form className="space-y-2 border-t p-3" onSubmit={(event) => {
-        event.preventDefault();
-        if (test.message.trim()) void test.sendTurn({ text: test.message.trim(), history: [] });
-      }}>
+      <div className="space-y-2 border-t p-3">
         <div className="flex gap-2">
           <input value={test.message} onChange={(event) => test.setMessage(event.target.value.slice(0, 500))} maxLength={500}
             disabled={inputDisabled} placeholder="테스트할 말을 입력하세요"
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              event.stopPropagation();
+              const nativeEvent = event.nativeEvent as KeyboardEvent;
+              if (event.shiftKey || nativeEvent.isComposing || nativeEvent.keyCode === 229) return;
+              sendText();
+            }}
             className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" />
-          <Button type="submit" size="icon" aria-label="텍스트 전송" disabled={inputDisabled || !test.message.trim()}><Send className="h-4 w-4" /></Button>
+          <Button type="button" size="icon" aria-label="텍스트 전송" disabled={inputDisabled || !test.message.trim()} onClick={sendText}><Send className="h-4 w-4" /></Button>
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">{test.message.length}/500 · 음성은 서버 STT에만 전달</span>
@@ -88,7 +101,7 @@ export function AvatarTestSessionView({ test, assistantName = "Lucy" }: { test: 
             {test.recording ? "녹음 완료 전송" : test.micPending ? "마이크 권한 확인 중…" : "최대 15초 녹음"}
           </Button>
         </div>
-      </form>
+      </div>
     </div>
   </div>;
 }

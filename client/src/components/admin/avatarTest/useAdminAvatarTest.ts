@@ -59,6 +59,7 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
   }, []);
   const room = useAvatarTestRoom({
     endpoint,
+    videoFit: "contain",
     session,
     sessionRef,
     mountedRef,
@@ -278,6 +279,7 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
     setCostConfirmed, stopping, stopped, error, stopWarning, preflightError, pollFailed,
     connecting: room.connecting, mediaConnected: mediaReady, videoTrack: room.videoTrack, timingReportFailed: room.timingReportFailed,
     audioBlocked: room.audioBlocked, audioPlaybackReady: room.audioPlaybackReady,
+    videoPlaybackBlocked: room.videoPlaybackBlocked, startVideo: room.startVideo,
     audioConfirmed: conversation.audioConfirmed, setAudioConfirmed: conversation.setAudioConfirmed,
     message: conversation.message, setMessage: conversation.setMessage, conversation: conversation.conversation,
     turnBusy: conversation.turnBusy, recording: conversation.recording, micPending: conversation.micPending,

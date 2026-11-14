@@ -14,6 +14,7 @@ async function fetchConnection(sessionId: string, endpoint: string): Promise<Con
 
 type Options = {
   endpoint?: string;
+  videoFit?: "contain" | "cover";
   session: AvatarTestSession | null;
   sessionRef: MutableRefObject<AvatarTestSession | null>;
   mountedRef: MutableRefObject<boolean>;
@@ -23,7 +24,7 @@ type Options = {
   onError: (message: string) => void;
 };
 
-export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session, sessionRef, mountedRef, stoppedRef, stoppingRef, pollFailedRef, onError }: Options) {
+export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", videoFit = "cover", session, sessionRef, mountedRef, stoppedRef, stoppingRef, pollFailedRef, onError }: Options) {
   const { user } = useAuth();
   const userId = user?.id;
   const userRef = useRef(userId);
@@ -37,7 +38,9 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
   const [videoTrack, setVideoTrack] = useState<Track | null>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [audioPlaybackReady, setAudioPlaybackReady] = useState(true);
+  const [videoPlaybackBlocked, setVideoPlaybackBlocked] = useState(false);
   const videoHost = useRef<HTMLDivElement>(null);
+  const videoNodeRef = useRef<HTMLVideoElement | null>(null);
   const audioHost = useRef<HTMLDivElement>(null);
   const roomRef = useRef<Room | null>(null);
   const mediaOwnerRef = useRef<{ userId: string; sessionId: string }>();
@@ -57,7 +60,9 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
     videoSubscribedRef.current = false;
     audioSubscribedRef.current = false;
     audioPlaybackReadyRef.current = true;
+    videoNodeRef.current = null;
     if (mountedRef.current) {
+      setVideoPlaybackBlocked(false);
       setMediaConnected(false);
       setConnecting(false);
       setVideoTrack(null);
@@ -186,13 +191,30 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
     };
   }, [session?.id, isReady, connectionAttempt, endpoint, userId]);
 
+  const startVideo = useCallback(async () => {
+    const node = videoNodeRef.current;
+    if (!node) return;
+    try {
+      await node.play();
+      if (mountedRef.current && videoNodeRef.current === node) setVideoPlaybackBlocked(false);
+    } catch {
+      if (mountedRef.current && videoNodeRef.current === node) setVideoPlaybackBlocked(true);
+    }
+  }, [mountedRef]);
+
   useEffect(() => {
     if (!videoTrack || !videoHost.current) return;
-    const node = videoTrack.attach();
+    const node = videoTrack.attach() as HTMLVideoElement;
+    videoNodeRef.current = node;
     node.autoplay = true;
+    // Remote audio has its own element and consent flow. Muting the video element
+    // permits inline autoplay without duplicating audio or bypassing audio consent.
+    node.muted = true;
+    node.playsInline = true;
     node.setAttribute("playsinline", "true");
-    node.className = "h-full w-full object-cover";
+    node.className = videoFit === "contain" ? "h-full w-full object-contain" : "h-full w-full object-cover";
     videoHost.current.replaceChildren(node);
+    void startVideo();
     const id = sessionRef.current?.id, generation = generationRef.current;
     const cancelFrame = onFirstVideoFrame(node as HTMLVideoElement, () => {
       if (!id || !userId || userRef.current !== userId || !mountedRef.current ||
@@ -208,11 +230,12 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
         });
     });
     return () => {
+      if (videoNodeRef.current === node) videoNodeRef.current = null;
       cancelFrame();
       videoTrack.detach().forEach((element) => element.remove());
       if (videoHost.current?.contains(node)) node.remove();
     };
-  }, [videoTrack, userId, endpoint]);
+  }, [videoTrack, userId, endpoint, startVideo, videoFit]);
 
   const retryConnection = () => {
     if (stoppedRef.current || stoppingRef.current) return;
@@ -239,7 +262,7 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
 
   return {
     connecting, connectionAttempt, setConnectionAttempt, mediaConnected, videoTrack, audioBlocked, timingReportFailed,
-    audioPlaybackReady, videoHost, audioHost, disconnectMedia, retryConnection, startAudio,
+    audioPlaybackReady, videoPlaybackBlocked, videoHost, audioHost, disconnectMedia, retryConnection, startAudio, startVideo,
     videoSubscribedRef, lastConnectionKeyRef,
   };
 }

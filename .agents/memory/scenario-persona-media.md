@@ -58,3 +58,12 @@ project-owned reference, not a claim that it was generated from the current port
 **How to apply:** Keep the catalog and seed preparation separate; validate project
 ownership and readiness on save without manufacturing seed lineage. Do not automatically
 select a returned asset, generate another, or start a paid replay merely to show status.
+
+관리자 라이브 아바타 테스트에서는 라우터가 보낸 원본 영상 프레임을 자르지 않고
+전체가 보이도록 표시한다.
+
+**Why:** 사용자가 테스트에서 아바타 모습이 온전히 보이지 않는다고 지적했다.
+
+**How to apply:** 테스트 영상은 비율을 유지한 전체 프레임 표시를 사용한다.
+원본 영상 자체의 구도나 제공자 쪽 정지 문제를 앱이 해결했다고 주장하지 않고,
+학습자 대화의 별도 초상화 레이아웃까지 임의로 변경하지 않는다.
