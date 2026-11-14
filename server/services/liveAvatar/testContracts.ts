@@ -20,7 +20,7 @@ export const testSessionSchema = z.object({
 export const testLimitsSchema = z.object({
   userRemainingSeconds: z.number().int().nonnegative(),
   globalRemainingSeconds: z.number().int().nonnegative(),
-  sessionSeconds: z.number().int().min(1).max(120),
+  sessionSeconds: z.number().int().positive(),
   cleanupPending: z.number().int().nonnegative(),
   workerReady: z.boolean(),
   providerCredits: z.literal("unknown"),

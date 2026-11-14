@@ -188,13 +188,77 @@ describe("persona avatar settings", () => {
     expect(screen.getByTestId("draft").textContent).toBe("null");
   });
 
-  it("opens the selected saved custom-avatar test before the catalog has been loaded", () => {
-    render(<Harness initial={saved} />);
-    expect(api).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("custom-avatar-test")).toBeNull();
+  it("opens the chosen custom test from a seed-linked persona without starting a paid session", async () => {
+    const seedLinked: PersonaLiveAvatar = { ...saved, seedImageAssetId: "seed-image-id" };
+    const seedDraft = { imageAssetId: "seed-image-id", imageVersion: 2, projectId: "project-one" } as any;
+    function PersonaHarness() {
+      const [avatar, setAvatar] = useState<PersonaLiveAvatar | null>(seedLinked);
+      const [draft, setDraft] = useState<any>(seedDraft);
+      return <>
+        <PersonaAvatarSettings mode="live" liveAvatar={avatar} onModeChange={() => {}}
+          onLiveAvatarChange={setAvatar} personaId="persona-123" seedSource="/media/persona.png"
+          seedDraft={draft} onSeedDraftChange={setDraft} />
+        <output data-testid="persona-avatar">{JSON.stringify(avatar)}</output>
+      </>;
+    }
+    render(<PersonaHarness />);
+    expect(await screen.findByTestId("seed-panel")).toBeTruthy();
+    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
+
     fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
     expect(screen.getByTestId("custom-avatar-test").textContent).toContain(id);
-    expect(api).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("seed-panel")).toBeNull();
+    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
+    expect(screen.getByText(/독립 테스트 대화/)).toBeTruthy();
+  });
+
+  it("opens the correct catalog-selected test in the persona editor and locks the selection through cleanup", async () => {
+    const otherId = "22345678-1234-4234-8234-123456789abc";
+    const seedDraft = { imageAssetId: "seed-image-id", imageVersion: 2, projectId: "project-one" } as any;
+    function PersonaHarness() {
+      const [avatar, setAvatar] = useState<PersonaLiveAvatar | null>(null);
+      const [draft, setDraft] = useState<any>(seedDraft);
+      return <>
+        <PersonaAvatarSettings mode="live" liveAvatar={avatar} onModeChange={() => {}}
+          onLiveAvatarChange={setAvatar} personaId="persona-123" seedSource="/media/persona.png"
+          seedDraft={draft} onSeedDraftChange={setDraft} />
+        <output data-testid="persona-avatar">{JSON.stringify(avatar)}</output>
+      </>;
+    }
+    api.mockResolvedValue({ json: async () => response([row(), row({ id: otherId, name: "두 번째 아바타" })]) });
+    render(<PersonaHarness />);
+    expect(await screen.findByText("프로젝트 커스텀 아바타")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: "이 자산 선택" })[1]);
+    expect(JSON.parse(screen.getByTestId("persona-avatar").textContent!)).toMatchObject({ kind: "custom", assetId: otherId });
+    fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
+    expect(screen.getByTestId("custom-avatar-test").textContent).toContain(otherId);
+    expect(screen.queryByTestId("seed-panel")).toBeNull();
+    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mock session start" }));
+    expect(screen.getByRole("radio", { name: "기본 아바타" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("radio", { name: "이미지" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "선택 아바타 테스트 닫기" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "이 자산 선택" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByTestId("custom-avatar-test").textContent).toContain(otherId);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mock session end" }));
+    fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트 닫기" }));
+    expect(screen.queryByTestId("custom-avatar-test")).toBeNull();
+    expect(screen.getByRole("button", { name: "시드 준비 열기" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "시드 준비 열기" }));
+    expect(await screen.findByTestId("seed-panel")).toBeTruthy();
+    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
+  });
+
+  it("does not offer a selected-avatar test without a selection in persona editor props", async () => {
+    const seedDraft = { imageAssetId: "seed-image-id", imageVersion: 2, projectId: "project-one" } as any;
+    render(<PersonaAvatarSettings mode="live" liveAvatar={null} onModeChange={() => {}}
+      onLiveAvatarChange={vi.fn()} personaId="persona-123" seedDraft={seedDraft} onSeedDraftChange={vi.fn()} />);
+    await screen.findByText("프로젝트 커스텀 아바타");
+    expect(screen.queryByRole("button", { name: "선택 아바타 테스트" })).toBeNull();
+    expect(screen.queryByTestId("custom-avatar-test")).toBeNull();
+    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
   });
 
   it("shows only the chosen kind and opens custom creation explicitly without starting requests", () => {

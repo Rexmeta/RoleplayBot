@@ -193,7 +193,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
     if (liveAvatar && (kind === 'stock') !== (liveAvatar.kind === 'stock')) onLiveAvatarChange(null);
   };
   const changeMode = (nextMode: PersonaAvatarMode) => {
-    if ((testBusy || creationBusy) && nextMode !== 'live') return;
+    if (testBusy || creationBusy) return;
     if (nextMode !== 'live') setTestEntryOpen(false);
     onModeChange(nextMode);
   };
@@ -216,7 +216,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             type="button"
             role="radio"
             aria-checked={mode === value}
-            disabled={!videoManagementAllowed && (value === 'video' || (value === 'image' && activeVideoEnabled)) || ((testBusy || creationBusy) && value !== 'live')}
+            disabled={!videoManagementAllowed && (value === 'video' || (value === 'image' && activeVideoEnabled)) || testBusy || creationBusy}
             onClick={() => changeMode(value)}
             className={`min-h-11 rounded-md border px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               mode === value
@@ -271,7 +271,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={loadAssets} disabled={loading}>
+            <Button type="button" variant="outline" onClick={loadAssets} disabled={loading || testBusy}>
               {loading ? '목록 조회 중…' : assets === null ? '아바타 목록 조회' : '목록 새로고침'}
             </Button>
             {projectId && <span className="text-xs text-slate-500">프로젝트 {projectId}</span>}
@@ -438,14 +438,14 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                     <p className="text-sm font-semibold text-slate-800">기본 이미지 시드와 독립된 자산</p>
                     <p className="mt-1 text-xs leading-relaxed text-slate-600">선택한 프로젝트 자산은 시드 초안과 별도로 연결되어 있습니다. 필요할 때만 시드 준비 상태를 열어 확인할 수 있습니다.</p>
-                    <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => setSeedPanelOpen(true)}>시드 준비 열기</Button>
+                    <Button type="button" size="sm" variant="outline" className="mt-3" disabled={testBusy} onClick={() => setSeedPanelOpen(true)}>시드 준비 열기</Button>
                   </div>
-                ) : (
+                ) : !testBusy && !testEntryOpen ? (
                   <PersonaSeedLivePanel
                     personaId={personaId} source={seedSource} draft={seedDraft}
                     onDraftChange={onSeedDraftChange} onSelect={onLiveAvatarChange} onActivityChange={setCreationBusy}
                   />
-                )}
+                ) : null}
               </>
             ) :
             <section className="rounded-md border border-slate-200 bg-white p-3" aria-labelledby="persona-create-disclosure">
@@ -464,9 +464,12 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               </div>
             </section>
           )}
-          {liveAvatar && !(seedFlow && liveAvatar.kind !== 'stock') && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && <div className="space-y-2">
+          {liveAvatar && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && <div className="space-y-2">
+            <p className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-xs leading-relaxed text-indigo-950">
+              선택 아바타 테스트는 고른 아바타만 확인하는 독립 테스트 대화입니다. 시나리오나 페르소나의 동작·평가를 검증하지 않으며, 페르소나 변경 사항은 별도로 저장해야 반영됩니다. 패널을 여는 동작은 읽기 전용 사전 점검만 수행하며 유료 세션을 자동 생성하지 않습니다.
+            </p>
             {hasSelectedTest ? (
-              <Button type="button" variant="outline" disabled={testBusy} onClick={() => setTestEntryOpen(open => !open)}>
+              <Button type="button" variant="outline" disabled={testBusy || creationBusy} onClick={() => setTestEntryOpen(open => !open)}>
                 {testEntryOpen ? '선택 아바타 테스트 닫기' : '선택 아바타 테스트'}
               </Button>
             ) : (

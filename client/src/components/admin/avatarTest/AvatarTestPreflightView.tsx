@@ -79,11 +79,11 @@ export function AvatarTestPreflightView({ test }: { test: TestState }) {
     {!test.recoverable && <div className="space-y-3 rounded-lg border bg-muted/10 p-4">
       <div className="flex items-start gap-2 text-sm">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-        <p><strong>120초 예약은 비용 상한이나 달러 보장이 아닙니다.</strong> 제공자 크레딧은 확인되지 않으며 워커가 세션을 최대 120초로 제한합니다.</p>
+        <p><strong>{preflight.limits.sessionSeconds}초 세션 한도는 비용 상한이나 달러 보장이 아닙니다.</strong> 제공자 크레딧은 확인되지 않으며 실제 만료와 정리 상태는 라우터 응답을 따릅니다.</p>
       </div>
       <label className="flex cursor-pointer items-start gap-3 text-sm">
         <input className="mt-1 h-4 w-4 accent-primary" type="checkbox" checked={test.costConfirmed} onChange={(event) => test.setCostConfirmed(event.target.checked)} />
-        <span>실제 외부 아바타 서비스 사용 및 비용 가능성을 확인했습니다. 120초 예약은 달러 비용 보장이 아닙니다.</span>
+        <span>실제 외부 아바타 서비스 사용 및 비용 가능성을 확인했습니다. {preflight.limits.sessionSeconds}초 세션 한도는 달러 비용 보장이 아닙니다.</span>
       </label>
       <label className="flex cursor-pointer items-start gap-3 text-sm">
         <input className="mt-1 h-4 w-4 accent-primary" type="checkbox" checked={test.audioConfirmed} onChange={(event) => test.setAudioConfirmed(event.target.checked)} />

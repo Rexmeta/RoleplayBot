@@ -96,6 +96,14 @@ const mediaReady = async (room: any) => {
 };
 
 describe("admin stock-avatar test UI", () => {
+  it("shows the router's 600-second limit in cost consent without creating a paid session", async () => {
+    preflight.limits.sessionSeconds = 600;
+    render(<LiveAvatarTestPanel />);
+    expect((await screen.findAllByText("600초")).length).toBeGreaterThan(0);
+    expect(screen.getByText(/600초 세션 한도는 달러 비용 보장이 아닙니다/)).toBeTruthy();
+    expect(screen.queryByText(/120초/)).toBeNull();
+    expect(createPosts()).toHaveLength(0);
+  });
   it("reports one advancing frame, not subscription/readiness, and reporting failure never ends or recreates media", async () => {
     const room = await recoverRunning(), video = track("video");
     const node = video.attach();

@@ -51,6 +51,22 @@ beforeEach(() => {
 });
 
 describe("isolated paid admin diagnostic", () => {
+  it("reads a 600-second router limit and checks the actual reservation without starting a session", async () => {
+    limitState = { ...limits, sessionSeconds: 600, userRemainingSeconds: 600, globalRemainingSeconds: 600 };
+    expect(await service.preflight("admin")).toMatchObject({ ready: true, limits: { sessionSeconds: 600 } });
+    limitState.userRemainingSeconds = 599;
+    expect((await service.preflight("admin")).ready).toBe(false);
+    limitState.userRemainingSeconds = 600;
+    limitState.globalRemainingSeconds = 599;
+    expect((await service.preflight("admin")).ready).toBe(false);
+    expect(client.call.mock.calls.every(call => call[3] === undefined)).toBe(true);
+    expect(attempts.upsertSystemSetting).not.toHaveBeenCalled();
+  });
+  it.each([0, -1, 1.5])("rejects an invalid router session limit %s instead of substituting 120 seconds", async value => {
+    limitState.sessionSeconds = value;
+    await expect(service.preflight("admin")).rejects.toThrow();
+    expect(client.call.mock.calls.every(call => call[3] === undefined)).toBe(true);
+  });
   it("forwards only a first-frame assertion with the same user and exact session; preserves router timing", async () => {
     const timing = { routerElapsedSeconds: 20, clientVideoReportedAt: "2026-11-13T00:00:09Z",
       preparationSeconds: 9, connectedSeconds: 11, evidence: "authenticated_client_report" };

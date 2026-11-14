@@ -119,8 +119,8 @@ export class AdminAvatarTestService {
     return {
       ready: runtimeReady && !creationUncertain && aiReady && !missingScopes.length && limits.workerReady &&
         limits.creationAllowed !== false &&
-        limits.cleanupPending === 0 && limits.userRemainingSeconds >= 120 &&
-        limits.globalRemainingSeconds >= 120 && !sessions.some(s => !avatarTestTerminal(s)),
+        limits.cleanupPending === 0 && limits.userRemainingSeconds >= limits.sessionSeconds &&
+        limits.globalRemainingSeconds >= limits.sessionSeconds && !sessions.some(s => !avatarTestTerminal(s)),
       aiReady, creationUncertain, missingScopes, limits, sessions: sessions.filter(s => this.belongs(s)),
       ...(runtimeError ? { runtimeError } : {}),
     };
