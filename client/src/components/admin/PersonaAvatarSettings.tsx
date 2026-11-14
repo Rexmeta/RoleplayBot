@@ -84,10 +84,13 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [testEntryOpen, setTestEntryOpen] = useState(false);
-  const [selectedKind, setSelectedKind] = useState<'stock' | 'custom'>(liveAvatar ? (liveAvatar.kind === 'stock' ? 'stock' : 'custom') : 'stock');
+  const [selectedKind, setSelectedKind] = useState<'stock' | 'custom'>(
+    liveAvatar ? (liveAvatar.kind === 'stock' ? 'stock' : 'custom') : seedDraft ? 'custom' : 'stock',
+  );
   const [creationBusy, setCreationBusy] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
   const [creationOpen, setCreationOpen] = useState(false);
+  const [seedPanelOpen, setSeedPanelOpen] = useState(false);
   const mountedRef = useRef(false);
   const requestRef = useRef(0);
   const seedFlow = Boolean(personaId && onSeedDraftChange);
@@ -95,6 +98,12 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   useEffect(() => {
     if (liveAvatar) setSelectedKind(liveAvatar.kind === 'stock' ? 'stock' : 'custom');
   }, [liveAvatar]);
+
+  useEffect(() => {
+    if (mode === 'live' && selectedKind === 'custom' && seedFlow && assets === null && !loading && !error) {
+      void loadAssets();
+    }
+  }, [mode, selectedKind, seedFlow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     mountedRef.current = true;
@@ -158,6 +167,10 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
       activation: 'draft',
       ...(projectId ? { projectId } : {}),
     });
+    if (seedFlow) {
+      onSeedDraftChange?.(null);
+      setSeedPanelOpen(false);
+    }
   };
 
   const chooseStock = (avatarId: string) => {
@@ -303,6 +316,11 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                <p className="mt-1 text-slate-600">{displayCatalogName(selectedStock.name)} · {isSelectableStockAvatar(selectedStock) ? '선택 가능' : '현재 선택 불가'}</p>
             </div>
           )}
+          {!liveAvatar && (
+            <p role="status" className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              Live 아바타 표시가 선택되어 있지만 연결된 아바타는 없습니다. 목록을 확인한 뒤 원하는 자산을 직접 선택하세요.
+            </p>
+          )}
           {selectedKind === 'stock' && liveAvatar?.kind === 'stock' && selectedMissing && (
             <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
               새로 조회한 목록에서 저장된 기본 아바타를 찾지 못했습니다. 다른 아바타로 자동 변경하지 않았습니다.
@@ -344,7 +362,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             </p>
           )}
 
-          {selectedKind === 'custom' && !seedFlow && assets !== null && !loading && !error && (
+          {selectedKind === 'custom' && assets !== null && !loading && !error && (
             assets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
                 조회 가능한 프로젝트 소유 커스텀 자산이 없습니다. Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
@@ -353,25 +371,58 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               </div>
             ) : (
               <div className="space-y-2">
-                <label htmlFor="live-avatar-asset" className="text-sm font-semibold text-slate-700">연결할 커스텀 자산</label>
-                <select
-                  id="live-avatar-asset"
-                  value={selectedAsset ? customAssetId ?? '' : ''}
-                  disabled={testBusy}
-                  onChange={event => chooseAsset(event.target.value)}
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">자산 선택</option>
-                  {assets.map(asset => {
-                    const eligible = selectableAssets.some(candidate => candidate.id === asset.id);
-                    return (
-                      <option key={asset.id} value={asset.id} disabled={!eligible}>
-                        {displayCatalogName(asset.name)} · 외부 서비스 · {provisioningLabels[asset.status]}
-                        {!eligible ? ' · 선택 불가' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
+                {seedFlow ? (
+                  <div className="space-y-2" aria-label="프로젝트 커스텀 아바타 카탈로그">
+                    <p className="text-sm font-semibold text-slate-700">프로젝트 커스텀 아바타</p>
+                    <p className="text-xs leading-relaxed text-slate-600">
+                      완성된 자산은 시드 준비와 별개로 페르소나 편집 초안에 연결됩니다. 페르소나를 저장해야 변경이 반영되며, 목록 조회는 읽기 전용이라 생성·재생 요청을 보내지 않습니다.
+                    </p>
+                    {assets.map(asset => {
+                      const eligible = selectableAssets.some(candidate => candidate.id === asset.id);
+                      const selected = customAssetId === asset.id;
+                      return (
+                        <div key={asset.id} className={`flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between ${selected ? 'border-indigo-400 bg-indigo-50/60' : 'border-slate-200 bg-white'}`}>
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-semibold text-slate-800">{displayCatalogName(asset.name)}</p>
+                            <p className="mt-1 break-all font-mono text-xs text-slate-500">자산 ID · {asset.id}</p>
+                            <p className="mt-1 text-xs text-slate-600">
+                              라우터 상태: {provisioningLabels[asset.status]} · 재생 검증: {isLiveValidatedPersonaAvatar(asset) ? '검증됨' : '미검증'}
+                            </p>
+                            {selected && <p className="mt-1 text-xs font-semibold text-indigo-800">현재 페르소나 초안에 연결됨 · 저장 후 반영</p>}
+                          </div>
+                          <Button type="button" size="sm" variant={selected ? 'default' : 'outline'} disabled={!eligible || testBusy} onClick={() => chooseAsset(asset.id)}>
+                            {selected ? '선택됨' : eligible ? '이 자산 선택' : '선택할 수 없음'}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    <p className="text-xs leading-relaxed text-slate-500">
+                      자산 준비 완료는 재생 검증과 다릅니다. 기존 선택은 새로고침이나 조회 오류 시에도 자동으로 바뀌지 않습니다.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <label htmlFor="live-avatar-asset" className="text-sm font-semibold text-slate-700">연결할 커스텀 자산</label>
+                    <select
+                      id="live-avatar-asset"
+                      value={selectedAsset ? customAssetId ?? '' : ''}
+                      disabled={testBusy}
+                      onChange={event => chooseAsset(event.target.value)}
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">자산 선택</option>
+                      {assets.map(asset => {
+                        const eligible = selectableAssets.some(candidate => candidate.id === asset.id);
+                        return (
+                          <option key={asset.id} value={asset.id} disabled={!eligible}>
+                            {displayCatalogName(asset.name)} · 외부 서비스 · {provisioningLabels[asset.status]}
+                            {!eligible ? ' · 선택 불가' : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </>
+                )}
                 <p className="text-xs leading-relaxed text-slate-500">
                   선택 조건: 준비 완료, 재사용 가능, 서비스 아바타 ID 보유. 미리보기 URL은 제공되지 않습니다.
                   자산 준비 상태와 Live 검증 상태는 별도로 표시됩니다.
@@ -381,10 +432,22 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           )}
 
           {selectedKind === 'custom' && (
-            personaId && onSeedDraftChange ? <PersonaSeedLivePanel
-              personaId={personaId} source={seedSource} draft={seedDraft}
-              onDraftChange={onSeedDraftChange} onSelect={onLiveAvatarChange} onActivityChange={setCreationBusy}
-            /> :
+            personaId && onSeedDraftChange ? (
+              <>
+                {liveAvatar && liveAvatar.kind !== 'stock' && !liveAvatar.seedImageAssetId && !seedPanelOpen ? (
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-800">기본 이미지 시드와 독립된 자산</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">선택한 프로젝트 자산은 시드 초안과 별도로 연결되어 있습니다. 필요할 때만 시드 준비 상태를 열어 확인할 수 있습니다.</p>
+                    <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => setSeedPanelOpen(true)}>시드 준비 열기</Button>
+                  </div>
+                ) : (
+                  <PersonaSeedLivePanel
+                    personaId={personaId} source={seedSource} draft={seedDraft}
+                    onDraftChange={onSeedDraftChange} onSelect={onLiveAvatarChange} onActivityChange={setCreationBusy}
+                  />
+                )}
+              </>
+            ) :
             <section className="rounded-md border border-slate-200 bg-white p-3" aria-labelledby="persona-create-disclosure">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>

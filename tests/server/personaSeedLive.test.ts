@@ -6,6 +6,7 @@ vi.mock("../../server/storage", () => ({ storage: {} }));
 vi.mock("../../server/storage/db", () => ({ db: {} }));
 vi.mock("../../server/services/mediaStorage", () => ({ mediaStorage: {} }));
 import { PersonaSeedLiveService } from "../../server/services/liveAvatar/personaSeedLive";
+import { PersonaAvatarCatalog } from "../../server/services/liveAvatar/personaCatalog";
 import { AvatarIdentityError } from "../../server/services/liveAvatar/delegatedIdentity";
 import { AvatarProjectClient } from "../../server/services/liveAvatar/projectClient";
 import { createPersonaAvatarOperationsRouter } from "../../server/routes/personaAvatarOperations";
@@ -206,7 +207,8 @@ describe("persona seed safety and persistence", () => {
   it("saves pending/failed selections as drafts and trusts only the fresh verified reference", async () => {
     const { draft } = await svc.register("admin", "coach", source, consent);
     options.candidates = [candidate(false)]; options.canProvision = false;
-    const input = { liveAvatarSeed: draft, liveAvatar: { kind: "custom", assetId, providerId: "tavus", validationStatus: "live_verified" } };
+    const input = { liveAvatarSeed: draft, liveAvatar: { kind: "custom", assetId, providerId: "tavus", validationStatus: "live_verified",
+      seedImageAssetId: imageId, seedImageVersion: 1, seedSourceFingerprint: draft!.sourceFingerprint } };
     let result: any = await svc.normalize("admin", input, persona);
     expect(result.liveAvatar).toMatchObject({ validationStatus: "unverified", activation: "draft", seedImageAssetId: imageId });
     options.candidates[0] = { ...candidate(false), status: "failed", nextAction: "inspect_failure" };
@@ -216,6 +218,48 @@ describe("persona seed safety and persistence", () => {
     expect((await svc.normalize("admin", input, persona)).liveAvatar).toMatchObject({ validationStatus: "live_verified" });
     options.imageVersion = 2;
     await expect(svc.normalize("admin", input, persona)).rejects.toMatchObject({ code: "persona_seed_response_mismatch" });
+  });
+  it("leaves an explicit catalog selection for catalog authorization instead of binding an old seed", async () => {
+    const { draft } = await svc.register("admin", "coach", source, consent);
+    const reference = { kind: "custom", assetId, providerId: "tavus", projectId: project,
+      voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified" };
+    d.client.call.mockClear();
+    const saved = { ...persona, liveAvatarSeed: draft, liveAvatar: { ...reference, seedImageAssetId: imageId } };
+    for (const seed of [null, draft, undefined]) {
+      expect(await svc.normalize("admin", { liveAvatar: reference, liveAvatarSeed: seed }, saved))
+        .toEqual({ liveAvatarSeed: null });
+    }
+    expect(await svc.normalize("admin", {
+      images: { base: "personas/coach/another.webp" }, liveAvatar: reference, liveAvatarSeed: null,
+    }, saved)).toEqual({ liveAvatarSeed: null });
+    expect(d.client.call).not.toHaveBeenCalled();
+  });
+  it("revalidates a catalog-selected asset before saving despite stale seed preparation", async () => {
+    const { draft } = await svc.register("admin", "coach", source, consent);
+    const input = { avatarMode: "live", liveAvatarSeed: draft, liveAvatar: {
+      kind: "custom", assetId, providerId: "tavus", projectId: project,
+      voiceMode: "roleplayx", activation: "draft", validationStatus: "live_verified",
+    } };
+    const ownedAsset = { id: assetId, name: "finished", providerId: "tavus",
+      providerAvatarId: "router-face", status: "ready",
+      capabilities: { reusable: true, liveRendering: true, validation: "provisioned" } };
+    const read = vi.fn(async () => ownedAsset);
+    const catalog = new PersonaAvatarCatalog({ call: read } as any, d.connection);
+    const seed = await svc.normalize("admin", input, persona);
+    const normalized = await catalog.normalize("admin", input, persona);
+    const saved = { ...input, ...normalized, ...seed };
+    expect(saved).toMatchObject({
+      avatarMode: "live", liveAvatarSeed: null,
+      liveAvatar: { assetId, projectId: project, validationStatus: "unverified", activation: "draft" },
+    });
+    expect(saved.liveAvatar).not.toHaveProperty("seedImageAssetId");
+    expect(read.mock.calls[0]).toEqual(["admin", `/avatar-assets/${assetId}`, expect.anything()]);
+    ownedAsset.status = "processing";
+    await expect(catalog.normalize("admin", input, persona)).rejects.toMatchObject({ code: "persona_avatar_asset_not_ready" });
+    ownedAsset.status = "ready";
+    await expect(catalog.normalize("admin", { ...input, liveAvatar: {
+      ...input.liveAvatar, projectId: "another-project",
+    } }, persona)).rejects.toMatchObject({ code: "persona_avatar_project_mismatch" });
   });
   it("rejects other-seed candidates, forged draft IDs, and clears old seed binding on replacement", async () => {
     const { draft } = await svc.register("admin", "coach", source, consent);

@@ -19,6 +19,21 @@ const draft = {
 };
 beforeEach(() => rows.clear());
 describe("persona draft storage compatibility", () => {
+  it("retains an independently selected catalog asset when replacing old seed preparation and portrait", async () => {
+    const seed = { imageAssetId: "22345678-1234-4234-8234-123456789abc", imageVersion: 1,
+      projectId: "project-one", sourceFingerprint: "a".repeat(64) };
+    await fileManager.createMBTIPersona({ id: "coach", mbti: "INTJ", images: { base: "personas/a.webp" },
+      liveAvatarSeed: seed, liveAvatar: { ...draft, kind: "custom", seedImageAssetId: seed.imageAssetId }, avatarMode: "live" });
+    const catalog = { ...draft, kind: "custom" };
+    await fileManager.updateMBTIPersona("coach", {
+      images: { base: "personas/b.webp" }, liveAvatarSeed: null, liveAvatar: catalog,
+    });
+    expect((await fileManager.getAllMBTIPersonas())[0]).toMatchObject({
+      avatarMode: "live", liveAvatarSeed: null, liveAvatar: catalog,
+    });
+    await fileManager.updateMBTIPersona("coach", { motivation: "ordinary edit" });
+    expect(rows.get("coach").liveAvatar).toEqual(catalog);
+  });
   it("round-trips seed metadata without activation, and disconnects it for non-editor image updates", async () => {
     const seed = { imageAssetId: "22345678-1234-4234-8234-123456789abc", imageVersion: 1,
       projectId: "project-one", sourceFingerprint: "a".repeat(64) };

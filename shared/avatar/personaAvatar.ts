@@ -41,6 +41,14 @@ export const personaLiveAvatarSchema = z.union([
 ]);
 export type PersonaLiveAvatar = z.infer<typeof personaLiveAvatarSchema>;
 
+/** A catalog selection is project-owned, not tied to this persona's current seed. */
+export function isIndependentCustomAvatar(value: unknown): boolean {
+  const parsed = personaLiveAvatarSchema.safeParse(value);
+  return parsed.success && parsed.data.kind === "custom" &&
+    parsed.data.seedImageAssetId === undefined && parsed.data.seedImageVersion === undefined &&
+    parsed.data.seedSourceFingerprint === undefined;
+}
+
 /** /avatars catalog entries are not owned /avatar-assets resources. */
 export const personaStockAvatarSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),

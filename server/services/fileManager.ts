@@ -5,7 +5,7 @@ import { NpcBehaviorHarness } from '../../shared/schema/scenarios';
 import { enrichPersonaWithMBTI, enrichPersonaWithBasicMBTI } from '../utils/mbtiLoader';
 import { storage } from '../storage';
 import { assertSafePathSegment, assertSafeJoinedPath } from '../utils/htmlEscape';
-import type { PersonaAvatarMode, PersonaLiveAvatar } from '../../shared/avatar/personaAvatar';
+import { isIndependentCustomAvatar, type PersonaAvatarMode, type PersonaLiveAvatar } from '../../shared/avatar/personaAvatar';
 import { seedSourceIdentity, type PersonaSeedDraft } from '../../shared/avatar/personaSeedLive';
 
 const SCENARIOS_DIR = 'scenarios';
@@ -813,7 +813,7 @@ export class FileManagerService {
               seedSourceIdentity(personaData.images?.base) !== seedSourceIdentity(existing.images?.base)) {
             const selection = personaData.liveAvatar === undefined ? existing.liveAvatar : personaData.liveAvatar;
             personaData = { ...personaData, liveAvatarSeed: null,
-              ...(selection?.kind !== "stock" ? { liveAvatar: null } : {}) };
+              ...(selection?.kind !== "stock" && !isIndependentCustomAvatar(selection) ? { liveAvatar: null } : {}) };
           }
         }
         await storage.updateMbtiPersona(id, {

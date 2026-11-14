@@ -8,7 +8,7 @@ import {
   personaSeedDraftSchema, seedLiveOptionsSchema, seedRegistrationInput, seedResetInput, seedSourceIdentity,
   type PersonaSeedDraft, type PersonaSeedState,
 } from "../../../shared/avatar/personaSeedLive";
-import { personaAvatarAssetSchema, type PersonaLiveAvatar } from "../../../shared/avatar/personaAvatar";
+import { isIndependentCustomAvatar, personaAvatarAssetSchema, type PersonaLiveAvatar } from "../../../shared/avatar/personaAvatar";
 import { supportsCustomLiveContract } from "../../../shared/avatar/routerContract";
 import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
@@ -258,6 +258,10 @@ export class PersonaSeedLiveService {
   }
   /** Save-time re-read, not browser assertions. Drafts can persist before playback. */
   async normalize(userId: string, input: any, existing?: any): Promise<Record<string, unknown>> {
+    // Explicit catalog selections are independently revalidated by personaCatalog.
+    // An old seed draft (including a late browser hydration) must not replace or
+    // reject the selected ready asset, or attach unrelated seed-image metadata.
+    if (isIndependentCustomAvatar(input.liveAvatar)) return { liveAvatarSeed: null };
     const source = input.images?.base ?? existing?.images?.base;
     const changed = existing && seedSourceIdentity(source) !== seedSourceIdentity(existing.images?.base);
     const selection = input.liveAvatar === undefined ? existing?.liveAvatar : input.liveAvatar;

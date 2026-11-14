@@ -45,3 +45,16 @@ portrait saved; the selector computes a fresh portrait while chat uses the saved
 **How to apply:** Check the stored portrait's persona and gender against the current
 selection on read. Do not rewrite historical run snapshots or use another gender as
 the replacement for a known gender mismatch.
+
+Already-created project custom avatars must remain visible and explicitly selectable
+in the persona editor independently of seed-image preparation. Selecting a finished
+catalog asset is not a request to create another avatar or start playback.
+
+**Why:** The user reported an already-created, router-available custom avatar that
+could not be confirmed in its persona. Hiding the catalog behind the seed workflow
+made a completed asset look unavailable. A catalog selection is an independent
+project-owned reference, not a claim that it was generated from the current portrait.
+
+**How to apply:** Keep the catalog and seed preparation separate; validate project
+ownership and readiness on save without manufacturing seed lineage. Do not automatically
+select a returned asset, generate another, or start a paid replay merely to show status.
