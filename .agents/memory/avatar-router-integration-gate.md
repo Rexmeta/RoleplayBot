@@ -115,11 +115,11 @@ Saved persona live configuration is a reference, not permission to auto-create a
 
 **How to apply:** Require global/scenario permission, the run's own selected persona reference, current provider readiness, and explicit learner selection of live playback. Custom provisioning/ready status is not playback validation. Keep old snapshot-bound conversations immutable.
 
-학습자 라이브 아바타는 진입 후 동의 체크와 다시 시작 버튼을 요구하지 않는다. 라이브 선택 한 번으로 연결하고 대화 종료 후 피드백 리포트 생성 과정으로 자동 진행한다.
+학습자 라이브 아바타는 진입 후 별도 동의 체크를 요구하지 않는다. 화면 진입만으로 연결하지 않고, 음성 대화와 동일하게 마이크를 눌러 시작하고 다시 눌러 종료한다. 종료 후 피드백 리포트 생성 과정은 자동 진행한다.
 
-**Why:** 사용자가 학습자 진입의 중복 동의·시작 단계를 제거하고 종료 후 자동 리포트 진행을 명시했다.
+**Why:** 사용자가 후속 요청으로 하단 메뉴와 마이크 시작·종료 동작을 음성 대화와 통일하도록 변경했다. 중복 동의 제거와 종료 후 자동 리포트 요구는 유지된다.
 
-**How to apply:** 이용 요금·외부 전송 안내와 명시적 라이브 선택은 유지하되 별도 체크박스를 추가하지 않는다. 단순 복구 화면 진입이나 관리자 설정 열기로 유료 세션을 생성하지 않는다. 확정 기록 저장·피드백 작업 접수 조건과 불확실한 유료 생성의 재시도 차단은 유지한다. 관리자 진단의 별도 동의 정책은 이 변경의 대상이 아니다.
+**How to apply:** 이용 요금·외부 전송 안내는 마이크 시작 동작에 맞추고 별도 체크박스를 추가하지 않는다. 라이브 선택·복구 화면 진입·관리자 설정 열기만으로 유료 세션을 생성하지 않는다. 확정 기록 저장·피드백 작업 접수 조건과 불확실한 유료 생성의 재시도 차단은 유지한다. 관리자 진단의 별도 동의 정책은 이 변경의 대상이 아니다.
 
 페르소나 내부 커스텀 아바타 생성은 등록된 합성 인물의 기본·중립 이미지를 재사용한다. 생성 이름은 페르소나 ID를 사용하고, 실제 대화창과 역할 지침의 이름은 시나리오에 배정된 이름을 사용한다.
 
@@ -198,3 +198,15 @@ unverified claims of completed cleanup.
 
 **How to apply:** Preserve the original binding and fence; use provider-confirmed
 conversation evidence through the operator workflow before permitting new work.
+
+Custom-avatar preparation reset is not cancellation or deletion of the external
+job. Preserve existing assets and require fresh rights, transfer and cost consent
+for a new submission; do not let reset release a pending or uncertain operation.
+
+**Why:** The user requested reset and resubmission after an initial submission.
+Resetting only browser state would retain the server block, while discarding the
+server fence during active work could duplicate provider charges.
+
+**How to apply:** Permit a new preparation cycle only after the old outcome is
+resolved. Keep prior image-version lineage, and distinguish local draft reset
+from saving the persona and from deleting remote assets.

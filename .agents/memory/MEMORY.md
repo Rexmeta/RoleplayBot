@@ -38,3 +38,4 @@
 - [로컬 PostgreSQL 통합 테스트](isolated-postgres-test-runtime.md) — 임시 DB 서버와 Vitest는 한 셸 호출에서 실행하고, 로컬 접속은 `sslmode=disable`로 설정한다.
 - [자동 충돌 병합 검증](conflict-merge-validation.md) — 표시된 충돌 밖에서도 선언이 중복될 수 있으므로 병합 계속 전에 타입 검사와 관련 테스트를 실행한다.
 - [대화 언어 고정 정책](conversation-language-policy.md) — 실행 언어는 모드 간 유지하고 프로필 변경은 새 대화에 적용; 과거 언어 기록이 없으면 복구했다고 주장하지 않는다.
+- [Culture experiment lease safety](culture-experiment-lease-safety.md) — 유료 작업은 DB 소유권 확인 실패 시 차단하며, 시간 초과 시 즉시 해제하지 않고 만료까지 격리한다.

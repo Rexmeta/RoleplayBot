@@ -5,7 +5,7 @@ import { storage } from "../../storage";
 import { db } from "../../storage/db";
 import { mediaStorage } from "../mediaStorage";
 import {
-  personaSeedDraftSchema, seedLiveOptionsSchema, seedRegistrationInput, seedSourceIdentity,
+  personaSeedDraftSchema, seedLiveOptionsSchema, seedRegistrationInput, seedResetInput, seedSourceIdentity,
   type PersonaSeedDraft, type PersonaSeedState,
 } from "../../../shared/avatar/personaSeedLive";
 import { personaAvatarAssetSchema, type PersonaLiveAvatar } from "../../../shared/avatar/personaAvatar";
@@ -19,6 +19,7 @@ const hash = (value: string) => createHash("sha256").update(value).digest("hex")
 const operationSchema = z.object({
   stage: z.enum(["idle", "registering", "registered", "creating", "submitted"]),
   draft: personaSeedDraftSchema.nullable(),
+  previousDraft: personaSeedDraftSchema.nullable().optional(),
   sourceFingerprint: z.string(),
 });
 type Operation = z.infer<typeof operationSchema>;
@@ -123,7 +124,8 @@ export class PersonaSeedLiveService {
         image = await this.deps.client.call(userId, "/assets/images", imageSchema, {
           name: personaId, imageBase64: bytes.toString("base64"),
           ...input.data, transferConfirmed: undefined,
-          ...(old.draft?.projectId === ctx.projectId ? { previousVersionId: old.draft.imageAssetId } : {}),
+          ...((old.draft ?? old.previousDraft)?.projectId === ctx.projectId
+            ? { previousVersionId: (old.draft ?? old.previousDraft)!.imageAssetId } : {}),
         });
       } catch (error) {
         // Definitive validation rejection, not timeout/network/5xx/409.
@@ -138,6 +140,33 @@ export class PersonaSeedLiveService {
       };
       await this.save(ctx.key, userId, op);
       return this.present(userId, op, ctx.fingerprint);
+    });
+  }
+  /** Local preparation reset only: never deletes assets or clears an unresolved paid-create fence. */
+  async reset(userId: string, personaId: string, source: string, raw: unknown) {
+    const input = seedResetInput.safeParse(raw);
+    if (!input.success) throw new AvatarIdentityError("persona_seed_reset_confirmation_required", 400);
+    const ctx = await this.context(userId, personaId, source, true);
+    return this.deps.lock(ctx.key, async () => {
+      const op = await this.read(ctx.key);
+      if (!op.draft || JSON.stringify(op.draft) !== JSON.stringify(input.data.draft) ||
+          op.sourceFingerprint !== ctx.fingerprint) {
+        throw new AvatarIdentityError("persona_seed_reset_stale", 409);
+      }
+      const current = await this.present(userId, op, ctx.fingerprint);
+      const candidates = current.options?.candidates ?? [];
+      if (current.uncertain || !current.options ||
+          (op.stage === "submitted" || op.stage === "creating") && !candidates.length ||
+          candidates.some(c => !["ready", "failed", "deleted"].includes(c.status) ||
+            c.nextAction === "reconcile" || c.failure?.creationOutcome === "unknown" ||
+            c.failure?.nextAction === "operator_reconcile")) {
+        throw new AvatarIdentityError("persona_seed_reset_blocked", 409);
+      }
+      const next: Operation = {
+        stage: "idle", draft: null, previousDraft: op.draft, sourceFingerprint: ctx.fingerprint,
+      };
+      await this.save(ctx.key, userId, next);
+      return this.present(userId, next, ctx.fingerprint);
     });
   }
   async create(userId: string, personaId: string, source: string, raw: unknown) {

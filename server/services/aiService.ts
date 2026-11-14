@@ -140,7 +140,7 @@ export interface AIServiceInterface {
   generateStrategyEvaluation?(input: StrategyEvaluationInput): Promise<StrategyReflectionEvaluation>;
 
   // 단순 텍스트 생성 (번역 등 단순 프롬프트용)
-  generateText(prompt: string): Promise<string>;
+  generateText(prompt: string, options?: { signal?: AbortSignal }): Promise<string>;
 
   // 모델 동적 변경 지원 (선택적)
   getModel?(): string;

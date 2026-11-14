@@ -3,6 +3,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import type { CultureExperimentResult } from "@shared/cultureExperiment";
 import type { CultureProfile } from "@shared/cultureMap";
 
@@ -97,6 +98,7 @@ function renderWithQuery() {
 
 describe("Culture behavior experiment", () => {
   beforeEach(() => {
+    window.confirm = vi.fn(() => true);
     apiRequest.mockReset();
     authState.user = { id: "admin-1", role: "admin" };
     apiRequest.mockImplementation(async (method: string, url: string, body?: { mode?: "mock" | "provider" }) => {
@@ -123,7 +125,7 @@ describe("Culture behavior experiment", () => {
         expect.objectContaining({ profileId: profile.id, intensity: 0 }),
         expect.objectContaining({ profileId: profile.id, intensity: 100 }),
       ],
-    })));
+    }), expect.objectContaining({ signal: expect.anything() })));
   });
 
   it("hides the experiment for operators without fetching configuration or invoking providers", () => {
@@ -188,7 +190,7 @@ describe("Culture behavior experiment", () => {
       mode: "provider",
       confirmPaidRun: true,
       variants: [expect.objectContaining({ enabled: true, profileId: profile.id, profileVersion: 3, overrides: {} })],
-    })));
+    }), expect.objectContaining({ signal: expect.anything() })));
     expect((await screen.findByTestId("experiment-result-mode")).textContent).toContain("PROVIDER");
   });
 
@@ -202,7 +204,7 @@ describe("Culture behavior experiment", () => {
       mode: "mock",
       confirmPaidRun: false,
       fixed: expect.objectContaining({ name: "업무 담당자" }),
-    })));
+    }), expect.objectContaining({ signal: expect.anything() })));
     expect(await screen.findByText("OFF 결과")).toBeTruthy();
     expect(screen.getByTestId("experiment-result-mode").textContent).toContain("MOCK");
 
@@ -221,5 +223,140 @@ describe("Culture behavior experiment", () => {
     fireEvent.click(screen.getByText("이 실행의 고정 입력과 출처 보기"));
     expect(screen.getByText(/"name": "업무 담당자"/)).toBeTruthy();
     expect(screen.queryByText(/"name": "화면에서 바꾼 이름"/)).toBeNull();
+  });
+
+  const suggestion = () => ({
+    fixed: { name: "가상 민수", role: "품질 실무 담당자", playerRole: "품질 책임자", organization: "제품 품질팀", personality: "꼼꼼하고 책임감 있다." },
+    variants: [{ profileId: profile.id, profileVersion: profile.version, intensity: 75 }],
+  });
+  const autofillCalls = () => apiRequest.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/autofill"));
+
+  it("fills validated suggestions only on explicit confirmation, remains editable and retains repetition and consent", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const previous = apiRequest.getMockImplementation()!;
+    apiRequest.mockImplementation((method, url, body, options) => url.endsWith("/autofill") ? response(suggestion()) : previous(method, url, body, options));
+    try {
+      renderWithQuery();
+      await screen.findByRole("option", { name: /한국 · 업무 대화 프로필/ });
+      expect(autofillCalls()).toHaveLength(0);
+      await user.selectOptions(screen.getByTestId("experiment-repetitions"), "2");
+      await user.click(screen.getByTestId("experiment-paid-acknowledgement"));
+      await user.click(screen.getByTestId("experiment-autofill"));
+      await waitFor(() => expect((screen.getByTestId("experiment-fixed-name") as HTMLInputElement).value).toBe("가상 민수"));
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect((screen.getByTestId("experiment-repetitions") as HTMLSelectElement).value).toBe("2");
+      expect((screen.getByTestId("experiment-paid-acknowledgement") as HTMLInputElement).checked).toBe(true);
+      expect(autofillCalls()).toHaveLength(1);
+      expect(apiRequest.mock.calls.some(([method, url]) => method === "POST" && url === "/api/simulation/culture-experiment")).toBe(false);
+      for (const key of ["name", "role", "player-role", "organization", "personality"]) {
+        const input = screen.getByTestId(`experiment-fixed-${key}`) as HTMLInputElement;
+        await user.clear(input);
+        await user.type(input, "직접 수정");
+        expect(input.value).toBe("직접 수정");
+      }
+      await user.selectOptions(screen.getByTestId("experiment-profile-0"), profile.id);
+      fireEvent.change(screen.getByTestId("experiment-intensity-0"), { target: { value: "35" } });
+      await user.click(screen.getByTestId("experiment-run-mock"));
+      await screen.findByTestId("experiment-result");
+      expect(apiRequest).toHaveBeenCalledWith("POST", "/api/simulation/culture-experiment", expect.objectContaining({
+        mode: "mock", confirmPaidRun: false, repetitions: 2,
+        variants: [expect.objectContaining({ intensity: 35, profileVersion: 3 })],
+      }), expect.objectContaining({ signal: expect.anything() }));
+      expect((screen.getByTestId("experiment-fixed-name") as HTMLInputElement).disabled).toBe(false);
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("does not request AI after rejecting overwrite confirmation", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      renderWithQuery();
+      await screen.findByRole("option", { name: /한국 · 업무 대화 프로필/ });
+      fireEvent.change(screen.getByTestId("experiment-fixed-name"), { target: { value: "유지" } });
+      fireEvent.click(screen.getByTestId("experiment-autofill"));
+      expect(autofillCalls()).toHaveLength(0);
+      expect((screen.getByTestId("experiment-fixed-name") as HTMLInputElement).value).toBe("유지");
+    } finally { confirm.mockRestore(); }
+  });
+
+  it.each(["provider failure", "invalid response", "stale profile"])("preserves inputs and previous results after %s and unlocks editing", async failure => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      renderWithQuery();
+      await screen.findByRole("option", { name: /한국 · 업무 대화 프로필/ });
+      fireEvent.change(screen.getByTestId("experiment-profile-0"), { target: { value: profile.id } });
+      fireEvent.click(screen.getByTestId("experiment-run-mock"));
+      await screen.findByText("OFF 결과");
+      const previous = apiRequest.getMockImplementation()!;
+      apiRequest.mockImplementation((method, url, body, options) => {
+        if (!url.endsWith("/autofill")) return previous(method, url, body, options);
+        if (failure === "provider failure") return Promise.reject(new Error("생성 실패"));
+        return response(failure === "invalid response" ? {} : { ...suggestion(), variants: [{ ...suggestion().variants[0], profileVersion: 99 }] });
+      });
+      fireEvent.click(screen.getByTestId("experiment-autofill"));
+      await screen.findByTestId("experiment-autofill-error");
+      expect(screen.getByText("OFF 결과")).toBeTruthy();
+      const input = screen.getByTestId("experiment-fixed-name") as HTMLInputElement;
+      expect(input.value).toBe("업무 담당자");
+      expect(input.closest("fieldset")!.disabled).toBe(false);
+      fireEvent.change(input, { target: { value: "다시 입력" } });
+      expect(input.value).toBe("다시 입력");
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("blocks duplicate requests and ignores a late response after cancellation", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    let finish!: (value: Response) => void;
+    const previous = apiRequest.getMockImplementation()!;
+    apiRequest.mockImplementation((method, url, body, options) => url.endsWith("/autofill")
+      ? new Promise(resolve => { finish = resolve; }) : previous(method, url, body, options));
+    try {
+      renderWithQuery();
+      await screen.findByRole("option", { name: /한국 · 업무 대화 프로필/ });
+      fireEvent.click(screen.getByTestId("experiment-autofill"));
+      fireEvent.click(screen.getByTestId("experiment-autofill"));
+      expect(autofillCalls()).toHaveLength(1);
+      expect((screen.getByTestId("experiment-fixed-name").closest("fieldset") as HTMLFieldSetElement).disabled).toBe(true);
+      expect((screen.getByTestId("experiment-run-mock") as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: "자동 채움 취소" }));
+      fireEvent.change(screen.getByTestId("experiment-fixed-name"), { target: { value: "취소 후 편집" } });
+      finish(await response(suggestion()));
+      await waitFor(() => expect((screen.getByTestId("experiment-fixed-name") as HTMLInputElement).value).toBe("취소 후 편집"));
+      expect(screen.queryByTestId("experiment-result")).toBeNull();
+    } finally { confirm.mockRestore(); }
+  });
+
+  it("disables autofill with no available profiles while leaving text editing usable", async () => {
+    const previous = apiRequest.getMockImplementation()!;
+    apiRequest.mockImplementation((method, url, body) => url === "/api/admin/culture-profiles" ? response([]) : previous(method, url, body));
+    renderWithQuery();
+    await screen.findByText(/사용 가능한 프로필이 없습니다/);
+    expect((screen.getByTestId("experiment-autofill") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByTestId("experiment-fixed-role"), { target: { value: "편집 가능" } });
+    expect((screen.getByTestId("experiment-fixed-role") as HTMLInputElement).value).toBe("편집 가능");
+    expect(autofillCalls()).toHaveLength(0);
+  });
+
+  it("recovers editing after a stalled experiment request instead of leaving the fieldset locked forever", async () => {
+    renderWithQuery();
+    await screen.findByRole("option", { name: /한국 · 업무 대화 프로필/ });
+    fireEvent.change(screen.getByTestId("experiment-profile-0"), { target: { value: profile.id } });
+    const previous = apiRequest.getMockImplementation()!;
+    apiRequest.mockImplementation((method, url, body, options) => {
+      if (method !== "POST") return previous(method, url, body, options);
+      return new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(new Error("aborted"))));
+    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByTestId("experiment-run-mock"));
+      // React Query schedules mutation notifications asynchronously.
+      await vi.advanceTimersByTimeAsync(10);
+      expect((screen.getByTestId("experiment-fixed-name").closest("fieldset") as HTMLFieldSetElement).disabled).toBe(true);
+      await vi.advanceTimersByTimeAsync(180010);
+    } finally { vi.useRealTimers(); }
+    await screen.findByTestId("experiment-run-error");
+    expect((screen.getByTestId("experiment-fixed-name").closest("fieldset") as HTMLFieldSetElement).disabled).toBe(false);
+    fireEvent.change(screen.getByTestId("experiment-fixed-name"), { target: { value: "복구 후 편집" } });
+    expect((screen.getByTestId("experiment-fixed-name") as HTMLInputElement).value).toBe("복구 후 편집");
   });
 });

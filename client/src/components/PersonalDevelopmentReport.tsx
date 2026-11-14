@@ -12,7 +12,8 @@ import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Feedback, ConversationMessage } from "@shared/schema";
 import { authFetchRaw } from "@/lib/authFetch";
 import { feedbackQueryKey, useFeedbackQuery, isFeedbackPending } from "@/lib/feedbackQuery";
-import { PersonaSwitchCard, type PersonaSwitchEvent } from "./chat/PersonaSwitchCard";
+import { type PersonaSwitchEvent } from "./chat/PersonaSwitchCard";
+import { ConversationHistoryPanel } from "./report/ConversationHistoryPanel";
 import {
   toTenPoint,
   escapeHtml,
@@ -28,96 +29,8 @@ import { DevelopmentPlan } from "./report/DevelopmentPlan";
 import { StrategyPanel } from "./report/StrategyPanel";
 import { RubricSnapshotPanel } from "./report/RubricSnapshotPanel";
 import SimulationReplayPanel from "./report/SimulationReplayPanel";
-import { RecognitionReview } from './chat/RecognitionReview';
+import { RecognitionReview, recognitionMessageId, useRecognitionEvidence } from './chat/RecognitionReview';
 import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "@/components/ScenarioOverrideSummary";
-
-function ConversationHistoryPanel({
-  messages,
-  personaSwitchEvents,
-  personaName,
-}: {
-  messages: ConversationMessage[];
-  personaSwitchEvents: PersonaSwitchEvent[];
-  personaName: string;
-}) {
-  const { t } = useTranslation();
-  const visibleMessages = messages.filter(m => m.sender === 'user' || m.sender === 'ai');
-
-  type ListItem =
-    | { type: 'message'; message: ConversationMessage; index: number }
-    | { type: 'switch'; event: PersonaSwitchEvent };
-
-  const items: ListItem[] = [];
-  visibleMessages.forEach((msg, idx) => {
-    items.push({ type: 'message', message: msg, index: idx });
-    personaSwitchEvents
-      .filter(ev =>
-        ev.turnIndex != null
-          ? msg.turnIndex != null
-            ? msg.turnIndex === ev.turnIndex
-            : idx === ev.turnIndex
-          : idx === ev.toIndex
-      )
-      .forEach(ev => items.push({ type: 'switch', event: ev }));
-  });
-  const placedTimestamps = new Set(
-    items
-      .filter((i): i is { type: 'switch'; event: PersonaSwitchEvent } => i.type === 'switch')
-      .map(i => i.event.timestamp)
-  );
-  personaSwitchEvents
-    .filter(ev => !placedTimestamps.has(ev.timestamp))
-    .forEach(ev => items.push({ type: 'switch', event: ev }));
-
-  if (items.length === 0) {
-    return (
-      <div className="text-center py-12 text-slate-400">
-        {t('report.conversation.empty', '대화 내역이 없습니다.')}
-      </div>
-    );
-  }
-
-  return (
-    <Card className="border-0 shadow-lg">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
-          <i className="fas fa-comments text-indigo-500"></i>
-          {t('report.tabs.conversation', '대화 내역')}
-          <span className="ml-auto text-xs font-normal text-slate-400">
-            {visibleMessages.length}{t('report.conversation.turns', '개 메시지')}
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1">
-          {items.map((item, itemIndex) => {
-            if (item.type === 'switch') {
-              return <PersonaSwitchCard key={`switch-${item.event.timestamp}-${itemIndex}`} event={item.event} />;
-            }
-            const msg = item.message;
-            const isUser = msg.sender === 'user';
-            return (
-              <div key={itemIndex} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                    isUser
-                      ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                  }`}
-                >
-                  <div className={`text-[10px] font-semibold mb-1 ${isUser ? 'text-blue-200' : 'text-slate-400'}`}>
-                    {isUser ? t('chat.me', '나') : personaName}
-                  </div>
-                  <div>{msg.message}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 const FEEDBACK_STAGES = [
   { key: 'stage1', labelKey: 'report.progress.stage1', defaultLabel: '대화 내용 분석 중...', icon: '🔍', durationMs: 15000 },
@@ -293,6 +206,9 @@ export default function PersonalDevelopmentReport({
     }
   });
 
+  const recognitionEvidence = useRecognitionEvidence(conversationId);
+  const canonicalById = new Map(recognitionEvidence.data?.filter(row =>
+    row.status === 'verified' || row.status === 'confirmed').map(row => [row.id, row.canonicalText]));
   const conversationMessages: ConversationMessage[] = Array.isArray(fullConversation?.messages)
     ? (() => {
         const sorted = [...fullConversation.messages].sort((a, b) => {
@@ -310,7 +226,10 @@ export default function PersonalDevelopmentReport({
           const key = `${msg.turnIndex ?? '?'}:${msg.sender}`;
           seen.set(key, msg); // later (newer) entry wins
         }
-        return Array.from(seen.values()).sort((a, b) => {
+        return Array.from(seen.values()).map(message => {
+          const canonical = canonicalById.get(recognitionMessageId(message) ?? '');
+          return message.sender === 'user' && canonical != null ? { ...message, message: canonical } : message;
+        }).sort((a, b) => {
           const ti = (a.turnIndex ?? 0) - (b.turnIndex ?? 0);
           if (ti !== 0) return ti;
           return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
@@ -503,6 +422,11 @@ export default function PersonalDevelopmentReport({
     generateFeedbackMutation.mutate({ force: true });
   };
 
+  const handleSubmitRecognition = async () => {
+    onFeedbackGeneratingChange?.(true);
+    await generateFeedbackMutation.mutateAsync({ force: true });
+  };
+
   useEffect(() => {
     if (autoGenerateFeedback && !isLoading && !feedback && !isFeedbackGenerating && !hasRequestedFeedback && !generateFeedbackMutation.isPending &&
       (feedbackData?.status === "expired" || error?.message === "FEEDBACK_NOT_FOUND")) {
@@ -597,8 +521,8 @@ export default function PersonalDevelopmentReport({
       <div className="p-6" role="status" data-testid="feedback-recognition-hold">
         <h2 className="text-xl font-semibold">인식 확인 필요 — 평가 확정 보류</h2>
         <p className="mt-3">전사가 확인되지 않았거나 변경되었습니다. 이는 외국어 사용·이해 부족·대화량 부족에 대한 감점이 아닙니다.</p>
-        <RecognitionReview runId={conversationId} />
-        <Button onClick={handleRegenerateFeedback}>확인한 기록으로 재평가</Button>
+        <RecognitionReview runId={conversationId} personaName={persona.name}
+          personaSwitchEvents={personaSwitchEvents} onSubmitted={handleSubmitRecognition} />
       </div>
     );
   }
@@ -675,8 +599,8 @@ export default function PersonalDevelopmentReport({
         <h2 className="text-xl font-semibold">인식 확인 필요 — 평가 확정 보류</h2>
         <p className="mt-3">음성 전사가 확인되지 않았거나 변경되었습니다. 대화 기록에서 발화를 확인한 뒤 재평가해 주세요.</p>
         <p className="mt-2">이는 외국어 사용, 이해 부족 또는 대화량 부족에 대한 감점이 아닙니다. 점수와 합격 여부는 확정하지 않습니다.</p>
-        <RecognitionReview runId={conversationId} />
-        <Button onClick={handleRegenerateFeedback}>확인한 기록으로 재평가</Button>
+        <RecognitionReview runId={conversationId} personaName={persona.name}
+          personaSwitchEvents={personaSwitchEvents} onSubmitted={handleSubmitRecognition} />
       </div>
     );
   }

@@ -96,6 +96,9 @@ describe("persona seed safety and persistence", () => {
     expect((await svc.status("admin", "coach", source)).uncertain).toBe(true);
     await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
     await expect(svc.register("admin", "coach", source, consent)).rejects.toMatchObject({ status: 409 });
+    const persisted = JSON.parse([...rows.values()][0].value);
+    await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: persisted.draft }))
+      .rejects.toMatchObject({ code: "persona_seed_reset_blocked" });
     expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(1);
   });
   it("saves pending/failed selections as drafts and trusts only the fresh verified reference", async () => {
@@ -130,8 +133,76 @@ describe("persona seed safety and persistence", () => {
     const state = await svc.status("admin", "coach", source);
     expect(state.options?.candidates[0].failure?.providerErrorCode).toBe("training_image_framing_invalid");
   });
+  it("resets a completed submission without deleting assets and creates a new image version before resubmission", async () => {
+    const first = await svc.register("admin", "coach", source, consent);
+    await svc.create("admin", "coach", source, { costConfirmed: true });
+    options.candidates = [candidate()]; options.canProvision = false;
+    const writesBefore = d.client.call.mock.calls.filter((c: any[]) => c[3]).length;
+    expect(await svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft }))
+      .toMatchObject({ stage: "idle", draft: null, options: null, uncertain: false });
+    expect(d.client.call.mock.calls.filter((c: any[]) => c[3])).toHaveLength(writesBefore);
+    svc = new PersonaSeedLiveService(d);
+    expect(await svc.status("admin", "coach", source)).toMatchObject({ stage: "idle", draft: null });
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
+      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+    const nextImageId = "32345678-1234-4234-8234-123456789abc";
+    const original = d.client.call.getMockImplementation();
+    d.client.call.mockImplementation(async (user: string, path: string, schema: any, body: any) => {
+      if (path === "/assets/images") {
+        expect(body.previousVersionId).toBe(imageId);
+        options = { ...options, imageAssetId: nextImageId, imageVersion: 2, canProvision: true, candidates: [] };
+        return schema.parse({ id: nextImageId, version: 2 });
+      }
+      if (path === "/avatar-assets") return schema.parse({
+        id: assetId, imageAssetId: nextImageId, providerId: "tavus", providerAvatarId: null, name: "coach", status: "queued",
+        capabilities: { reusable: false, liveRendering: false, validation: "documentation_only" },
+      });
+      return original(user, path, schema, body);
+    });
+    const second = await svc.register("admin", "coach", source, consent);
+    expect(second.draft?.imageVersion).toBe(2);
+    await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft }))
+      .rejects.toMatchObject({ code: "persona_seed_reset_stale" });
+    await svc.create("admin", "coach", source, { costConfirmed: true });
+    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(2);
+  });
+  it.each(["queued", "submitting", "processing", "reconciliation_required", "deleting"])(
+    "does not reset a %s candidate or release its fence", async status => {
+      const first = await svc.register("admin", "coach", source, consent);
+      await svc.create("admin", "coach", source, { costConfirmed: true });
+      options.candidates = [{ ...candidate(), status }]; options.canProvision = false;
+      const before = JSON.stringify([...rows.values()]);
+      await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft }))
+        .rejects.toMatchObject({ code: "persona_seed_reset_blocked" });
+      expect(JSON.stringify([...rows.values()])).toBe(before);
+    },
+  );
+  it("requires confirmation and blocks a submitted request with no reconciled candidate", async () => {
+    const first = await svc.register("admin", "coach", source, consent);
+    await expect(svc.reset("admin", "coach", source, { confirmed: false, draft: first.draft }))
+      .rejects.toMatchObject({ status: 400 });
+    await svc.create("admin", "coach", source, { costConfirmed: true });
+    await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft }))
+      .rejects.toMatchObject({ code: "persona_seed_reset_blocked" });
+  });
+  it("permits a failed training candidate to reset but not an unknown creation outcome", async () => {
+    const first = await svc.register("admin", "coach", source, consent);
+    await svc.create("admin", "coach", source, { costConfirmed: true });
+    options.candidates = [{ ...candidate(), status: "failed", nextAction: "replace_image", failure: {
+      code: "PROVIDER_TRAINING_FAILED", stage: "create", category: "unknown", providerHttpStatus: null,
+      providerErrorCode: null, reasonState: "unknown", message: "Unknown", messageKo: "결과 불명",
+      automaticRetryAllowed: false, nextAction: "operator_reconcile", creationOutcome: "unknown",
+    } }];
+    await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft }))
+      .rejects.toMatchObject({ code: "persona_seed_reset_blocked" });
+    options.candidates[0].failure.creationOutcome = "created";
+    await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft }))
+      .rejects.toMatchObject({ code: "persona_seed_reset_blocked" });
+    options.candidates[0].failure.nextAction = "replace_image";
+    expect((await svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft })).stage).toBe("idle");
+  });
   it("enforces existing login/admin roles before any seed service operation", async () => {
-    const fake = { status: vi.fn(async () => ({})), register: vi.fn(), create: vi.fn() };
+    const fake = { status: vi.fn(async () => ({})), register: vi.fn(), create: vi.fn(), reset: vi.fn(async () => ({})) };
     const app = (role?: string) => {
       const a = express(); a.use(express.json());
       a.use((req: any, res, next) => { if (!role) return res.sendStatus(401); req.user = { id: "owner", role }; next(); });
@@ -141,8 +212,13 @@ describe("persona seed safety and persistence", () => {
     const path = "/api/admin/personas/live-avatar/personas/coach/seed?source=personas%2Fcoach%2Fbase-v1.webp";
     expect((await request(app()).get(path)).status).toBe(401);
     expect((await request(app("user")).get(path)).status).toBe(403);
+    expect((await request(app()).post(path.replace("/seed?", "/seed/reset?")).send({})).status).toBe(401);
+    expect((await request(app("user")).post(path.replace("/seed?", "/seed/reset?")).send({})).status).toBe(403);
+    expect(fake.reset).not.toHaveBeenCalled();
     expect(fake.status).not.toHaveBeenCalled();
     expect((await request(app("operator")).get(path)).headers["cache-control"]).toBe("no-store");
     expect(fake.status).toHaveBeenCalledWith("owner", "coach", source);
+    expect((await request(app("operator")).post(path.replace("/seed?", "/seed/reset?")).send({ confirmed: true })).status).toBe(200);
+    expect(fake.reset).toHaveBeenCalledWith("owner", "coach", source, { confirmed: true });
   });
 });

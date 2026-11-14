@@ -3,6 +3,12 @@ name: Test worker and environment constraints
 description: 미디어 timeout 비교 기준과 Vitest 버전 변경에 따른 DOM 실행 환경 확인
 ---
 
+이 Nix 환경에서 Playwright가 내려받은 Chromium은 공유 라이브러리 누락으로 실행되지 않을 수 있다. 먼저 `/nix/store`의 기존 Playwright Chromium 실행 래퍼를 찾아 사용한다. 해시가 들어간 경로를 다른 세션에서도 같다고 가정하지 않는다.
+
+**Why:** 다운로드된 headless Chromium은 `libglib-2.0.so.0`을 찾지 못했지만 기존 Nix Chromium 래퍼로 브라우저 통합 검사를 실행할 수 있었다.
+
+**How to apply:** 브라우저 실행 실패가 앱 결함인지 판단하기 전에 실행 파일과 런타임 의존성을 구분한다. 관리자 UI에 모의 인증·API를 연결한 검사는 실제 로그인·유료 제공자 검증이라고 주장하지 않는다.
+
 이 개발 환경에서는 기본 병렬 전체 실행 시 기존 미디어 처리 테스트가 개별 시간 제한을 초과할 수 있다. 해당 실패를 기능 회귀로 단정하기 전에 같은 테스트를 제한된 동시성으로 비교한다.
 
 **Why:** FFmpeg를 포함하는 기존 테스트가 기본 병렬 실행에서는 timeout으로 실패했지만, 미디어 코드나 assertion을 바꾸지 않은 전체 실행에서 워커를 두 개로 제한하자 통과했다.

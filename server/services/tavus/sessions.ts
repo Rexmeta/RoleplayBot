@@ -72,7 +72,7 @@ export class TavusSessions {
     } catch (error) {
       blockers.push(error instanceof AvatarIdentityError || error instanceof TavusError ? error.code : "avatar_router_unavailable");
     }
-    return { available: blockers.length === 0, selectable, blockers, runtime, maxSeconds: 120,
+    return { available: blockers.length === 0, selectable, blockers, runtime, maxSeconds: runtime?.sessionSeconds ?? null,
       evaluationAvailable, providerId, managedClient: true, palStrategy: "per_session" };
   }
 

@@ -7,6 +7,10 @@ export const personaSeedDraftSchema = z.object({
   sourceFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 export type PersonaSeedDraft = z.infer<typeof personaSeedDraftSchema>;
+export const seedResetInput = z.object({
+  confirmed: z.literal(true),
+  draft: personaSeedDraftSchema,
+}).strict();
 
 // Fixed public Router contract, not the provider's arbitrary error body.
 export const provisioningFailureSchema = z.object({

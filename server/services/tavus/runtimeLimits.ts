@@ -2,6 +2,9 @@ import { testLimitsSchema } from "../liveAvatar/testContracts";
 import { z } from "zod";
 
 export const tavusLimitsSchema = testLimitsSchema.extend({
+  // Full-pipeline capacity is controlled by the router, not the legacy
+  // 120-second rendering diagnostic contract.
+  sessionSeconds: z.number().int().positive(),
   creationAllowed: z.boolean().optional(),
 });
 

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
   CULTURE_BEHAVIOR_CHECKS,
   CULTURE_EXPERIMENT_SITUATIONS,
   DEFAULT_EXPERIMENT_FIXED,
+  cultureExperimentAutofillSchema,
   type CultureExperimentRequest,
   type CultureExperimentResult,
   type ExperimentVariant,
@@ -52,6 +53,7 @@ function variantLabel(variant: ExperimentVariant) {
 }
 
 export function CultureBehaviorExperiment() {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [fixed, setFixed] = useState({ ...DEFAULT_EXPERIMENT_FIXED });
@@ -61,6 +63,23 @@ export function CultureBehaviorExperiment() {
   const [runError, setRunError] = useState("");
   const [savedRun, setSavedRun] = useState<SavedRun | null>(null);
   const [observations, setObservations] = useState<ObservationMap>({});
+  const [generating, setGenerating] = useState(false);
+  const [autofillError, setAutofillError] = useState("");
+  const [autofillNotice, setAutofillNotice] = useState("");
+  const generation = useRef<AbortController | null>(null);
+  const runController = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    generation.current?.abort();
+    generation.current = null;
+    runController.current?.abort();
+  }, []);
+  useEffect(() => {
+    if (!isAdmin) {
+      generation.current?.abort();
+      generation.current = null;
+      setGenerating(false);
+    }
+  }, [isAdmin]);
 
   const profilesQuery = useQuery<CultureProfile[]>({
     queryKey: profileKey,
@@ -78,8 +97,20 @@ export function CultureBehaviorExperiment() {
   );
 
   const runMutation = useMutation({
-    mutationFn: async (variables: { request: CultureExperimentRequest; situations: ExperimentConfig["situations"] }) =>
-      (await apiRequest("POST", "/api/simulation/culture-experiment", variables.request)).json() as Promise<CultureExperimentResult>,
+    mutationFn: async (variables: { request: CultureExperimentRequest; situations: ExperimentConfig["situations"] }) => {
+      const controller = new AbortController();
+      runController.current = controller;
+      const timer = window.setTimeout(() => controller.abort(), 180000);
+      try {
+        return await (await apiRequest("POST", "/api/simulation/culture-experiment", variables.request, { signal: controller.signal })).json() as CultureExperimentResult;
+      } catch (error) {
+        if (controller.signal.aborted) throw new Error("비교 응답 대기 시간이 초과되었거나 화면을 닫았습니다. 기존 입력과 결과는 유지됩니다. 서버 실행은 계속될 수 있으며 Provider 재실행은 비용을 다시 확인해 주세요.");
+        throw error;
+      } finally {
+        window.clearTimeout(timer);
+        if (runController.current === controller) runController.current = null;
+      }
+    },
     onSuccess: (result, variables) => {
       setSavedRun({ result, request: variables.request, situations: variables.situations, observations: {} });
       setObservations({});
@@ -90,7 +121,7 @@ export function CultureBehaviorExperiment() {
 
   if (!isAdmin) return null;
 
-  const busy = runMutation.isPending;
+   const busy = runMutation.isPending || generating;
   const config = configQuery.data;
   const fixedValid = Object.values(fixed).every((value) => value.trim().length > 0);
   const variantsValid = variants.length >= 1 && variants.every((variant) =>
@@ -105,8 +136,48 @@ export function CultureBehaviorExperiment() {
     setFixed((current) => ({ ...current, [key]: value }));
   const updateVariant = (index: number, patch: Partial<VariantDraft>) =>
     setVariants((current) => current.map((item, position) => position === index ? { ...item, ...patch } : item));
+  const autofill = async () => {
+    if (busy || generation.current) return;
+    if (Object.values(fixed).some(value => value.trim()) || variants.some(value => value.profileId)) {
+      if (!window.confirm("기존 비교 조건을 AI 제안으로 덮어쓰시겠습니까? 반복 횟수와 이전 실험 결과, Provider 실행 동의는 변경하지 않습니다.")) return;
+    }
+    const controller = new AbortController();
+    generation.current = controller;
+    setGenerating(true);
+    setAutofillError("");
+    setAutofillNotice("");
+    const timer = window.setTimeout(() => controller.abort(), 50000);
+    try {
+      const response = await apiRequest("POST", "/api/simulation/culture-experiment/autofill", {}, { signal: controller.signal });
+      const parsed = cultureExperimentAutofillSchema.safeParse(await response.json());
+      if (!parsed.success) throw new Error("AI 응답 형식이 올바르지 않습니다. 기존 입력은 유지됩니다.");
+      // Fetch current candidates rather than silently binding a stale cached version.
+      const profiles: CultureProfile[] = await (await apiRequest("GET", "/api/admin/culture-profiles", undefined, { signal: controller.signal })).json();
+      if (generation.current !== controller || controller.signal.aborted) return;
+      if (!parsed.data.variants.every(variant => profiles.some(profile => profile.id === variant.profileId && profile.version === variant.profileVersion)))
+        throw new Error("제안된 프로필이 없거나 버전이 변경되었습니다. 프로필을 새로 불러온 후 다시 시도해 주세요.");
+      // Update the query's candidate list before atomically applying the suggestion.
+      queryClient.setQueryData(profileKey, profiles);
+      setFixed(parsed.data.fixed);
+      setVariants(parsed.data.variants.map(({ profileId, intensity }) => ({ profileId, intensity })));
+      setAutofillNotice("AI 제안을 적용했습니다. 직접 수정한 후 Mock 비교를 실행할 수 있습니다. 실험은 자동 실행되지 않았습니다.");
+    } catch (error) {
+      if (generation.current === controller) setAutofillError(controller.signal.aborted
+        ? "AI 자동 채움 시간이 초과되었습니다. 기존 입력과 결과는 유지됩니다."
+        : errorMessage(error));
+    } finally {
+      window.clearTimeout(timer);
+      if (generation.current === controller) { generation.current = null; setGenerating(false); }
+    }
+  };
+  const cancelAutofill = () => {
+    generation.current?.abort();
+    generation.current = null;
+    setGenerating(false);
+    setAutofillNotice("자동 채움을 취소했습니다. 기존 입력과 결과는 유지됩니다. 이미 시작된 AI 호출은 비용이 발생할 수 있습니다.");
+  };
   const submit = (mode: "mock" | "provider") => {
-    if (!canRun) return;
+    if (!canRun || runController.current || generation.current) return;
     if (mode === "provider" && !confirmPaidRun) return;
     const request: CultureExperimentRequest = {
       mode,
@@ -207,6 +278,10 @@ export function CultureBehaviorExperiment() {
           <fieldset disabled={busy} className="space-y-4 rounded-md border border-slate-200 bg-white p-4 sm:p-5">
             <legend className="px-1 text-base font-semibold text-slate-900">비교 조건</legend>
             <p className="-mt-1 text-xs text-slate-500">동일한 고정 입력이 모든 상황과 변형에 적용됩니다.</p>
+            <div className="space-y-2 rounded-md border border-teal-200 bg-teal-50 p-3">
+              <Button type="button" variant="outline" data-testid="experiment-autofill" disabled={busy || !profilesQuery.data?.length || profilesQuery.isError} onClick={autofill}>AI 자동 채움</Button>
+              <p className="text-xs text-teal-950">버튼을 누를 때만 현재 설정된 텍스트 AI가 호출되며 비용이 발생할 수 있습니다. 고정 입력 5개와 기존 프로필·강도 1–3개를 제안합니다. 실패·취소한 호출도 과금될 수 있습니다. Provider 실험 실행 동의와는 별개입니다.</p>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div><Label htmlFor="experiment-name">이름 / 페르소나 정체성</Label><Input id="experiment-name" data-testid="experiment-fixed-name" value={fixed.name} maxLength={100} onChange={(event) => updateFixed("name", event.target.value)} /></div>
               <div><Label htmlFor="experiment-role">Actor 역할</Label><Input id="experiment-role" data-testid="experiment-fixed-role" value={fixed.role} maxLength={200} onChange={(event) => updateFixed("role", event.target.value)} /></div>
@@ -246,6 +321,9 @@ export function CultureBehaviorExperiment() {
               </select>
             </div>
           </fieldset>
+          {generating && <div role="status" className="flex items-center gap-3 text-sm"><span>AI 자동 채움 생성 중…</span><Button type="button" variant="outline" onClick={cancelAutofill}>자동 채움 취소</Button></div>}
+          {autofillError && <p role="alert" data-testid="experiment-autofill-error" className="text-sm text-red-800">{autofillError}</p>}
+          {autofillNotice && <p role="status" className="text-sm text-teal-900">{autofillNotice}</p>}
 
           <section className="rounded-md border border-slate-200 bg-white p-4 sm:p-5" aria-labelledby="experiment-situations-heading">
             <h3 id="experiment-situations-heading" className="font-semibold text-slate-900">고정 업무 상황</h3>
@@ -269,7 +347,7 @@ export function CultureBehaviorExperiment() {
             </div>
             <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
               <Button type="button" className="w-full gap-2" data-testid="experiment-run-mock" disabled={!canRun} onClick={() => submit("mock")}>
-                <Play className="h-4 w-4" />{busy ? "실행 중…" : "Mock 비교 실행"}
+                <Play className="h-4 w-4" />{runMutation.isPending ? "실행 중…" : "Mock 비교 실행"}
               </Button>
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
                 <p className="text-sm font-semibold text-amber-950">Provider 실행 · 비용이 발생할 수 있습니다</p>
@@ -279,11 +357,11 @@ export function CultureBehaviorExperiment() {
                   <span>실제 Provider 호출과 비용 발생 가능성을 이해했으며, 알 수 없는 비용을 확인했습니다.</span>
                 </label>
                 <Button type="button" variant="outline" className="mt-3 w-full border-amber-400 bg-white text-amber-950 hover:bg-amber-100" data-testid="experiment-run-provider" disabled={!canRun || !confirmPaidRun} onClick={() => submit("provider")}>
-                  {busy ? "실행 중…" : "확인 후 Provider 실행"}
+                  {runMutation.isPending ? "실행 중…" : "확인 후 Provider 실행"}
                 </Button>
               </div>
             </div>
-            {busy && <div role="status" className="mt-3 space-y-2" data-testid="experiment-running">
+            {runMutation.isPending && <div role="status" className="mt-3 space-y-2" data-testid="experiment-running">
               <div className="h-2 animate-pulse rounded bg-teal-100" /><p className="text-xs text-slate-600">상황별 비교 응답을 생성하고 있습니다. 이 화면을 닫지 마세요.</p>
             </div>}
           </section>

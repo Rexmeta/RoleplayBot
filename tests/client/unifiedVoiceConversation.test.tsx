@@ -19,11 +19,28 @@ const props: TavusConversationLayoutProps = {
   scenario: { id: "s", title: "Scenario", description: "", personas: [] } as any,
   persona: { id: "p", name: "Mina", role: "Manager" } as any,
   statusLabel: "Conversation live", active: true, elapsedSeconds: 17, remainingSeconds: 103,
+  microphoneState: "active", microphoneDisabled: false, onMicrophoneClick: vi.fn(),
   headerActions: <button>End conversation</button>, stage: <div data-testid="video-stage" />,
   sessionControls: <button data-testid="real-session-start">Consent and start</button>,
   history: <p>Confirmed history</p>, transcriptMessages: [],
   captionsAreProvisional: true, hasCaptionEvents: false,
 };
+it("keeps mode, microphone and settings in voice-control order and exposes the microphone action", () => {
+  const click = vi.fn();
+  render(<TavusConversationLayout {...props} microphoneState="idle" active={false}
+    onMicrophoneClick={click} preStartControls={<p>Start notice</p>} />);
+  const row = screen.getByTestId("live-avatar-control-row");
+  const mode = screen.getByTestId("button-conversation-mode-menu");
+  const microphone = screen.getByTestId("button-live-avatar-microphone");
+  const settings = screen.getByTestId("button-open-live-avatar-settings");
+  expect(row.contains(mode)).toBe(true);
+  expect(mode.compareDocumentPosition(microphone) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(microphone.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(microphone.getAttribute("aria-pressed")).toBe("false");
+  fireEvent.click(microphone);
+  expect(click).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("Start notice")).toBeTruthy();
+});
 beforeEach(() => {
   vi.spyOn(HTMLDialogElement.prototype, "showModal").mockImplementation(function () { this.open = true; });
   vi.spyOn(HTMLDialogElement.prototype, "close").mockImplementation(function () { this.open = false; });

@@ -5,14 +5,17 @@ import { DEFAULT_EXPERIMENT_FIXED } from "../../shared/cultureExperiment";
 import { newCultureValues } from "../../shared/cultureMap";
 
 const mocks = vi.hoisted(() => ({
-  policy: vi.fn(), create: vi.fn(), bind: vi.fn(), run: vi.fn(),
+  policy: vi.fn(), create: vi.fn(), bind: vi.fn(), run: vi.fn(), list: vi.fn(), text: vi.fn(),
 }));
 vi.mock("../../server/routes/routerHelpers", () => ({
   asyncHandler: (handler: any) => (req: any, res: any, next: any) => Promise.resolve(handler(req, res, next)).catch(next),
 }));
 vi.mock("../../server/services/cultureMap/service", () => ({
   bindActorCultures: mocks.bind,
-  CultureError: class CultureError extends Error { statusCode = 404; },
+  listCultureProfiles: mocks.list,
+  CultureError: class CultureError extends Error {
+    constructor(message: string, public statusCode = 400) { super(message); }
+  },
 }));
 vi.mock("../../server/services/aiServiceFactory", () => ({
   getPolicyForFeature: mocks.policy, AIServiceFactory: { createServiceWithPolicy: mocks.create },
@@ -23,6 +26,10 @@ vi.mock("../../server/services/aiUsageTracker", () => ({
 }));
 vi.mock("../../server/services/cultureMap/experiment", () => ({ runCultureExperiment: mocks.run }));
 import createCultureExperimentRouter from "../../server/routes/cultureExperiment";
+import { ExperimentLeaseStore, EXPERIMENT_LEASE_MS } from "../../server/services/cultureMap/experimentLease";
+
+vi.mock("../../server/storage/db", () => ({ db: {} }));
+const leases = new Map<string, { token: string; expiresAt: number }>();
 
 const variant = { enabled: true, profileId: "00000000-0000-4000-8000-000000000001", profileVersion: 1, intensity: 70, overrides: {} };
 const input = (mode = "provider") => ({ mode, confirmPaidRun: true, fixed: DEFAULT_EXPERIMENT_FIXED, variants: [variant], repetitions: 1 });
@@ -36,8 +43,26 @@ function app(role = "admin") {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  leases.clear();
+  vi.spyOn(ExperimentLeaseStore.prototype, "acquire").mockImplementation(async (userId, token) => {
+    const active = [...leases.entries()].filter(([, lease]) => lease.expiresAt > Date.now());
+    if (active.some(([id]) => id === userId) || active.length >= 2) return false;
+    leases.set(userId, { token, expiresAt: Date.now() + EXPERIMENT_LEASE_MS });
+    return true;
+  });
+  vi.spyOn(ExperimentLeaseStore.prototype, "renew").mockImplementation(async (userId, token) => {
+    const lease = leases.get(userId);
+    if (!lease || lease.token !== token || lease.expiresAt <= Date.now()) return false;
+    lease.expiresAt = Date.now() + EXPERIMENT_LEASE_MS;
+    return true;
+  });
+  vi.spyOn(ExperimentLeaseStore.prototype, "release").mockImplementation(async (userId, token) => {
+    if (leases.get(userId)?.token === token) leases.delete(userId);
+  });
   mocks.policy.mockResolvedValue({ provider: "gemini", model: "test-model" });
-  mocks.create.mockReturnValue({ generateStreamingResponse: vi.fn() });
+  mocks.create.mockReturnValue({ generateStreamingResponse: vi.fn(), generateText: mocks.text });
+  mocks.list.mockResolvedValue([{ id: variant.profileId, version: 1, name: "프로필", country: "국가", dimensions: newCultureValues() }]);
+  mocks.text.mockResolvedValue(JSON.stringify({ fixed: DEFAULT_EXPERIMENT_FIXED, variants: [{ profileId: variant.profileId, profileVersion: 1, intensity: 50 }] }));
   mocks.bind.mockImplementation(async (actors: any[]) => actors.map(actor => ({ ...actor, culture: {
     ...actor.culture, snapshotVersion: 1, name: "국가", country: "국가", region: "", sources: [], dimensions: newCultureValues(),
   } })));
@@ -49,6 +74,7 @@ describe("admin-only controlled experiment endpoints", () => {
     const status = role ? 403 : 401;
     expect((await request(api).get("/api/simulation/culture-experiment/config")).status).toBe(status);
     expect((await request(api).post("/api/simulation/culture-experiment").send(input())).status).toBe(status);
+    expect((await request(api).post("/api/simulation/culture-experiment/autofill").send({})).status).toBe(status);
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.bind).not.toHaveBeenCalled();
   });
@@ -102,5 +128,155 @@ describe("admin-only controlled experiment endpoints", () => {
     mocks.run.mockRejectedValueOnce(new Error("fail"));
     expect((await request(api).post("/api/simulation/culture-experiment").send(input())).status).toBe(500);
     expect((await request(api).post("/api/simulation/culture-experiment").send(input())).status).toBe(200);
+  });
+});
+
+describe("explicit AI autofill", () => {
+  const path = "/api/simulation/culture-experiment/autofill";
+  it("generates once with the configured strict text policy and accessible candidates, without running experiments", async () => {
+    const response = await request(app()).post(path).send({});
+    expect(response.status).toBe(200);
+    expect(response.body.fixed).toEqual(DEFAULT_EXPERIMENT_FIXED);
+    expect(response.body.variants).toEqual([{ profileId: variant.profileId, profileVersion: 1, intensity: 50 }]);
+    expect(mocks.list).toHaveBeenCalledWith({ id: "user", role: "admin" });
+    expect(mocks.list).toHaveBeenCalledTimes(2);
+    expect(mocks.policy).toHaveBeenCalledWith("conversation");
+    expect(mocks.create).toHaveBeenCalledWith({ provider: "gemini", model: "test-model" }, { strict: true });
+    expect(mocks.text).toHaveBeenCalledTimes(1);
+    expect(mocks.text.mock.calls[0][0]).toContain(variant.profileId);
+    expect(mocks.text.mock.calls[0][0]).toContain("고정관념");
+    expect(mocks.run).not.toHaveBeenCalled();
+    expect(mocks.bind).not.toHaveBeenCalled();
+  });
+  it("rejects supplied candidates and empty accessible profiles before AI setup", async () => {
+    const api = app();
+    expect((await request(api).post(path).send({ profiles: [variant] })).status).toBe(400);
+    mocks.list.mockResolvedValue([]);
+    const response = await request(api).post(path).send({});
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain("프로필");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it.each([
+    "not JSON",
+    JSON.stringify({ fixed: DEFAULT_EXPERIMENT_FIXED, variants: [] }),
+    JSON.stringify({ fixed: { ...DEFAULT_EXPERIMENT_FIXED, name: "x".repeat(101) }, variants: [variant] }),
+    JSON.stringify({ fixed: DEFAULT_EXPERIMENT_FIXED, variants: [{ profileId: variant.profileId, profileVersion: 1, intensity: 101 }] }),
+    JSON.stringify({ fixed: DEFAULT_EXPERIMENT_FIXED, variants: [{ profileId: variant.profileId, profileVersion: 2, intensity: 50 }] }),
+    JSON.stringify({ fixed: DEFAULT_EXPERIMENT_FIXED, variants: [{ profileId: "00000000-0000-4000-8000-000000000099", profileVersion: 1, intensity: 50 }] }),
+  ])("rejects malformed or invented suggestions without leaking provider contents", async raw => {
+    mocks.text.mockResolvedValue(raw);
+    const response = await request(app()).post(path).send({});
+    expect([409, 502]).toContain(response.status);
+    expect(mocks.run).not.toHaveBeenCalled();
+  });
+  it("rechecks changed profile versions after generation", async () => {
+    mocks.list.mockResolvedValueOnce([{ id: variant.profileId, version: 1 }]).mockResolvedValueOnce([{ id: variant.profileId, version: 2 }]);
+    expect((await request(app()).post(path).send({})).status).toBe(409);
+  });
+  it("blocks duplicate autofill and experiment requests, then unlocks after provider failure", async () => {
+    let fail!: (error: Error) => void;
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => { started = resolve; });
+    mocks.text.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; started(); }));
+    const api = app();
+    const first = request(api).post(path).send({}).then(response => response);
+    await ready;
+    expect((await request(api).post(path).send({})).status).toBe(409);
+    expect((await request(api).post("/api/simulation/culture-experiment").send(input())).status).toBe(409);
+    fail(new Error("SECRET_URL_AND_KEY"));
+    const response = await first;
+    expect(response.status).toBe(502);
+    expect(response.text).not.toContain("SECRET");
+    expect((await request(api).post(path).send({})).status).toBe(200);
+  });
+  it("times out, aborts the text request and quarantines the lease until expiry", async () => {
+    const api = app();
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => { started = resolve; });
+    let signal!: AbortSignal;
+    mocks.text.mockImplementationOnce((_prompt, options) => {
+      signal = options.signal;
+      started();
+      return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))));
+    });
+    // Fake only the application deadline, not HTTP's I/O scheduling.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const first = request(api).post(path).send({}).then(response => response);
+      await ready;
+      await vi.advanceTimersByTimeAsync(45001);
+      const response = await first;
+      expect(response.status).toBe(504);
+      expect(signal.aborted).toBe(true);
+    } finally { vi.useRealTimers(); }
+    expect((await request(app()).post(path).send({})).status).toBe(409);
+    leases.get("user")!.expiresAt = 0;
+    expect((await request(app()).post(path).send({})).status).toBe(200);
+  });
+  it("fails closed on lock-store outage without exposing internal errors or starting AI", async () => {
+    vi.mocked(ExperimentLeaseStore.prototype.acquire).mockRejectedValue(new Error("SECRET_CONNECTION"));
+    for (const [path, body] of [
+      ["/api/simulation/culture-experiment/autofill", {}],
+      ["/api/simulation/culture-experiment", input()],
+    ] as const) {
+      const response = await request(app()).post(path).send(body);
+      expect(response.status).toBe(503);
+      expect(response.text).not.toContain("SECRET");
+    }
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("rechecks ownership just before autofill's paid call", async () => {
+    vi.mocked(ExperimentLeaseStore.prototype.renew).mockResolvedValue(false);
+    expect((await request(app()).post(path).send({})).status).toBe(503);
+    expect(mocks.text).not.toHaveBeenCalled();
+    expect(ExperimentLeaseStore.prototype.release).not.toHaveBeenCalled();
+  });
+  it("aborts on heartbeat failure and suppresses an SDK result that arrives late", async () => {
+    let finish!: (value: string) => void;
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => { started = resolve; });
+    let signal!: AbortSignal;
+    mocks.text.mockImplementationOnce((_prompt, options) => {
+      signal = options.signal;
+      started();
+      return new Promise<string>(resolve => { finish = resolve; });
+    });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const first = request(app()).post(path).send({}).then(response => response);
+      await ready;
+      vi.mocked(ExperimentLeaseStore.prototype.renew).mockRejectedValue(new Error("DB down"));
+      await vi.advanceTimersByTimeAsync(20000);
+      expect((await first).status).toBe(503);
+      expect(signal.aborted).toBe(true);
+      finish(JSON.stringify({ fixed: DEFAULT_EXPERIMENT_FIXED, variants: [{ profileId: variant.profileId, profileVersion: 1, intensity: 50 }] }));
+      await Promise.resolve();
+      expect(ExperimentLeaseStore.prototype.release).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it("renews a healthy long-running request beyond the original lease expiry", async () => {
+    let finish!: (value: string) => void;
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => { started = resolve; });
+    mocks.text.mockImplementationOnce(() => {
+      started();
+      return new Promise<string>(resolve => { finish = resolve; });
+    });
+    // Exercise the same guard through comparison, which has no autofill deadline.
+    mocks.run.mockImplementationOnce(async (_input, _variants, deps) => {
+      await deps.assertActive();
+      return mocks.text();
+    });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      const first = request(app()).post("/api/simulation/culture-experiment").send(input()).then(response => response);
+      await ready;
+      await vi.advanceTimersByTimeAsync(EXPERIMENT_LEASE_MS + 1000);
+      expect((await request(app()).post(path).send({})).status).toBe(409);
+      finish("completed");
+      expect((await first).status).toBe(200);
+      expect(leases.size).toBe(0);
+    } finally { vi.useRealTimers(); }
   });
 });

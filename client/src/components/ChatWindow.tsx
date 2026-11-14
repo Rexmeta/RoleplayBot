@@ -114,11 +114,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
       return next;
     });
   };
-  const [desktopInfoSection, setDesktopInfoSection] = useState<'role' | 'goals' | 'npc' | null>('goals');
-  const setDesktopInfoSectionAndClearIncidents = (section: 'role' | 'goals' | 'npc' | null) => {
-    setDesktopInfoSection(section);
-    if (section === 'npc') clearIncidentCount();
-  };
   const isPersonaX = scenario.id?.startsWith('__');
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const [isInlineTextOpen, setIsInlineTextOpen] = useState(false);
@@ -1087,8 +1082,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="sidebar"
                     isSimulationEnabled={isSimulationEnabled} simulationState={simulationState} newIncident={newIncident}
                     latestTurnScore={latestTurnScore} evaluationSkipped={lastScoreSkipped} hasActiveIncident={hasActiveIncident}
-                    desktopSection={desktopInfoSection}
-                    onToggleDesktopSection={setDesktopInfoSectionAndClearIncidents} />
+                    onNpcOpen={clearIncidentCount} />
                 )}
 
                 <div className="relative flex-1 overflow-hidden">
@@ -1794,9 +1788,7 @@ export default function ChatWindow(props: ChatWindowProps) {
     props.initialInputMode === 'tavus' ? 'tavus' : 'checking'
   );
   const [standardMode, setStandardMode] = useState<'text' | 'realtime-voice' | undefined>(undefined);
-  const [liveEntryFor, setLiveEntryFor] = useState<string | null>(null);
   const selectLiveAvatar = () => {
-    setLiveEntryFor(props.conversationId);
     setMode("tavus");
   };
   useEffect(() => {
@@ -1857,7 +1849,7 @@ export default function ChatWindow(props: ChatWindowProps) {
               {restoreText("voiceMode", "Voice conversation", "음성 대화")}
             </Button>
             <Button onClick={selectLiveAvatar}>{t("chat.liveAvatar", "라이브 아바타")}</Button>
-            <p className="text-xs text-slate-500">{restoreText("singleActionNotice", "Selecting live avatar starts a usage-billed connection and sends audio, persona, scenario and applicable organization instructions to the external service.", "라이브 아바타 선택 시 이용 요금이 발생하는 연결을 시작하며, 음성·페르소나·시나리오·적용된 조직 지침을 외부 서비스에 전송합니다.")}</p>
+            <p className="text-xs text-slate-500">{restoreText("microphoneStartNotice", "Press the microphone in live avatar mode to start a usage-billed connection and send audio, persona, scenario and applicable organization instructions to the external service.", "라이브 아바타 화면에서 마이크를 누르면 요금이 발생하는 연결을 시작하며, 음성·페르소나·시나리오·적용된 조직 지침을 외부 서비스에 전송합니다.")}</p>
             <Button variant="ghost" onClick={props.onExit}>{restoreText("exit", "Exit", "나가기")}</Button>
           </div>
         </section>
@@ -1868,7 +1860,6 @@ export default function ChatWindow(props: ChatWindowProps) {
     return (
       <TavusChatWindow
         key={props.conversationId}
-        autoStart={props.initialInputMode === "tavus" || liveEntryFor === props.conversationId}
         scenario={props.scenario}
         persona={props.persona}
         conversationId={props.conversationId}

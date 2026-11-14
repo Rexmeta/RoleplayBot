@@ -1772,8 +1772,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 onLiveAvatarChange={(liveAvatar) => setFormData(prev => ({ ...prev, liveAvatar }))}
               />
 
-              {/* Video management is deliberately absent for operators when disabled. */}
-              {canManageVideoAvatar && <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
+              {/* Show video management only when the selected display mode is video and access is allowed. */}
+              {canManageVideoAvatar && (formData.avatarMode ?? (formData.videos?.enabled ? 'video' : 'image')) === 'video' && <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <i className="fas fa-video text-violet-600"></i>

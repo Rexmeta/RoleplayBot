@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Brain, ChevronDown, Target, UserRound } from "lucide-react";
 import { formatElapsedTime } from "@/hooks/chat/useConversationTimer";
@@ -136,8 +136,7 @@ interface GoalsSidebarProps {
   latestTurnScore?: TurnScore | null;
   evaluationSkipped?: boolean;
   hasActiveIncident?: boolean;
-  desktopSection?: DesktopSection | null;
-  onToggleDesktopSection?: (section: DesktopSection | null) => void;
+  onNpcOpen?: () => void;
 }
 
 export function GoalsSidebar({
@@ -155,17 +154,19 @@ export function GoalsSidebar({
   latestTurnScore,
   evaluationSkipped,
   hasActiveIncident,
-  desktopSection = 'goals',
-  onToggleDesktopSection,
+  onNpcOpen,
 }: GoalsSidebarProps) {
   const { t } = useTranslation();
-  const npcBodyRef = useRef<HTMLDivElement>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<DesktopSection, boolean>>({
+    role: true, goals: true, npc: true,
+  });
   const role = scenario.context?.playerRole;
   const hasRole = !!(scenario.context?.playerRoleText || role?.responsibility || role?.position);
   const objectives = scenario.objectives ?? [];
   const hasObjectives = objectives.length > 0;
   const toggleDesktopSection = (section: DesktopSection) => {
-    onToggleDesktopSection?.(desktopSection === section ? null : section);
+    setExpandedSections(previous => ({ ...previous, [section]: !previous[section] }));
+    if (section === 'npc' && !expandedSections.npc) onNpcOpen?.();
   };
 
   const rolePosition = role?.position || personaRole || t('common.unknown', { defaultValue: '—' });
@@ -192,8 +193,14 @@ export function GoalsSidebar({
 
   if (variant === 'sidebar') {
     return (
-      <div className="hidden lg:flex flex-col w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 z-30 h-full overflow-hidden">
-        <div className="flex flex-col flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
+      <div className="hidden lg:flex flex-col shrink-0 w-[480px] 2xl:w-[560px] bg-gradient-to-b from-slate-50 to-slate-100 border-r border-slate-200 p-4 z-30 h-full min-h-0 overflow-hidden">
+        <div
+          role="region"
+          aria-label={t('chat.conversationInfo', { defaultValue: '대화 정보' })}
+          tabIndex={0}
+          data-testid="desktop-info-scroll"
+          className="flex flex-col flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3 pr-1"
+        >
           {hasRole && (
             <DesktopAccordionSection
               id="role"
@@ -201,10 +208,10 @@ export function GoalsSidebar({
               title={t('chat.yourRole')}
               summary={roleSummary}
               icon={<UserRound className="h-4 w-4" />}
-              isOpen={desktopSection === 'role'}
+              isOpen={expandedSections.role}
               onToggle={() => toggleDesktopSection('role')}
             >
-              <div className="p-4 space-y-2 text-xs leading-relaxed max-h-48 overflow-y-auto">
+              <div className="p-4 space-y-2 text-xs leading-relaxed">
                 <div className="flex items-center justify-between gap-2 text-corporate-600 font-semibold">
                   <span>{t('chat.roleDetails')}</span>
                   <span className="text-slate-500 font-normal text-right">
@@ -229,10 +236,10 @@ export function GoalsSidebar({
               title={t('chat.achievementGoals')}
               summary={goalsSummary}
               icon={<Target className="h-4 w-4" />}
-              isOpen={desktopSection === 'goals'}
+              isOpen={expandedSections.goals}
               onToggle={() => toggleDesktopSection('goals')}
             >
-              <div className="p-4 text-xs leading-relaxed max-h-64 overflow-y-auto">
+              <div className="p-4 text-xs leading-relaxed">
                 <div className="space-y-2">
                   {objectives.map((objective: string, index: number) => (
                     <div key={index} className="flex items-start gap-2">
@@ -269,11 +276,11 @@ export function GoalsSidebar({
                 </span>
               }
               icon={<Brain className="h-4 w-4" />}
-              isOpen={desktopSection === 'npc'}
+              isOpen={expandedSections.npc}
               onToggle={() => toggleDesktopSection('npc')}
               bodyClassName="pb-2"
             >
-              <div ref={npcBodyRef} className="max-h-[min(55vh,28rem)] overflow-y-auto">
+              <div>
                 {simulationState ? (
                   <SimulationPanel
                     state={simulationState}
@@ -281,7 +288,7 @@ export function GoalsSidebar({
                     latestTurnScore={latestTurnScore}
                     evaluationSkipped={evaluationSkipped}
                     hasActiveIncident={hasActiveIncident}
-                    isVisible={desktopSection === 'npc'}
+                    isVisible={expandedSections.npc}
                     className="border-0 rounded-none bg-transparent"
                   />
                 ) : (

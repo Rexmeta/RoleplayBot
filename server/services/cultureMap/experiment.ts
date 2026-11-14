@@ -7,6 +7,8 @@ import type { AIModelPolicy, AIServiceInterface, RoleplayScenario, ScenarioPerso
 import { buildActorCultureLayer } from "./prompt";
 
 export interface ExperimentDependencies {
+  signal?: AbortSignal;
+  assertActive?: () => Promise<void>;
   policy: AIModelPolicy;
   service?: Pick<AIServiceInterface, "generateStreamingResponse">;
   estimateCost: (model: string, input: number, output: number) => number | null;
@@ -37,6 +39,10 @@ export async function runCultureExperiment(
       // Rotate order to avoid always sampling OFF first on repeated trials.
       const order = [...variants.slice((repetition - 1) % variants.length), ...variants.slice(0, (repetition - 1) % variants.length)];
       for (const variant of order) {
+        deps.signal?.throwIfAborted();
+        // Outside the provider-error catch: lease failure stops the entire batch.
+        await deps.assertActive?.();
+        deps.signal?.throwIfAborted();
         const start = Date.now();
         let raw = "";
         let failure: string | undefined;
@@ -58,7 +64,10 @@ export async function runCultureExperiment(
               `[고정 업무 상황]\n${situation.situation}\n[상대방의 발언]\n${situation.userMessage}`,
               "ko", "학습자",
             );
-            for await (const chunk of stream) raw += chunk;
+            for await (const chunk of stream) {
+              deps.signal?.throwIfAborted();
+              raw += chunk;
+            }
           } catch (error: any) {
             // Never expose arbitrary SDK messages (which can contain URLs/credentials).
             const status = Number(error?.status);
@@ -67,6 +76,7 @@ export async function runCultureExperiment(
               : "제공자 호출/스트림 실패. 부분 응답이 있을 수 있으며 과금 여부는 확인이 필요합니다.";
           }
         }
+        deps.signal?.throwIfAborted();
         const usageMatches = Array.from(raw.matchAll(/\[USAGE:(\{[^\r\n]*?\})\]/g));
         let usage: { inputTokens: number; outputTokens: number } | null = null;
         try {

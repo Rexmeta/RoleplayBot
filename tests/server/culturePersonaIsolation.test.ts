@@ -42,10 +42,10 @@ describe("Persona CRUD and scenario authoring remain independent", () => {
     store.getMbtiPersona.mockResolvedValue({ id: "cc", avatarMode: "live", liveAvatar });
     const settings = await fileManager.getPersonaAvatarSettings("CC.json");
     expect(store.getMbtiPersona).toHaveBeenCalledWith("cc");
-    expect(settings).toEqual({ avatarMode: "live", liveAvatar });
+    expect(settings).toEqual({ avatarMode: "live", liveAvatar, liveAvatarSeed: null });
     expect(settings?.liveAvatar).not.toBe(liveAvatar);
     store.getMbtiPersona.mockResolvedValue({ id: "istj", avatarMode: "live", liveAvatar });
-    expect(await fileManager.getPersonaAvatarSettings("istj.json")).toEqual({ avatarMode: "live", liveAvatar });
+    expect(await fileManager.getPersonaAvatarSettings("istj.json")).toEqual({ avatarMode: "live", liveAvatar, liveAvatarSeed: null });
     store.getMbtiPersona.mockResolvedValue(undefined);
     expect(await fileManager.getPersonaAvatarSettings("missing")).toBeNull();
   });
