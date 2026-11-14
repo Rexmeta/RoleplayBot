@@ -37,7 +37,7 @@ beforeEach(() => {
         capabilities: { reusable: false, liveRendering: false, validation: "documentation_only" },
       });
       return schema.parse(options);
-    }) },
+    }), image: vi.fn(async () => ({ bytes: Buffer.from([137, 80, 78, 71]), contentType: "image/png" })) },
   };
   svc = new PersonaSeedLiveService(d);
 });
@@ -62,7 +62,7 @@ describe("persona seed safety and persistence", () => {
     expect(d.readImage).not.toHaveBeenCalled();
     expect(d.store.upsertSystemSetting).not.toHaveBeenCalled();
   });
-  it("registers only the saved owned base image; separate create sends persona ID, never two POSTs", async () => {
+  it("registers the owned image and forwards each explicit create, without automatic retries", async () => {
     const state = await svc.register("admin", "coach", source, consent);
     expect(state.draft).toMatchObject({ imageAssetId: imageId, imageVersion: 1, projectId: project });
     expect(d.readImage).toHaveBeenCalledWith(source);
@@ -70,9 +70,9 @@ describe("persona seed safety and persistence", () => {
     await svc.create("admin", "coach", source, { costConfirmed: true });
     const post = d.client.call.mock.calls.find((c: any[]) => c[1] === "/avatar-assets");
     expect(post[3]).toEqual({ imageAssetId: imageId, providerId: "tavus", personaId: "coach", voiceName: "anna", costConfirmed: true });
-    // A temporarily empty list after POST is NOT permission to send it again.
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
     expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(1);
+    await svc.create("admin", "coach", source, { costConfirmed: true });
+    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(2);
     const reopened = new PersonaSeedLiveService(d);
     expect(await reopened.status("admin", "coach", source)).toMatchObject({ stage: "submitted", draft: state.draft });
     expect(JSON.stringify([...rows.values()])).not.toContain("imageBase64");
@@ -94,7 +94,7 @@ describe("persona seed safety and persistence", () => {
     tenant = "tenant-one"; project = "project-two";
     expect((await svc.status("admin", "coach", source)).draft).toBeNull();
   });
-  it("keeps ambiguous creation fenced after restart and does not retry", async () => {
+  it("retains uncertainty after restart but forwards a new manual request to the router", async () => {
     await svc.register("admin", "coach", source, consent);
     d.client.call.mockImplementation(async (_user: string, path: string, schema: any) => {
       if (path === "/avatar-assets") throw new AvatarIdentityError("avatar_test_operation_uncertain", 502);
@@ -103,12 +103,12 @@ describe("persona seed safety and persistence", () => {
     await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 502 });
     svc = new PersonaSeedLiveService(d);
     expect((await svc.status("admin", "coach", source)).uncertain).toBe(true);
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 502 });
     await expect(svc.register("admin", "coach", source, consent)).rejects.toMatchObject({ status: 409 });
     const persisted = JSON.parse([...rows.values()][0].value);
     await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: persisted.draft }))
       .rejects.toMatchObject({ code: "persona_seed_reset_blocked" });
-    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(1);
+    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(2);
   });
   it("saves pending/failed selections as drafts and trusts only the fresh verified reference", async () => {
     const { draft } = await svc.register("admin", "coach", source, consent);
@@ -146,9 +146,7 @@ describe("persona seed safety and persistence", () => {
     const first = await svc.register("admin", "coach", source, consent);
     await svc.create("admin", "coach", source, { costConfirmed: true });
     options.candidates = [localFailure()]; options.canProvision = true;
-    // A submitted operation cannot directly send another request, even if failure is safe.
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
-      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+    // Submitted operations also delegate manual requests to the router.
     await svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft });
     const registered = await svc.register("admin", "coach", source, consent);
     expect(registered.draft).toEqual(first.draft);
@@ -156,8 +154,6 @@ describe("persona seed safety and persistence", () => {
     await expect(svc.create("admin", "coach", source, { costConfirmed: false }))
       .rejects.toMatchObject({ code: "persona_seed_cost_confirmation_required" });
     await svc.create("admin", "coach", source, { costConfirmed: true });
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
-      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
     expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(2);
   });
   it("keeps an ambiguous retry fenced despite retained failures, a new candidate and a service restart", async () => {
@@ -173,45 +169,43 @@ describe("persona seed safety and persistence", () => {
     expect(await svc.status("admin", "coach", source)).toMatchObject({ stage: "creating", uncertain: true });
     options.candidates.push({ ...localFailure(), avatarAssetId: "42345678-1234-4234-8234-123456789abc" });
     await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
-      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+      .rejects.toMatchObject({ code: "avatar_test_operation_uncertain" });
     const current = await svc.status("admin", "coach", source);
     expect(current.uncertain).toBe(true);
     await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: current.draft }))
       .rejects.toMatchObject({ code: "persona_seed_reset_blocked" });
     await expect(svc.register("admin", "coach", source, consent))
       .rejects.toMatchObject({ code: "persona_seed_operation_uncertain" });
-    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(1);
+    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(2);
   });
   it.each(["queued", "submitting", "processing", "ready", "reconciliation_required", "deleting", "deleted"])(
-    "rejects %s candidates even if the router advertises provisioning", async status => {
+    "forwards explicit creation regardless of %s candidates", async status => {
       await svc.register("admin", "coach", source, consent);
       options.candidates = [{ ...localFailure(), status }]; options.canProvision = true;
-      await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
-        .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
-      expect(d.client.call.mock.calls.some((c: any[]) => c[1] === "/avatar-assets")).toBe(false);
+      options.canProvision = false;
+      await svc.create("admin", "coach", source, { costConfirmed: true });
+      expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(1);
     },
   );
-  it.each(["created", "unknown"])("rejects a failed candidate with %s outcome", async creationOutcome => {
+  it.each(["created", "unknown"])("delegates a failed candidate with %s outcome to the router", async creationOutcome => {
     await svc.register("admin", "coach", source, consent);
     const failure = localFailure();
     failure.failure.creationOutcome = creationOutcome;
     options.candidates = [failure]; options.canProvision = true;
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
-      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
-    expect(d.client.call.mock.calls.some((c: any[]) => c[1] === "/avatar-assets")).toBe(false);
+    await svc.create("admin", "coach", source, { costConfirmed: true });
+    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(1);
   });
-  it("requires router permission and rejects non-preparation failures or mixed candidate lists", async () => {
+  it("does not preflight live-options or require advertised capabilities before forwarding", async () => {
     await svc.register("admin", "coach", source, consent);
-    options.candidates = [localFailure()]; options.canProvision = false;
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
-    options.canProvision = true;
-    options.candidates[0].failure.code = "PROVIDER_TRAINING_FAILED";
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
-    options.candidates = [localFailure(), candidate()];
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
-    options.candidates = [localFailure()]; options.candidates[0].failure.nextAction = "operator_reconcile";
-    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
-    expect(d.client.call.mock.calls.some((c: any[]) => c[1] === "/avatar-assets")).toBe(false);
+    d.connection.check.mockResolvedValue({ projectId: project, scopes: ["assets:read", "assets:write"], integration: {} });
+    const original = d.client.call.getMockImplementation();
+    d.client.call.mockClear();
+    d.client.call.mockImplementation(async (user: string, path: string, schema: any, body: any) => {
+      if (path.endsWith("/live-options")) throw new Error("read_unavailable");
+      return original(user, path, schema, body);
+    });
+    expect(await svc.create("admin", "coach", source, { costConfirmed: true })).toMatchObject({ stage: "submitted" });
+    expect(d.client.call.mock.calls.map((c: any[]) => c[1])).toEqual(["/avatar-assets"]);
   });
   it("resets a completed submission without deleting assets and creates a new image version before resubmission", async () => {
     const first = await svc.register("admin", "coach", source, consent);
@@ -224,7 +218,7 @@ describe("persona seed safety and persistence", () => {
     svc = new PersonaSeedLiveService(d);
     expect(await svc.status("admin", "coach", source)).toMatchObject({ stage: "idle", draft: null });
     await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
-      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+      .rejects.toMatchObject({ code: "persona_seed_register_first" });
     const nextImageId = "32345678-1234-4234-8234-123456789abc";
     const original = d.client.call.getMockImplementation();
     d.client.call.mockImplementation(async (user: string, path: string, schema: any, body: any) => {
@@ -282,7 +276,8 @@ describe("persona seed safety and persistence", () => {
     expect((await svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft })).stage).toBe("idle");
   });
   it("enforces existing login/admin roles before any seed service operation", async () => {
-    const fake = { status: vi.fn(async () => ({})), register: vi.fn(), create: vi.fn(), reset: vi.fn(async () => ({})) };
+    const fake = { status: vi.fn(async () => ({})), register: vi.fn(), create: vi.fn(), reset: vi.fn(async () => ({})),
+      image: vi.fn(async () => ({ bytes: Buffer.from([137, 80, 78, 71]), contentType: "image/png" })) };
     const app = (role?: string) => {
       const a = express(); a.use(express.json());
       a.use((req: any, res, next) => { if (!role) return res.sendStatus(401); req.user = { id: "owner", role }; next(); });
@@ -292,6 +287,16 @@ describe("persona seed safety and persistence", () => {
     const path = "/api/admin/personas/live-avatar/personas/coach/seed?source=personas%2Fcoach%2Fbase-v1.webp";
     expect((await request(app()).get(path)).status).toBe(401);
     expect((await request(app("user")).get(path)).status).toBe(403);
+    const imagePath = `${path.replace("/seed?", "/seed/image?")}&imageAssetId=${imageId}&imageVersion=1`;
+    expect((await request(app()).get(imagePath)).status).toBe(401);
+    expect((await request(app("user")).get(imagePath)).status).toBe(403);
+    expect(fake.image).not.toHaveBeenCalled();
+    const imageResponse = await request(app("operator")).get(imagePath);
+    expect(imageResponse.status).toBe(200);
+    expect(imageResponse.headers["content-type"]).toContain("image/png");
+    expect(imageResponse.headers["cache-control"]).toBe("private, no-store");
+    expect(imageResponse.headers["x-content-type-options"]).toBe("nosniff");
+    expect(fake.image).toHaveBeenCalledWith("owner", "coach", source, { imageAssetId: imageId, imageVersion: 1 });
     expect((await request(app()).post(path.replace("/seed?", "/seed/reset?")).send({})).status).toBe(401);
     expect((await request(app("user")).post(path.replace("/seed?", "/seed/reset?")).send({})).status).toBe(403);
     expect(fake.reset).not.toHaveBeenCalled();
@@ -300,5 +305,25 @@ describe("persona seed safety and persistence", () => {
     expect(fake.status).toHaveBeenCalledWith("owner", "coach", source);
     expect((await request(app("operator")).post(path.replace("/seed?", "/seed/reset?")).send({ confirmed: true })).status).toBe(200);
     expect(fake.reset).toHaveBeenCalledWith("owner", "coach", source, { confirmed: true });
+  });
+  it("reads the registered router image, not the current local base file, and rejects stale or other-scope versions", async () => {
+    await svc.register("admin", "coach", source, consent);
+    d.readImage.mockClear(); d.client.call.mockClear(); d.store.upsertSystemSetting.mockClear();
+    const image = await svc.image("admin", "coach", source, { imageAssetId: imageId, imageVersion: 1 });
+    expect(image.contentType).toBe("image/png");
+    expect(d.client.image).toHaveBeenCalledExactlyOnceWith("admin", imageId);
+    expect(d.client.call).not.toHaveBeenCalled();
+    expect(d.readImage).not.toHaveBeenCalled();
+    expect(d.store.upsertSystemSetting).not.toHaveBeenCalled();
+    await expect(svc.image("admin", "coach", source, { imageAssetId: imageId, imageVersion: 2 }))
+      .rejects.toMatchObject({ code: "persona_seed_image_stale" });
+    await expect(svc.image("admin", "coach", source, { imageAssetId: assetId, imageVersion: 1 }))
+      .rejects.toMatchObject({ code: "persona_seed_image_stale" });
+    await expect(svc.image("admin", "coach", source, { imageAssetId: "../other", imageVersion: 1 }))
+      .rejects.toMatchObject({ status: 400 });
+    tenant = "other-tenant";
+    await expect(svc.image("admin", "coach", source, { imageAssetId: imageId, imageVersion: 1 }))
+      .rejects.toMatchObject({ code: "persona_seed_image_stale" });
+    expect(d.client.image).toHaveBeenCalledTimes(1);
   });
 });

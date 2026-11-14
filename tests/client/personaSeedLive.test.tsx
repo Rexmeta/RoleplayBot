@@ -69,7 +69,7 @@ describe("seed editor mock UI", () => {
     fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
     mocks.api.mockRejectedValueOnce(new Error("avatar_test_operation_uncertain"));
     fireEvent.click(screen.getByTestId("button-seed-create"));
-    await screen.findByText(/요청 결과가 불확실합니다/);
+    await screen.findByText(/이전 요청 결과가 불확실합니다/);
     fireEvent.click(screen.getByTestId("button-seed-create"));
     expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toHaveLength(1);
     expect(mocks.api.mock.calls.find(c => c[0] === "POST")?.[2]).toEqual({ costConfirmed: true });
@@ -163,24 +163,60 @@ describe("seed editor mock UI", () => {
     expect(screen.getByTestId(`history-seed-failure-${assetId}`).getAttribute("role")).toBe("note");
   });
   it.each(["queued", "processing", "reconciliation_required", "ready"])(
-    "blocks creation for %s candidates despite router provisioning permission", async status => {
+    "forwards manual requests for %s candidates without local admission checks", async status => {
       const current = retryState(); current.options.candidates = [{ ...failedCandidate, status }];
+      current.options.canProvision = false;
       mocks.api.mockResolvedValueOnce(response(current));
       render(<PersonaSeedLivePanel {...props()} />);
       await screen.findByTestId("button-seed-create");
       fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
-      expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(false);
+      mocks.api.mockResolvedValueOnce(response({ ...current, stage: "submitted" }));
       fireEvent.click(screen.getByTestId("button-seed-create"));
-      expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+      await waitFor(() => expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toHaveLength(1));
     },
   );
-  it("keeps retry disabled when the server marks old failures as part of an unresolved request", async () => {
+  it("warns about uncertainty without blocking explicit router forwarding", async () => {
     mocks.api.mockResolvedValueOnce(response({ ...retryState(), stage: "creating", uncertain: true }));
     render(<PersonaSeedLivePanel {...props()} />);
     await screen.findByTestId("button-seed-create");
     fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
-    expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByTestId("button-seed-reset") as HTMLButtonElement).disabled).toBe(true);
     expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+  });
+  it("shows the exact registered router image/version instead of the current base image", async () => {
+    render(<PersonaSeedLivePanel {...props()} />);
+    await screen.findByTestId("button-seed-create");
+    const image = screen.getByAltText("아바타 라우터에 전달한 시드 이미지");
+    expect(image.getAttribute("src")).toContain("/personas/coach/seed/image?");
+    expect(image.getAttribute("src")).toContain(`imageAssetId=${imageId}&imageVersion=1`);
+    expect(image.getAttribute("src")).not.toContain("/objects?");
+    expect(screen.getByTestId("preview-seed-image").textContent).toContain("v1");
+    fireEvent.error(image);
+    expect(screen.getByText(/다른 이미지로 대체 표시하지 않습니다/)).toBeTruthy();
+    expect(screen.queryByAltText("등록할 페르소나 기본 이미지")).toBeNull();
+    fireEvent.click(screen.getByText("이미지 다시 불러오기"));
+    expect(screen.getByAltText("아바타 라우터에 전달한 시드 이미지").getAttribute("src")).toContain("previewRefresh=1");
+    expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+  });
+  it("clearly labels a local image as not yet registered", async () => {
+    mocks.api.mockResolvedValueOnce(response({ stage: "idle", uncertain: false, draft: null, options: null }));
+    render(<PersonaSeedLivePanel {...props()} draft={null} />);
+    await screen.findByTestId("button-seed-register");
+    expect(screen.getByAltText("등록할 페르소나 기본 이미지").getAttribute("src")).toContain("/objects?key=");
+    expect(screen.getByText("등록 전 기본 이미지")).toBeTruthy();
+    expect(screen.queryByAltText("아바타 라우터에 전달한 시드 이미지")).toBeNull();
+  });
+  it("still allows a saved seed request if the status read is unavailable, and displays router rejection", async () => {
+    mocks.api.mockRejectedValueOnce(new Error("avatar_test_read_failed"));
+    render(<PersonaSeedLivePanel {...props()} />);
+    await screen.findByTestId("text-seed-error");
+    fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+    expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(false);
+    mocks.api.mockRejectedValueOnce(new Error("409: avatar_test_upstream_409"));
+    fireEvent.click(screen.getByTestId("button-seed-create"));
+    await screen.findByText(/아바타 라우터가 생성 요청을 거절했습니다. HTTP 409/);
+    expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toHaveLength(1);
   });
 });

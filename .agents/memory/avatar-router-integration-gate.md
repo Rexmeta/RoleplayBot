@@ -221,9 +221,10 @@ The app's blanket rejection of any existing candidate prevented a new request,
 and local reset plus duplicate image registration exposed the same old failure.
 
 **How to apply:** Do not promise a new image version from reset alone. Distinguish
-historical candidate evidence from current request errors, and evaluate manual
-retry eligibility against the current router contract without weakening pending
-or unknown-outcome fences. Preserve additive training-image phase evidence.
+historical candidate evidence from current request errors. Delegate persona
+custom-asset manual request eligibility to the router as required below;
+reset and conversation-session fences remain separate. Preserve additive
+training-image phase evidence.
 
 The router can requeue a local training-image failure under the same avatar
 asset ID. Neither an old failure nor the presence of a candidate proves that a
@@ -233,6 +234,20 @@ new attempt with a lost response has finished.
 explicit retry; treating that record as evidence for a later request can
 incorrectly release its durable uncertainty fence.
 
-**How to apply:** Require explicit preparation and cost consent for resubmission.
-Keep an unacknowledged attempt fenced across refreshes and restarts, regardless
-of retained candidates. Do not infer success from a new asset ID being present.
+**How to apply:** Retain uncertainty as diagnostic evidence and never retry
+automatically. Do not infer success from candidate presence or a new asset ID.
+For persona custom-asset requests, the explicit manual delegation rule below
+supersedes the earlier local retry-eligibility gate.
+
+페르소나 커스텀 요청은 무조건 아바타 라우터에 전달하고, 전달한 시드 이미지를
+커스텀 영역에 표시한다.
+
+**Why:** 사용자가 미생성 실패만 재제출하도록 한 조치도 대책이 되지 않는다고
+정정하고, 앱이 요청을 선별하지 말고 라우터에 전달하도록 명시했다.
+
+**How to apply:** 등록된 소유 시드에 대한 명시적 수동 요청은 후보 상태,
+canProvision, 과거 실패 또는 로컬 결과 불명 상태로 막지 않는다. 생성·재사용·거절
+판단은 라우터에 맡기며 로그인·소유권·비용 확인·중복 클릭 방지는 유지한다.
+자동 재시도나 검증용 유료 생성은 하지 않는다. 시드 미리보기는 라우터에 실제
+등록된 이미지 버전을 표시하고 현재 기본 이미지로 조용히 대체하지 않는다.
+이 규칙을 학습자 대화 세션 생성이나 원격 자산 삭제 승인으로 확대하지 않는다.

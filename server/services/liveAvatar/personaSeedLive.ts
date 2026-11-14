@@ -5,7 +5,7 @@ import { storage } from "../../storage";
 import { db } from "../../storage/db";
 import { mediaStorage } from "../mediaStorage";
 import {
-  personaSeedDraftSchema, seedLiveOptionsSchema, seedRegistrationInput, seedResetInput, seedSourceIdentity, canSubmitSeedCreation,
+  personaSeedDraftSchema, seedLiveOptionsSchema, seedRegistrationInput, seedResetInput, seedSourceIdentity,
   type PersonaSeedDraft, type PersonaSeedState,
 } from "../../../shared/avatar/personaSeedLive";
 import { personaAvatarAssetSchema, type PersonaLiveAvatar } from "../../../shared/avatar/personaAvatar";
@@ -47,7 +47,7 @@ const defaultDeps = {
 export class PersonaSeedLiveService {
   constructor(private readonly deps = defaultDeps) {}
 
-  private async context(userId: string, personaId: string, source: string, write = false) {
+  private async context(userId: string, personaId: string, source: string, write = false, requireContract = true) {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(personaId)) {
       throw new AvatarIdentityError("persona_seed_id_invalid", 400);
     }
@@ -56,8 +56,8 @@ export class PersonaSeedLiveService {
     if (!auth.scopes.includes("assets:read") || write && !auth.scopes.includes("assets:write")) {
       throw new AvatarIdentityError("persona_avatar_asset_scopes_required", 403);
     }
-    if (!supportsCustomLiveContract(auth.integration) ||
-        !auth.integration?.features?.includes("seed_image_live_options")) {
+    if (requireContract && (!supportsCustomLiveContract(auth.integration) ||
+        !auth.integration?.features?.includes("seed_image_live_options"))) {
       throw new AvatarIdentityError("persona_seed_contract_upgrade_required", 409);
     }
     const persona = await this.deps.store.getMbtiPersona(personaId);
@@ -107,6 +107,17 @@ export class PersonaSeedLiveService {
     const ctx = await this.context(userId, personaId, source);
     // Pure reads: no images transferred, provider calls, state repairs or writes.
     return this.present(userId, await this.read(ctx.key), ctx.fingerprint);
+  }
+  async image(userId: string, personaId: string, source: string, expected: unknown) {
+    const version = personaSeedDraftSchema.pick({ imageAssetId: true, imageVersion: true }).safeParse(expected);
+    if (!version.success) throw new AvatarIdentityError("persona_seed_image_invalid", 400);
+    const ctx = await this.context(userId, personaId, source, false, false);
+    const op = await this.read(ctx.key);
+    if (!op.draft || op.sourceFingerprint !== ctx.fingerprint || op.draft.projectId !== ctx.projectId ||
+        op.draft.imageAssetId !== version.data.imageAssetId || op.draft.imageVersion !== version.data.imageVersion) {
+      throw new AvatarIdentityError("persona_seed_image_stale", 409);
+    }
+    return this.deps.client.image(userId, op.draft.imageAssetId);
   }
   async register(userId: string, personaId: string, source: string, raw: unknown) {
     const input = seedRegistrationInput.safeParse(raw);
@@ -179,28 +190,31 @@ export class PersonaSeedLiveService {
     if (!z.object({ costConfirmed: z.literal(true) }).strict().safeParse(raw).success) {
       throw new AvatarIdentityError("persona_seed_cost_confirmation_required", 400);
     }
-    const ctx = await this.context(userId, personaId, source, true);
+    const ctx = await this.context(userId, personaId, source, true, false);
     return this.deps.lock(ctx.key, async () => {
       const op = await this.read(ctx.key);
-      const current = await this.present(userId, op, ctx.fingerprint);
-      if (!canSubmitSeedCreation(current)) {
-        throw new AvatarIdentityError("persona_seed_creation_blocked", 409);
+      // No live-options preflight: every explicit request for the owned registered
+      // seed reaches the router, which owns duplicate/reuse and provisioning policy.
+      if (!op.draft || op.sourceFingerprint !== ctx.fingerprint || op.draft.projectId !== ctx.projectId) {
+        throw new AvatarIdentityError("persona_seed_register_first", 409);
       }
       const pending: Operation = {
         ...op, stage: "creating", submittedAssetId: undefined,
-        candidateIdsBeforeCreate: current.options!.candidates.map(c => c.avatarAssetId),
+        candidateIdsBeforeCreate: [],
       };
       await this.save(ctx.key, userId, pending);
       // Never retry automatically, even when a caller repeats this operation.
       const asset = await this.deps.client.call(userId, "/avatar-assets", personaAvatarAssetSchema, {
-        imageAssetId: current.draft!.imageAssetId, providerId: "tavus", personaId, voiceName: "anna", costConfirmed: true,
+        imageAssetId: op.draft.imageAssetId, providerId: "tavus", personaId, voiceName: "anna", costConfirmed: true,
       });
-      if (asset.imageAssetId !== current.draft!.imageAssetId || asset.providerId !== "tavus") {
+      if (asset.imageAssetId !== op.draft.imageAssetId || asset.providerId !== "tavus") {
         throw new AvatarIdentityError("persona_seed_response_mismatch", 502);
       }
       const submitted: Operation = { ...pending, stage: "submitted", submittedAssetId: asset.id };
       await this.save(ctx.key, userId, submitted);
-      return this.present(userId, submitted, ctx.fingerprint);
+      // A later read failure must not turn the router's acknowledgement into a
+      // creation error. Subsequent read-only status queries populate candidates.
+      return { stage: "submitted", draft: submitted.draft, uncertain: false, options: null } satisfies PersonaSeedState;
     });
   }
   /** Save-time re-read, not browser assertions. Drafts can persist before playback. */

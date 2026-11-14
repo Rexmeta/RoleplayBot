@@ -28,6 +28,13 @@ export function createPersonaAvatarOperationsRouter(
   const source = (req: any) => typeof req.query.source === "string" ? req.query.source : "";
   router.get("/personas/:personaId/seed", handle(async (req, res) =>
     res.json(await seed.status(req.user.id, req.params.personaId, source(req)))));
+  router.get("/personas/:personaId/seed/image", handle(async (req, res) => {
+    const image = await seed.image(req.user.id, req.params.personaId, source(req), {
+      imageAssetId: req.query.imageAssetId,
+      imageVersion: typeof req.query.imageVersion === "string" ? Number(req.query.imageVersion) : undefined,
+    });
+    res.set({ "Content-Type": image.contentType, "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" }).send(image.bytes);
+  }));
   router.post("/personas/:personaId/seed", handle(async (req, res) =>
     res.status(201).json(await seed.register(req.user.id, req.params.personaId, source(req), req.body))));
   router.post("/personas/:personaId/seed/create", handle(async (req, res) =>

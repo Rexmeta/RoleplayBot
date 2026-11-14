@@ -2,6 +2,23 @@ import { z } from "zod";
 import { normalizeAvatarRouterBaseUrl } from "./connectionConfig";
 import { AvatarIdentityError, resolveAvatarIdentity, type AvatarIdentityStore } from "./delegatedIdentity";
 
+async function readBoundedBody(response: Response, maxBytes: number): Promise<Buffer> {
+  if (Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error("invalid_body");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.length;
+      if (bytes > maxBytes) throw new Error("body_too_large");
+      chunks.push(value);
+    }
+  } finally { await reader.cancel().catch(() => {}); }
+  return Buffer.concat(chunks);
+}
+
 /** Pinned project-key BFF. Callers supply only constant paths and encoded owned IDs. */
 export class AvatarProjectClient {
   constructor(
@@ -12,6 +29,36 @@ export class AvatarProjectClient {
       apiKey: process.env.AVATAR_ROUTER_API_KEY,
     }),
   ) {}
+
+  /** Only an authorized server-owned image ID may reach this binary endpoint. */
+  async image(userId: string, imageAssetId: string): Promise<{ bytes: Buffer; contentType: string }> {
+    if (!z.string().uuid().safeParse(imageAssetId).success) throw new AvatarIdentityError("avatar_test_path_invalid", 400);
+    const input = this.input();
+    const base = normalizeAvatarRouterBaseUrl(input.baseUrl);
+    const key = input.apiKey;
+    if (!base || !key) throw new AvatarIdentityError("avatar_connection_unconfigured", 503);
+    if (!/^ar_sk_[\x21-\x7e]{14,1018}$/.test(key)) throw new AvatarIdentityError("avatar_connection_invalid", 503);
+    const identity = await resolveAvatarIdentity(this.store, userId);
+    try {
+      const response = await this.request(`${base}/assets/images/${imageAssetId}/content`, {
+        method: "GET", redirect: "error", credentials: "omit",
+        headers: { Accept: "image/png, image/jpeg, image/webp", Authorization: `Bearer ${key}`, "X-Avatar-User-ID": identity.subject },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) {
+        const status = [401, 403, 404, 409, 429, 503].includes(response.status) ? response.status : 502;
+        throw new AvatarIdentityError(`avatar_test_upstream_${status}`, status);
+      }
+      const contentType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
+      if (!["image/png", "image/jpeg", "image/webp"].includes(contentType)) throw new Error("invalid_image_type");
+      const bytes = await readBoundedBody(response, 4_500_000);
+      if (!bytes.length) throw new Error("empty_image");
+      return { bytes, contentType };
+    } catch (error) {
+      if (error instanceof AvatarIdentityError) throw error;
+      throw new AvatarIdentityError("avatar_test_read_failed", 502);
+    }
+  }
 
   async call<T>(userId: string, path: string, schema: z.ZodType<T>, body?: object, signal?: AbortSignal): Promise<T> {
     const input = this.input();
@@ -44,19 +91,7 @@ export class AvatarProjectClient {
       const maxBytes = body === undefined && path.endsWith("/transcript") ? 2 * 1024 * 1024 : 262_144;
       if (!response.headers.get("content-type")?.includes("application/json") ||
           Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error();
-      const reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
-      let bytes = 0;
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          bytes += value.length;
-          if (bytes > maxBytes) throw new Error();
-          chunks.push(value);
-        }
-      } finally { await reader.cancel().catch(() => {}); }
-      const raw = Buffer.concat(chunks).toString("utf8");
+      const raw = (await readBoundedBody(response, maxBytes)).toString("utf8");
       if (raw.includes(key)) throw new Error();
       return schema.parse(JSON.parse(raw));
     } catch (error) {

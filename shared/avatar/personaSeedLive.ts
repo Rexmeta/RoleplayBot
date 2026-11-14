@@ -59,14 +59,9 @@ export function isRetryableSeedFailure(candidate: SeedCandidate): boolean {
     candidate.failure.nextAction !== "operator_reconcile" && candidate.nextAction !== "reconcile";
 }
 
-/** Shared by the editor and server; live router permission never overrides an unresolved local fence. */
+/** The app requires a registered seed; the router decides creation/reuse eligibility. */
 export function canSubmitSeedCreation(state: PersonaSeedState): boolean {
-  const { draft, options, stage } = state;
-  if (state.uncertain || !draft || !options?.canProvision || options.nextAction !== "provision" ||
-      options.imageAssetId !== draft.imageAssetId || options.imageVersion !== draft.imageVersion) return false;
-  const retry = options.candidates.length > 0 && options.candidates.every(isRetryableSeedFailure);
-  // A submitted operation still requires an explicit reset + registration cycle.
-  return stage === "registered" && (options.candidates.length === 0 || retry);
+  return Boolean(state.draft);
 }
 
 export const seedRegistrationInput = z.object({
