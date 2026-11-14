@@ -51,9 +51,7 @@ export function createPersonaAvatarOperationsRouter(
   const service = (req: any) => validation.service(req.params.assetId);
   router.get("/assets/:assetId/validation/preflight", handle(async (req, res) => res.json(await service(req).preflight(req.user.id))));
   router.post("/assets/:assetId/validation/sessions", handle(async (req, res) => {
-    if (valid(z.object({ costConfirmed: z.literal(true), audioConfirmed: z.literal(true) }).strict(), req, res)) {
-      res.status(201).json(await service(req).create(req.user.id));
-    }
+    res.status(201).json(await service(req).create(req.user.id));
   }));
   router.get("/assets/:assetId/validation/sessions/:id", handle(async (req, res) =>
     res.json(await service(req).session(req.user.id, req.params.id))));
@@ -76,10 +74,7 @@ export function createPersonaAvatarOperationsRouter(
     }));
   }
   router.post("/assets/:assetId/validation/report", handle(async (req, res) => {
-    const input = valid(z.object({
-      sessionId: testSessionSchema.shape.id, videoObserved: z.literal(true), audioObserved: z.literal(true),
-    }).strict(), req, res);
-    if (input) res.json(await validation.report(req.user.id, req.params.assetId, input.sessionId));
+    res.status(410).json({ code: "avatar_validation_managed_by_router" });
   }));
   return router;
 }

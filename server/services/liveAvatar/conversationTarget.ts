@@ -3,15 +3,12 @@ import { storage } from "../../storage";
 import { fileManager } from "../fileManager";
 import { ledgerRuntimeBinding } from "../conversationLedger/transcript";
 import { findRuntimePersona, resolveRuntimeScenario, RUNTIME_PERSONA_PROFILE_KEY } from "../runtimeScenario";
-import { personaLiveAvatarSchema, personaAvatarAssetSchema, personaStockAvatarSchema,
-  isLiveValidatedPersonaAvatar, isSelectableStockAvatar } from "../../../shared/avatar/personaAvatar";
-import { supportsCustomLiveContract } from "../../../shared/avatar/routerContract";
+import { personaLiveAvatarSchema, personaAvatarAssetSchema, personaStockAvatarSchema } from "../../../shared/avatar/personaAvatar";
 import { AvatarIdentityError } from "./delegatedIdentity";
 import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
 import { testScopes } from "./testContracts";
 import { nativeScopes } from "./managedClient";
-import { seedLiveOptionsSchema } from "../../../shared/avatar/personaSeedLive";
 
 export const conversationTargetDeps = {
   storage, fileManager, ledgerRuntimeBinding,
@@ -111,46 +108,21 @@ export async function resolveConversationAvatar(
   }
   if (selected.kind === "stock") {
     const stock = await deps.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000));
-    if (!stock.some(a => a.id === selected.avatarId && a.providerId === selected.providerId &&
-        (pipeline === "full" || isSelectableStockAvatar(a)))) {
+    if (!stock.some(a => a.id === selected.avatarId && a.providerId === selected.providerId)) {
       throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
     }
     return { projectId: auth.projectId, avatarId: selected.avatarId, assetId: null, providerId: selected.providerId,
       personaId };
   }
-  if (pipeline === "full") {
-    // A validation diagnostic and a native full-pipeline session have different
-    // playback contracts. Forward the saved asset, not a renderer validation gate
-    // or a stale seed candidate's canActivate flag. Router admission is final.
-    const asset = await deps.client.call(userId, `/avatar-assets/${selected.assetId}`, personaAvatarAssetSchema);
-    if (asset.id !== selected.assetId || asset.providerId !== selected.providerId) {
-      throw new AvatarIdentityError("persona_avatar_asset_mismatch", 502);
-    }
-    if (!asset.providerAvatarId) throw new AvatarIdentityError("persona_avatar_provider_reference_missing", 409);
-    return { projectId: auth.projectId, avatarId: asset.providerAvatarId, assetId: asset.id,
-      providerId: selected.providerId, personaId };
-  }
-  if (selected.providerId !== "tavus" || !supportsCustomLiveContract(auth.integration)) {
-    throw new AvatarIdentityError("persona_avatar_custom_runtime_unavailable", 409);
-  }
-  let seedProviderAvatarId: string | undefined;
-  if (selected.seedImageAssetId) {
-    const options = await deps.client.call(userId, `/assets/images/${selected.seedImageAssetId}/live-options`, seedLiveOptionsSchema);
-    const candidate = options.candidates.find(c => c.avatarAssetId === selected.assetId);
-    if (options.imageAssetId !== selected.seedImageAssetId || options.imageVersion !== selected.seedImageVersion ||
-        !candidate?.canActivate || candidate.liveReference?.avatarAssetId !== selected.assetId) {
-      throw new AvatarIdentityError("persona_avatar_playback_validation_required", 409);
-    }
-    seedProviderAvatarId = candidate.liveReference.avatarId;
-  }
+  // Resolve the saved identity only. Readiness and playback validation belong
+  // to AvatarRouter for both rendering and full-pipeline connections.
   const asset = await deps.client.call(userId, `/avatar-assets/${selected.assetId}`, personaAvatarAssetSchema);
-  if (asset.id !== selected.assetId || asset.providerId !== selected.providerId ||
-      !asset.liveValidation?.runtimeSupported || !isLiveValidatedPersonaAvatar(asset) ||
-      seedProviderAvatarId && asset.providerAvatarId !== seedProviderAvatarId) {
-    throw new AvatarIdentityError("persona_avatar_playback_validation_required", 409);
+  if (asset.id !== selected.assetId || asset.providerId !== selected.providerId) {
+    throw new AvatarIdentityError("persona_avatar_asset_mismatch", 502);
   }
-  return { projectId: auth.projectId, avatarId: asset.providerAvatarId!, assetId: asset.id, providerId: selected.providerId,
-    personaId };
+  if (!asset.providerAvatarId) throw new AvatarIdentityError("persona_avatar_provider_reference_missing", 409);
+  return { projectId: auth.projectId, avatarId: asset.providerAvatarId, assetId: asset.id,
+    providerId: selected.providerId, personaId };
 }
 
 /** Full-pipeline starts resolve identity only; legacy PCM validation is unrelated. */

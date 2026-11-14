@@ -336,6 +336,21 @@ describe("AvatarRouter Full Pipeline", () => {
     expect(await service.start("owner", "run", true)).toMatchObject({ state: "creating" });
     expect(deps.client.call.mock.calls.filter((c: any[]) => c[1] === "/sessions")).toHaveLength(2);
   });
+  it("does not turn a rejected start without a router session into a historical cleanup requirement", async () => {
+    const call = deps.client.call.getMockImplementation();
+    deps.client.call.mockImplementation(async (...args: any[]) => {
+      if (args[1] === "/sessions") throw new Error("router rejected");
+      return call(...args);
+    });
+    await expect(service.start("owner", "run", true)).rejects.toThrow("router rejected");
+    expect(rows.get("run:run").sessionId).toBeUndefined();
+    deps.client.call.mockClear();
+    expect(await service.session("owner", "run")).toMatchObject({ state: "idle" });
+    expect(await service.end("owner", "run")).toMatchObject({ state: "idle" });
+    expect(deps.client.call).not.toHaveBeenCalled();
+    deps.client.call.mockImplementation(call);
+    await expect(service.start("owner", "run", true)).resolves.toHaveProperty("id", "s1");
+  });
   it("remembers an end request during creation and cleans up as soon as the ID arrives", async () => {
     let accept!: (value: unknown) => void;
     const deferred = new Promise(resolve => { accept = resolve; });

@@ -105,13 +105,13 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
     if (initial && mountedRef.current) setLoading(true);
     try {
       const result = await get<AvatarTestPreflight>("/preflight", endpoint);
-      if (!result?.limits || typeof result.ready !== "boolean" || typeof result.aiReady !== "boolean" ||
+      if (!result || typeof result.ready !== "boolean" || typeof result.aiReady !== "boolean" ||
           typeof result.creationUncertain !== "boolean" || !Array.isArray(result.sessions) ||
           !Array.isArray(result.missingScopes)) throw new Error("invalid preflight response");
       if (!mountedRef.current) return;
       setPreflight(result);
-      setCreationUncertainHold(result.creationUncertain);
-      creationHoldRef.current = result.creationUncertain;
+      setCreationUncertainHold(false);
+      creationHoldRef.current = false;
       setPreflightError("");
       const current = sessionRef.current;
       if (current) {
@@ -183,15 +183,14 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
     await loadPreflight();
   };
   const createSession = async () => {
-    if (!costConfirmed || !conversation.audioConsentRef.current || creatingRef.current ||
-        creationHoldRef.current || preflight?.creationUncertain ||
+    if (creatingRef.current ||
         (session && !avatarTestTerminal(session))) return;
     creatingRef.current = true;
     setCreating(true);
     setError("");
     setStopWarning("");
     try {
-      const response = await apiRequest("POST", `${endpoint}/sessions`, { costConfirmed: true, audioConfirmed: true });
+      const response = await apiRequest("POST", `${endpoint}/sessions`, {});
       const created = await response.json() as AvatarTestSession;
       if (!mountedRef.current) {
         sessionRef.current = created;
@@ -208,8 +207,8 @@ export function useAdminAvatarTest(endpoint = "/api/live-avatar/test") {
       await loadPreflight();
     } catch (cause) {
       if (mountedRef.current) {
-        creationHoldRef.current = true;
-        setCreationUncertainHold(true);
+        creationHoldRef.current = false;
+        setCreationUncertainHold(false);
         setError(friendlyError(cause));
         await loadPreflight();
       }

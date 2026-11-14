@@ -65,7 +65,6 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
     let cancelled = false, started = false, endSent = false;
     let client: ManagedClient | undefined;
     let timingReport: Promise<unknown> | undefined;
-    let expiry: ReturnType<typeof setTimeout> | undefined;
     const end = async () => {
       if (endSent) return;
       endSent = true;
@@ -86,7 +85,6 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
           throw new Error("invalid_descriptor");
         }
         if (cancelled) return;
-        expiry = setTimeout(stop, Math.min(120000, Math.max(1, Date.parse(descriptor.expiresAt) - Date.now())));
         await loadClient(descriptor.clientScriptUrl);
         if (cancelled || !video.current) return;
         client = window.AvatarRouter!.createClient({
@@ -153,7 +151,6 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      clearTimeout(expiry);
       clientRef.current = undefined;
       if (started) stop();
     };

@@ -84,6 +84,9 @@ export class TavusSessions {
   }
 
   private publicSession(session: TavusSession | null) {
+    // A rejected/unknown start without a router ID is not a connected session
+    // and must not impose a historical cleanup workflow on the next connection.
+    if (session?.state === "create_unknown" && !session.sessionId) return { state: "idle" as const };
     // Persisted state alone must never advertise an unimplemented provider import.
     const untrustedAnam = session?.providerId === "anam" && session.transcriptContract !== "router-unified-v1";
     const transcriptState = untrustedAnam ? "unavailable" :
@@ -274,7 +277,7 @@ export class TavusSessions {
           ({ ...current!, state: "ending" }));
         return this.publicSession(pending);
       }
-      throw new TavusError("tavus_create_reconciliation_required", 409);
+      return { state: "idle" as const };
     }
     await this.remote(userId, session);
     await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({ ...current!, state: "ending" }));

@@ -10,7 +10,6 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
   const [preflight, setPreflight] = useState<AvatarTestPreflight>();
   const [session, setSession] = useState<AvatarTestSession>();
   const [playbackSessionId, setPlaybackSessionId] = useState<string>();
-  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState("");
@@ -29,10 +28,10 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
       const data = await response.json() as AvatarTestPreflight;
       if (!mounted.current) return;
       setPreflight(data);
-      setUncertain(data.creationUncertain);
+      setUncertain(false);
       const recovered = data.sessions.find(s => !avatarTestTerminal(s));
       if (recovered) { sessionRef.current = recovered; setSession(recovered); }
-    } catch { if (mounted.current) setError("라이브 아바타 상태를 확인하지 못했습니다. 새 세션을 시작하지 마세요."); }
+    } catch { /* Session discovery is optional; manual connections go to the router. */ }
   }, []);
   const keepaliveEnd = () => {
     const current = sessionRef.current;
@@ -72,18 +71,18 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
     return () => { cancelled = true; clearInterval(timer); };
   }, [session?.id, terminal, refresh]);
   const start = async () => {
-    if (creating.current || !consent || !preflight?.ready || uncertain) return;
+    if (creating.current) return;
     creating.current = true; setBusy(true); setError(""); setUncertain(true);
     try {
-      const response = await apiRequest("POST", `${base}/sessions`, { costConfirmed: true, audioConfirmed: true });
+      const response = await apiRequest("POST", `${base}/sessions`, {});
       const next = await response.json() as AvatarTestSession;
       sessionRef.current = next;
       if (!mounted.current) { keepaliveEnd(); return; }
       setSession(next); setPlaybackSessionId(next.id); setUncertain(false);
     } catch {
       if (mounted.current) {
-        setError("생성 요청을 완료하지 못했습니다. 결과가 확인될 때까지 다시 생성하지 마세요.");
-        void refresh();
+        setError("아바타 라우터 연결 요청을 완료하지 못했습니다.");
+        setUncertain(false);
       }
     } finally {
       creating.current = false;
@@ -103,16 +102,11 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
   return <section className="space-y-3 border-t pt-4" aria-label="기본 아바타 테스트">
     <h4 className="font-semibold">기본 아바타 연결 진단</h4>
     <p className="text-sm text-slate-600">외부 서비스가 마이크·대화·음성을 처리합니다. 다른 음성 응답 기능은 동시에 실행하지 않습니다. 이 화면은 기본 진단 배역으로 연결만 확인하며 선택한 페르소나·시나리오의 학습 기록이나 평가를 만들지 않습니다. 실제 배역·기록·피드백은 시나리오의 라이브 아바타 대화에서 확인하세요.</p>
-    <label className="flex gap-2 text-sm"><input type="checkbox" checked={consent} disabled={busy || !!session && !terminal}
-      onChange={e => setConsent(e.target.checked)} />유료 세션 생성과 마이크·음성 전송에 동의합니다.</label>
     <div className="flex gap-2">
-      <Button type="button" disabled={!consent || !preflight?.ready || busy || uncertain || !!session && !terminal} onClick={() => void start()}>기본 아바타 테스트 시작</Button>
-      <Button type="button" variant="outline" onClick={() => void refresh()} disabled={busy}>상태 확인</Button>
+      <Button type="button" disabled={busy || !!session && !terminal} onClick={() => void start()}>기본 아바타 테스트 시작</Button>
       {session && !terminal && <Button type="button" variant="outline" disabled={busy} onClick={() => void end()}>종료 요청</Button>}
     </div>
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-    {uncertain && <p role="alert" className="text-sm text-amber-800">생성 결과 확인 중입니다. 새 세션 생성은 차단됩니다.</p>}
-    {preflight && !preflight.ready && <p className="text-sm text-amber-800">현재 시작할 수 없습니다. {preflight.runtimeError ?? (preflight.missingScopes.length ? `권한 부족: ${preflight.missingScopes.join(", ")}` : "사용량·작업 서버·이전 세션 정리 상태를 확인하세요.")}</p>}
     {session && <p role="status" className="text-sm">{session.status} · {session.rendererState} {session.cleanupPending ? "· 제공자 정리 중" : ""}</p>}
     {session && <AvatarSessionTiming timing={session.timing} reportFailed={timingReportFailed} />}
     {session && !terminal && playbackSessionId !== session.id && <p className="text-sm text-amber-800">기존 세션을 복구했습니다. 일회용 연결을 다시 요청하지 않습니다. 종료 후 정리 상태를 확인하세요.</p>}

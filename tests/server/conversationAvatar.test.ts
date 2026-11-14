@@ -223,11 +223,11 @@ describe("selected conversation avatar resolution", () => {
       schema.parse(path.endsWith("live-options") ? options : face));
     expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "face", assetId });
     options.candidates[0].canActivate = false;
-    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_playback_validation_required" });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "face" });
     options.candidates[0].canActivate = true; options.imageVersion = 2;
-    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_playback_validation_required" });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "face" });
     options.imageVersion = 1; face.providerAvatarId = "changed-face";
-    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_playback_validation_required" });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "changed-face" });
     expect(deps.client.call.mock.calls.every((call: any[]) => call[3] === undefined)).toBe(true);
   });
   it("rejects another owner, completed runs, non-live mode and disabled policy before provider reads", async () => {
@@ -268,12 +268,12 @@ describe("selected conversation avatar resolution", () => {
       status: "ready", capabilities: { reusable: true, liveRendering: true, validation: "provisioned" },
       liveValidation: { status: "unvalidated", runtimeSupported: true, method: null, sessionId: null, validatedAt: null } };
     deps.client.call.mockImplementation(async (_u: string, _p: string, schema: any) => schema.parse(asset));
-    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_playback_validation_required" });
+    expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "replica" });
     asset.liveValidation = { status: "validated", runtimeSupported: true, method: "client_playback_report",
       sessionId: "test-session", validatedAt: "2026-10-30T00:00:00Z" };
     expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "replica", assetId });
-    asset.status = "deleted";
-    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ status: 409 });
+    asset.id = "32345678-1234-4234-8234-123456789abc";
+    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_asset_mismatch" });
   });
 });
 

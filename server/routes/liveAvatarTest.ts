@@ -24,9 +24,6 @@ export function createLiveAvatarTestRouter(service: AdminAvatarTestService = adm
   };
   router.get("/preflight", handle(async (req, res) => res.json(await service.preflight(req.user.id))));
   router.post("/sessions", handle(async (req, res) => {
-    if (!z.object({ costConfirmed: z.literal(true), audioConfirmed: z.literal(true) }).strict().safeParse(req.body).success) {
-      res.status(400).json({ code: "avatar_test_consent_required" }); return;
-    }
     res.status(201).json(await service.create(req.user.id));
   }));
   router.get("/sessions/:id", handle(async (req, res) => res.json(await service.session(req.user.id, req.params.id))));

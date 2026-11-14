@@ -56,17 +56,24 @@ function errorDetails(error: unknown) {
   let message = match?.[2] || raw;
   let code = match?.[1] || "REQUEST_FAILED";
   let creationAttempted: false | undefined;
+  let routerError = false;
   try {
     const parsed = JSON.parse(message);
+    if (typeof parsed.avatarRouter?.code === "string" && typeof parsed.avatarRouter?.error === "string") {
+      code = parsed.avatarRouter.code;
+      message = parsed.avatarRouter.error;
+      routerError = true;
+    } else {
     code = String(parsed.code || code);
     message = String(parsed.message || parsed.error || message);
+    }
     if (parsed.creationAttempted === false) creationAttempted = false;
   } catch { /* Keep the server's plain-text message. */ }
   message = message
     .replace(/(authorization\s*:\s*bearer\s+)[^\s,;]+/gi, "$1[redacted]")
     .replace(/([?&]token=)[^&\s]+/gi, "$1[redacted]")
     .replace(/((?:access[_-]?token|token)\s*[:=]\s*)["']?[^"',\s}]+/gi, "$1[redacted]");
-  return { code, message, creationAttempted };
+  return { code, message, creationAttempted, routerError };
 }
 
 export default function TavusChatWindow({
@@ -87,7 +94,8 @@ export default function TavusChatWindow({
     }
   };
   // Keep provider codes/messages for internal recovery, never as learner-facing copy.
-  const displayError = (details: { code: string; message: string }) => reasonText(details.code);
+  const displayError = (details: { code: string; message: string; routerError?: boolean }) =>
+    details.routerError ? `${details.message} (${details.code})` : reasonText(details.code);
   const [session, setSession] = useState<Session>({ state: "idle" });
   const [config, setConfig] = useState<Config | null>(null);
   const [starting, setStarting] = useState(false);
@@ -631,7 +639,7 @@ export default function TavusChatWindow({
             <div className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 text-xs leading-5"><p className="break-words font-semibold">{displayError(apiDisplayError)}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {connectionError && !usesManagedClient && <button type="button" onClick={() => { connectionAttemptedRef.current = false; setConnection(null); void checkConnection(); }} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white" data-testid="tavus-connection-retry">{text("retryConnection", "Retry connection details", "연결 정보 다시 확인")}</button>}
-                {(session.state !== "idle" && session.state !== "ended") && <button type="button" onClick={() => void end()} disabled={busy} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white disabled:opacity-50" data-testid="tavus-end-retry">{endFailed ? text("retryEnd", "Retry safe end", "안전하게 종료 재시도") : text("endSession", "End session", "세션 종료")}</button>}
+                {session.id && (session.state !== "idle" && session.state !== "ended") && <button type="button" onClick={() => void end()} disabled={busy} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white disabled:opacity-50" data-testid="tavus-end-retry">{endFailed ? text("retryEnd", "Retry safe end", "안전하게 종료 재시도") : text("endSession", "End session", "세션 종료")}</button>}
               </div>
             </div></div>
           </div>}

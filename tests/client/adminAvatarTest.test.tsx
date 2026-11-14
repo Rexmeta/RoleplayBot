@@ -125,12 +125,12 @@ describe("admin stock-avatar test UI", () => {
     expect(room.disconnect).not.toHaveBeenCalled();
     expect(createPosts()).toHaveLength(0);
   });
-  it("shows the router's 600-second limit in cost consent without creating a paid session", async () => {
+  it("does not expose budget or cost consent controls", async () => {
     preflight.limits.sessionSeconds = 600;
     render(<LiveAvatarTestPanel />);
-    expect((await screen.findAllByText("600초")).length).toBeGreaterThan(0);
-    expect(screen.getByText(/600초 세션 한도는 달러 비용 보장이 아닙니다/)).toBeTruthy();
-    expect(screen.queryByText(/120초/)).toBeNull();
+    await screen.findByRole("button", { name: "아바타 연결" });
+    expect(screen.queryByText(/600초/)).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
     expect(createPosts()).toHaveLength(0);
   });
   it("reports one advancing frame, not subscription/readiness, and reporting failure never ends or recreates media", async () => {
@@ -160,33 +160,29 @@ describe("admin stock-avatar test UI", () => {
     expect(fakes.api.mock.calls.some(c => c[1].endsWith("/end"))).toBe(false);
     expect(room.disconnect).not.toHaveBeenCalled();
   });
-  it("only performs free preflight on mount and requires both unchecked consents", async () => {
+  it("only discovers connections on mount and forwards an explicit connection without cost gates", async () => {
     render(<LiveAvatarTestPanel />);
-    const button = await screen.findByRole("button", { name: "확인 후 테스트 세션 생성" });
-    expect((button as HTMLButtonElement).disabled).toBe(true);
-    expect(createPosts()).toHaveLength(0);
-    consent();
+    const button = await screen.findByRole("button", { name: "아바타 연결" });
     expect((button as HTMLButtonElement).disabled).toBe(false);
+    expect(createPosts()).toHaveLength(0);
     fireEvent.click(button);
     await waitFor(() => expect(createPosts()).toHaveLength(1));
-    expect(createPosts()[0][2]).toEqual({ costConfirmed: true, audioConfirmed: true });
+    expect(createPosts()[0][2]).toEqual({});
     expect(fakes.rooms).toHaveLength(0); // queued != video-ready
   });
 
-  it("blocks ambiguous creation without retrying and exposes recovery warning", async () => {
+  it("does not lock manual connections because of past uncertainty", async () => {
     preflight = { ...preflight, ready: false, creationUncertain: true };
     render(<LiveAvatarTestPanel />);
-    await screen.findByText(/세션 생성 결과 확인 중/);
-    consent();
-    const button = screen.getByRole("button", { name: "확인 후 테스트 세션 생성" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
+    const button = await screen.findByRole("button", { name: "아바타 연결" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
     expect(createPosts()).toHaveLength(0);
   });
 
   it("does not connect ended sessions or treat terminal cleanup pending as ready", async () => {
     preflight = { ...preflight, ready: false, sessions: [current({ status: "failed", cleanupPending: true })] };
     render(<LiveAvatarTestPanel />);
-    await screen.findByText(/내 테스트 세션 및 정리 상태/);
+    await waitFor(() => expect(fakes.api).toHaveBeenCalled());
     expect(fakes.rooms).toHaveLength(0);
     expect(createPosts()).toHaveLength(0);
   });
@@ -226,7 +222,7 @@ describe("admin stock-avatar test UI", () => {
     expect(room.disconnect).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(fakes.api.mock.calls.some(([m, p]) => m === "POST" && p.endsWith("/end"))).toBe(true));
     await waitFor(() => expect(screen.queryByRole("button", { name: "테스트 중지" })).toBeNull());
-    expect(screen.getByRole("button", { name: "확인 후 테스트 세션 생성" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "아바타 연결" })).toBeDefined();
     expect(fakes.rooms).toHaveLength(1);
   });
 

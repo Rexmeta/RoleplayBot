@@ -89,7 +89,7 @@ export class AvatarProjectClient {
         // Only the Router's documented public ApiFailure fields may leave the BFF.
         // Never forward arbitrary bodies, provider internals, or credentials.
         let routerResponse: { code: string; error: string } | undefined;
-        if ((assetWrite || imageRead || catalogRead) && response.headers.get("content-type")?.includes("application/json")) {
+        if (response.headers.get("content-type")?.includes("application/json")) {
           try {
             const text = (await readBoundedBody(response, 16_384)).toString("utf8");
             if (!text.includes(key) && !/(?:ar_sk_|Bearer\s|PRIVATE KEY)/i.test(text)) {

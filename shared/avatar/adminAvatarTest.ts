@@ -30,7 +30,7 @@ export type AvatarTestPreflight = {
   aiReady: boolean;
   creationUncertain: boolean;
   missingScopes: string[];
-  limits: AvatarTestLimits;
+  limits?: AvatarTestLimits;
   sessions: AvatarTestSession[];
 };
 export type AvatarTestMessage = { role: "user" | "assistant"; content: string };

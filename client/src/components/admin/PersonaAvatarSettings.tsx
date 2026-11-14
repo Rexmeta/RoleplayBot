@@ -301,7 +301,6 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                   <p className="mt-1 break-all text-slate-600">
                     {liveAvatar.kind === 'stock' ? '기본 아바타' : '맞춤 아바타'} · 외부 서비스 연결
                   </p>
-                  <p className="mt-1 text-slate-600">Live 검증: {liveAvatar.validationStatus === 'live_verified' ? '검증됨' : '미검증'}</p>
                 </div>
                  <Button type="button" variant="link" className="h-auto p-0" disabled={testBusy} onClick={() => { setTestEntryOpen(false); onLiveAvatarChange(null); }}>
                    아바타 연결 해제
@@ -341,7 +340,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 onSelect={chooseStock}
                 displayName={displayCatalogName}
               />
-              <p className="text-xs text-slate-500">카탈로그에서 선택한 것은 재생 검증 근거가 아닙니다. 선택은 초안으로만 반영되며 저장해도 유료 세션이 생성되거나 업로드가 일어나지 않습니다. 실제 라이브 사용은 별도 비용 동의가 필요합니다.</p>
+              <p className="text-xs text-slate-500">선택한 아바타는 페르소나를 저장하면 반영됩니다. 아바타 실행과 세션 관리는 라우터가 처리합니다.</p>
             </div>
           )}
 
@@ -349,7 +348,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
               <p className="font-semibold text-slate-800">선택한 커스텀 아바타</p>
               <p className="mt-1 text-slate-600">
-                현재 자산 상태: {provisioningLabels[selectedAsset.status]} · Live 검증: {isLiveValidatedPersonaAvatar(selectedAsset) ? '검증됨' : '미검증'}
+                라우터 자산 상태: {provisioningLabels[selectedAsset.status]}
               </p>
               {!selectableAssets.some(asset => asset.id === selectedAsset.id) && (
                 <p className="mt-1 text-amber-800">이 자산은 현재 선택 조건을 충족하지 않습니다. 연결은 유지했으며 다른 자산으로 자동 변경하지 않았습니다.</p>
@@ -386,7 +385,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                             <p className="break-words text-sm font-semibold text-slate-800">{displayCatalogName(asset.name)}</p>
                             <p className="mt-1 break-all font-mono text-xs text-slate-500">자산 ID · {asset.id}</p>
                             <p className="mt-1 text-xs text-slate-600">
-                              라우터 상태: {provisioningLabels[asset.status]} · 재생 검증: {isLiveValidatedPersonaAvatar(asset) ? '검증됨' : '미검증'}
+                              라우터 상태: {provisioningLabels[asset.status]}
                             </p>
                             {selected && <p className="mt-1 text-xs font-semibold text-indigo-800">현재 페르소나 초안에 연결됨 · 저장 후 반영</p>}
                           </div>
@@ -397,7 +396,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                       );
                     })}
                     <p className="text-xs leading-relaxed text-slate-500">
-                      자산 준비 완료는 재생 검증과 다릅니다. 기존 선택은 새로고침이나 조회 오류 시에도 자동으로 바뀌지 않습니다.
+                      기존 선택은 새로고침이나 조회 오류 시에도 자동으로 바뀌지 않습니다.
                     </p>
                   </div>
                 ) : (
@@ -425,7 +424,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 )}
                 <p className="text-xs leading-relaxed text-slate-500">
                   선택 조건: 준비 완료, 재사용 가능, 서비스 아바타 ID 보유. 미리보기 URL은 제공되지 않습니다.
-                  자산 준비 상태와 Live 검증 상태는 별도로 표시됩니다.
+                  아바타 상태는 라우터가 반환한 내용을 표시합니다.
                 </p>
               </div>
             )
@@ -466,7 +465,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           )}
           {liveAvatar && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && <div className="space-y-2">
             <p className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-xs leading-relaxed text-indigo-950">
-              선택 아바타 테스트는 고른 아바타만 확인하는 독립 테스트 대화입니다. 시나리오나 페르소나의 동작·평가를 검증하지 않으며, 페르소나 변경 사항은 별도로 저장해야 반영됩니다. 패널을 여는 동작은 읽기 전용 사전 점검만 수행하며 유료 세션을 자동 생성하지 않습니다.
+              선택한 아바타를 라우터에 연결합니다. 실행과 세션 관리는 라우터가 처리하며, 페르소나 변경 사항은 별도로 저장해야 반영됩니다.
             </p>
             {hasSelectedTest ? (
               <Button type="button" variant="outline" disabled={testBusy || creationBusy} onClick={() => setTestEntryOpen(open => !open)}>

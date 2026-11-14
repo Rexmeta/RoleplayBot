@@ -89,7 +89,7 @@ describe("persona avatar settings", () => {
     expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
     fireEvent.change(screen.getByLabelText("연결할 커스텀 자산"), { target: { value: id } });
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
-    expect(screen.getByText(/현재 자산 상태: 준비 완료 · Live 검증: 미검증/)).toBeTruthy();
+    expect(screen.getByText(/라우터 자산 상태: 준비 완료/)).toBeTruthy();
     expect(screen.getByText(/미리보기 URL은 제공되지 않습니다/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "아바타 연결 해제" }));
     expect(screen.getByTestId("draft").textContent).toBe("null");
@@ -209,7 +209,7 @@ describe("persona avatar settings", () => {
     expect(screen.getByTestId("custom-avatar-test").textContent).toContain(id);
     expect(screen.queryByTestId("seed-panel")).toBeNull();
     expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
-    expect(screen.getByText(/독립 테스트 대화/)).toBeTruthy();
+    expect(screen.getByText(/선택한 아바타를 라우터에 연결/)).toBeTruthy();
   });
 
   it("opens the correct catalog-selected test in the persona editor and locks the selection through cleanup", async () => {

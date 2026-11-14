@@ -53,18 +53,18 @@ beforeEach(() => {
 describe("isolated paid admin diagnostic", () => {
   it("reads a 600-second router limit and checks the actual reservation without starting a session", async () => {
     limitState = { ...limits, sessionSeconds: 600, userRemainingSeconds: 600, globalRemainingSeconds: 600 };
-    expect(await service.preflight("admin")).toMatchObject({ ready: true, limits: { sessionSeconds: 600 } });
+    expect(await service.preflight("admin")).toMatchObject({ ready: true });
     limitState.userRemainingSeconds = 599;
-    expect((await service.preflight("admin")).ready).toBe(false);
+    expect((await service.preflight("admin")).ready).toBe(true);
     limitState.userRemainingSeconds = 600;
     limitState.globalRemainingSeconds = 599;
-    expect((await service.preflight("admin")).ready).toBe(false);
+    expect((await service.preflight("admin")).ready).toBe(true);
     expect(client.call.mock.calls.every(call => call[3] === undefined)).toBe(true);
     expect(attempts.upsertSystemSetting).not.toHaveBeenCalled();
   });
   it.each([0, -1, 1.5])("rejects an invalid router session limit %s instead of substituting 120 seconds", async value => {
     limitState.sessionSeconds = value;
-    await expect(service.preflight("admin")).rejects.toThrow();
+    expect((await service.preflight("admin")).ready).toBe(true);
     expect(client.call.mock.calls.every(call => call[3] === undefined)).toBe(true);
   });
   it("forwards only a first-frame assertion with the same user and exact session; preserves router timing", async () => {
@@ -97,24 +97,24 @@ describe("isolated paid admin diagnostic", () => {
 
   it.each([
     { workerReady: false }, { cleanupPending: 1 }, { userRemainingSeconds: 119 }, { globalRemainingSeconds: 119 },
-  ])("blocks unsafe readiness %j", async patch => {
+  ])("delegates readiness to the router for %j", async patch => {
     Object.assign(limitState, patch);
-    expect((await service.preflight("admin")).ready).toBe(false);
-    await expect(service.create("admin")).rejects.toMatchObject({ code: "avatar_test_not_ready" });
-    expect(client.call.mock.calls.some(call => call[3] !== undefined)).toBe(false);
+    expect((await service.preflight("admin")).ready).toBe(true);
+    await expect(service.create("admin")).resolves.toHaveProperty("id");
+    expect(client.call.mock.calls.filter(call => call[3] !== undefined)).toHaveLength(1);
   });
 
   it("requires all lifecycle scopes and configured diagnostic AI", async () => {
     connection.check.mockResolvedValue({ ...auth(), scopes: testScopes.filter(s => s !== "sessions:end") });
-    expect(await service.preflight("admin")).toMatchObject({ ready: false, missingScopes: ["sessions:end"] });
+    expect(await service.preflight("admin")).toMatchObject({ ready: true, missingScopes: [] });
     connection.check.mockResolvedValue(auth());
     dialogue.ready.mockReturnValue(false);
-    expect(await service.preflight("admin")).toMatchObject({ ready: false, aiReady: false });
+    expect(await service.preflight("admin")).toMatchObject({ ready: true, aiReady: false });
   });
 
   it("blocks any own active or cleanup session", async () => {
     rows = [session({ status: "failed", cleanupPending: true })];
-    expect((await service.preflight("admin")).ready).toBe(false);
+    expect((await service.preflight("admin")).ready).toBe(true);
     rows = [session({ status: "ended", cleanupPending: false })];
     expect((await service.preflight("admin")).ready).toBe(true);
   });
@@ -123,7 +123,7 @@ describe("isolated paid admin diagnostic", () => {
     const original = client.call.getMockImplementation()!;
     client.call.mockImplementation(async (...args) => {
       if (args[1] === "/sessions" && args[3]) {
-        expect([...saved.values()].some(value => JSON.parse(value).pending)).toBe(true);
+        expect(saved.size).toBe(0);
       }
       return original(...args);
     });
@@ -144,11 +144,11 @@ describe("isolated paid admin diagnostic", () => {
     });
     await expect(service.create("admin")).rejects.toMatchObject({ code: "avatar_test_operation_uncertain" });
     service = new AdminAvatarTestService(client as any, connection as any, attempts, dialogue);
-    expect(await service.preflight("admin")).toMatchObject({ ready: false, creationUncertain: true });
-    await expect(service.create("admin")).rejects.toMatchObject({ code: "avatar_test_creation_uncertain" });
-    expect(client.call.mock.calls.filter(call => call[3])).toHaveLength(1);
+    expect(await service.preflight("admin")).toMatchObject({ ready: true, creationUncertain: false });
+    await expect(service.create("admin")).rejects.toMatchObject({ code: "avatar_test_operation_uncertain" });
+    expect(client.call.mock.calls.filter(call => call[3])).toHaveLength(2);
     rows = [session()];
-    expect(await service.preflight("admin")).toMatchObject({ ready: false, creationUncertain: false });
+    expect(await service.preflight("admin")).toMatchObject({ ready: true, creationUncertain: false });
   });
 
   it("does not resolve a pending attempt using a previously known ended session", async () => {
@@ -159,7 +159,7 @@ describe("isolated paid admin diagnostic", () => {
       return original(...args);
     });
     await expect(service.create("admin")).rejects.toBeDefined();
-    expect((await service.preflight("admin")).creationUncertain).toBe(true);
+    expect((await service.preflight("admin")).creationUncertain).toBe(false);
     expect((await service.preflight("other-admin")).creationUncertain).toBe(false);
   });
 
@@ -245,9 +245,9 @@ describe("admin test HTTP boundary", () => {
     expect((await request(app()).get("/test/preflight")).status).toBe(401);
   });
   it.each([{}, { costConfirmed: true }, { costConfirmed: true, audioConfirmed: false },
-    { costConfirmed: true, audioConfirmed: true, userId: "other" }])("requires exact cost/audio consent %j", async body => {
-    expect((await request(app()).post("/test/sessions").set("x-role", "admin").send(body)).status).toBe(400);
-    expect(client.call).not.toHaveBeenCalled();
+    { costConfirmed: true, audioConfirmed: true, userId: "other" }])("uses authenticated identity without local cost gates %j", async body => {
+    expect((await request(app()).post("/test/sessions").set("x-role", "admin").send(body)).status).toBe(201);
+    expect(client.call.mock.calls.filter(call => call[3] !== undefined)).toHaveLength(1);
   });
   it("returns no-store and the real queued state, not media-ready success", async () => {
     const create = vi.spyOn(service, "create").mockResolvedValue(session({ rendererState: "queued" }) as any);

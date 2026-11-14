@@ -77,52 +77,11 @@ export class AdminAvatarTestService {
   }
 
   async preflight(userId: string) {
-    const auth = await this.connection.check(userId);
-    const required = this.anam ? [...nativeScopes, "assets:read"] as const :
-      this.custom ? [...testScopes, "assets:read", "assets:write"] as const : testScopes;
-    const missingScopes = required.filter(scope => !auth.scopes.includes(scope));
-    if (missingScopes.includes("live-limits:read") || missingScopes.includes("sessions:read")) {
-      throw new AvatarIdentityError("avatar_test_read_scopes_missing", 403);
-    }
-    const [limits, sessions] = await Promise.all([
-      this.client.call(userId, this.anam ? "/live-limits?providerId=anam" : "/live-limits",
-        testLimitsSchema.extend({ creationAllowed: z.boolean().optional() })),
-      this.client.call<AvatarTestSession[]>(userId, "/sessions", listSchema),
-    ]);
-    const attemptKey = this.attemptKey(auth.projectId, userId);
-    const saved = await this.attempts.getSystemSetting(AVATAR_TEST_ATTEMPTS, attemptKey);
-    const attempt = saved ? attemptSchema.parse(JSON.parse(saved.value)) : undefined;
-    let creationUncertain = Boolean(attempt?.pending);
-    if (attempt?.pending && (attempt.target === this.attemptTarget() || !attempt.target && !this.anam) &&
-        sessions.filter(session => !attempt.baseline.includes(session.id) && this.belongs(session)).length === 1) {
-      // Durable remote ownership resolves an ambiguous create. Never issue a second create to recover.
-      await this.saveAttempt(attemptKey, userId, false, []);
-      creationUncertain = false;
-    }
-    const aiReady = this.anam || this.dialogue.ready();
-    let runtimeReady = true;
-    let runtimeError: string | undefined;
-    if (this.anam) {
-      const stock = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(500));
-      runtimeReady = anamFeatures.every(f => auth.integration?.features.includes(f)) &&
-        stock.some(a => a.providerId === "anam" && isSelectableStockAvatar(a));
-      if (!runtimeReady) runtimeError = "anam_managed_runtime_unavailable";
-    }
-    if (this.custom) {
-      try { await this.custom.resolve(userId); }
-      catch (error) {
-        // Keep owned session recovery/end available even if the asset was deleted or changed.
-        runtimeReady = false;
-        runtimeError = error instanceof AvatarIdentityError ? error.code : "persona_avatar_runtime_check_failed";
-      }
-    }
+    await this.connection.check(userId);
+    const sessions = await this.client.call<AvatarTestSession[]>(userId, "/sessions", listSchema);
     return {
-      ready: runtimeReady && !creationUncertain && aiReady && !missingScopes.length && limits.workerReady &&
-        limits.creationAllowed !== false &&
-        limits.cleanupPending === 0 && limits.userRemainingSeconds >= limits.sessionSeconds &&
-        limits.globalRemainingSeconds >= limits.sessionSeconds && !sessions.some(s => !avatarTestTerminal(s)),
-      aiReady, creationUncertain, missingScopes, limits, sessions: sessions.filter(s => this.belongs(s)),
-      ...(runtimeError ? { runtimeError } : {}),
+      ready: true, aiReady: this.anam || this.dialogue.ready(), creationUncertain: false,
+      missingScopes: [], sessions: sessions.filter(s => this.belongs(s)),
     };
   }
 
@@ -130,14 +89,8 @@ export class AdminAvatarTestService {
     if (creating.has(userId)) throw new AvatarIdentityError("avatar_test_creation_in_progress", 409);
     creating.add(userId);
     try {
-      const state = await this.preflight(userId);
-      if (!state.ready) throw new AvatarIdentityError(state.creationUncertain ? "avatar_test_creation_uncertain" : "avatar_test_not_ready", 409);
-      const auth = await this.connection.check(userId);
-      const key = this.attemptKey(auth.projectId, userId);
+      await this.connection.check(userId);
       const target = this.custom ? await this.custom.resolve(userId) : undefined;
-      const baseline = await this.client.call(userId, "/sessions", listSchema);
-      // Save BEFORE calling the paid endpoint, including across app restarts.
-      await this.saveAttempt(key, userId, true, baseline.map((s: AvatarTestSession) => s.id));
       let session: AvatarTestSession;
       try {
         session = await this.client.call(userId, "/sessions", this.sessionSchema, {
@@ -155,13 +108,8 @@ export class AdminAvatarTestService {
           throw new AvatarIdentityError("persona_avatar_session_revision_mismatch", 502);
         }
       } catch (error) {
-        if (error instanceof AvatarIdentityError && ["avatar_test_upstream_401", "avatar_test_upstream_403",
-          "avatar_test_upstream_404", "avatar_test_upstream_429"].includes(error.code)) {
-          await this.saveAttempt(key, userId, false, []);
-        }
         throw error;
       }
-      await this.saveAttempt(key, userId, false, []);
       return session;
     } finally { creating.delete(userId); }
   }

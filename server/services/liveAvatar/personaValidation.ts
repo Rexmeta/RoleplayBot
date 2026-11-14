@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { supportsCustomLiveContract } from "../../../shared/avatar/routerContract";
 import { storage } from "../../storage";
-import { personaAvatarAssetSchema, isSelectablePersonaAvatar } from "../../../shared/avatar/personaAvatar";
-import { avatarTestReady } from "../../../shared/avatar/adminAvatarTest";
+import { personaAvatarAssetSchema } from "../../../shared/avatar/personaAvatar";
 import { AvatarIdentityError } from "./delegatedIdentity";
 import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
@@ -23,12 +21,8 @@ export class PersonaAvatarValidationService {
     if (!(["assets:read", "assets:write"] as const).every(s => auth.scopes.includes(s))) {
       throw new AvatarIdentityError("persona_avatar_asset_scopes_required", 403);
     }
-    if (!supportsCustomLiveContract(auth.integration)) {
-      throw new AvatarIdentityError("persona_avatar_contract_upgrade_required", 409);
-    }
     const asset = await this.projectClient.call(userId, `/avatar-assets/${assetId}`, personaAvatarAssetSchema);
-    if (asset.id !== assetId || asset.providerId !== "tavus" || !isSelectablePersonaAvatar(asset) ||
-        !asset.liveValidation?.runtimeSupported) {
+    if (asset.id !== assetId || asset.providerId !== "tavus" || !asset.providerAvatarId) {
       throw new AvatarIdentityError("persona_avatar_custom_runtime_unavailable", 409);
     }
     return { providerAvatarId: asset.providerAvatarId! };
@@ -46,21 +40,8 @@ export class PersonaAvatarValidationService {
     }
     return test;
   }
-  async report(userId: string, assetId: string, sessionId: string) {
-    const target = await this.resolve(userId, assetId);
-    const session = await this.service(assetId).session(userId, sessionId);
-    if (!avatarTestReady(session) || Date.parse(session.expiresAt) <= Date.now() ||
-        session.avatarId !== target.providerAvatarId) {
-      throw new AvatarIdentityError("persona_avatar_validation_session_invalid", 409);
-    }
-    // Upstream enforces original owner, completed audio command and exact asset revision.
-    const asset = await this.projectClient.call(userId, `/avatar-assets/${assetId}/live-validation`,
-      personaAvatarAssetSchema, { sessionId, videoObserved: true, audioObserved: true });
-    if (asset.id !== assetId || asset.providerAvatarId !== target.providerAvatarId ||
-        asset.liveValidation?.status !== "validated" || asset.liveValidation.sessionId !== sessionId) {
-      throw new AvatarIdentityError("persona_avatar_validation_report_mismatch", 502);
-    }
-    return asset;
+  async report(_userId: string, _assetId: string, _sessionId: string) {
+    throw new AvatarIdentityError("avatar_validation_managed_by_router", 410);
   }
 }
 export const personaAvatarValidation = new PersonaAvatarValidationService();

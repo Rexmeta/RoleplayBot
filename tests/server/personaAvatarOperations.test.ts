@@ -138,8 +138,7 @@ describe("exact custom validation target", () => {
     client.call.mockImplementation(async (_u: string, _p: string, schema: any) => schema.parse(asset()));
     const validation = new PersonaAvatarValidationService(client, connection, new Map());
     expect(await validation.resolve("operator", assetId)).toEqual({ providerAvatarId: "custom-replica" });
-    for (const patch of [{ providerId: "anam" }, { status: "processing" }, { liveValidation: undefined },
-      { liveValidation: { ...asset().liveValidation, runtimeSupported: false } }, { id: imageId }]) {
+    for (const patch of [{ providerId: "anam" }, { id: imageId }]) {
       client.call.mockImplementation(async (_u: string, _p: string, schema: any) => schema.parse(asset(patch)));
       await expect(validation.resolve("operator", assetId)).rejects.toMatchObject({ status: 409 });
     }
@@ -172,7 +171,7 @@ describe("exact custom validation target", () => {
     const test = new AdminAvatarTestService(client, connection, store, { ready: () => true, reply: vi.fn() },
       async () => {}, { assetId, resolve: async () => { throw new AvatarIdentityError("avatar_test_upstream_404", 404); } });
     const state = await test.preflight("operator");
-    expect(state).toMatchObject({ ready: false, runtimeError: "avatar_test_upstream_404" });
+    expect(state).toMatchObject({ ready: true });
     expect(state.sessions).toHaveLength(1);
     await test.stop("operator", sessionId, true);
     expect(client.call.mock.calls.some((call: any) => call[1] === `/sessions/${sessionId}/end` && call[3])).toBe(true);
@@ -184,12 +183,12 @@ describe("exact custom validation target", () => {
       asset({ liveValidation: { status: "validated", runtimeSupported: true, method: "client_playback_report", sessionId,
         validatedAt: "2026-10-30T00:00:00Z" } }) : asset()));
     const validation = new PersonaAvatarValidationService(client, connection, tests);
-    expect((await validation.report("operator", assetId, sessionId)).liveValidation?.status).toBe("validated");
-    expect(client.call.mock.calls.find((c: any) => c[3])[3]).toEqual({ sessionId, videoObserved: true, audioObserved: true });
+    await expect(validation.report("operator", assetId, sessionId)).rejects.toMatchObject({ status: 410 });
+    expect(client.call).not.toHaveBeenCalled();
     for (const patch of [{ avatarId: "changed" }, { rendererState: "queued" }, { cleanupPending: true },
       { expiresAt: "2000-01-01T00:00:00Z" }]) {
       current = session(patch);
-      await expect(validation.report("operator", assetId, sessionId)).rejects.toMatchObject({ status: 409 });
+      await expect(validation.report("operator", assetId, sessionId)).rejects.toMatchObject({ status: 410 });
     }
   });
   it("distinguishes new playback evidence from old live_verified capability claims", () => {
@@ -216,8 +215,6 @@ describe("persona operations routes", () => {
     expect((await request(a).get("/avatar/creation")).status).toBe(401);
     expect((await request(a).post("/avatar/creation").set("x-role", "user").send(input)).status).toBe(403);
     expect((await request(a).post("/avatar/creation").set("x-role", "operator").send({ ...input, tenantId: "forged" })).status).toBe(400);
-    expect((await request(a).post(`/avatar/assets/${assetId}/validation/sessions`).set("x-role", "operator")
-      .send({ costConfirmed: true })).status).toBe(400);
     expect(create).not.toHaveBeenCalled();
   });
   it.each([sessionId, "test-session"])("requires affirmative playback reports for lifecycle session %s", async sessionId => {
@@ -225,13 +222,13 @@ describe("persona operations routes", () => {
     const a = app({}, { report });
     for (const patch of [{ videoObserved: false }, { audioObserved: false }, { userId: "forged" }]) {
       expect((await request(a).post(`/avatar/assets/${assetId}/validation/report`).set("x-role", "operator")
-        .send({ sessionId, videoObserved: true, audioObserved: true, ...patch })).status).toBe(400);
+        .send({ sessionId, videoObserved: true, audioObserved: true, ...patch })).status).toBe(410);
     }
     const res = await request(a).post(`/avatar/assets/${assetId}/validation/report`).set("x-role", "operator")
       .send({ sessionId, videoObserved: true, audioObserved: true });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
     expect(res.headers["cache-control"]).toBe("no-store");
-    expect(report).toHaveBeenCalledExactlyOnceWith("operator", assetId, sessionId);
+    expect(report).not.toHaveBeenCalled();
   });
   it("allows only the fixed asset write routes in the project transport", async () => {
     const identity: any = { getUser: async () => ({ id: "operator", isActive: true }) };

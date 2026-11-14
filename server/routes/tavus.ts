@@ -32,6 +32,7 @@ export default function createTavusRouter(isAuthenticated: any, service = tavusS
       if (error instanceof TavusError || error instanceof AvatarIdentityError) res.status(error.status).json({
         code: error.code, error: error.code,
         ...(error instanceof TavusError && error.details ? error.details : {}),
+        ...(error instanceof AvatarIdentityError && error.routerResponse ? { avatarRouter: error.routerResponse } : {}),
       });
       else next(error);
     }

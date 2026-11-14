@@ -31,9 +31,9 @@ describe("default avatar test consent and lifecycle", () => {
     render(<AnamAvatarTestPanel />);
     await waitFor(() => expect(api).toHaveBeenCalledWith("GET", `${base}/preflight`));
     const start = screen.getByRole("button", { name: "기본 아바타 테스트 시작" });
-    expect((start as HTMLButtonElement).disabled).toBe(true);
+    expect((start as HTMLButtonElement).disabled).toBe(false);
     expect(api.mock.calls.every(c => c[0] === "GET")).toBe(true);
-    fireEvent.click(screen.getByRole("checkbox"));
+    expect(screen.queryByRole("checkbox")).toBeNull();
     await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(start);
     expect((await screen.findByTestId("native-room")).textContent).toContain(`${base}/sessions/native-one`);
@@ -42,16 +42,16 @@ describe("default avatar test consent and lifecycle", () => {
     expect(screen.getByTestId("avatar-session-timing").textContent).toContain("영상 시간 보고에 실패했습니다");
     expect(screen.getByTestId("native-room")).toBeTruthy();
     expect(api.mock.calls.filter(c => c[0] === "POST")).toEqual([
-      ["POST", `${base}/sessions`, { costConfirmed: true, audioConfirmed: true }],
+      ["POST", `${base}/sessions`, {}],
     ]);
     expect(screen.getByText(/실제 배역·기록·피드백은 시나리오의 라이브 아바타 대화에서 확인하세요/)).toBeTruthy();
   });
   it("does not create or reconnect automatically when the server reports an uncertain create", async () => {
     api.mockResolvedValue({ json: async () => ({ ...preflight, ready: false, creationUncertain: true }) });
     render(<AnamAvatarTestPanel />);
-    await screen.findByText(/생성 결과 확인 중/);
-    fireEvent.click(screen.getByRole("checkbox"));
-    expect((screen.getByRole("button", { name: "기본 아바타 테스트 시작" }) as HTMLButtonElement).disabled).toBe(true);
+    await waitFor(() => expect(api).toHaveBeenCalled());
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect((screen.getByRole("button", { name: "기본 아바타 테스트 시작" }) as HTMLButtonElement).disabled).toBe(false);
     expect(api.mock.calls.every(c => c[0] === "GET")).toBe(true);
   });
   it("recovers an existing session for cleanup without requesting a new media handoff", async () => {
