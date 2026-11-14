@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
+import { createHash } from "node:crypto";
 vi.mock("../../server/storage", () => ({ storage: {} }));
 vi.mock("../../server/storage/db", () => ({ db: {} }));
 vi.mock("../../server/services/mediaStorage", () => ({ mediaStorage: {} }));
 import { PersonaSeedLiveService } from "../../server/services/liveAvatar/personaSeedLive";
 import { AvatarIdentityError } from "../../server/services/liveAvatar/delegatedIdentity";
+import { AvatarProjectClient } from "../../server/services/liveAvatar/projectClient";
 import { createPersonaAvatarOperationsRouter } from "../../server/routes/personaAvatarOperations";
 import { isOperatorOrAdmin } from "../../server/middleware/authMiddleware";
 
@@ -13,6 +15,7 @@ const imageId = "22345678-1234-4234-8234-123456789abc";
 const assetId = "12345678-1234-4234-8234-123456789abc";
 const source = "personas/coach/base-v1.webp";
 const consent = { rightsConfirmed: true, transferConfirmed: true, likeness: "synthetic" };
+const contentHash = createHash("sha256").update(Buffer.alloc(32)).digest("hex");
 let svc: PersonaSeedLiveService, d: any, rows: Map<string, any>, options: any, persona: any, project: string, tenant: string;
 beforeEach(() => {
   rows = new Map(); project = "project-one"; tenant = "tenant-one";
@@ -31,7 +34,7 @@ beforeEach(() => {
     readImage: vi.fn(async () => Buffer.alloc(32)),
     client: { call: vi.fn(async (_user, path, schema, body) => {
       if (body) expect([...rows.values()].some(v => /registering|creating/.test(v.value))).toBe(true);
-      if (path === "/assets/images") return schema.parse({ id: imageId, version: 1 });
+      if (path === "/assets/images") return schema.parse({ id: imageId, version: 1, contentHash });
       if (path === "/avatar-assets") return schema.parse({
         id: assetId, imageAssetId: imageId, providerId: "tavus", providerAvatarId: null, name: "coach", status: "queued",
         capabilities: { reusable: false, liveRendering: false, validation: "documentation_only" },
@@ -55,6 +58,82 @@ const localFailure = () => ({
   },
 });
 describe("persona seed safety and persistence", () => {
+  it("uploads bytes and calls creation in one explicit request, without status preflights", async () => {
+    const result = await svc.create("admin", "coach", source, { costConfirmed: true, registration: consent });
+    expect(result).toMatchObject({ stage: "submitted", uncertain: false, draft: { imageAssetId: imageId } });
+    expect(d.client.call.mock.calls.map((c: any[]) => c[1])).toEqual(["/assets/images", "/avatar-assets"]);
+    const upload = d.client.call.mock.calls[0][3];
+    expect(Buffer.from(upload.imageBase64, "base64")).toEqual(Buffer.alloc(32));
+    expect(upload).toMatchObject({ name: "coach", rightsConfirmed: true, likeness: "synthetic" });
+    expect(upload).not.toHaveProperty("transferConfirmed");
+    expect(d.client.call.mock.calls[1][3].imageAssetId).toBe(imageId);
+    expect(JSON.stringify([...rows.values()])).not.toContain(upload.imageBase64);
+  });
+  it("never invokes creation if the upload fails or acknowledges a different source hash", async () => {
+    d.client.call.mockRejectedValueOnce(new AvatarIdentityError("avatar_test_upstream_422", 422));
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true, registration: consent }))
+      .rejects.toMatchObject({ code: "persona_seed_upload_avatar_test_upstream_422" });
+    expect(d.client.call).toHaveBeenCalledTimes(1);
+    d.client.call.mockResolvedValueOnce({ id: imageId, version: 1, contentHash: "a".repeat(64) });
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true, registration: consent }))
+      .rejects.toMatchObject({ code: "persona_seed_upload_mismatch" });
+    expect(d.client.call.mock.calls.every((c: any[]) => c[1] === "/assets/images")).toBe(true);
+  });
+  it("requires all three consents before a combined upload and creation", async () => {
+    for (const body of [
+      { costConfirmed: false, registration: consent },
+      { costConfirmed: true, registration: { ...consent, rightsConfirmed: false } },
+      { costConfirmed: true, registration: { ...consent, transferConfirmed: false } },
+      { costConfirmed: true, registration: { ...consent, likeness: "real_person" } },
+    ]) await expect(svc.create("admin", "coach", source, body)).rejects.toMatchObject({ status: 400 });
+    expect(d.client.call).not.toHaveBeenCalled();
+    expect(d.readImage).not.toHaveBeenCalled();
+  });
+  it("retains the acknowledged image after an uncertain create and never retries it automatically", async () => {
+    const original = d.client.call.getMockImplementation();
+    d.client.call.mockImplementation((user: string, path: string, schema: any, body: any) => {
+      if (path === "/avatar-assets") throw new AvatarIdentityError("avatar_test_operation_uncertain", 502);
+      return original(user, path, schema, body);
+    });
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true, registration: consent }))
+      .rejects.toMatchObject({ code: "avatar_test_operation_uncertain" });
+    const op = JSON.parse([...rows.values()][0].value);
+    expect(op).toMatchObject({ stage: "creating", draft: { imageAssetId: imageId } });
+    expect(d.client.call).toHaveBeenCalledTimes(2);
+  });
+  it("sends the one-click route through the real JSON transport with the acknowledged image ID", async () => {
+    const bytes = Buffer.alloc(768, 137);
+    d.readImage.mockResolvedValue(bytes);
+    // This fixture is a response, not a replacement for the transport under test.
+    const fetcher = vi.fn(async (url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string);
+      if (url.endsWith("/assets/images")) {
+        expect(Buffer.from(body.imageBase64, "base64")).toEqual(bytes);
+        expect(body).toEqual({ name: "coach", imageBase64: bytes.toString("base64"), rightsConfirmed: true, likeness: "synthetic" });
+        return Response.json({ id: imageId, version: 4, contentHash: createHash("sha256").update(bytes).digest("hex") }, { status: 201 });
+      }
+      expect(url).toBe("https://avatar-router.replit.app/api/v1/avatar-assets");
+      expect(body).toEqual({ imageAssetId: imageId, personaId: "coach", providerId: "tavus", voiceName: "anna", costConfirmed: true });
+      return Response.json({ id: assetId, imageAssetId: imageId, name: "coach", providerId: "tavus", providerAvatarId: null,
+        status: "queued", capabilities: { reusable: false, liveRendering: false, validation: "documentation_only" } }, { status: 202 });
+    });
+    d.client = new AvatarProjectClient({ getUser: async () => ({ id: "admin", isActive: true }) } as any,
+      fetcher as any, () => ({ baseUrl: "https://avatar-router.replit.app/api/v1", apiKey: "ar_sk_test_not_real_123456789" }));
+    const app = express(); app.use(express.json());
+    app.use((req: any, _res, next) => { req.user = { id: "admin", role: "admin" }; next(); });
+    app.use("/api/admin/personas/live-avatar", isOperatorOrAdmin,
+      createPersonaAvatarOperationsRouter(undefined, undefined, new PersonaSeedLiveService(d)));
+    const result = await request(app).post(`/api/admin/personas/live-avatar/personas/coach/seed/create?source=${encodeURIComponent(source)}`)
+      .send({ costConfirmed: true, registration: consent });
+    expect(result.status).toBe(202);
+    expect(result.body).toMatchObject({ stage: "submitted", uncertain: false, draft: { imageAssetId: imageId, imageVersion: 4 } });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetcher.mock.calls) {
+      expect(init).toMatchObject({ method: "POST", redirect: "error", credentials: "omit",
+        headers: { Authorization: "Bearer ar_sk_test_not_real_123456789", "Content-Type": "application/json",
+          "X-Avatar-User-ID": expect.stringMatching(/^user_/) } });
+    }
+  });
   it("editor status is read-only; save with no seed neither transfers media nor starts creation", async () => {
     expect(await svc.status("admin", "coach", source)).toMatchObject({ stage: "idle", draft: null, uncertain: false });
     expect(await svc.normalize("admin", { motivation: "updated" }, persona)).toEqual({});
@@ -225,7 +304,7 @@ describe("persona seed safety and persistence", () => {
       if (path === "/assets/images") {
         expect(body.previousVersionId).toBe(imageId);
         options = { ...options, imageAssetId: nextImageId, imageVersion: 2, canProvision: true, candidates: [] };
-        return schema.parse({ id: nextImageId, version: 2 });
+        return schema.parse({ id: nextImageId, version: 2, contentHash });
       }
       if (path === "/avatar-assets") return schema.parse({
         id: assetId, imageAssetId: nextImageId, providerId: "tavus", providerAvatarId: null, name: "coach", status: "queued",

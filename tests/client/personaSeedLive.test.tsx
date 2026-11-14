@@ -31,6 +31,38 @@ const props = () => ({ personaId: "coach", source: "personas/coach/a.webp", draf
 beforeEach(() => { vi.clearAllMocks(); mocks.user.id = "admin"; mocks.api.mockResolvedValue(response(state())); });
 afterEach(cleanup);
 describe("seed editor mock UI", () => {
+  it("uploads the saved image and requests creation with one click after three consents", async () => {
+    mocks.api.mockResolvedValueOnce(response({ stage: "idle", uncertain: false, draft: null, options: null }));
+    render(<PersonaSeedLivePanel {...props()} draft={null} />);
+    const button = await screen.findByTestId("button-seed-upload-create");
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("이미지 사용 권리와 초상 사용 권한을 확인했습니다."));
+    fireEvent.click(screen.getByLabelText("저장된 이미지가 외부 서비스에 전송됨을 확인했습니다."));
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+    mocks.api.mockResolvedValueOnce(response({ stage: "submitted", uncertain: false, draft, options: null }));
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await screen.findByTestId("status-seed-transmission");
+    expect(screen.getByTestId("status-seed-transmission").textContent).toContain("아바타 생성 API 접수 완료");
+    expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toEqual([
+      ["POST", expect.stringContaining("/seed/create?"), { costConfirmed: true,
+        registration: { rightsConfirmed: true, transferConfirmed: true, likeness: "synthetic" } }],
+    ]);
+    expect(screen.getByAltText("아바타 라우터에 전달한 시드 이미지").getAttribute("src")).toContain(`imageAssetId=${imageId}`);
+  });
+  it("distinguishes an image upload rejection from a creation API failure", async () => {
+    mocks.api.mockResolvedValueOnce(response({ stage: "idle", uncertain: false, draft: null, options: null }));
+    render(<PersonaSeedLivePanel {...props()} draft={null} />);
+    await screen.findByTestId("button-seed-upload-create");
+    for (const label of ["이미지 사용 권리와 초상 사용 권한을 확인했습니다.", "저장된 이미지가 외부 서비스에 전송됨을 확인했습니다.",
+      "외부 제공자 비용이 발생할 수 있음을 확인했습니다."]) fireEvent.click(screen.getByLabelText(label));
+    mocks.api.mockRejectedValueOnce(new Error("422: persona_seed_upload_avatar_test_upstream_422"));
+    fireEvent.click(screen.getByTestId("button-seed-upload-create"));
+    expect((await screen.findByTestId("text-seed-error")).textContent).toContain("아바타 생성 API는 호출하지 않았습니다");
+    expect(screen.getByTestId("text-seed-error").textContent).toContain("시드 이미지 업로드 단계");
+    expect(screen.queryByText(/이전 요청 결과가 불확실합니다/)).toBeNull();
+  });
   it("hydrates by GET only and does not clear saved selection simply by mounting", async () => {
     const p = props(); render(<PersonaSeedLivePanel {...p} />);
     await waitFor(() => expect(p.onDraftChange).toHaveBeenCalledWith(draft));

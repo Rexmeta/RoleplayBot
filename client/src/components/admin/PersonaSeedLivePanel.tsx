@@ -21,6 +21,11 @@ function messageFor(error: unknown): string {
   if (/persona_seed_reset_stale/.test(message)) return "다른 화면에서 준비 상태가 변경되었습니다. 상태를 다시 조회하세요.";
   if (/persona_seed_creation_blocked/.test(message)) return "현재 상태에서는 생성 요청을 보낼 수 없습니다. 새 생성 요청은 전송하지 않았습니다. 상태를 조회해 최신 작업 상태를 확인하세요.";
   if (/persona_seed_register_first/.test(message)) return "현재 저장된 기본 이미지를 먼저 시드로 등록하세요. 등록된 이미지가 없어 생성 요청은 전송하지 않았습니다.";
+  if (/persona_seed_upload_mismatch/.test(message)) return "라우터가 반환한 시드 이미지가 전송한 원본과 일치하지 않아 아바타 생성 요청을 보내지 않았습니다.";
+  if (/persona_seed_image_unavailable|persona_seed_source_unsupported/.test(message)) return "저장된 시드 이미지 파일을 읽을 수 없어 전송하지 못했습니다. 기본 이미지를 확인하세요.";
+  if (/persona_seed_consent_required/.test(message)) return "이미지 사용 권리와 외부 전송 동의를 확인하세요.";
+  if (/persona_seed_upload_avatar_test_upstream_(\d+)/.test(message)) return `시드 이미지 업로드 단계에서 HTTP ${message.match(/persona_seed_upload_avatar_test_upstream_(\d+)/)?.[1]} 응답을 받았습니다. 아바타 생성 API는 호출하지 않았습니다.`;
+  if (/persona_seed_upload_avatar_test_/.test(message)) return "시드 이미지 업로드 응답을 확인하지 못했습니다. 아바타 생성 API는 호출하지 않았습니다.";
   if (/avatar_test_upstream_(\d+)/.test(message)) return `아바타 라우터가 생성 요청을 거절했습니다. HTTP ${message.match(/avatar_test_upstream_(\d+)/)?.[1]}. 라우터의 현재 설정과 작업 상태를 확인하세요.`;
   if (/403|scope|forbidden/i.test(message)) return "시드 라이브 설정 권한을 확인하세요.";
   if (/fetch|network/i.test(message)) return "서버에 연결하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
@@ -117,7 +122,7 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
   }, [identity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pending = state?.stage === "submitted" && !state.options ||
-    Boolean(state?.options?.candidates.some(c => c.status === "queued" || c.status === "processing"));
+    Boolean(state?.options?.candidates.some(c => c.status === "queued" || c.status === "submitting" || c.status === "processing"));
   useEffect(() => {
     if (!pending) return;
     const id = window.setInterval(() => { if (!postingRef.current) void refreshRef.current(true); }, 4000);
@@ -146,7 +151,9 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     } catch (cause) {
       if (!live(epoch)) return;
       const msg = cause instanceof Error ? cause.message : "";
-      if (!/persona_seed_save_image_first|persona_seed_reset_blocked|persona_seed_reset_stale|persona_seed_creation_blocked|persona_seed_register_first/.test(msg)) {
+      if (/persona_seed_upload_|persona_seed_image_unavailable|persona_seed_source_unsupported/.test(msg)) {
+        setNotice("이미지 전송 단계에서 중단되어 아바타 생성 API는 호출하지 않았습니다.");
+      } else if (!/persona_seed_save_image_first|persona_seed_reset_blocked|persona_seed_reset_stale|persona_seed_creation_blocked|persona_seed_register_first|persona_seed_consent_required/.test(msg)) {
         setUncertainFence(true);
         setNotice("요청 결과가 불확실할 수 있습니다. 상태를 조회하세요. 직접 다시 요청하면 같은 등록 시드의 생성 요청을 라우터에 전달합니다.");
       }
@@ -164,6 +171,8 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
   const creationAllowed = state ? canSubmitSeedCreation(state) : Boolean(draft);
   const retryAllowed = creationAllowed && Boolean(state?.options?.candidates.length || state?.stage === "creating" || state?.stage === "submitted");
   const canCreate = creationAllowed && costConfirmed && !busy && !loading && !validationBusy;
+  const canUploadAndCreate = Boolean(source && rightsConfirmed && transferConfirmed && consentOk && costConfirmed &&
+    !busy && !loading && !validationBusy);
   const previewUrl = registeredDraft
     ? `${url("/image")}&imageAssetId=${encodeURIComponent(registeredDraft.imageAssetId)}&imageVersion=${registeredDraft.imageVersion}`
     : toMediaUrl(source);
@@ -174,10 +183,18 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
       c.nextAction !== "reconcile" && c.failure?.creationOutcome !== "unknown" &&
       c.failure?.nextAction !== "operator_reconcile"));
 
-  const register = () => canRegister && void post("", {
+  const registration = () => ({
     rightsConfirmed: true, transferConfirmed: true, likeness,
     ...(likeness === "real_person" ? { consentReference: consentReference.trim() } : {}),
-  }, "저장된 기본 이미지를 시드로 등록했습니다. 아직 생성 요청은 보내지 않았습니다.");
+  });
+  const register = () => canRegister && void post("", registration(),
+    "시드 이미지만 등록했습니다. 아바타 생성 API는 아직 호출하지 않았습니다. 비용 확인 후 생성 요청을 눌러야 합니다.");
+  const uploadAndCreate = () => {
+    if (!canUploadAndCreate) return;
+    setCostConfirmed(false);
+    void post("/create", { costConfirmed: true, registration: registration() },
+      "시드 이미지 전송과 아바타 생성 요청을 라우터가 접수했습니다. 아직 생성 완료는 아니며 진행 상황을 조회합니다.");
+  };
   const create = () => {
     if (!canCreate) return;
     setCostConfirmed(false);
@@ -222,13 +239,16 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     {state && <div className={`mt-3 grid gap-2 rounded-md border p-3 text-xs sm:grid-cols-3 ${uncertain ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-slate-50"}`} data-testid="status-seed-state">
       <p><span className="font-semibold">단계</span><br />{stageLabels[state.stage]}</p>
       <p><span className="font-semibold">이미지 버전</span><br />{state.draft ? `v${state.draft.imageVersion}` : "미등록"}</p>
-      <p><span className="font-semibold">다음 작업</span><br />{state.options?.nextAction ?? "등록 필요"}</p>
+      <p><span className="font-semibold">다음 작업</span><br />{state.options?.nextAction ??
+        (state.stage === "submitted" ? "생성 접수됨 · 처리 상태 조회 중" : state.draft ? "이미지 등록됨 · 생성 요청 필요" : "등록 필요")}</p>
     </div>}
+    {state?.stage === "registered" && !uncertain && <p role="status" className="mt-2 text-xs text-slate-700" data-testid="status-seed-transmission">시드 이미지 전송 완료 · 아바타 생성 요청 전입니다. 아래 비용 확인 후 생성 요청을 누르세요.</p>}
+    {state?.stage === "submitted" && !uncertain && <p role="status" className="mt-2 text-xs text-slate-700" data-testid="status-seed-transmission">시드 이미지 등록 확인 · 아바타 생성 API 접수 완료입니다. 접수는 생성 완료와 다릅니다.</p>}
     {uncertain && <div role="alert" className="mt-3 flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
       <AlertTriangle className="h-4 w-4 shrink-0" /><p>이전 요청 결과가 불확실합니다. 상태 조회를 권장합니다. 직접 다시 요청하면 같은 등록 시드로 라우터에 전달하며, 생성·중복 처리 여부는 라우터가 판단합니다. 비용이 발생할 수 있습니다.</p>
     </div>}
 
-    {(!state?.draft) && source && <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">
+    {!registeredDraft && source && <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">
       <fieldset className="text-xs font-semibold text-slate-700">
         <legend>인물 유형</legend>
         <div className="mt-1 flex items-center gap-2">
@@ -243,8 +263,13 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
       <div className="grid gap-2 text-xs text-slate-700 md:grid-cols-2">
         <Confirm checked={rightsConfirmed} onChange={setRightsConfirmed} label="이미지 사용 권리와 초상 사용 권한을 확인했습니다." />
         <Confirm checked={transferConfirmed} onChange={setTransferConfirmed} label="저장된 이미지가 외부 서비스에 전송됨을 확인했습니다." />
+        <Confirm checked={costConfirmed} onChange={setCostConfirmed} label="외부 제공자 비용이 발생할 수 있음을 확인했습니다." />
       </div>
-      <Button type="button" size="sm" onClick={register} disabled={!canRegister} data-testid="button-seed-register">{busy ? "처리 중…" : "시드 이미지 등록"}</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={uploadAndCreate} disabled={!canUploadAndCreate} data-testid="button-seed-upload-create">{busy ? "이미지 전송 및 생성 요청 중…" : "시드 이미지 전송하고 아바타 생성"}</Button>
+        <Button type="button" size="sm" variant="outline" onClick={register} disabled={!canRegister} data-testid="button-seed-register">시드만 등록</Button>
+      </div>
+      <p className="text-xs text-slate-600">생성 버튼은 저장된 이미지 파일을 라우터에 전송하고, 반환된 이미지 ID로 생성 API까지 호출합니다. 시드만 등록하면 생성은 시작하지 않습니다.</p>
     </div>}
 
     {registeredDraft && <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">

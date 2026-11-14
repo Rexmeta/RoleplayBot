@@ -251,3 +251,17 @@ canProvision, 과거 실패 또는 로컬 결과 불명 상태로 막지 않는�
 자동 재시도나 검증용 유료 생성은 하지 않는다. 시드 미리보기는 라우터에 실제
 등록된 이미지 버전을 표시하고 현재 기본 이미지로 조용히 대체하지 않는다.
 이 규칙을 학습자 대화 세션 생성이나 원격 자산 삭제 승인으로 확대하지 않는다.
+
+Treat image ingestion and avatar provisioning as separate external acknowledgements.
+An uploaded seed, or a failed candidate retained for that seed, does not prove a
+new provisioning request was sent.
+
+**Why:** A reported creation failure coincided with successful seed registration
+but no subsequent creation request. Read-only comparison confirmed that the
+router's registered source hash matched the saved original image.
+
+**How to apply:** Verify both calls in the transfer chain, using the image ID
+returned by ingestion for provisioning. Compare the router's source contentHash
+with the original uploaded bytes, not downloaded content bytes: image content
+delivery can be normalized JPEG. Never claim generation success from image
+registration, an accepted HTTP response, or mocked transport tests.

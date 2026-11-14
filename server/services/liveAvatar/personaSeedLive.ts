@@ -27,7 +27,12 @@ const operationSchema = z.object({
 type Operation = z.infer<typeof operationSchema>;
 const imageSchema = z.object({
   id: z.string().uuid(), version: z.number().int().positive(),
+  contentHash: z.string().regex(/^[a-f0-9]{64}$/),
 });
+const creationInput = z.object({
+  costConfirmed: z.literal(true),
+  registration: seedRegistrationInput.optional(),
+}).strict();
 const defaultDeps = {
   store: storage,
   client: new AvatarProjectClient(storage),
@@ -119,6 +124,46 @@ export class PersonaSeedLiveService {
     }
     return this.deps.client.image(userId, op.draft.imageAssetId);
   }
+  /** Send actual saved bytes, then bind only the acknowledged, matching image. */
+  private async upload(userId: string, personaId: string,
+    ctx: { key: string; source: string; fingerprint: string; projectId: string },
+    old: Operation, input: z.infer<typeof seedRegistrationInput>): Promise<Operation> {
+    if (!/^(?:personas|uploads|user-personas)\/[^\x00-\x1f\\]+$/.test(ctx.source) ||
+        ctx.source.split("/").includes("..")) throw new AvatarIdentityError("persona_seed_source_unsupported", 422);
+    const bytes = await this.deps.readImage(ctx.source);
+    if (!bytes || bytes.length < 16 || bytes.length > 4_500_000) throw new AvatarIdentityError("persona_seed_image_unavailable", 422);
+    const previous = old.draft ?? old.previousDraft;
+    await this.save(ctx.key, userId, {
+      stage: "registering", draft: null, previousDraft: previous,
+      sourceFingerprint: ctx.fingerprint,
+    });
+    let image;
+    try {
+      image = await this.deps.client.call(userId, "/assets/images", imageSchema, {
+        name: personaId, imageBase64: bytes.toString("base64"),
+        rightsConfirmed: input.rightsConfirmed, likeness: input.likeness,
+        ...(input.consentReference ? { consentReference: input.consentReference } : {}),
+        ...(previous?.projectId === ctx.projectId ? { previousVersionId: previous.imageAssetId } : {}),
+      });
+    } catch (error) {
+      if (error instanceof AvatarIdentityError && /^avatar_test_upstream_(400|401|403|404|413|415|422|429)$/.test(error.code)) {
+        await this.save(ctx.key, userId, old);
+      }
+      throw error;
+    }
+    if (image.contentHash !== createHash("sha256").update(bytes).digest("hex")) {
+      throw new AvatarIdentityError("persona_seed_upload_mismatch", 502);
+    }
+    console.info("[persona-seed] image_upload_accepted", {
+      personaId, imageAssetId: image.id, imageVersion: image.version, byteLength: bytes.length, sourceHashVerified: true,
+    });
+    const op: Operation = {
+      stage: "registered", sourceFingerprint: ctx.fingerprint,
+      draft: { imageAssetId: image.id, imageVersion: image.version, projectId: ctx.projectId, sourceFingerprint: ctx.fingerprint },
+    };
+    await this.save(ctx.key, userId, op);
+    return op;
+  }
   async register(userId: string, personaId: string, source: string, raw: unknown) {
     const input = seedRegistrationInput.safeParse(raw);
     if (!input.success) throw new AvatarIdentityError("persona_seed_consent_required", 400);
@@ -129,33 +174,7 @@ export class PersonaSeedLiveService {
         throw new AvatarIdentityError("persona_seed_operation_uncertain", 409);
       }
       if (old.draft && old.sourceFingerprint === ctx.fingerprint) return this.present(userId, old, ctx.fingerprint);
-      // Only storage-owned persona keys are eligible; no network/SSRF fallback.
-      if (!/^(?:personas|uploads|user-personas)\/[^\x00-\x1f\\]+$/.test(ctx.source) ||
-          ctx.source.split("/").includes("..")) throw new AvatarIdentityError("persona_seed_source_unsupported", 422);
-      const bytes = await this.deps.readImage(ctx.source);
-      if (!bytes || bytes.length < 16 || bytes.length > 4_500_000) throw new AvatarIdentityError("persona_seed_image_unavailable", 422);
-      const pending: Operation = { stage: "registering", draft: null, sourceFingerprint: ctx.fingerprint };
-      await this.save(ctx.key, userId, pending);
-      let image;
-      try {
-        image = await this.deps.client.call(userId, "/assets/images", imageSchema, {
-          name: personaId, imageBase64: bytes.toString("base64"),
-          ...input.data, transferConfirmed: undefined,
-          ...((old.draft ?? old.previousDraft)?.projectId === ctx.projectId
-            ? { previousVersionId: (old.draft ?? old.previousDraft)!.imageAssetId } : {}),
-        });
-      } catch (error) {
-        // Definitive validation rejection, not timeout/network/5xx/409.
-        if (error instanceof AvatarIdentityError && /^avatar_test_upstream_(400|401|403|404|413|415|422|429)$/.test(error.code)) {
-          await this.save(ctx.key, userId, old);
-        }
-        throw error;
-      }
-      const op: Operation = {
-        stage: "registered", sourceFingerprint: ctx.fingerprint,
-        draft: { imageAssetId: image.id, imageVersion: image.version, projectId: ctx.projectId, sourceFingerprint: ctx.fingerprint },
-      };
-      await this.save(ctx.key, userId, op);
+      const op = await this.upload(userId, personaId, ctx, old, input.data);
       return this.present(userId, op, ctx.fingerprint);
     });
   }
@@ -187,12 +206,26 @@ export class PersonaSeedLiveService {
     });
   }
   async create(userId: string, personaId: string, source: string, raw: unknown) {
-    if (!z.object({ costConfirmed: z.literal(true) }).strict().safeParse(raw).success) {
-      throw new AvatarIdentityError("persona_seed_cost_confirmation_required", 400);
+    const input = creationInput.safeParse(raw);
+    if (!input.success) {
+      throw new AvatarIdentityError(input.error.issues.some(i => i.path[0] === "registration")
+        ? "persona_seed_consent_required" : "persona_seed_cost_confirmation_required", 400);
     }
     const ctx = await this.context(userId, personaId, source, true, false);
     return this.deps.lock(ctx.key, async () => {
-      const op = await this.read(ctx.key);
+      let op = await this.read(ctx.key);
+      // One explicit action can upload the actual saved image and then provision
+      // using exactly the ID returned by that upload, without a second UI step.
+      if (input.data.registration) {
+        try {
+          op = await this.upload(userId, personaId, ctx, op, input.data.registration);
+        } catch (error) {
+          if (error instanceof AvatarIdentityError && error.code.startsWith("avatar_test_")) {
+            throw new AvatarIdentityError(`persona_seed_upload_${error.code}`, error.status);
+          }
+          throw error;
+        }
+      }
       // No live-options preflight: every explicit request for the owned registered
       // seed reaches the router, which owns duplicate/reuse and provisioning policy.
       if (!op.draft || op.sourceFingerprint !== ctx.fingerprint || op.draft.projectId !== ctx.projectId) {
@@ -203,6 +236,9 @@ export class PersonaSeedLiveService {
         candidateIdsBeforeCreate: [],
       };
       await this.save(ctx.key, userId, pending);
+      console.info("[persona-seed] avatar_create_requested", {
+        personaId, imageAssetId: op.draft.imageAssetId, imageVersion: op.draft.imageVersion, providerId: "tavus",
+      });
       // Never retry automatically, even when a caller repeats this operation.
       const asset = await this.deps.client.call(userId, "/avatar-assets", personaAvatarAssetSchema, {
         imageAssetId: op.draft.imageAssetId, providerId: "tavus", personaId, voiceName: "anna", costConfirmed: true,
@@ -212,6 +248,9 @@ export class PersonaSeedLiveService {
       }
       const submitted: Operation = { ...pending, stage: "submitted", submittedAssetId: asset.id };
       await this.save(ctx.key, userId, submitted);
+      console.info("[persona-seed] avatar_create_accepted", {
+        personaId, imageAssetId: op.draft.imageAssetId, avatarAssetId: asset.id, status: asset.status,
+      });
       // A later read failure must not turn the router's acknowledgement into a
       // creation error. Subsequent read-only status queries populate candidates.
       return { stage: "submitted", draft: submitted.draft, uncertain: false, options: null } satisfies PersonaSeedState;
