@@ -49,16 +49,6 @@ export const personaSeedStateSchema = z.object({
 });
 export type PersonaSeedState = z.infer<typeof personaSeedStateSchema>;
 
-type SeedCandidate = z.infer<typeof seedLiveOptionsSchema>["candidates"][number];
-
-/** A retained local-preparation failure is not evidence that a paid create is still pending. */
-export function isRetryableSeedFailure(candidate: SeedCandidate): boolean {
-  return candidate.status === "failed" && !candidate.canActivate && candidate.liveReference === null &&
-    candidate.failure?.code.startsWith("TRAINING_IMAGE_") === true &&
-    candidate.failure.creationOutcome === "not_created" &&
-    candidate.failure.nextAction !== "operator_reconcile" && candidate.nextAction !== "reconcile";
-}
-
 /** The app requires a registered seed; the router decides creation/reuse eligibility. */
 export function canSubmitSeedCreation(state: PersonaSeedState): boolean {
   return Boolean(state.draft);

@@ -58,6 +58,20 @@ const localFailure = () => ({
   },
 });
 describe("persona seed safety and persistence", () => {
+  it("preserves the public router response through the combined upload endpoint", async () => {
+    const fake = { create: vi.fn(async () => {
+      throw new AvatarIdentityError("persona_seed_upload_avatar_test_upstream_422", 422,
+        { code: "IMAGE_REJECTED", error: "Router image rejection." });
+    }) };
+    const app = express(); app.use(express.json());
+    app.use((req: any, _res, next) => { req.user = { id: "admin", role: "admin" }; next(); });
+    app.use("/api/admin/personas/live-avatar", isOperatorOrAdmin,
+      createPersonaAvatarOperationsRouter(undefined, undefined, fake as any));
+    const result = await request(app).post(`/api/admin/personas/live-avatar/personas/coach/seed/create?source=${encodeURIComponent(source)}`)
+      .send({ costConfirmed: true, registration: consent });
+    expect(result.status).toBe(422);
+    expect(result.body.avatarRouter).toEqual({ code: "IMAGE_REJECTED", error: "Router image rejection." });
+  });
   it("uploads bytes and calls creation in one explicit request, without status preflights", async () => {
     const result = await svc.create("admin", "coach", source, { costConfirmed: true, registration: consent });
     expect(result).toMatchObject({ stage: "submitted", uncertain: false, draft: { imageAssetId: imageId } });

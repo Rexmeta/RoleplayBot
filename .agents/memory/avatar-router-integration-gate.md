@@ -265,3 +265,15 @@ returned by ingestion for provisioning. Compare the router's source contentHash
 with the original uploaded bytes, not downloaded content bytes: image content
 delivery can be normalized JPEG. Never claim generation success from image
 registration, an accepted HTTP response, or mocked transport tests.
+
+커스텀 아바타 생성용 시드 이미지를 아바타 라우터에 전달하고, 라우터가 응답한
+내용만 관리한다. Gemini API와 이미지 처리·학습은 라이브 아바타 쪽에서
+관리하므로 이 앱에서 관리할 필요가 없다.
+
+**Why:** 사용자가 책임 범위를 다시 명시하고 앱에서 라우터 내부 처리를 관리하는
+것이 잘못됐다고 정정했다.
+
+**How to apply:** 커스텀 생성 경로에 별도 Gemini 호출·모델 진단·모델 오류 해석을
+추가하지 않는다. 라우터가 반환한 공개 오류 코드와 메시지를 표시하며, 앱이
+재시도 가능성·제공자 전송 여부를 모델 오류 코드에서 추론하지 않는다.
+기존 음성 대화용 Gemini 기능이나 로그인·소유권·동의 확인까지 제거하지 않는다.

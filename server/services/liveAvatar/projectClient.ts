@@ -86,7 +86,22 @@ export class AvatarProjectClient {
       });
       if (!response.ok) {
         const status = [400, 401, 403, 404, 409, 413, 415, 422, 429, 503].includes(response.status) ? response.status : 502;
-        throw new AvatarIdentityError(`avatar_test_upstream_${status}`, status);
+        // Only the Router's documented public ApiFailure fields may leave the BFF.
+        // Never forward arbitrary bodies, provider internals, or credentials.
+        let routerResponse: { code: string; error: string } | undefined;
+        if ((assetWrite || imageRead || catalogRead) && response.headers.get("content-type")?.includes("application/json")) {
+          try {
+            const text = (await readBoundedBody(response, 16_384)).toString("utf8");
+            if (!text.includes(key) && !/(?:ar_sk_|Bearer\s|PRIVATE KEY)/i.test(text)) {
+              const parsed = z.object({
+                code: z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/),
+                error: z.string().min(1).max(1000),
+              }).safeParse(JSON.parse(text));
+              if (parsed.success) routerResponse = parsed.data;
+            }
+          } catch { /* Untrusted/non-contract error body: retain HTTP status only. */ }
+        }
+        throw new AvatarIdentityError(`avatar_test_upstream_${status}`, status, routerResponse);
       }
       const maxBytes = body === undefined && path.endsWith("/transcript") ? 2 * 1024 * 1024 : 262_144;
       if (!response.headers.get("content-type")?.includes("application/json") ||

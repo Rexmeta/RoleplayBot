@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PersonaAvatarValidationPanel } from "@/components/admin/PersonaAvatarValidationPanel";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import { canSubmitSeedCreation, isRetryableSeedFailure, personaSeedStateSchema, seedSourceIdentity, type PersonaSeedDraft, type PersonaSeedState } from "@shared/avatar/personaSeedLive";
+import { canSubmitSeedCreation, personaSeedStateSchema, seedSourceIdentity, type PersonaSeedDraft, type PersonaSeedState } from "@shared/avatar/personaSeedLive";
 import type { PersonaLiveAvatar } from "@shared/avatar/personaAvatar";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { PersonaSeedImagePreview } from "@/components/admin/PersonaSeedImagePreview";
@@ -16,6 +16,12 @@ const basePath = (personaId: string) =>
 
 function messageFor(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
+  try {
+    const payload = JSON.parse(message.replace(/^\d{3}:\s*/, ""));
+    if (typeof payload?.avatarRouter?.code === "string" && typeof payload?.avatarRouter?.error === "string") {
+      return `아바타 라우터 응답 · ${payload.avatarRouter.code}: ${payload.avatarRouter.error}`;
+    }
+  } catch { /* Local/transport failures have no Router response. */ }
   if (/persona_seed_save_image_first/.test(message)) return "기본 이미지를 먼저 저장하세요. 저장된 이미지만 시드로 사용할 수 있습니다.";
   if (/persona_seed_reset_blocked/.test(message)) return "생성 진행 중이거나 결과가 불확실하여 초기화할 수 없습니다. 상태를 조회하고 작업 완료 또는 조정 후 다시 시도하세요.";
   if (/persona_seed_reset_stale/.test(message)) return "다른 화면에서 준비 상태가 변경되었습니다. 상태를 다시 조회하세요.";
@@ -26,7 +32,7 @@ function messageFor(error: unknown): string {
   if (/persona_seed_consent_required/.test(message)) return "이미지 사용 권리와 외부 전송 동의를 확인하세요.";
   if (/persona_seed_upload_avatar_test_upstream_(\d+)/.test(message)) return `시드 이미지 업로드 단계에서 HTTP ${message.match(/persona_seed_upload_avatar_test_upstream_(\d+)/)?.[1]} 응답을 받았습니다. 아바타 생성 API는 호출하지 않았습니다.`;
   if (/persona_seed_upload_avatar_test_/.test(message)) return "시드 이미지 업로드 응답을 확인하지 못했습니다. 아바타 생성 API는 호출하지 않았습니다.";
-  if (/avatar_test_upstream_(\d+)/.test(message)) return `아바타 라우터가 생성 요청을 거절했습니다. HTTP ${message.match(/avatar_test_upstream_(\d+)/)?.[1]}. 라우터의 현재 설정과 작업 상태를 확인하세요.`;
+  if (/avatar_test_upstream_(\d+)/.test(message)) return `아바타 라우터 응답: HTTP ${message.match(/avatar_test_upstream_(\d+)/)?.[1]}. 상세 메시지가 없는 응답입니다.`;
   if (/403|scope|forbidden/i.test(message)) return "시드 라이브 설정 권한을 확인하세요.";
   if (/fetch|network/i.test(message)) return "서버에 연결하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
   return "요청을 완료하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
@@ -224,14 +230,14 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h4 id="persona-seed-live-title" className="text-sm font-bold text-slate-900">기본 이미지로 라이브 아바타 준비</h4>
-        <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600">저장된 페르소나 기본 이미지만 서버가 전송합니다. 음성(Gemini)과 시나리오 설정은 변경하지 않습니다. 모든 전송은 관리자 명시 동작으로만 실행됩니다.</p>
+        <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-600">저장된 시드 이미지를 아바타 라우터에 전달하고 라우터의 응답을 표시합니다. 이미지 처리와 아바타 생성은 라우터가 담당합니다.</p>
       </div>
       <Button type="button" size="sm" variant="outline" onClick={() => void refresh()} disabled={loading || busy || !source} data-testid="button-seed-refresh">
         <RefreshCw className="mr-2 h-4 w-4" />{loading ? "확인 중…" : "상태 조회"}
       </Button>
     </div>
     <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
-      최소 512×512의 성인 한 명, 머리와 양쪽 어깨가 보이는 상반신 사진을 사용하세요. 배꼽 또는 그 위에서 자르고 손·팔은 가슴 이하로 낮추세요. Router가 학습 보정을 요청하지만 성공을 보장하지 않으며 원본은 유지됩니다.
+      생성 진행 상태와 오류 메시지는 아바타 라우터가 반환한 내용입니다. 이 앱에서 별도의 모델 진단이나 학습 처리를 수행하지 않습니다.
     </p>
     {!source && <p className="mt-3 text-xs text-slate-600">기본 이미지를 저장하면 시드 설정을 시작할 수 있습니다.</p>}
     {source && previewUrl && <PersonaSeedImagePreview key={previewUrl} url={previewUrl} registered={Boolean(registeredDraft)} version={registeredDraft?.imageVersion} />}
@@ -306,11 +312,9 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
             </div>
           </div>
           {c.failure && <div role="note" className="mt-2 space-y-1 rounded border border-slate-200 bg-slate-50 p-2 text-slate-700" data-testid={`history-seed-failure-${c.avatarAssetId}`}>
-            <p className="font-semibold">이전 생성 시도 실패 기록</p>
-            <p>기존 시도에 저장된 기록이며, 현재 모델 상태를 새로 검사한 결과가 아닙니다.</p>
-            <p>{c.failure.messageKo}</p>
+            <p className="font-semibold">아바타 라우터가 반환한 처리 결과</p>
+            <p>{c.failure.messageKo || c.failure.message}</p>
             <p>코드 {c.failure.code} · 단계 {c.failure.stage}{c.failure.trainingImageStage ? ` · 이미지 처리 단계 ${c.failure.trainingImageStage}` : ""}{c.failure.providerHttpStatus !== null ? ` · HTTP ${c.failure.providerHttpStatus}` : ""}</p>
-            {isRetryableSeedFailure(c) && <p>이전 시도에서는 제공자 아바타 생성이 전송되지 않았습니다. 이 기록과 관계없이 직접 누른 새 요청은 라우터로 전달합니다.</p>}
           </div>}
           {validateOpen === c.avatarAssetId && c.nextAction === "validate" &&
             <PersonaAvatarValidationPanel assetId={c.avatarAssetId} assetName="시드 라이브 아바타" onReported={() => void refresh()} onActivityChange={setValidationBusy} />}

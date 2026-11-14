@@ -161,9 +161,11 @@ describe("seed editor mock UI", () => {
     render(<PersonaSeedLivePanel {...props()} />);
     const history = await screen.findByTestId(`history-seed-failure-${assetId}`);
     expect(history.getAttribute("role")).toBe("note");
-    expect(history.textContent).toContain("이전 생성 시도 실패 기록");
+    expect(history.textContent).toContain("아바타 라우터가 반환한 처리 결과");
     expect(history.textContent).toContain("과거 모델 오류 원문");
     expect(history.textContent).toContain("이미지 처리 단계 inspection");
+    expect(history.textContent).not.toContain("현재 모델 상태");
+    expect(history.textContent).not.toContain("제공자 아바타 생성이 전송되지 않았습니다");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByTestId("text-seed-retry-available")).toBeTruthy();
     expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(true);
@@ -248,7 +250,19 @@ describe("seed editor mock UI", () => {
     expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(false);
     mocks.api.mockRejectedValueOnce(new Error("409: avatar_test_upstream_409"));
     fireEvent.click(screen.getByTestId("button-seed-create"));
-    await screen.findByText(/아바타 라우터가 생성 요청을 거절했습니다. HTTP 409/);
+    await screen.findByText(/아바타 라우터 응답: HTTP 409/);
     expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toHaveLength(1);
+  });
+  it("shows the router's public error without replacing it with local model guidance", async () => {
+    render(<PersonaSeedLivePanel {...props()} />);
+    await screen.findByTestId("button-seed-create");
+    fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+    mocks.api.mockRejectedValueOnce(new Error(`409: ${JSON.stringify({
+      code: "avatar_test_upstream_409", avatarRouter: { code: "ROUTER_JOB_REJECTED", error: "Router returned this exact message." },
+    })}`));
+    fireEvent.click(screen.getByTestId("button-seed-create"));
+    const error = await screen.findByTestId("text-seed-error");
+    expect(error.textContent).toContain("ROUTER_JOB_REJECTED: Router returned this exact message.");
+    expect(error.textContent).not.toContain("모델");
   });
 });

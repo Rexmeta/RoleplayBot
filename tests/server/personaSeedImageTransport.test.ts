@@ -1,11 +1,34 @@
 import { describe, expect, it, vi } from "vitest";
 import { AvatarProjectClient } from "../../server/services/liveAvatar/projectClient";
+import { z } from "zod";
 
 const imageId = "22345678-1234-4234-8234-123456789abc";
 const identity: any = { getUser: async () => ({ id: "operator", isActive: true }) };
 const input = () => ({ baseUrl: "https://avatar-router.replit.app/api/v1", apiKey: "ar_sk_test_not_real_123456789" });
 
 describe("registered seed image transport", () => {
+  it("preserves only the router's documented public failure fields", async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      code: "ROUTER_JOB_REJECTED", error: "Router returned this exact message.",
+      stack: "private stack", debug: { providerCredential: "private detail" },
+    }, { status: 409 }));
+    await expect(new AvatarProjectClient(identity, fetcher as any, input).call("operator", "/avatar-assets", z.any(), {}))
+      .rejects.toMatchObject({ code: "avatar_test_upstream_409",
+        routerResponse: { code: "ROUTER_JOB_REJECTED", error: "Router returned this exact message." } });
+    try { await new AvatarProjectClient(identity, fetcher as any, input).call("operator", "/avatar-assets", z.any(), {}); }
+    catch (error: any) { expect(Object.keys(error.routerResponse)).toEqual(["code", "error"]); }
+  });
+  it("never forwards a router body containing credentials", async () => {
+    const fetcher = vi.fn(async () => Response.json({ code: "FAILED", error: `Bearer ${input().apiKey}` }, { status: 409 }));
+    try {
+      await new AvatarProjectClient(identity, fetcher as any, input).call("operator", "/avatar-assets", z.any(), {});
+      throw new Error("expected rejection");
+    } catch (error: any) {
+      expect(error.code).toBe("avatar_test_upstream_409");
+      expect(error.routerResponse).toBeUndefined();
+      expect(error.message).not.toContain(input().apiKey);
+    }
+  });
   it("uses the pinned content endpoint with server authentication and no browser credentials", async () => {
     const fetcher = vi.fn(async () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "Content-Type": "image/png" } }));
     const client = new AvatarProjectClient(identity, fetcher as any, input);

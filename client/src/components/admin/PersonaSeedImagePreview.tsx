@@ -20,7 +20,7 @@ export function PersonaSeedImagePreview({ url, registered, version }: {
       onError={() => setFailed(true)}
     />}
     <p className="mt-2 text-xs text-slate-600">{registered
-      ? "라우터에 등록된 해당 버전의 원본 이미지입니다. 학습용 보정 결과와는 다를 수 있습니다."
+      ? "아바타 라우터에 등록된 해당 버전의 시드 이미지입니다."
       : "아직 라우터에 등록하지 않은 기본 이미지입니다."}</p>
   </figure>;
 }

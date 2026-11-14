@@ -16,7 +16,9 @@ export function createPersonaAvatarOperationsRouter(
   const handle = (fn: (req: any, res: any) => Promise<unknown>) => async (req: any, res: any) => {
     try { await fn(req, res); }
     catch (error) {
-      if (error instanceof AvatarIdentityError) res.status(error.status).json({ code: error.code, error: error.code });
+      if (error instanceof AvatarIdentityError) res.status(error.status).json({
+        code: error.code, error: error.code, ...(error.routerResponse ? { avatarRouter: error.routerResponse } : {}),
+      });
       else res.status(502).json({ code: "persona_avatar_operation_failed", error: "persona_avatar_operation_failed" });
     }
   };

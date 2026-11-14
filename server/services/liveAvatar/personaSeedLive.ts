@@ -221,7 +221,7 @@ export class PersonaSeedLiveService {
           op = await this.upload(userId, personaId, ctx, op, input.data.registration);
         } catch (error) {
           if (error instanceof AvatarIdentityError && error.code.startsWith("avatar_test_")) {
-            throw new AvatarIdentityError(`persona_seed_upload_${error.code}`, error.status);
+            throw new AvatarIdentityError(`persona_seed_upload_${error.code}`, error.status, error.routerResponse);
           }
           throw error;
         }

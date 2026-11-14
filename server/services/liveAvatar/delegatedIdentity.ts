@@ -18,7 +18,8 @@ export interface AvatarIdentityStore {
 }
 
 export class AvatarIdentityError extends Error {
-  constructor(readonly code: string, readonly status: number) { super(code); }
+  constructor(readonly code: string, readonly status: number,
+    readonly routerResponse?: { code: string; error: string }) { super(code); }
 }
 
 const opaque = (namespace: string, id: string) =>
