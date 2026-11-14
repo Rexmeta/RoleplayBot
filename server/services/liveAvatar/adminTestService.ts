@@ -169,8 +169,19 @@ export class AdminAvatarTestService {
   async session(userId: string, id: string) {
     if (!/^[a-zA-Z0-9_-]{1,160}$/.test(id)) throw new AvatarIdentityError("avatar_test_id_invalid", 400);
     const session = await this.client.call(userId, `/sessions/${id}`, this.sessionSchema);
-    if (session.id !== id) throw new AvatarIdentityError("avatar_test_session_mismatch", 502);
+    if (session.id !== id || !this.belongs(session)) throw new AvatarIdentityError("avatar_test_session_mismatch", 502);
     return session;
+  }
+
+  async videoPlaying(userId: string, id: string) {
+    // Existing project client derives user/tenant identity and credentials.
+    // Bind the exact stock provider or custom asset/purpose before forwarding.
+    await this.session(userId, id);
+    const reported = await this.client.call(userId, `/sessions/${id}/video-playing`,
+      this.sessionSchema, { event: "video_frame_presented" });
+    if (reported.id !== id || !this.belongs(reported)) throw new AvatarIdentityError("avatar_test_session_mismatch", 502);
+    // This observation never calls turn/end/create or asset live-validation.
+    return reported;
   }
 
   private async running(userId: string, id: string) {

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { sessionTimingSchema } from "../../../shared/avatar/sessionTiming";
+
+export const videoPlayingObservationSchema = z.object({ event: z.literal("video_frame_presented") }).strict();
 
 export const testSessionSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
@@ -10,6 +13,9 @@ export const testSessionSchema = z.object({
   stopRequested: z.boolean(),
   cleanupPending: z.boolean(),
   expiresAt: z.string().datetime({ offset: true }),
+  timing: sessionTimingSchema.optional(),
+  avatarAssetId: z.string().uuid().nullable().optional(),
+  purpose: z.enum(["validation", "conversation"]).optional(),
 });
 export const testLimitsSchema = z.object({
   userRemainingSeconds: z.number().int().nonnegative(),
