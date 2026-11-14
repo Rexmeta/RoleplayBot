@@ -67,6 +67,7 @@ export interface ChatWindowProps {
   onPersonaChange?: () => void;
   onReady?: () => void;
   onConversationEnding?: () => void;
+  onLiveAvatarExit?: () => void;
   isPersonaMode?: boolean;
   initialMessages?: import("@shared/schema").ConversationMessage[];
   initialInputMode?: 'text' | 'realtime-voice' | 'tavus';
@@ -1864,7 +1865,7 @@ export default function ChatWindow(props: ChatWindowProps) {
         persona={props.persona}
         conversationId={props.conversationId}
         onChatComplete={props.onChatComplete}
-        onExit={props.onExit}
+        onExit={props.onLiveAvatarExit ?? props.onExit}
         onReady={notifyReady}
         onExitMode={nextMode => {
           if (nextMode) setStandardMode(nextMode);

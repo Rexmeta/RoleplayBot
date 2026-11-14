@@ -49,6 +49,7 @@ export default function Home() {
   const search = useSearch();
   const [currentView, setCurrentView] = useState<ViewState>("scenarios");
   const [selectedScenario, setSelectedScenario] = useState<ComplexScenario | null>(null);
+  const [scenarioDetail, setScenarioDetail] = useState<ComplexScenario | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<ScenarioPersona | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [scenarioRunId, setScenarioRunId] = useState<string | null>(null); // 현재 시나리오 실행 ID
@@ -583,6 +584,14 @@ export default function Home() {
     setHasSeenIntroVideo(false);
   };
 
+  // 라이브 화면의 명시적 종료는 목록이 아닌 현재 시나리오 상세 보기로 복귀한다.
+  const handleLiveAvatarExit = () => {
+    setScenarioDetail(selectedScenario);
+    setIsTransitioningToFeedback(false);
+    setIsVideoTransitioning(false);
+    handleReturnToScenarios();
+  };
+
   // 재도전을 위한 새로운 대화 생성
   const createRetryConversationMutation = useMutation({
     mutationFn: async ({ scenarioId, personaId, scenarioName, persona, difficulty }: { 
@@ -747,6 +756,8 @@ export default function Home() {
             )}
             <ScenarioSelector 
               onScenarioSelect={handleScenarioSelect}
+              detailScenario={scenarioDetail}
+              onDetailScenarioChange={setScenarioDetail}
               playerProfile={playerProfile}
             />
           </div>
@@ -1135,6 +1146,7 @@ export default function Home() {
               conversationId={conversationId}
               onChatComplete={handleChatComplete}
               onExit={handleReturnToScenarios}
+              onLiveAvatarExit={handleLiveAvatarExit}
               onReady={handleChatReady}
               onConversationEnding={() => setIsTransitioningToFeedback(true)}
               initialInputMode={resumedInputMode === 'tts' ? 'realtime-voice' : resumedInputMode}

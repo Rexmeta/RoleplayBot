@@ -24,6 +24,8 @@ interface Category {
 
 interface ScenarioSelectorProps {
   onScenarioSelect: (scenario: ComplexScenario) => void;
+  detailScenario?: ComplexScenario | null;
+  onDetailScenarioChange?: (scenario: ComplexScenario | null) => void;
   playerProfile?: {
     position: string;
     department: string;
@@ -31,7 +33,7 @@ interface ScenarioSelectorProps {
   };
 }
 
-export default function ScenarioSelector({ onScenarioSelect, playerProfile }: ScenarioSelectorProps) {
+export default function ScenarioSelector({ onScenarioSelect, playerProfile, detailScenario: controlledDetailScenario, onDetailScenarioChange }: ScenarioSelectorProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -76,7 +78,9 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile }: Sc
   const [expandedScenarioId, setExpandedScenarioId] = useState<string | number | null>(null);
 
   // 상세 보기 Sheet 상태
-  const [detailScenario, setDetailScenario] = useState<ComplexScenario | null>(null);
+  const [localDetailScenario, setLocalDetailScenario] = useState<ComplexScenario | null>(null);
+  const detailScenario = controlledDetailScenario === undefined ? localDetailScenario : controlledDetailScenario;
+  const setDetailScenario = onDetailScenarioChange ?? setLocalDetailScenario;
   
   const toggleScenarioExpand = (scenarioId: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
