@@ -6,7 +6,7 @@ import { TavusStore } from "./store";
 import { importTavusTranscript, reserveTavusRun } from "./importTranscript";
 import { AvatarProjectClient } from "../liveAvatar/projectClient";
 import { avatarRouterProjectConnection } from "../liveAvatar/projectConnection";
-import { resolveConversationAvatar, inspectConversationAvatarSelection } from "../liveAvatar/conversationTarget";
+import { resolveFullPipelineConversationAvatar, inspectConversationAvatarSelection } from "../liveAvatar/conversationTarget";
 import { AvatarIdentityError } from "../liveAvatar/delegatedIdentity";
 import { dailyConnectionSchema, routerSessionSchema, routerTranscriptSchema } from "./routerContracts";
 import { managedConnectionSchema, managedClientDescriptor } from "../liveAvatar/managedClient";
@@ -34,7 +34,7 @@ const requiredScopes = ["sessions:create", "sessions:read", "sessions:connect", 
 export const tavusDeps = {
   client: new AvatarProjectClient(storage), store: new TavusStore(),
   connection: avatarRouterProjectConnection, resolve: resolveTavusContext, owner: resolveTavusOwner,
-  target: resolveConversationAvatar, selection: inspectConversationAvatarSelection, reserve: reserveTavusRun,
+  target: resolveFullPipelineConversationAvatar, selection: inspectConversationAvatarSelection, reserve: reserveTavusRun,
   importTranscript: importTavusTranscript,
 };
 

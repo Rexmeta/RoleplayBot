@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../server/storage", () => ({ storage: {} }));
 vi.mock("../../server/services/fileManager", () => ({ fileManager: {} }));
 vi.mock("../../server/services/conversationLedger/transcript", () => ({ ledgerRuntimeBinding: vi.fn() }));
-import { inspectConversationAvatarSelection, resolveConversationAvatar } from "../../server/services/liveAvatar/conversationTarget";
+import { inspectConversationAvatarSelection, resolveConversationAvatar,
+  resolveFullPipelineConversationAvatar } from "../../server/services/liveAvatar/conversationTarget";
 import { buildRuntimePersonaProfile } from "../../server/services/runtimeScenario";
 import { ConversationAvatarSessions } from "../../server/services/liveAvatar/conversationSessions";
 import { ConversationAvatarAudio } from "../../server/services/liveAvatar/conversationAudio";
@@ -56,6 +57,64 @@ describe("selected conversation avatar resolution", () => {
     };
     return { deps, scenarioRun, personaRun, actor, profile };
   }
+  function fullPipelineFixture() {
+    const f = fixture();
+    f.profile.liveAvatar = { kind: "custom", assetId, providerId: "tavus", projectId: "project",
+      voiceMode: "roleplayx", activation: "draft", validationStatus: "unverified",
+      seedImageAssetId: "22345678-1234-4234-8234-123456789abc", seedImageVersion: 1 };
+    f.scenarioRun.scenarioSnapshot = { personas: [{ id: "actor", _runtimeProfile: f.profile }] };
+    const asset: any = { id: assetId, name: "custom", providerId: "tavus", providerAvatarId: "replica",
+      status: "ready", capabilities: { reusable: true, liveRendering: true, validation: "provisioned" },
+      liveValidation: { status: "unvalidated", runtimeSupported: true, method: null, sessionId: null, validatedAt: null } };
+    f.deps.client.call.mockImplementation(async (_u: string, path: string, schema: any) => {
+      if (path !== `/avatar-assets/${assetId}`) throw new Error("unexpected preflight");
+      return schema.parse(asset);
+    });
+    // Full-pipeline calls do not need the diagnostic's speak/PCM/limits permissions.
+    connection.check.mockResolvedValue({ ...auth, scopes: [
+      "sessions:create", "sessions:read", "sessions:connect", "sessions:end", "assets:read",
+    ] });
+    return { ...f, asset };
+  }
+  it("resolves a ready but unvalidated custom avatar for full-pipeline scenario dialogue", async () => {
+    const { deps } = fullPipelineFixture();
+    expect(await resolveFullPipelineConversationAvatar("owner", "conversation", deps)).toEqual({
+      projectId: "project", providerId: "tavus", avatarId: "replica", assetId, personaId: "actor",
+    });
+    expect(deps.client.call.mock.calls.map((c: any[]) => c[1])).toEqual([`/avatar-assets/${assetId}`]);
+    expect(deps.fileManager.getPersonaAvatarSettings).not.toHaveBeenCalled();
+    expect(deps.fileManager.getAllScenarios).not.toHaveBeenCalled();
+  });
+  it("leaves runtime readiness to the router instead of requiring renderer playback proof or seed activation", async () => {
+    const { deps, asset } = fullPipelineFixture();
+    asset.liveValidation.runtimeSupported = false;
+    expect(await resolveFullPipelineConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "replica", assetId });
+    expect(deps.client.call.mock.calls.every((c: any[]) => c[3] === undefined)).toBe(true);
+  });
+  it("allows a full-pipeline run to resolve its own avatar again without enabling the PCM path", async () => {
+    const { deps, personaRun } = fullPipelineFixture();
+    personaRun.mode = "tavus_full";
+    expect(await resolveFullPipelineConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "replica" });
+    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "tavus_full_pipeline_active" });
+  });
+  it("retains owner, project and exact custom asset identity checks for full-pipeline starts", async () => {
+    const { deps, asset, profile } = fullPipelineFixture();
+    await expect(resolveFullPipelineConversationAvatar("other", "conversation", deps)).rejects.toMatchObject({ status: 403 });
+    profile.liveAvatar.projectId = "another-project";
+    await expect(resolveFullPipelineConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_project_mismatch" });
+    expect(deps.client.call).not.toHaveBeenCalled();
+    profile.liveAvatar.projectId = "project";
+    asset.id = "32345678-1234-4234-8234-123456789abc";
+    await expect(resolveFullPipelineConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_asset_mismatch" });
+  });
+  it("does not substitute a stock avatar when the selected asset lacks a provider reference", async () => {
+    const { deps, asset } = fullPipelineFixture();
+    asset.providerAvatarId = null;
+    await expect(resolveFullPipelineConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({
+      code: "persona_avatar_provider_reference_missing",
+    });
+    expect(deps.client.call).toHaveBeenCalledTimes(1);
+  });
   it("uses the exact saved persona selection and never creates a session in availability resolution", async () => {
     const { deps } = fixture();
     expect(await resolveConversationAvatar("owner", "conversation", deps)).toEqual({ ...target, providerId: "tavus" });

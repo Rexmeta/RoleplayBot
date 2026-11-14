@@ -6,16 +6,20 @@ vi.mock("../../server/services/tavus/context", () => ({
 vi.mock("../../server/services/tavus/importTranscript", () => ({ reserveTavusRun: vi.fn(), importTavusTranscript: vi.fn() }));
 vi.mock("../../server/services/liveAvatar/projectConnection", () => ({ avatarRouterProjectConnection: {} }));
 vi.mock("../../server/services/liveAvatar/conversationTarget", () => ({
-  resolveConversationAvatar: vi.fn(), inspectConversationAvatarSelection: vi.fn(),
+  resolveFullPipelineConversationAvatar: vi.fn(), inspectConversationAvatarSelection: vi.fn(),
 }));
 vi.mock("../../server/storage", () => ({ storage: {} }));
-import { TavusSessions } from "../../server/services/tavus/sessions";
+import { TavusSessions, tavusDeps } from "../../server/services/tavus/sessions";
+import { resolveFullPipelineConversationAvatar } from "../../server/services/liveAvatar/conversationTarget";
 import { TavusError, TavusClient, createdPalSchema } from "../../server/services/tavus/client";
 import { dailyConnectionSchema } from "../../server/services/tavus/routerContracts";
 import { tavusLimitsSchema } from "../../server/services/tavus/runtimeLimits";
 import { createHash } from "node:crypto";
 
 let rows: Map<string, any>, deps: any, service: TavusSessions, remote: any, limits: any;
+it("wires production full-pipeline starts to the full-pipeline avatar resolver, not the PCM test resolver", () => {
+  expect(tavusDeps.target).toBe(resolveFullPipelineConversationAvatar);
+});
 beforeEach(() => {
   rows = new Map();
   limits = {

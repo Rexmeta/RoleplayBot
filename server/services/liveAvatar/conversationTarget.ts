@@ -82,9 +82,12 @@ export async function inspectConversationAvatarSelection(userId: string, convers
 }
 
 /** Resolve only the run's selected actor. Published snapshots never borrow mutable persona settings. */
-export async function resolveConversationAvatar(userId: string, conversationId: string, deps = conversationTargetDeps) {
+export async function resolveConversationAvatar(
+  userId: string, conversationId: string, deps = conversationTargetDeps,
+  pipeline: "render" | "full" = "render",
+) {
   const { personaRun, scenarioRun } = await ownedAvatarConversation(userId, conversationId, deps);
-  if (personaRun.mode === "tavus_full") throw new AvatarIdentityError("tavus_full_pipeline_active", 409);
+  if (personaRun.mode === "tavus_full" && pipeline !== "full") throw new AvatarIdentityError("tavus_full_pipeline_active", 409);
   if (personaRun.status === "completed" || scenarioRun.status === "completed") {
     throw new AvatarIdentityError("avatar_conversation_ended", 409);
   }
@@ -97,7 +100,9 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
   }
   const { selected, personaId } = await selectedAvatarReference(conversationId, personaRun, scenarioRun, deps);
   const auth = await deps.connection.check(userId);
-  const scopes = selected.providerId === "anam" ? nativeScopes : testScopes;
+  const scopes = pipeline === "full"
+    ? ["sessions:create", "sessions:read", "sessions:connect", "sessions:end"]
+    : selected.providerId === "anam" ? nativeScopes : testScopes;
   if (![...scopes, "assets:read"].every(scope => auth.scopes.includes(scope as any))) {
     throw new AvatarIdentityError("avatar_conversation_scopes_missing", 403);
   }
@@ -106,11 +111,24 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
   }
   if (selected.kind === "stock") {
     const stock = await deps.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000));
-    if (!stock.some(a => a.id === selected.avatarId && a.providerId === selected.providerId && isSelectableStockAvatar(a))) {
+    if (!stock.some(a => a.id === selected.avatarId && a.providerId === selected.providerId &&
+        (pipeline === "full" || isSelectableStockAvatar(a)))) {
       throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
     }
     return { projectId: auth.projectId, avatarId: selected.avatarId, assetId: null, providerId: selected.providerId,
       personaId };
+  }
+  if (pipeline === "full") {
+    // A validation diagnostic and a native full-pipeline session have different
+    // playback contracts. Forward the saved asset, not a renderer validation gate
+    // or a stale seed candidate's canActivate flag. Router admission is final.
+    const asset = await deps.client.call(userId, `/avatar-assets/${selected.assetId}`, personaAvatarAssetSchema);
+    if (asset.id !== selected.assetId || asset.providerId !== selected.providerId) {
+      throw new AvatarIdentityError("persona_avatar_asset_mismatch", 502);
+    }
+    if (!asset.providerAvatarId) throw new AvatarIdentityError("persona_avatar_provider_reference_missing", 409);
+    return { projectId: auth.projectId, avatarId: asset.providerAvatarId, assetId: asset.id,
+      providerId: selected.providerId, personaId };
   }
   if (selected.providerId !== "tavus" || !supportsCustomLiveContract(auth.integration)) {
     throw new AvatarIdentityError("persona_avatar_custom_runtime_unavailable", 409);
@@ -133,4 +151,9 @@ export async function resolveConversationAvatar(userId: string, conversationId: 
   }
   return { projectId: auth.projectId, avatarId: asset.providerAvatarId!, assetId: asset.id, providerId: selected.providerId,
     personaId };
+}
+
+/** Full-pipeline starts resolve identity only; legacy PCM validation is unrelated. */
+export function resolveFullPipelineConversationAvatar(userId: string, conversationId: string, deps = conversationTargetDeps) {
+  return resolveConversationAvatar(userId, conversationId, deps, "full");
 }
