@@ -224,3 +224,15 @@ and local reset plus duplicate image registration exposed the same old failure.
 historical candidate evidence from current request errors, and evaluate manual
 retry eligibility against the current router contract without weakening pending
 or unknown-outcome fences. Preserve additive training-image phase evidence.
+
+The router can requeue a local training-image failure under the same avatar
+asset ID. Neither an old failure nor the presence of a candidate proves that a
+new attempt with a lost response has finished.
+
+**Why:** Image/provider/voice deduplication reuses the failed record during an
+explicit retry; treating that record as evidence for a later request can
+incorrectly release its durable uncertainty fence.
+
+**How to apply:** Require explicit preparation and cost consent for resubmission.
+Keep an unacknowledged attempt fenced across refreshes and restarts, regardless
+of retained candidates. Do not infer success from a new asset ID being present.

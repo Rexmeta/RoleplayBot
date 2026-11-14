@@ -15,6 +15,7 @@ export const seedResetInput = z.object({
 // Fixed public Router contract, not the provider's arbitrary error body.
 export const provisioningFailureSchema = z.object({
   code: z.string().max(100), stage: z.enum(["create", "status", "delete", "unknown"]),
+  trainingImageStage: z.enum(["configuration", "inspection", "regeneration", "verification", "unknown"]).optional(),
   category: z.enum(["training", "authentication", "billing", "permission_or_plan", "provider_limit", "input", "reconciliation", "unknown"]),
   providerHttpStatus: z.number().int().min(100).max(599).nullable(),
   providerErrorCode: z.string().regex(/^[a-z0-9_]{1,100}$/).nullable(),
@@ -47,6 +48,27 @@ export const personaSeedStateSchema = z.object({
   stage: z.enum(["idle", "registering", "registered", "creating", "submitted"]),
 });
 export type PersonaSeedState = z.infer<typeof personaSeedStateSchema>;
+
+type SeedCandidate = z.infer<typeof seedLiveOptionsSchema>["candidates"][number];
+
+/** A retained local-preparation failure is not evidence that a paid create is still pending. */
+export function isRetryableSeedFailure(candidate: SeedCandidate): boolean {
+  return candidate.status === "failed" && !candidate.canActivate && candidate.liveReference === null &&
+    candidate.failure?.code.startsWith("TRAINING_IMAGE_") === true &&
+    candidate.failure.creationOutcome === "not_created" &&
+    candidate.failure.nextAction !== "operator_reconcile" && candidate.nextAction !== "reconcile";
+}
+
+/** Shared by the editor and server; live router permission never overrides an unresolved local fence. */
+export function canSubmitSeedCreation(state: PersonaSeedState): boolean {
+  const { draft, options, stage } = state;
+  if (state.uncertain || !draft || !options?.canProvision || options.nextAction !== "provision" ||
+      options.imageAssetId !== draft.imageAssetId || options.imageVersion !== draft.imageVersion) return false;
+  const retry = options.candidates.length > 0 && options.candidates.every(isRetryableSeedFailure);
+  // A submitted operation still requires an explicit reset + registration cycle.
+  return stage === "registered" && (options.candidates.length === 0 || retry);
+}
+
 export const seedRegistrationInput = z.object({
   rightsConfirmed: z.literal(true), transferConfirmed: z.literal(true),
   likeness: z.enum(["synthetic", "real_person"]),

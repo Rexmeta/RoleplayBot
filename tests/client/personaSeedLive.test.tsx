@@ -12,6 +12,19 @@ const draft = { imageAssetId: imageId, imageVersion: 1, projectId: "project", so
 const state = (candidates: any[] = []) => ({ stage: "registered", uncertain: false, draft,
   options: { imageAssetId: imageId, imageVersion: 1, providerId: "tavus", canProvision: !candidates.length, nextAction: "provision", candidates } });
 const candidate = { avatarAssetId: assetId, status: "ready", nextAction: "validate", canActivate: false, liveReference: null };
+const failedCandidate = {
+  ...candidate, status: "failed", nextAction: "inspect_failure", failure: {
+    code: "TRAINING_IMAGE_AI_MODEL_UNAVAILABLE", stage: "unknown", trainingImageStage: "inspection",
+    category: "permission_or_plan", providerHttpStatus: null, providerErrorCode: null, reasonState: "not_retained",
+    message: "Old model error", messageKo: "과거 모델 오류 원문",
+    automaticRetryAllowed: false, nextAction: "operator_review", creationOutcome: "not_created",
+  },
+};
+const retryState = () => {
+  const result = state([failedCandidate]);
+  result.options.canProvision = true;
+  return result;
+};
 const response = (value: any) => ({ json: async () => value });
 const props = () => ({ personaId: "coach", source: "personas/coach/a.webp", draft,
   onDraftChange: vi.fn(), onSelect: vi.fn() });
@@ -109,6 +122,65 @@ describe("seed editor mock UI", () => {
     fireEvent.click(screen.getByText("취소"));
     expect(screen.queryByTestId("button-seed-reset-confirm")).toBeNull();
     expect(screen.getByTestId(`card-seed-candidate-${assetId}`)).toBeTruthy();
+    expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+  });
+  it("labels retained model failure as history and manually retries after separate cost consent", async () => {
+    mocks.api.mockResolvedValueOnce(response(retryState()));
+    render(<PersonaSeedLivePanel {...props()} />);
+    const history = await screen.findByTestId(`history-seed-failure-${assetId}`);
+    expect(history.getAttribute("role")).toBe("note");
+    expect(history.textContent).toContain("이전 생성 시도 실패 기록");
+    expect(history.textContent).toContain("과거 모델 오류 원문");
+    expect(history.textContent).toContain("이미지 처리 단계 inspection");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByTestId("text-seed-retry-available")).toBeTruthy();
+    expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(true);
+    expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+    fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+    let resolve!: (value: any) => void;
+    mocks.api.mockReturnValueOnce(new Promise(r => { resolve = r; }));
+    fireEvent.click(screen.getByTestId("button-seed-create"));
+    fireEvent.click(screen.getByTestId("button-seed-create"));
+    await act(async () => resolve(response({ ...state([{ ...candidate, status: "queued", nextAction: "wait" }]), stage: "submitted" })));
+    expect(mocks.api.mock.calls.filter(c => c[0] === "POST")).toHaveLength(1);
+    expect(mocks.api.mock.calls.find(c => c[0] === "POST")).toEqual([
+      "POST", expect.stringContaining("/seed/create?"), { costConfirmed: true },
+    ]);
+    expect((screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다.") as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("does not mislabel a definitive local creation block as an ambiguous paid request", async () => {
+    mocks.api.mockResolvedValueOnce(response(retryState()));
+    render(<PersonaSeedLivePanel {...props()} />);
+    await screen.findByTestId("text-seed-retry-available");
+    fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+    mocks.api.mockRejectedValueOnce(new Error("409: persona_seed_creation_blocked"));
+    fireEvent.click(screen.getByTestId("button-seed-create"));
+    const error = await screen.findByTestId("text-seed-error");
+    expect(error.textContent).toContain("현재 요청 오류");
+    expect(error.textContent).toContain("새 생성 요청은 전송하지 않았습니다");
+    expect(screen.queryByText(/상태 조회에서 불확실 상태가 해제될 때까지/)).toBeNull();
+    expect(screen.getByTestId(`history-seed-failure-${assetId}`).getAttribute("role")).toBe("note");
+  });
+  it.each(["queued", "processing", "reconciliation_required", "ready"])(
+    "blocks creation for %s candidates despite router provisioning permission", async status => {
+      const current = retryState(); current.options.candidates = [{ ...failedCandidate, status }];
+      mocks.api.mockResolvedValueOnce(response(current));
+      render(<PersonaSeedLivePanel {...props()} />);
+      await screen.findByTestId("button-seed-create");
+      fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+      expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(screen.getByTestId("button-seed-create"));
+      expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
+    },
+  );
+  it("keeps retry disabled when the server marks old failures as part of an unresolved request", async () => {
+    mocks.api.mockResolvedValueOnce(response({ ...retryState(), stage: "creating", uncertain: true }));
+    render(<PersonaSeedLivePanel {...props()} />);
+    await screen.findByTestId("button-seed-create");
+    fireEvent.click(screen.getByLabelText("외부 제공자 비용이 발생할 수 있음을 확인했습니다."));
+    expect((screen.getByTestId("button-seed-create") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId("button-seed-reset") as HTMLButtonElement).disabled).toBe(true);
     expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
   });
 });

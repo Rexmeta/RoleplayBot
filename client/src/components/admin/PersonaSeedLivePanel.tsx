@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PersonaAvatarValidationPanel } from "@/components/admin/PersonaAvatarValidationPanel";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import { personaSeedStateSchema, seedSourceIdentity, type PersonaSeedDraft, type PersonaSeedState } from "@shared/avatar/personaSeedLive";
+import { canSubmitSeedCreation, isRetryableSeedFailure, personaSeedStateSchema, seedSourceIdentity, type PersonaSeedDraft, type PersonaSeedState } from "@shared/avatar/personaSeedLive";
 import type { PersonaLiveAvatar } from "@shared/avatar/personaAvatar";
 
 type Candidate = NonNullable<PersonaSeedState["options"]>["candidates"][number];
@@ -17,6 +17,7 @@ function messageFor(error: unknown): string {
   if (/persona_seed_save_image_first/.test(message)) return "기본 이미지를 먼저 저장하세요. 저장된 이미지만 시드로 사용할 수 있습니다.";
   if (/persona_seed_reset_blocked/.test(message)) return "생성 진행 중이거나 결과가 불확실하여 초기화할 수 없습니다. 상태를 조회하고 작업 완료 또는 조정 후 다시 시도하세요.";
   if (/persona_seed_reset_stale/.test(message)) return "다른 화면에서 준비 상태가 변경되었습니다. 상태를 다시 조회하세요.";
+  if (/persona_seed_creation_blocked/.test(message)) return "현재 상태에서는 생성 요청을 보낼 수 없습니다. 새 생성 요청은 전송하지 않았습니다. 상태를 조회해 최신 작업 상태를 확인하세요.";
   if (/403|scope|forbidden/i.test(message)) return "시드 라이브 설정 권한을 확인하세요.";
   if (/fetch|network/i.test(message)) return "서버에 연결하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
   return "요청을 완료하지 못했습니다. 상태를 조회해 결과를 확인하세요.";
@@ -140,7 +141,7 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     } catch (cause) {
       if (!live(epoch)) return;
       const msg = cause instanceof Error ? cause.message : "";
-      if (!/persona_seed_save_image_first|persona_seed_reset_blocked|persona_seed_reset_stale/.test(msg)) {
+      if (!/persona_seed_save_image_first|persona_seed_reset_blocked|persona_seed_reset_stale|persona_seed_creation_blocked/.test(msg)) {
         setUncertainFence(true);
         setNotice("요청 결과가 불확실할 수 있습니다. 다시 요청하지 말고 먼저 상태를 조회하세요.");
       }
@@ -154,8 +155,9 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
   const consentOk = likeness !== "real_person" || Boolean(consentReference.trim());
   const canRegister = Boolean(source && rightsConfirmed && transferConfirmed && consentOk && !busy && !loading && !validationBusy && !uncertain &&
     (!state || state.stage === "idle" || !state.draft));
-  const canCreate = Boolean(state?.draft && state.options?.canProvision && costConfirmed && !busy && !loading && !validationBusy && !uncertain &&
-    state.stage === "registered");
+  const creationAllowed = Boolean(state && canSubmitSeedCreation(state));
+  const retryAllowed = creationAllowed && Boolean(state?.options?.candidates.length);
+  const canCreate = creationAllowed && costConfirmed && !busy && !loading && !validationBusy && !uncertain;
   const canReset = Boolean(state?.draft && state.options && !busy && !loading && !validationBusy && !uncertain &&
     state.stage !== "registering" &&
     ((state.stage !== "submitted" && state.stage !== "creating") || state.options.candidates.length > 0) &&
@@ -168,7 +170,7 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     ...(likeness === "real_person" ? { consentReference: consentReference.trim() } : {}),
   }, "저장된 기본 이미지를 시드로 등록했습니다. 아직 생성 요청은 보내지 않았습니다.");
   const create = () => canCreate && void post("/create", { costConfirmed: true },
-    "생성 요청을 보냈습니다. 준비 후 초안에 연결할 후보를 직접 선택하세요.");
+    "생성 요청을 보냈습니다. 준비 후 초안에 연결할 후보를 직접 선택하세요.", () => setCostConfirmed(false));
   const reset = () => canReset && void post("/reset", { confirmed: true, draft: state!.draft },
     "생성 준비 상태를 초기화했습니다. 권리·전송 동의를 다시 확인하고 이미지를 등록한 후 새 생성 요청을 제출하세요.", () => {
       setRightsConfirmed(false); setTransferConfirmed(false); setCostConfirmed(false);
@@ -235,10 +237,11 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     {state?.draft && <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">
       <Confirm checked={costConfirmed} onChange={setCostConfirmed} label="외부 제공자 비용이 발생할 수 있음을 확인했습니다." />
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" size="sm" onClick={create} disabled={!canCreate} data-testid="button-seed-create">{busy ? "처리 중…" : "라이브 아바타 생성 요청"}</Button>
+        <Button type="button" size="sm" onClick={create} disabled={!canCreate} data-testid="button-seed-create">{busy ? "처리 중…" : retryAllowed ? "라이브 아바타 다시 생성 요청" : "라이브 아바타 생성 요청"}</Button>
         <Button type="button" size="sm" variant="outline" onClick={() => setResetOpen(true)} disabled={!canReset} data-testid="button-seed-reset">초기화하고 다시 제출</Button>
-        {!state.options?.canProvision && <span className="text-xs text-slate-500">현재 상태에서는 새 생성이 허용되지 않습니다.</span>}
+        {!creationAllowed && <span className="text-xs text-slate-500">현재 상태에서는 새 생성이 허용되지 않습니다.</span>}
       </div>
+      {retryAllowed && <p role="note" className="text-xs text-slate-600" data-testid="text-seed-retry-available">라우터가 이전 시도에서 아바타가 생성되지 않았음을 확인하여 수동 재제출을 허용했습니다. 자동 재시도는 하지 않으며, 새 요청에는 비용이 발생할 수 있습니다.</p>}
       {!canReset && !busy && !loading && <p className="text-xs text-slate-500">진행 중이거나 결과가 불확실한 작업은 완료 또는 조정 후 초기화할 수 있습니다.</p>}
       {resetOpen && <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950" role="group" aria-label="생성 준비 초기화 확인">
         <p>현재 초안 연결과 생성 준비 상태를 초기화합니다. 기존 아바타 자산은 삭제하지 않으며, 저장된 페르소나는 저장 전까지 변경되지 않습니다. 다시 제출하면 새 생성 비용이 발생할 수 있습니다.</p>
@@ -264,9 +267,12 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
               </Button>
             </div>
           </div>
-          {c.failure && <div role="alert" className="mt-2 rounded border border-red-200 bg-red-50 p-2 text-red-800">
+          {c.failure && <div role="note" className="mt-2 space-y-1 rounded border border-slate-200 bg-slate-50 p-2 text-slate-700" data-testid={`history-seed-failure-${c.avatarAssetId}`}>
+            <p className="font-semibold">이전 생성 시도 실패 기록</p>
+            <p>기존 시도에 저장된 기록이며, 현재 모델 상태를 새로 검사한 결과가 아닙니다.</p>
             <p>{c.failure.messageKo}</p>
-            <p className="mt-1 text-red-700">코드 {c.failure.code} · 단계 {c.failure.stage}{c.failure.providerHttpStatus !== null ? ` · HTTP ${c.failure.providerHttpStatus}` : ""}</p>
+            <p>코드 {c.failure.code} · 단계 {c.failure.stage}{c.failure.trainingImageStage ? ` · 이미지 처리 단계 ${c.failure.trainingImageStage}` : ""}{c.failure.providerHttpStatus !== null ? ` · HTTP ${c.failure.providerHttpStatus}` : ""}</p>
+            {isRetryableSeedFailure(c) && <p>이 시도에서는 아바타 생성이 전송되지 않았습니다. 새 요청 가능 여부는 위의 현재 상태를 따릅니다.</p>}
           </div>}
           {validateOpen === c.avatarAssetId && c.nextAction === "validate" &&
             <PersonaAvatarValidationPanel assetId={c.avatarAssetId} assetName="시드 라이브 아바타" onReported={() => void refresh()} onActivityChange={setValidationBusy} />}
@@ -275,7 +281,7 @@ export function PersonaSeedLivePanel({ personaId, source, draft, onDraftChange, 
     </ul>}
     {(selectedId || draft) && <p className="mt-2 text-xs text-slate-500">선택은 초안 설정일 뿐이며, 재생 검증과 활성화 조건 충족 전에는 라이브로 활성화되지 않습니다. 생성 이름은 페르소나 ID입니다.</p>}
     {notice && <p role="status" className="mt-3 flex items-center gap-1 text-xs text-slate-600"><CheckCircle2 className="h-3.5 w-3.5" />{notice}</p>}
-    {error && <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800" data-testid="text-seed-error">{error}</p>}
+    {error && <div role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800" data-testid="text-seed-error"><p className="font-semibold">현재 요청 오류</p><p>{error}</p></div>}
   </section>;
 }
 

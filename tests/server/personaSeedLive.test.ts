@@ -45,6 +45,15 @@ const candidate = (verified = false) => ({
   avatarAssetId: assetId, status: "ready", canActivate: verified, nextAction: verified ? "select" : "validate",
   liveReference: verified ? { avatarAssetId: assetId, avatarId: "face", providerId: "tavus", pipeline: "tavus_full" } : null,
 });
+const localFailure = () => ({
+  ...candidate(), status: "failed", nextAction: "inspect_failure",
+  failure: {
+    code: "TRAINING_IMAGE_AI_MODEL_UNAVAILABLE", stage: "unknown", trainingImageStage: "unknown",
+    category: "permission_or_plan", providerHttpStatus: null, providerErrorCode: null, reasonState: "not_retained",
+    message: "Historical model failure", messageKo: "이전에 저장된 모델 오류입니다.",
+    automaticRetryAllowed: false, nextAction: "operator_review", creationOutcome: "not_created",
+  },
+});
 describe("persona seed safety and persistence", () => {
   it("editor status is read-only; save with no seed neither transfers media nor starts creation", async () => {
     expect(await svc.status("admin", "coach", source)).toMatchObject({ stage: "idle", draft: null, uncertain: false });
@@ -132,6 +141,77 @@ describe("persona seed safety and persistence", () => {
     } }];
     const state = await svc.status("admin", "coach", source);
     expect(state.options?.candidates[0].failure?.providerErrorCode).toBe("training_image_framing_invalid");
+  });
+  it("allows one explicit create after reset and deduplicated registration returns the same failed image", async () => {
+    const first = await svc.register("admin", "coach", source, consent);
+    await svc.create("admin", "coach", source, { costConfirmed: true });
+    options.candidates = [localFailure()]; options.canProvision = true;
+    // A submitted operation cannot directly send another request, even if failure is safe.
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
+      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+    await svc.reset("admin", "coach", source, { confirmed: true, draft: first.draft });
+    const registered = await svc.register("admin", "coach", source, consent);
+    expect(registered.draft).toEqual(first.draft);
+    expect(registered.options?.candidates[0].failure?.trainingImageStage).toBe("unknown");
+    await expect(svc.create("admin", "coach", source, { costConfirmed: false }))
+      .rejects.toMatchObject({ code: "persona_seed_cost_confirmation_required" });
+    await svc.create("admin", "coach", source, { costConfirmed: true });
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
+      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(2);
+  });
+  it("keeps an ambiguous retry fenced despite retained failures, a new candidate and a service restart", async () => {
+    await svc.register("admin", "coach", source, consent);
+    options.candidates = [localFailure()]; options.canProvision = true;
+    const original = d.client.call.getMockImplementation();
+    d.client.call.mockImplementation(async (user: string, path: string, schema: any, body: any) => {
+      if (path === "/avatar-assets") throw new AvatarIdentityError("avatar_test_operation_uncertain", 502);
+      return original(user, path, schema, body);
+    });
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 502 });
+    svc = new PersonaSeedLiveService(d);
+    expect(await svc.status("admin", "coach", source)).toMatchObject({ stage: "creating", uncertain: true });
+    options.candidates.push({ ...localFailure(), avatarAssetId: "42345678-1234-4234-8234-123456789abc" });
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
+      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+    const current = await svc.status("admin", "coach", source);
+    expect(current.uncertain).toBe(true);
+    await expect(svc.reset("admin", "coach", source, { confirmed: true, draft: current.draft }))
+      .rejects.toMatchObject({ code: "persona_seed_reset_blocked" });
+    await expect(svc.register("admin", "coach", source, consent))
+      .rejects.toMatchObject({ code: "persona_seed_operation_uncertain" });
+    expect(d.client.call.mock.calls.filter((c: any[]) => c[1] === "/avatar-assets")).toHaveLength(1);
+  });
+  it.each(["queued", "submitting", "processing", "ready", "reconciliation_required", "deleting", "deleted"])(
+    "rejects %s candidates even if the router advertises provisioning", async status => {
+      await svc.register("admin", "coach", source, consent);
+      options.candidates = [{ ...localFailure(), status }]; options.canProvision = true;
+      await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
+        .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+      expect(d.client.call.mock.calls.some((c: any[]) => c[1] === "/avatar-assets")).toBe(false);
+    },
+  );
+  it.each(["created", "unknown"])("rejects a failed candidate with %s outcome", async creationOutcome => {
+    await svc.register("admin", "coach", source, consent);
+    const failure = localFailure();
+    failure.failure.creationOutcome = creationOutcome;
+    options.candidates = [failure]; options.canProvision = true;
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true }))
+      .rejects.toMatchObject({ code: "persona_seed_creation_blocked" });
+    expect(d.client.call.mock.calls.some((c: any[]) => c[1] === "/avatar-assets")).toBe(false);
+  });
+  it("requires router permission and rejects non-preparation failures or mixed candidate lists", async () => {
+    await svc.register("admin", "coach", source, consent);
+    options.candidates = [localFailure()]; options.canProvision = false;
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
+    options.canProvision = true;
+    options.candidates[0].failure.code = "PROVIDER_TRAINING_FAILED";
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
+    options.candidates = [localFailure(), candidate()];
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
+    options.candidates = [localFailure()]; options.candidates[0].failure.nextAction = "operator_reconcile";
+    await expect(svc.create("admin", "coach", source, { costConfirmed: true })).rejects.toMatchObject({ status: 409 });
+    expect(d.client.call.mock.calls.some((c: any[]) => c[1] === "/avatar-assets")).toBe(false);
   });
   it("resets a completed submission without deleting assets and creates a new image version before resubmission", async () => {
     const first = await svc.register("admin", "coach", source, consent);

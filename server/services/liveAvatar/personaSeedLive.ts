@@ -5,7 +5,7 @@ import { storage } from "../../storage";
 import { db } from "../../storage/db";
 import { mediaStorage } from "../mediaStorage";
 import {
-  personaSeedDraftSchema, seedLiveOptionsSchema, seedRegistrationInput, seedResetInput, seedSourceIdentity,
+  personaSeedDraftSchema, seedLiveOptionsSchema, seedRegistrationInput, seedResetInput, seedSourceIdentity, canSubmitSeedCreation,
   type PersonaSeedDraft, type PersonaSeedState,
 } from "../../../shared/avatar/personaSeedLive";
 import { personaAvatarAssetSchema, type PersonaLiveAvatar } from "../../../shared/avatar/personaAvatar";
@@ -20,6 +20,8 @@ const operationSchema = z.object({
   stage: z.enum(["idle", "registering", "registered", "creating", "submitted"]),
   draft: personaSeedDraftSchema.nullable(),
   previousDraft: personaSeedDraftSchema.nullable().optional(),
+  candidateIdsBeforeCreate: z.array(z.string().uuid()).max(500).optional(),
+  submittedAssetId: z.string().uuid().optional(),
   sourceFingerprint: z.string(),
 });
 type Operation = z.infer<typeof operationSchema>;
@@ -90,8 +92,12 @@ export class PersonaSeedLiveService {
     // candidate/reference to the new image.
     const matches = op.sourceFingerprint === fingerprint;
     const options = op.draft ? await this.options(userId, op.draft) : null;
+    // Old failures must never appear to resolve a new request whose response was lost.
+    // New attempts remain fenced until their response has been durably saved.
     const uncertain = op.stage === "registering" ||
-      op.stage === "creating" && !options?.candidates.length;
+      op.stage === "creating" && (op.candidateIdsBeforeCreate !== undefined || !options?.candidates.length) ||
+      op.stage === "submitted" && Boolean(op.submittedAssetId) &&
+        !options?.candidates.some(c => c.avatarAssetId === op.submittedAssetId);
     return {
       stage: uncertain ? op.stage : op.stage === "creating" ? "submitted" : matches ? op.stage : "idle",
       uncertain, draft: matches ? op.draft : null, options: matches ? options : null,
@@ -177,19 +183,24 @@ export class PersonaSeedLiveService {
     return this.deps.lock(ctx.key, async () => {
       const op = await this.read(ctx.key);
       const current = await this.present(userId, op, ctx.fingerprint);
-      if (op.stage !== "registered" || current.uncertain || !current.draft || !current.options?.canProvision || current.options.candidates.length) {
+      if (!canSubmitSeedCreation(current)) {
         throw new AvatarIdentityError("persona_seed_creation_blocked", 409);
       }
-      await this.save(ctx.key, userId, { ...op, stage: "creating" });
+      const pending: Operation = {
+        ...op, stage: "creating", submittedAssetId: undefined,
+        candidateIdsBeforeCreate: current.options!.candidates.map(c => c.avatarAssetId),
+      };
+      await this.save(ctx.key, userId, pending);
       // Never retry automatically, even when a caller repeats this operation.
       const asset = await this.deps.client.call(userId, "/avatar-assets", personaAvatarAssetSchema, {
-        imageAssetId: current.draft.imageAssetId, providerId: "tavus", personaId, voiceName: "anna", costConfirmed: true,
+        imageAssetId: current.draft!.imageAssetId, providerId: "tavus", personaId, voiceName: "anna", costConfirmed: true,
       });
-      if (asset.imageAssetId !== current.draft.imageAssetId || asset.providerId !== "tavus") {
+      if (asset.imageAssetId !== current.draft!.imageAssetId || asset.providerId !== "tavus") {
         throw new AvatarIdentityError("persona_seed_response_mismatch", 502);
       }
-      await this.save(ctx.key, userId, { ...op, stage: "submitted" });
-      return this.present(userId, { ...op, stage: "submitted" }, ctx.fingerprint);
+      const submitted: Operation = { ...pending, stage: "submitted", submittedAssetId: asset.id };
+      await this.save(ctx.key, userId, submitted);
+      return this.present(userId, submitted, ctx.fingerprint);
     });
   }
   /** Save-time re-read, not browser assertions. Drafts can persist before playback. */
