@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { avatarTestReady, avatarTestTerminal, type AvatarTestPreflight, type AvatarTestSession } from "@shared/avatar/adminAvatarTest";
 import ManagedAvatarRoom from "@/components/chat/ManagedAvatarRoom";
+import { AvatarSessionTiming } from "@/components/chat/AvatarSessionTiming";
 
 const base = "/api/live-avatar/stock/anam-persona-default/test";
 export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (active: boolean) => void }) {
@@ -13,6 +14,8 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [error, setError] = useState("");
+  const [timingReportFailed, setTimingReportFailed] = useState(false);
+  useEffect(() => { setTimingReportFailed(false); }, [session?.id]);
   const sessionRef = useRef<AvatarTestSession>();
   const creating = useRef(false);
   const mounted = useRef(false);
@@ -111,8 +114,10 @@ export function AnamAvatarTestPanel({ onActivityChange }: { onActivityChange?: (
     {uncertain && <p role="alert" className="text-sm text-amber-800">생성 결과 확인 중입니다. 새 세션 생성은 차단됩니다.</p>}
     {preflight && !preflight.ready && <p className="text-sm text-amber-800">현재 시작할 수 없습니다. {preflight.runtimeError ?? (preflight.missingScopes.length ? `권한 부족: ${preflight.missingScopes.join(", ")}` : "사용량·작업 서버·이전 세션 정리 상태를 확인하세요.")}</p>}
     {session && <p role="status" className="text-sm">{session.status} · {session.rendererState} {session.cleanupPending ? "· 제공자 정리 중" : ""}</p>}
+    {session && <AvatarSessionTiming timing={session.timing} reportFailed={timingReportFailed} />}
     {session && !terminal && playbackSessionId !== session.id && <p className="text-sm text-amber-800">기존 세션을 복구했습니다. 일회용 연결을 다시 요청하지 않습니다. 종료 후 정리 상태를 확인하세요.</p>}
     {session && playbackSessionId === session.id && avatarTestReady(session) && !terminal &&
-      <div className="h-80 overflow-hidden rounded"><ManagedAvatarRoom endpoint={`${base}/sessions/${encodeURIComponent(session.id)}`} onError={setError} /></div>}
+      <div className="h-80 overflow-hidden rounded"><ManagedAvatarRoom endpoint={`${base}/sessions/${encodeURIComponent(session.id)}`}
+        reportTiming onTimingReport={state => setTimingReportFailed(state === "failed")} onError={setError} /></div>}
   </section>;
 }

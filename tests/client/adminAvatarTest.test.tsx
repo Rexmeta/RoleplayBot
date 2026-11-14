@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import React from "react";
+vi.mock("../../client/src/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "admin" } }) }));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ i18n: { language: "ko" } }) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 const fakes = vi.hoisted(() => ({ rooms: [] as any[], api: vi.fn() }));
@@ -94,6 +96,33 @@ const mediaReady = async (room: any) => {
 };
 
 describe("admin stock-avatar test UI", () => {
+  it("reports one advancing frame, not subscription/readiness, and reporting failure never ends or recreates media", async () => {
+    const room = await recoverRunning(), video = track("video");
+    const node = video.attach();
+    Object.defineProperties(node, {
+      paused: { value: false, configurable: true },
+      videoWidth: { value: 640, configurable: true }, videoHeight: { value: 480, configurable: true },
+      currentTime: { value: 0, writable: true, configurable: true },
+      requestVideoFrameCallback: { value: undefined, configurable: true },
+    });
+    const original = fakes.api.getMockImplementation()!;
+    fakes.api.mockImplementation(async (method: string, path: string, ...args: any[]) => {
+      if (path.endsWith("/video-playing")) throw Error("fixture reporting unavailable");
+      return original(method, path, ...args);
+    });
+    await act(async () => room.handlers.get("sub")?.(video));
+    fireEvent.playing(node);
+    expect(fakes.api.mock.calls.filter(c => c[1].endsWith("/video-playing"))).toHaveLength(0);
+    expect(screen.getByTestId("avatar-session-timing").textContent).toContain("영상 보고 없음");
+    await act(async () => { (node as HTMLVideoElement).currentTime = 1; fireEvent.timeUpdate(node); });
+    await screen.findByText(/영상 시간 보고에 실패했습니다/);
+    await act(async () => { (node as HTMLVideoElement).currentTime = 2; fireEvent.timeUpdate(node); });
+    const reports = fakes.api.mock.calls.filter(c => c[1].endsWith("/video-playing"));
+    expect(reports).toEqual([["POST", `${base}/sessions/test-session/video-playing`, { event: "video_frame_presented" }]]);
+    expect(createPosts()).toHaveLength(0);
+    expect(fakes.api.mock.calls.some(c => c[1].endsWith("/end"))).toBe(false);
+    expect(room.disconnect).not.toHaveBeenCalled();
+  });
   it("only performs free preflight on mount and requires both unchecked consents", async () => {
     render(<LiveAvatarTestPanel />);
     const button = await screen.findByRole("button", { name: "확인 후 테스트 세션 생성" });

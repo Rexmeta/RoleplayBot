@@ -3,11 +3,12 @@ import { z } from "zod";
 import { isSystemAdmin } from "../middleware/authMiddleware";
 import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 import { adminAvatarTestService, type AdminAvatarTestService } from "../services/liveAvatar/adminTestService";
-import { testTurnSchema } from "../services/liveAvatar/testContracts";
+import { testTurnSchema, videoPlayingObservationSchema } from "../services/liveAvatar/testContracts";
 
 /** Mounted behind existing login + no-store. No browser key, URL, user or tenant accepted. */
 export function createLiveAvatarTestRouter(service: AdminAvatarTestService = adminAvatarTestService) {
   const router = Router();
+  router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   router.use(isSystemAdmin);
   const handle = (fn: (req: any, res: any) => Promise<unknown>) => async (req: any, res: any) => {
     try { await fn(req, res); }
@@ -29,6 +30,12 @@ export function createLiveAvatarTestRouter(service: AdminAvatarTestService = adm
     res.status(201).json(await service.create(req.user.id));
   }));
   router.get("/sessions/:id", handle(async (req, res) => res.json(await service.session(req.user.id, req.params.id))));
+  router.post("/sessions/:id/video-playing", handle(async (req, res) => {
+    if (!videoPlayingObservationSchema.safeParse(req.body).success) {
+      res.status(400).json({ code: "avatar_test_invalid_input" }); return;
+    }
+    res.json(await service.videoPlaying(req.user.id, req.params.id));
+  }));
   router.get("/sessions/:id/connection", handle(async (req, res) =>
     res.json(await service.connectionToken(req.user.id, req.params.id))));
   router.post("/sessions/:id/client-connection", handle(async (req, res) => {

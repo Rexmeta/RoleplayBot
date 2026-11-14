@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sessionTimingSchema } from "../../../shared/avatar/sessionTiming";
 
 export const routerSessionSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),
@@ -12,6 +13,7 @@ export const routerSessionSchema = z.object({
   stopRequested: z.boolean(),
   cleanupPending: z.boolean(),
   expiresAt: z.string().datetime({ offset: true }),
+  timing: sessionTimingSchema.optional(),
 });
 
 export const dailyConnectionSchema = z.object({

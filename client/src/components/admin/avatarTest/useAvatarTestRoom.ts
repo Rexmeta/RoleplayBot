@@ -2,6 +2,8 @@ import { MutableRefObject, useCallback, useEffect, useRef, useState } from "reac
 import { Room, RoomEvent, Track } from "livekit-client";
 import { apiRequest } from "@/lib/queryClient";
 import { AvatarTestSession, avatarTestReady } from "@shared/avatar/adminAvatarTest";
+import { onFirstVideoFrame } from "@/lib/avatar/firstVideoFrame";
+import { useAuth } from "@/hooks/useAuth";
 
 type Connection = { url: string; token: string; expiresAt: string };
 
@@ -22,6 +24,13 @@ type Options = {
 };
 
 export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session, sessionRef, mountedRef, stoppedRef, stoppingRef, pollFailedRef, onError }: Options) {
+  const { user } = useAuth();
+  const userId = user?.id;
+  const userRef = useRef(userId);
+  userRef.current = userId;
+  const reported = useRef(new Set<string>());
+  const [timingReportFailed, setTimingReportFailed] = useState(false);
+  useEffect(() => { setTimingReportFailed(false); }, [session?.id, userId]);
   const [connecting, setConnecting] = useState(false);
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [mediaConnected, setMediaConnected] = useState(false);
@@ -31,6 +40,7 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
   const videoHost = useRef<HTMLDivElement>(null);
   const audioHost = useRef<HTMLDivElement>(null);
   const roomRef = useRef<Room | null>(null);
+  const mediaOwnerRef = useRef<{ userId: string; sessionId: string }>();
   const tokenRef = useRef<string | null>(null);
   const generationRef = useRef(0);
   const connectionInFlightRef = useRef(false);
@@ -74,7 +84,7 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
 
   useEffect(() => {
     const active = sessionRef.current;
-    if (!active || !avatarTestReady(active) || roomRef.current || connectionInFlightRef.current ||
+    if (!userId || !active || !avatarTestReady(active) || roomRef.current || connectionInFlightRef.current ||
         stoppedRef.current || stoppingRef.current || pollFailedRef.current) return;
     const activeId = active.id;
     const key = `${activeId}:${connectionAttempt}`;
@@ -87,11 +97,12 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
       let room: Room | null = null;
       try {
         const connection = await fetchConnection(activeId, endpoint);
-        if (generationRef.current !== generation || !mountedRef.current || sessionRef.current?.id !== activeId ||
+        if (userRef.current !== userId || generationRef.current !== generation || !mountedRef.current || sessionRef.current?.id !== activeId ||
             !avatarTestReady(sessionRef.current) || stoppedRef.current || stoppingRef.current || pollFailedRef.current) return;
         tokenRef.current = connection.token;
         room = new Room({ adaptiveStream: true, dynacast: true });
         roomRef.current = room;
+        mediaOwnerRef.current = { userId, sessionId: activeId };
         room.on(RoomEvent.TrackSubscribed, (track) => {
           if (generationRef.current !== generation || sessionRef.current?.id !== activeId || stoppedRef.current || stoppingRef.current) return;
           if (track.kind === Track.Kind.Video) {
@@ -173,7 +184,7 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
     return () => {
       if (sessionRef.current?.id !== activeId || !avatarTestReady(sessionRef.current)) generationRef.current += 1;
     };
-  }, [session?.id, isReady, connectionAttempt, endpoint]);
+  }, [session?.id, isReady, connectionAttempt, endpoint, userId]);
 
   useEffect(() => {
     if (!videoTrack || !videoHost.current) return;
@@ -182,11 +193,26 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
     node.setAttribute("playsinline", "true");
     node.className = "h-full w-full object-cover";
     videoHost.current.replaceChildren(node);
+    const id = sessionRef.current?.id, generation = generationRef.current;
+    const cancelFrame = onFirstVideoFrame(node as HTMLVideoElement, () => {
+      if (!id || !userId || userRef.current !== userId || !mountedRef.current ||
+          mediaOwnerRef.current?.userId !== userId || mediaOwnerRef.current.sessionId !== id ||
+          generationRef.current !== generation || sessionRef.current?.id !== id ||
+          stoppedRef.current || stoppingRef.current || pollFailedRef.current || !avatarTestReady(sessionRef.current)) return;
+      const key = `${userId}:${endpoint}:${id}`;
+      if (reported.current.has(key)) return;
+      reported.current.add(key);
+      void apiRequest("POST", `${endpoint}/sessions/${encodeURIComponent(id)}/video-playing`, { event: "video_frame_presented" })
+        .catch(() => {
+          if (mountedRef.current && sessionRef.current?.id === id && userRef.current === userId) setTimingReportFailed(true);
+        });
+    });
     return () => {
+      cancelFrame();
       videoTrack.detach().forEach((element) => element.remove());
       if (videoHost.current?.contains(node)) node.remove();
     };
-  }, [videoTrack]);
+  }, [videoTrack, userId, endpoint]);
 
   const retryConnection = () => {
     if (stoppedRef.current || stoppingRef.current) return;
@@ -212,7 +238,7 @@ export function useAvatarTestRoom({ endpoint = "/api/live-avatar/test", session,
   };
 
   return {
-    connecting, connectionAttempt, setConnectionAttempt, mediaConnected, videoTrack, audioBlocked,
+    connecting, connectionAttempt, setConnectionAttempt, mediaConnected, videoTrack, audioBlocked, timingReportFailed,
     audioPlaybackReady, videoHost, audioHost, disconnectMedia, retryConnection, startAudio,
     videoSubscribedRef, lastConnectionKeyRef,
   };

@@ -13,6 +13,8 @@ type ManagedSDK = {
     onAudioOwner(owner: string): Promise<void>;
     endSession(): Promise<unknown>; interruptSession(): Promise<unknown>;
     getSessionStatus(sessionId: string): Promise<unknown>;
+    reportVideoPlaying?(sessionId: string, observation: { event: "video_frame_presented" }): Promise<unknown>;
+    onTimingReport?(state: "saved" | "failed"): void;
     onMessages(messages: unknown): void;
     onState(state: string, code?: string): void;
   }): ManagedClient;
@@ -44,9 +46,10 @@ function loadClient(url: string) {
 }
 
 /** Native pipeline only: no Gemini generation, PCM, LiveKit or local TTS. */
-export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint, onError, onCaption }: {
+export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint, onError, onCaption, reportTiming = false, onTimingReport }: {
   endpoint: string; statusEndpoint?: string;
   onError?: (message: string) => void; onCaption?: (caption: BrowserCaption) => void;
+  reportTiming?: boolean; onTimingReport?: (state: "saved" | "failed") => void;
 }) {
   const id = useId();
   const video = useRef<HTMLVideoElement>(null);
@@ -55,10 +58,13 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
   errorRef.current = onError;
   const captionRef = useRef(onCaption);
   captionRef.current = onCaption;
+  const timingRef = useRef(onTimingReport);
+  timingRef.current = onTimingReport;
   const [state, setState] = useState("connecting");
   useEffect(() => {
     let cancelled = false, started = false, endSent = false;
     let client: ManagedClient | undefined;
+    let timingReport: Promise<unknown> | undefined;
     let expiry: ReturnType<typeof setTimeout> | undefined;
     const end = async () => {
       if (endSent) return;
@@ -89,6 +95,19 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
             if (owner !== "avatarrouter") throw new Error("native_audio_owner_required");
           },
           endSession: end,
+          ...(reportTiming ? {
+            // Invoked by the hosted SDK only after an actual presented video
+            // frame, never from onState("connected") or token issuance.
+            reportVideoPlaying: (sessionId: string, observation: { event: "video_frame_presented" }) => {
+              if (cancelled || sessionId !== descriptor.sessionId || observation?.event !== "video_frame_presented" ||
+                  Object.keys(observation).length !== 1) return Promise.reject(new Error("avatar_video_observation_invalid"));
+              timingReport ??= apiRequest("POST", `${endpoint}/video-playing`, { event: "video_frame_presented" });
+              return timingReport;
+            },
+            onTimingReport: (result: "saved" | "failed") => {
+              if (!cancelled) timingRef.current?.(result);
+            },
+          } : {}),
           getSessionStatus: async sessionId => {
             if (sessionId !== descriptor.sessionId) throw new Error("avatar_status_session_mismatch");
             const response = await apiRequest("GET", statusEndpoint);
@@ -138,7 +157,7 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
       clientRef.current = undefined;
       if (started) stop();
     };
-  }, [endpoint, statusEndpoint]);
+  }, [endpoint, statusEndpoint, reportTiming]);
 
   return <div className="relative h-full min-h-64 bg-slate-950" data-testid="managed-avatar-room">
     <video id={`managed-avatar-${id}`} ref={video} autoPlay playsInline className="h-full w-full object-cover" />

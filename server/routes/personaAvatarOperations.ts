@@ -4,7 +4,7 @@ import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 import { personaAvatarCreation } from "../services/liveAvatar/personaCreation";
 import { personaAvatarValidation } from "../services/liveAvatar/personaValidation";
 import { personaAvatarCreationInput } from "../../shared/avatar/personaAvatarCreation";
-import { testTurnSchema, testSessionSchema } from "../services/liveAvatar/testContracts";
+import { testTurnSchema, testSessionSchema, videoPlayingObservationSchema } from "../services/liveAvatar/testContracts";
 import { personaSeedLive } from "../services/liveAvatar/personaSeedLive";
 
 /** Mounted behind existing login + operator/admin guard. No provider credentials from browsers. */
@@ -48,6 +48,11 @@ export function createPersonaAvatarOperationsRouter(
   }));
   router.get("/assets/:assetId/validation/sessions/:id", handle(async (req, res) =>
     res.json(await service(req).session(req.user.id, req.params.id))));
+  router.post("/assets/:assetId/validation/sessions/:id/video-playing", handle(async (req, res) => {
+    if (valid(videoPlayingObservationSchema, req, res)) {
+      res.json(await service(req).videoPlaying(req.user.id, req.params.id));
+    }
+  }));
   router.get("/assets/:assetId/validation/sessions/:id/connection", handle(async (req, res) =>
     res.json(await service(req).connectionToken(req.user.id, req.params.id))));
   router.post("/assets/:assetId/validation/sessions/:id/turn", handle(async (req, res) => {
