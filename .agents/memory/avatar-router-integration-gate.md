@@ -210,3 +210,17 @@ server fence during active work could duplicate provider charges.
 **How to apply:** Permit a new preparation cycle only after the old outcome is
 resolved. Keep prior image-version lineage, and distinguish local draft reset
 from saving the persona and from deleting remote assets.
+
+Re-registering identical image bytes can return the existing image/version,
+even with a previous-version reference. A retained training-image failure in
+live-options is history, not a fresh Gemini health check.
+
+**Why:** The live router allowed provisioning while returning an old failed
+`TRAINING_IMAGE_AI_MODEL_UNAVAILABLE` candidate with `creationOutcome: not_created`.
+The app's blanket rejection of any existing candidate prevented a new request,
+and local reset plus duplicate image registration exposed the same old failure.
+
+**How to apply:** Do not promise a new image version from reset alone. Distinguish
+historical candidate evidence from current request errors, and evaluate manual
+retry eligibility against the current router contract without weakening pending
+or unknown-outcome fences. Preserve additive training-image phase evidence.
