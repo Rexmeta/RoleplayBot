@@ -49,6 +49,7 @@ import type { ActorCulture } from '@shared/cultureMap';
 import { getScenarioPersonaTemplateId, stableActorIdForTemplate } from '@/components/admin/cultureMap/actorIdentity';
 import { EditorGroup, Field, FieldGrid, ToggleRow, AdvancedDisclosure, AiGenerateButton, aiBlockedReason } from './scenarioEditor/EditorPrimitives';
 import { ConversationLengthGroup } from './scenarioEditor/ConversationLengthGroup';
+import { PersonaMediaPreview, type ScenarioPersonaMedia } from './scenarioEditor/PersonaMediaPreview';
 import { ScenarioEditor, ScenarioEditorRegion, useScenarioEditorNavigation, revealScenarioEditorTarget } from './scenarioEditor/ScenarioEditor';
 
 interface ScenarioPersona {
@@ -586,7 +587,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   });
 
   // 등록된 페르소나 목록 조회
-  const { data: availablePersonas = [] } = useQuery<{ id: string; mbti: string; personality_traits?: string[]; communication_style?: string }[]>({
+  const { data: availablePersonas = [] } = useQuery<(ScenarioPersonaMedia & { personality_traits?: string[]; communication_style?: string })[]>({
     queryKey: ['/api/admin/personas'],
   });
 
@@ -2291,7 +2292,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       <span className="se-count">{formData.personas.length}명</span>
                       <SectionIssueIcon sectionId="section-personas" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
                     </p>
-                    <p className="se-toolbar-hint">카드를 펼쳐 인물의 프로필, 입장, 반응 방식과 문화 설정을 편집하세요.</p>
+                    <p className="se-toolbar-hint">기본 이미지와 아바타 설정을 확인하고, 카드를 펼쳐 프로필과 반응 방식을 편집하세요.</p>
                   </div>
                   <Button
                     type="button"
@@ -2368,6 +2369,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
                 <div className="se-actor-list">
                   {formData.personas.map((persona, index) => {
+                    const template = availablePersonas.find(p => p.id === getScenarioPersonaTemplateId(persona));
                     const updatePersona = (patch: Partial<ScenarioPersona>) => {
                       const newPersonas = [...formData.personas];
                       newPersonas[index] = { ...persona, ...patch };
@@ -2375,12 +2377,13 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     };
                     return (
                     <details key={index} id={`scenario-actor-${index}`} open={index === 0 ? true : undefined} className="se-actor">
-                      <summary className="se-actor-summary">
+                      <summary className="se-actor-summary flex-wrap">
                         <span className="se-actor-index" aria-hidden="true">{index + 1}</span>
                         <span className="se-actor-name">
                           {persona.name || `${index + 1}번 대화 상대`}
                           <small>{[persona.department, persona.position, persona.mbti].filter(Boolean).join(' · ') || '프로필 미입력'}</small>
                         </span>
+                        <PersonaMediaPreview persona={template} gender={persona.gender} />
                         {persona.isPrimary && <span className="se-chip is-info">주 상대</span>}
                         {persona.culture && <span className="se-chip">문화 설정</span>}
                         <ChevronDown className="se-actor-chevron h-4 w-4" aria-hidden="true" />
@@ -2455,6 +2458,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                     getAvailablePersonasForSlot().map((p) => (
                                       <SelectItem key={p.id} value={p.id}>
                                         <div className="flex items-center gap-2">
+                                          <PersonaMediaPreview persona={p} gender={persona.gender} compact />
                                           <span className="font-medium">{p.mbti}</span>
                                           <span className="text-xs text-slate-500">({p.id})</span>
                                         </div>

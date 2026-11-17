@@ -16,6 +16,7 @@ const fixture = vi.hoisted(() => ({
 const api = vi.hoisted(() => vi.fn(async () => ({ json: async () => ({ id: 'editor-fixture' }) })));
 const queries = vi.hoisted(() => ({
   scenarios: [fixture],
+  personas: [] as any[],
   categories: [{ id: 'sales', name: '영업', isActive: true }],
   validation: {},
 }));
@@ -32,6 +33,7 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: ({ queryKey }: any) => ({
     data: queryKey[0] === '/api/admin/scenarios' ? queries.scenarios :
       queryKey[0] === '/api/admin/categories' ? queries.categories :
+      queryKey[0] === '/api/admin/personas' ? queries.personas :
       queryKey[0] === '/api/admin/scenarios/validate' ? queries.validation : undefined,
     isLoading: false, refetch: vi.fn(),
   }),
@@ -48,7 +50,7 @@ vi.mock('@/components/admin/ScenarioLiveAvatarPolicy', () => ({ ScenarioLiveAvat
 vi.mock('@/components/admin/ScenarioCriteriaPreview', () => ({ ScenarioCriteriaPreview: () => null }));
 import { ScenarioManager } from '@/components/admin/ScenarioManager';
 
-beforeEach(() => { vi.clearAllMocks(); authorization.role = 'admin'; });
+beforeEach(() => { vi.clearAllMocks(); authorization.role = 'admin'; queries.scenarios = [fixture]; queries.personas = []; });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 async function openEditor() {
@@ -59,6 +61,24 @@ async function openEditor() {
 }
 const navigateSection = (name: string) => fireEvent.click(screen.getAllByRole('button', { name, exact: true })[0]);
 const changeField = (testId: string, value: string) => fireEvent.change(screen.getByTestId(testId), { target: { value } });
+
+it('shows the referenced template image and live setting in an actor card without copying media into the actor', async () => {
+  queries.personas = [{ id: 'template-live', mbti: 'ESTJ', avatarMode: 'live', images: { base: 'personas/live-base.png' } }];
+  queries.scenarios = [{ ...fixture, personas: [{
+    id: 'stable-actor', personaRef: 'template-live', name: '협상 상대', gender: 'female',
+    mbti: 'ESTJ', department: '구매', position: '팀장', experience: '5년', stance: '', goal: '', tradeoff: '',
+  }] }] as any;
+  await openEditor();
+  navigateSection('대화 상대');
+  const summary = document.querySelector('#scenario-actor-0 > summary')!;
+  expect(summary.textContent).toContain('라이브 아바타 설정');
+  expect(summary.querySelector('img')?.getAttribute('src')).toBe('/objects?key=personas%2Flive-base.png');
+  fireEvent.click(screen.getByTestId('button-save-scenario'));
+  await waitFor(() => expect(api).toHaveBeenCalledWith('PUT', '/api/admin/scenarios/editor-fixture',
+    expect.objectContaining({ personas: [expect.objectContaining({ id: 'stable-actor', personaRef: 'template-live' })] })));
+  const payload = api.mock.calls.find(call => call[0] === 'PUT')?.[2] as any;
+  expect(payload.personas[0].avatarMode).toBeUndefined();
+});
 
 it('saves real editor fields and unchanged advanced rules after moving between sections', async () => {
   render(<ScenarioManager />);
