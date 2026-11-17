@@ -85,7 +85,7 @@
     "express": "^4.22.3",
     "express-rate-limit": "^8.7.3",
     "express-session": "^1.18.1",
-    "fast-xml-parser": "^5.10.1",
+    "fast-xml-parser": "^5.12.1",
     "fflate": "^0.8.3",
     "framer-motion": "^11.13.1",
     "glob": "^14.0.2",
