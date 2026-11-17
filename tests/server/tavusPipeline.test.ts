@@ -66,6 +66,17 @@ beforeEach(() => {
   service = new TavusSessions(deps);
 });
 describe("scenario live avatar duration", () => {
+  it("keeps a running native room mounted during supervisor lease handoff", async () => {
+    remote.rendererState = "running";
+    await service.start("owner", "run", true);
+    remote.cleanupPending = true;
+    deps.client.call.mockClear();
+    expect((await service.session("owner", "run")).state).toBe("active");
+    expect(deps.client.call.mock.calls.some((c: any[]) => c[1].endsWith("/end"))).toBe(false);
+    remote.stopRequested = true;
+    expect((await service.session("owner", "run")).state).toBe("ending");
+  });
+
   it.each([[5, 300], [12, 600], [1, 60]])("uses a %s-minute scenario with a %s-second limit", async (minutes, seconds) => {
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);

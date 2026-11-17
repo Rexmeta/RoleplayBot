@@ -15,6 +15,8 @@ export default defineConfig({
       // Downloaded/generated external projects are not this application's tests.
       '**/generated-artifacts/**',
       '**/.local/avatarrouter-stt-pr/**',
+      // This independently tested router clone uses node:test, not Vitest.
+      '**/.local/avatarrouter-connection/**',
       '**/*.smoke.test.ts',
     ],
     environmentMatchGlobs: [

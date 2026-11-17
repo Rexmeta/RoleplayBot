@@ -144,7 +144,10 @@ export class TavusSessions {
     const state: State = closed ? "ended" :
       session.state === "ending" || remote.stopRequested || remote.status !== "active" ||
       Date.parse(remote.expiresAt) <= Date.now() ? "ending" :
-      remote.rendererState === "running" && !remote.cleanupPending ? "active" : "creating";
+      // A stale supervisor lease may temporarily mark cleanupPending even
+      // while the native provider call is active. Do not unmount its media and
+      // send /end solely because the router is handing workers over.
+      remote.rendererState === "running" ? "active" : "creating";
     const saved = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({
       ...current!, state: current?.state === "ended" ? "ended" :
         current?.state === "ending" && state !== "ended" ? "ending" : state,
