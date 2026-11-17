@@ -6,6 +6,8 @@ import { Dialog } from '@/components/ui/dialog';
 import { ScenarioEditor, ScenarioEditorRegion, revealScenarioEditorTarget } from '@/components/admin/scenarioEditor/ScenarioEditor';
 import { FlowGraphBuilder } from '@/components/admin/StateMachineBuilders';
 import { AutoResizeTextarea, AutoResizeTextareaHeightProvider } from '@/components/ui/auto-resize-textarea';
+import { ConversationLengthGroup, recommendedLength } from '@/components/admin/scenarioEditor/ConversationLengthGroup';
+import { AiGenerateButton, aiBlockedReason } from '@/components/admin/scenarioEditor/EditorPrimitives';
 import type { FlowGraph } from '@shared/schema/scenarios';
 
 const submit = vi.fn();
@@ -120,5 +122,42 @@ describe('editor textarea scroll ownership', () => {
     expect(screen.getByLabelText('편집기 입력').style.height).toBe('1200px');
     expect(screen.getByLabelText('편집기 입력').style.overflowY).toBe('hidden');
     height.mockRestore();
+  });
+});
+
+describe('organized section controls', () => {
+  it.each([
+    [1, 5, 8, 6, 8, 3], [2, 7, 10, 8, 12, 4],
+    [3, 10, 15, 12, 16, 5], [4, 12, 20, 14, 20, 6],
+  ])('retains recommended conversation limits for difficulty %s', (level, durationMin, durationMax, turnsMin, turnsMax, minValid) => {
+    expect(recommendedLength(level)).toEqual({ durationMin, durationMax, turnsMin, turnsMax, minValid });
+  });
+
+  it('retains numeric limits and defaults in the extracted conversation-length controls', () => {
+    const onChange = vi.fn();
+    render(<ConversationLengthGroup difficulty={2} targetTurns={10} onChange={onChange} />);
+    const duration = screen.getByRole('spinbutton', { name: '목표 시간' });
+    fireEvent.change(duration, { target: { value: '80' } });
+    expect(onChange).toHaveBeenLastCalledWith({ targetDurationMinutes: 60 });
+    fireEvent.change(duration, { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith({ targetDurationMinutes: 7 });
+    fireEvent.change(screen.getByRole('spinbutton', { name: '목표 턴 수' }), { target: { value: '1' } });
+    expect(onChange).toHaveBeenLastCalledWith({ targetTurns: 2 });
+    fireEvent.change(screen.getByRole('spinbutton', { name: /최소 유효 턴/ }), { target: { value: '20' } });
+    expect(onChange).toHaveBeenLastCalledWith({ minValidTurns: 10 });
+  });
+
+  it('explains unavailable AI generation without allowing the action', async () => {
+    const generate = vi.fn();
+    const reason = aiBlockedReason({ needsContext: true });
+    render(<AiGenerateButton loading={false} disabled blockedReason={reason} onClick={generate} />);
+    const button = screen.getByRole('button', { name: 'AI 초안' });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(button);
+    expect(generate).not.toHaveBeenCalled();
+    const wrapper = button.parentElement!;
+    expect(wrapper.tabIndex).toBe(0);
+    fireEvent.focus(wrapper);
+    expect((await screen.findByRole('tooltip')).textContent).toBe(reason);
   });
 });

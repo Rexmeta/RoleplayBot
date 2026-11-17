@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
   id: 'editor-fixture', title: '기존 협상 실습', description: '고객사와 공급 일정을 조율합니다.',
@@ -19,7 +19,8 @@ const queries = vi.hoisted(() => ({
   categories: [{ id: 'sales', name: '영업', isActive: true }],
   validation: {},
 }));
-vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'admin', role: 'admin' } }) }));
+const authorization = vi.hoisted(() => ({ role: 'admin' }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'admin', role: authorization.role } }) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/lib/localeUtils', () => ({ useDefaultSourceLocale: () => 'ko' }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({
@@ -47,7 +48,17 @@ vi.mock('@/components/admin/ScenarioLiveAvatarPolicy', () => ({ ScenarioLiveAvat
 vi.mock('@/components/admin/ScenarioCriteriaPreview', () => ({ ScenarioCriteriaPreview: () => null }));
 import { ScenarioManager } from '@/components/admin/ScenarioManager';
 
+beforeEach(() => { vi.clearAllMocks(); authorization.role = 'admin'; });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+async function openEditor() {
+  render(<ScenarioManager />);
+  fireEvent.pointerDown(screen.getByTestId('button-scenario-menu-editor-fixture'), { button: 0, ctrlKey: false });
+  fireEvent.click(await screen.findByTestId('button-edit-scenario-editor-fixture'));
+  await screen.findByTestId('input-scenario-title');
+}
+const navigateSection = (name: string) => fireEvent.click(screen.getAllByRole('button', { name, exact: true })[0]);
+const changeField = (testId: string, value: string) => fireEvent.change(screen.getByTestId(testId), { target: { value } });
 
 it('saves real editor fields and unchanged advanced rules after moving between sections', async () => {
   render(<ScenarioManager />);
@@ -68,4 +79,75 @@ it('saves real editor fields and unchanged advanced rules after moving between s
     terminationRules: fixture.terminationRules,
     flowGraph: { stages: [{ ...fixture.flowGraph.stages[0], goal: '고객의 우려를 먼저 확인' }] },
   })));
+});
+
+it('keeps all eight sections functional and saves edits from different groups together', async () => {
+  await openEditor();
+  changeField('input-skills', '협상, 경청');
+  navigateSection('상황과 학습자 역할');
+  expect(screen.getByTestId('textarea-situation').closest('[hidden]')).toBeNull();
+  changeField('textarea-situation', '고객이 납기 변경 사유를 설명해 달라고 요청했다.');
+  changeField('input-position', '영업 팀장');
+  navigateSection('대화 상대');
+  fireEvent.click(screen.getByTestId('add-persona'));
+  changeField('input-persona-name-0', '새로운 대화 상대');
+  navigateSection('학습 목표와 성공 기준');
+  changeField('textarea-optimal', '일정과 후속 조치를 구체적으로 합의한다.');
+  navigateSection('대화 상대');
+  expect((screen.getByTestId('input-persona-name-0') as HTMLInputElement).value).toBe('새로운 대화 상대');
+  fireEvent.click(screen.getByTestId('remove-persona-0'));
+  navigateSection('대화 흐름');
+  expect(screen.getByLabelText('1단계 목표').closest('[hidden]')).toBeNull();
+  navigateSection('평가 방식');
+  expect(screen.getByTestId('select-evaluation-criteria').closest('[hidden]')).toBeNull();
+  expect(document.getElementById('section-turns')?.closest('[hidden]')).toBeNull();
+  navigateSection('이미지·영상');
+  changeField('input-scenario-image', '/objects/editor-test-image.png');
+  navigateSection('공개 설정');
+  expect(document.querySelectorAll('#useVideoAvatar')).toHaveLength(1);
+  fireEvent.click(document.getElementById('isPublic')!);
+  navigateSection('기본 정보');
+  fireEvent.click(screen.getByTestId('button-save-scenario'));
+  await waitFor(() => expect(api).toHaveBeenCalledWith('PUT', '/api/admin/scenarios/editor-fixture', expect.objectContaining({
+    skills: ['협상', '경청'],
+    context: { ...fixture.context, situation: '고객이 납기 변경 사유를 설명해 달라고 요청했다.', playerRole: { ...fixture.context.playerRole, position: '영업 팀장' } },
+    successCriteria: { ...fixture.successCriteria, optimal: '일정과 후속 조치를 구체적으로 합의한다.' },
+    image: '/objects/editor-test-image.png',
+    isPublic: true,
+    targetDurationMinutes: fixture.targetDurationMinutes,
+    targetTurns: fixture.targetTurns,
+    minValidTurns: fixture.minValidTurns,
+    flowGraph: fixture.flowGraph,
+    terminationRules: fixture.terminationRules,
+  })));
+});
+
+it('returns to the correct group when a hidden required field is invalid', async () => {
+  await openEditor();
+  changeField('input-estimated-time', '');
+  navigateSection('대화 흐름');
+  fireEvent.click(screen.getByTestId('button-save-scenario'));
+  await waitFor(() => expect(screen.getByRole('heading', { name: '기본 정보' })).toBeTruthy());
+  expect(screen.getByRole('alert').textContent).toBeTruthy();
+  expect(api).not.toHaveBeenCalled();
+});
+
+it('reveals custom title validation without discarding edits in another section', async () => {
+  await openEditor();
+  changeField('input-scenario-title', '   ');
+  navigateSection('상황과 학습자 역할');
+  changeField('input-timeline', '다음 주 월요일');
+  fireEvent.click(screen.getByTestId('button-save-scenario'));
+  await waitFor(() => expect(screen.getByRole('heading', { name: '기본 정보' })).toBeTruthy());
+  navigateSection('상황과 학습자 역할');
+  expect((screen.getByTestId('input-timeline') as HTMLInputElement).value).toBe('다음 주 월요일');
+  expect(api).not.toHaveBeenCalled();
+});
+
+it('does not expose the former duplicate avatar toggle to an operator without access', async () => {
+  authorization.role = 'operator';
+  await openEditor();
+  navigateSection('공개 설정');
+  expect(document.querySelectorAll('#useVideoAvatar')).toHaveLength(0);
+  expect(document.getElementById('isPublic')).toBeTruthy();
 });

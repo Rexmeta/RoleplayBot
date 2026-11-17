@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient, streamApiRequest } from '@/lib/queryClient';
 import { ComplexScenario } from '@/lib/scenario-system';
@@ -26,7 +25,7 @@ import { NpcBehaviorHarnessBuilder } from './NpcBehaviorHarnessBuilder';
 import { DifficultyProfileBuilder } from './DifficultyProfileBuilder';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
+import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info, Plus, Trash2, Film, Video, VideoOff } from 'lucide-react';
 import { validateScenario } from '@shared/scenarioValidator';
 import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder, EvaluationHarnessBuilder } from './StateMachineBuilders';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
@@ -48,6 +47,8 @@ import { ActorCultureEditor } from '@/components/admin/cultureMap/ActorCultureEd
 import { ScenarioLiveAvatarPolicy } from '@/components/admin/ScenarioLiveAvatarPolicy';
 import type { ActorCulture } from '@shared/cultureMap';
 import { getScenarioPersonaTemplateId, stableActorIdForTemplate } from '@/components/admin/cultureMap/actorIdentity';
+import { EditorGroup, Field, FieldGrid, ToggleRow, AdvancedDisclosure, AiGenerateButton, aiBlockedReason } from './scenarioEditor/EditorPrimitives';
+import { ConversationLengthGroup } from './scenarioEditor/ConversationLengthGroup';
 import { ScenarioEditor, ScenarioEditorRegion, useScenarioEditorNavigation, revealScenarioEditorTarget } from './scenarioEditor/ScenarioEditor';
 
 interface ScenarioPersona {
@@ -136,6 +137,16 @@ const VIDEO_MODELS = [
   { value: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (720p)' },
   { value: 'veo-3.1-generate-preview', label: 'Veo 3.1 (1080p · 오디오 포함)', recommended: true },
 ] as const;
+
+const OBJECTIVE_TYPES: [string, string][] = [
+  ['역할책임명확화', '역할 및 책임 명확화'], ['우선순위협의', '우선순위 협의 및 합의'], ['공정평가기준수립', '공정한 평가 기준 수립'],
+  ['세대간이해증진', '세대 간 상호 이해 증진'], ['효과적소통정보공유', '효과적 소통 및 정보 공유'], ['의사결정표준화', '의사결정 프로세스 표준화'],
+  ['리더십스타일조정', '리더십 스타일 조정'], ['공로분배팀워크', '공로 분배 및 팀워크 강화'], ['정보투명성공유', '정보 투명성 및 공유'],
+  ['책임소재명확화', '책임 소재 명확화'], ['업무프로세스조정', '업무 프로세스 조정'], ['목표정렬', '목표 정렬 및 방향성 통일'],
+  ['전문성존중학습', '전문성 존중 및 학습'], ['업무경계협력', '업무 경계 설정 및 협력'], ['공정한조직문화', '공정한 조직 문화 조성'],
+  ['신뢰회복감정해소', '신뢰 회복 및 감정 해소'], ['기여도인정동기부여', '기여도 인정 및 동기 부여'], ['신뢰관계재구축', '신뢰 관계 재구축'],
+  ['리소스배분협의', '리소스 배분 협의 및 최적화'], ['다양성포용성증진', '다양성 이해 및 포용성 증진'],
+];
 
 const HARNESS_ALL_INCIDENT_TYPES = [
   'executive_join', 'customer_escalation', 'deadline_pressure',
@@ -2075,443 +2086,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 </details>
               )}
 
-              {/* 기본 정보 */}
-              <ScenarioEditorRegion sections={['basic', 'assessment', 'media', 'publish']} className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <ScenarioEditorRegion sections="basic"><h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('common.basicInfo', 'Basic Info')}</h3></ScenarioEditorRegion>
-                
-                {/* 시나리오 이미지 - 최상단으로 이동 */}
-                <ScenarioEditorRegion sections="media">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="image" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imageUrl')}</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleOpenImageSelector}
-                      className="text-xs"
-                    >
-                      📁 {t('admin.scenarioManager.form.selectExisting', '기존 이미지 선택')}
-                    </Button>
-                  </div>
-                  <Input
-                    id="image"
-                    value={formData.image || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
-                    placeholder={t('admin.scenarioManager.form.imageUrlPlaceholder')}
-                    data-testid="input-scenario-image"
-                    className="bg-white"
-                  />
-                  
-                  {/* 이미지 프롬프트 입력 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="imagePrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imagePrompt', 'Image Prompt (Optional)')}</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleLoadDefaultImagePrompt}
-                        disabled={!formData.title}
-                        className="text-xs"
-                      >
-                        {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
-                      </Button>
-                    </div>
-                    <AutoResizeTextarea
-                      id="imagePrompt"
-                      value={formData.imagePrompt || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, imagePrompt: e.target.value }))}
-                      placeholder={t('admin.scenarioManager.form.imagePromptPlaceholder', 'Enter custom image prompt. Leave empty to auto-generate.')}
-                      className="min-h-[80px] bg-white whitespace-pre-wrap"
-                      data-testid="textarea-image-prompt"
-                    />
-                    <p className="text-xs text-slate-500">
-                      예: "Modern corporate office with team meeting, professional photography, natural lighting"
-                    </p>
-                  </div>
-                  
-                  {/* 이미지 생성 버튼 */}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="w-full block">
-                          <Button
-                            type="button"
-                            onClick={handleGenerateImage}
-                            disabled={isGeneratingImage || !formData.title || isAnyGenerating}
-                            className="w-full"
-                            data-testid="button-generate-image"
-                          >
-                            {isGeneratingImage ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                {t('admin.scenarioManager.form.generatingImage')}
-                              </>
-                            ) : (
-                              `🎨 ${t('admin.scenarioManager.form.generateImage')}`
-                            )}
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      {isAnyGenerating && !isGeneratingImage && (
-                        <TooltipContent side="top" className="text-xs">
-                          다른 AI 생성이 진행 중입니다
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  {/* 이미지 미리보기 */}
-                  {formData.image && (
-                    <div className="mt-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm text-slate-600">{t('admin.scenarioManager.form.imagePreview')}:</p>
-                        {imageLoadFailed && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, image: '' }));
-                              setImageLoadFailed(false);
-                            }}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs"
-                          >
-                            <i className="fas fa-trash mr-1"></i>
-                            이미지 URL 삭제
-                          </Button>
-                        )}
-                      </div>
-                      <div 
-                        className="relative w-full h-48 bg-slate-100 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
-                        onClick={() => !imageLoadFailed && setImagePreviewUrl(selectedImageSignedUrl || toMediaUrl(formData.image) || null)}
-                        data-testid="image-preview-container"
-                      >
-                        {imageLoadFailed ? (
-                          <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm gap-2">
-                            <i className="fas fa-exclamation-triangle text-amber-500 text-2xl"></i>
-                            <span>이미지 파일을 찾을 수 없습니다</span>
-                            <span className="text-xs text-slate-400">위 버튼으로 이미지를 다시 생성하세요</span>
-                          </div>
-                        ) : (
-                          <img
-                            src={selectedImageSignedUrl || toMediaUrl(formData.image)}
-                            alt={t('admin.scenarioManager.form.imagePreview')}
-                            className="w-full h-full object-cover"
-                            onError={() => setImageLoadFailed(true)}
-                            onLoad={() => setImageLoadFailed(false)}
-                            data-testid="scenario-image-preview"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* 인트로 비디오 모드 선택 섹션 */}
-                <div className="space-y-3 mt-6 pt-6 border-t border-slate-200">
-                  <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.introVideo')}</Label>
-
-                  {/* 모드 선택 라디오 카드 */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {/* 사용 안 함 */}
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, introVideoMode: 'none' }))}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-all ${
-                        formData.introVideoMode === 'none'
-                          ? 'border-slate-700 bg-slate-50'
-                          : 'border-slate-200 bg-white hover:border-slate-400'
-                      }`}
-                      data-testid="video-mode-none"
-                    >
-                      <span className="text-xl">🚫</span>
-                      <span className="font-medium text-slate-700">사용 안 함</span>
-                      <span className="text-xs text-slate-500 text-center">인트로 없이 시작</span>
-                    </button>
-
-                    {/* 기본 비디오 */}
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, introVideoMode: 'default' }))}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-all ${
-                        formData.introVideoMode === 'default'
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-slate-200 bg-white hover:border-blue-300'
-                      }`}
-                      data-testid="video-mode-default"
-                    >
-                      <span className="text-xl">🎬</span>
-                      <span className="font-medium text-slate-700">기본 비디오</span>
-                      <span className="text-xs text-slate-500 text-center">공통 인트로 재생</span>
-                    </button>
-
-                    {/* 커스텀 비디오 */}
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, introVideoMode: 'custom' }))}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-all ${
-                        formData.introVideoMode === 'custom'
-                          ? 'border-purple-600 bg-purple-50'
-                          : 'border-slate-200 bg-white hover:border-purple-300'
-                      }`}
-                      data-testid="video-mode-custom"
-                    >
-                      <span className="text-xl">🎥</span>
-                      <span className="font-medium text-slate-700">커스텀 비디오</span>
-                      <span className="text-xs text-slate-500 text-center">시나리오별 영상</span>
-                    </button>
-                  </div>
-
-                  {/* 비디오 모델 오버라이드 */}
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-medium text-slate-600">비디오 모델 오버라이드</Label>
-                    <Select
-                      value={formData.modelVideoOverride || '__global__'}
-                      onValueChange={(v) => setFormData(prev => ({ ...prev, modelVideoOverride: v === '__global__' ? '' : v }))}
-                    >
-                      <SelectTrigger className="w-full sm:w-72 text-sm border-slate-300">
-                        <SelectValue placeholder="전역 기본값 사용" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__global__">전역 기본값 사용</SelectItem>
-                        {VIDEO_MODELS.map(m => (
-                          <SelectItem key={m.value} value={m.value}>
-                            {m.label}{(m as any).recommended ? ' ★' : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-slate-400">설정 시 시스템 전역 비디오 모델보다 우선 적용됩니다.</p>
-                  </div>
-
-                  {/* 기본 비디오 미리보기 + 교체 UI */}
-                  {formData.introVideoMode === 'default' && (
-                    <div className="mt-2 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-slate-500">
-                          기본 비디오 미리보기
-                          {defaultVideoInfo?.hasCustomVideo && (
-                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">커스텀</span>
-                          )}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="text-xs h-7 px-2"
-                            disabled={isUploadingDefaultVideo}
-                            onClick={() => defaultVideoInputRef.current?.click()}
-                          >
-                            {isUploadingDefaultVideo ? (
-                              <><Loader2 className="h-3 w-3 mr-1 animate-spin" />업로드 중...</>
-                            ) : (
-                              <><Upload className="h-3 w-3 mr-1" />비디오 교체</>
-                            )}
-                          </Button>
-                          {defaultVideoInfo?.hasCustomVideo && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={handleResetDefaultVideo}
-                            >
-                              초기화
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <input
-                        ref={defaultVideoInputRef}
-                        type="file"
-                        accept="video/webm,video/mp4"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleUploadDefaultVideo(file);
-                        }}
-                      />
-                      <div className="relative w-full bg-slate-900 rounded-lg overflow-hidden border">
-                        <video
-                          key={defaultVideoInfo?.url}
-                          src={defaultVideoInfo?.hasCustomVideo ? toMediaUrl(defaultVideoInfo.url) : '/videos/intro_default.webm'}
-                          controls
-                          className="w-full max-h-48 object-contain"
-                          preload="metadata"
-                          data-testid="default-video-preview"
-                        />
-                      </div>
-                      <p className="text-xs text-slate-400">WebM 또는 MP4 형식 지원 · 모든 "기본 비디오" 모드 시나리오에 적용됩니다</p>
-                    </div>
-                  )}
-
-                  {/* 커스텀 비디오 UI */}
-                  {formData.introVideoMode === 'custom' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleOpenVideoSelector}
-                            className="text-xs"
-                          >
-                            📁 {t('admin.scenarioManager.form.selectExistingVideo', '기존 비디오 선택')}
-                          </Button>
-                        </div>
-                        {formData.introVideoUrl && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleDeleteVideo}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            data-testid="button-delete-video"
-                          >
-                            <i className="fas fa-trash mr-1"></i>
-                            {t('common.delete')}
-                          </Button>
-                        )}
-                      </div>
-
-                      {/* 비디오 URL 직접 입력 */}
-                      <Input
-                        id="introVideoUrl"
-                        value={formData.introVideoUrl || ''}
-                        onChange={(e) => {
-                          setFormData(prev => ({ ...prev, introVideoUrl: e.target.value, introVideoModel: '' }));
-                          if (e.target.value) setVideoLoadFailed(false);
-                        }}
-                        placeholder="비디오 URL을 입력하세요 (예: /scenarios/videos/intro.webm)"
-                        data-testid="input-intro-video-url"
-                        className="bg-white"
-                      />
-
-                      {/* 비디오 프롬프트 입력 */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="videoPrompt" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.videoPrompt')}</Label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleLoadDefaultVideoPrompt}
-                            disabled={!formData.title}
-                            className="text-xs"
-                          >
-                            {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
-                          </Button>
-                        </div>
-                        <AutoResizeTextarea
-                          id="videoPrompt"
-                          value={formData.videoPrompt || ''}
-                          onChange={(e) => setFormData(prev => ({ ...prev, videoPrompt: e.target.value }))}
-                          placeholder={t('admin.scenarioManager.form.videoPromptPlaceholder')}
-                          className="min-h-[80px] bg-white whitespace-pre-wrap"
-                          data-testid="textarea-video-prompt"
-                        />
-                        <p className="text-xs text-slate-500">
-                          예: "Modern tech office, employees discussing urgently around monitors showing security alerts, tense atmosphere"
-                        </p>
-                      </div>
-
-                      {/* 비디오 생성 버튼 */}
-                      <TooltipProvider>
-                      <Tooltip>
-                      <TooltipTrigger asChild>
-                      <span className="w-full block">
-                      <Button
-                        type="button"
-                        onClick={handleGenerateVideo}
-                        disabled={isGeneratingVideo || !editingScenario?.id || isAnyGenerating}
-                        className="w-full"
-                        variant={editingScenario?.id ? "default" : "secondary"}
-                        data-testid="button-generate-video"
-                      >
-                        {isGeneratingVideo ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {t('admin.scenarioManager.form.generatingVideo')}
-                          </>
-                        ) : editingScenario?.id ? (
-                          `🎬 ${t('admin.scenarioManager.form.generateVideo')}`
-                        ) : (
-                          t('admin.scenarioManager.form.videoAfterSave')
-                        )}
-                      </Button>
-                      </span>
-                      </TooltipTrigger>
-                      {isAnyGenerating && !isGeneratingVideo && (
-                        <TooltipContent side="top" className="text-xs">
-                          다른 AI 생성이 진행 중입니다
-                        </TooltipContent>
-                      )}
-                      </Tooltip>
-                      </TooltipProvider>
-
-                      {/* 비디오 미리보기 */}
-                      {isGeneratingVideo && (
-                        <div className="mt-3">
-                          <div className="flex items-center justify-center h-32 bg-slate-900 rounded-lg border text-slate-400 text-sm">
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            비디오 생성 중...
-                          </div>
-                        </div>
-                      )}
-                      {!isGeneratingVideo && videoLoadFailed && (
-                        <div className="mt-3">
-                          <div className="flex items-center justify-center h-32 bg-slate-900 rounded-lg border text-slate-400 text-sm">
-                            <span className="mr-2">⚠️</span>비디오를 불러올 수 없습니다. 새로 생성해 주세요.
-                          </div>
-                        </div>
-                      )}
-                      {!isGeneratingVideo && !videoLoadFailed && formData.introVideoUrl && (
-                        <div className="mt-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <p className="text-sm text-slate-600">비디오 미리보기 (클릭하면 전체보기):</p>
-                            {formData.introVideoModel && (() => {
-                              const m = formData.introVideoModel;
-                              const label = m.includes('lite') ? 'Lite' : m.includes('fast') ? 'Fast' : 'Full';
-                              return (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-violet-300 text-violet-700 bg-violet-50 font-mono">
-                                  {label}
-                                </Badge>
-                              );
-                            })()}
-                          </div>
-                          <div
-                            className="relative w-full bg-slate-900 rounded-lg overflow-hidden border cursor-pointer hover:shadow-lg transition-shadow"
-                            onClick={() => setVideoPreviewUrl(toMediaUrl(formData.introVideoUrl) || null)}
-                            data-testid="video-preview-container"
-                          >
-                            <video
-                              key={formData.introVideoUrl}
-                              src={toMediaUrl(formData.introVideoUrl)}
-                              controls
-                              className="w-full max-h-64 object-contain"
-                              preload="metadata"
-                              onError={() => {
-                                setVideoLoadFailed(true);
-                                setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoModel: '' }));
-                              }}
-                              data-testid="scenario-video-preview"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                
-                </ScenarioEditorRegion>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <ScenarioEditorRegion sections="basic">
-                  <div>
-                    <Label htmlFor="title" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.scenarioTitle')}</Label>
+              {/* ── 기본 정보 ── */}
+              <ScenarioEditorRegion sections="basic" className="se-stack">
+                <EditorGroup title="개요" description="목록과 시작 화면에서 학습자가 가장 먼저 보는 정보입니다.">
+                  <Field label={t('admin.scenarioManager.form.scenarioTitle')} htmlFor="title" required>
                     <Input
                       id="title"
                       value={formData.title}
@@ -2521,1147 +2099,667 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       data-testid="input-scenario-title"
                       className="bg-white"
                     />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="category" className="text-sm font-medium text-slate-700">
-                      {t('admin.scenarioManager.form.category')} <span className="text-red-500">*</span>
-                    </Label>
-                    <Select 
-                      value={formData.categoryId || ''} 
-                      onValueChange={(val) => setFormData(prev => ({ ...prev, categoryId: val }))}
-                    >
-                      <SelectTrigger 
-                        id="category"
-                        className={`bg-white ${!formData.categoryId ? 'border-red-300' : ''}`}
-                        data-testid="select-category"
+                  </Field>
+                  <FieldGrid>
+                    <Field label={t('admin.scenarioManager.form.category')} htmlFor="category" required
+                      error={!formData.categoryId ? t('admin.scenarioManager.form.selectCategory') : undefined}>
+                      <Select
+                        value={formData.categoryId || ''}
+                        onValueChange={(val) => setFormData(prev => ({ ...prev, categoryId: val }))}
                       >
-                        <SelectValue placeholder={t('admin.scenarioManager.form.categoryPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories?.map(cat => {
-                          const hierarchyLabel = cat.company && cat.organization 
-                            ? `${cat.company.name} > ${cat.organization.name} > ${cat.name}`
-                            : cat.organization 
-                            ? `${cat.organization.name} > ${cat.name}`
-                            : cat.name;
-                          return (
-                            <SelectItem key={cat.id} value={String(cat.id)} data-testid={`category-option-${cat.id}`}>
-                              {hierarchyLabel}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                    {!formData.categoryId && (
-                      <p className="text-xs text-red-500 mt-1">{t('admin.scenarioManager.form.selectCategory')}</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="estimatedTime" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.estimatedTime', 'Estimated Time')}</Label>
-                    <Input
-                      id="estimatedTime"
-                      value={formData.estimatedTime}
-                      onChange={(e) => setFormData(prev => ({ ...prev, estimatedTime: e.target.value }))}
-                      placeholder={t('admin.scenarioManager.form.estimatedTimePlaceholder', 'e.g., 30-45 min')}
-                      required
-                      data-testid="input-estimated-time"
-                      className="bg-white"
-                    />
-                  </div>
-
-                  {/* 대화 시간 설정 */}
-                  </ScenarioEditorRegion>
-                  <ScenarioEditorRegion sections="assessment">
-                  {(() => {
-                    const difficulty = formData.difficulty ?? 4;
-                    const rec = difficulty === 1
-                      ? { durationMin: 5, durationMax: 8, turnsMin: 6, turnsMax: 8, minValid: 3 }
-                      : difficulty === 2
-                      ? { durationMin: 7, durationMax: 10, turnsMin: 8, turnsMax: 12, minValid: 4 }
-                      : difficulty === 3
-                      ? { durationMin: 10, durationMax: 15, turnsMin: 12, turnsMax: 16, minValid: 5 }
-                      : { durationMin: 12, durationMax: 20, turnsMin: 14, turnsMax: 20, minValid: 6 };
-                    const difficultyLabel = ['', '입문', '기본', '심화', '전문가'][difficulty] || '전문가';
-                    const targetDuration = formData.targetDurationMinutes ?? rec.durationMin;
-                    const targetTurns = formData.targetTurns ?? rec.turnsMin;
-                    const minValid = formData.minValidTurns ?? rec.minValid;
-                    const isDurationInRange = targetDuration >= rec.durationMin && targetDuration <= rec.durationMax;
-                    const isTurnsInRange = targetTurns >= rec.turnsMin && targetTurns <= rec.turnsMax;
-                    // compute slider track percentages for recommended band overlay (max scale 30 turns, 60 min)
-                    const durationRecLeft = `${(rec.durationMin / 60) * 100}%`;
-                    const durationRecWidth = `${((rec.durationMax - rec.durationMin) / 60) * 100}%`;
-                    const turnsRecLeft = `${(rec.turnsMin / 30) * 100}%`;
-                    const turnsRecWidth = `${((rec.turnsMax - rec.turnsMin) / 30) * 100}%`;
-                    return (
-                    <TooltipProvider>
-                    <div id="section-turns" className="border border-slate-200 rounded-lg p-4 space-y-5 bg-slate-50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-slate-500" />
-                          <span className="text-sm font-semibold text-slate-700">대화 시간 설정</span>
-                        </div>
-                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
-                          {difficultyLabel} 권장: {rec.durationMin}~{rec.durationMax}분 · {rec.turnsMin}~{rec.turnsMax}턴
-                        </span>
-                      </div>
-
-                      {/* 목표 시간 슬라이더 */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Label className="text-xs font-medium text-slate-600">목표 시간 (분)</Label>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-slate-400 cursor-help text-xs">ⓘ</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                대화의 목표 소요 시간입니다. AI가 평가 시 기준값으로 활용합니다. 권장 범위(초록 구간)는 선택한 난이도에 맞게 자동 계산됩니다.
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number" min={1} max={60}
-                              value={targetDuration}
-                              onChange={(e) => setFormData(prev => ({ ...prev, targetDurationMinutes: Math.max(1, Math.min(60, parseInt(e.target.value) || rec.durationMin)) }))}
-                              className={`w-16 h-7 text-xs text-center bg-white ${isDurationInRange ? 'border-green-400' : 'border-amber-300'}`}
-                            />
-                            <span className="text-xs text-slate-400">분</span>
-                            {isDurationInRange
-                              ? <span className="text-xs text-green-600 font-medium">✓ 권장 범위</span>
-                              : <span className="text-xs text-amber-600 font-medium">권장: {rec.durationMin}~{rec.durationMax}분</span>
-                            }
-                          </div>
-                        </div>
-                        <div className="relative pt-1">
-                          {/* 권장 범위 초록 밴드 */}
-                          <div className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded bg-green-200 pointer-events-none z-10"
-                            style={{ left: durationRecLeft, width: durationRecWidth }} />
-                          <Slider
-                            min={1} max={60} step={1}
-                            value={[targetDuration]}
-                            onValueChange={([v]) => setFormData(prev => ({ ...prev, targetDurationMinutes: v }))}
-                            className="relative z-20"
-                          />
-                        </div>
-                        <div className="flex justify-between text-[10px] text-slate-400 px-0.5">
-                          <span>1분</span><span>15분</span><span>30분</span><span>60분</span>
-                        </div>
-                      </div>
-
-                      {/* 목표 턴 수 슬라이더 */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Label className="text-xs font-medium text-slate-600">목표 턴 수</Label>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-slate-400 cursor-help text-xs">ⓘ</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                한 턴은 학습자의 발화 1회입니다. 목표 턴의 80%에 도달하면 AI가 자연스러운 마무리를 유도합니다. 점수는 목표 대비 실제 대화량을 기준으로 정규화됩니다.
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number" min={2} max={30}
-                              value={targetTurns}
-                              onChange={(e) => setFormData(prev => ({ ...prev, targetTurns: Math.max(2, Math.min(30, parseInt(e.target.value) || rec.turnsMin)) }))}
-                              className={`w-16 h-7 text-xs text-center bg-white ${isTurnsInRange ? 'border-green-400' : 'border-amber-300'}`}
-                            />
-                            <span className="text-xs text-slate-400">턴</span>
-                            {isTurnsInRange
-                              ? <span className="text-xs text-green-600 font-medium">✓ 권장 범위</span>
-                              : <span className="text-xs text-amber-600 font-medium">권장: {rec.turnsMin}~{rec.turnsMax}턴</span>
-                            }
-                          </div>
-                        </div>
-                        <div className="relative pt-1">
-                          <div className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded bg-green-200 pointer-events-none z-10"
-                            style={{ left: turnsRecLeft, width: turnsRecWidth }} />
-                          <Slider
-                            min={2} max={30} step={1}
-                            value={[targetTurns]}
-                            onValueChange={([v]) => setFormData(prev => ({ ...prev, targetTurns: v }))}
-                            className="relative z-20"
-                          />
-                        </div>
-                        <div className="flex justify-between text-[10px] text-slate-400 px-0.5">
-                          <span>2턴</span><span>10턴</span><span>20턴</span><span>30턴</span>
-                        </div>
-                      </div>
-
-                      {/* 최소 유효 턴 */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Label className="text-xs font-medium text-slate-600">최소 유효 턴</Label>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-slate-400 cursor-help text-xs">ⓘ</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                이 턴 수에 미달하면 역량 점수 대신 &ldquo;대화 분량 부족&rdquo; 안내가 표시됩니다. 목표 턴 수의 30~40%를 권장합니다.
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number" min={1} max={targetTurns}
-                              value={minValid}
-                              onChange={(e) => setFormData(prev => ({ ...prev, minValidTurns: Math.max(1, Math.min(targetTurns, parseInt(e.target.value) || rec.minValid)) }))}
-                              className="w-16 h-7 text-xs text-center bg-white"
-                            />
-                            <span className="text-xs text-slate-400">턴 · 권장 {rec.minValid}턴</span>
-                          </div>
-                        </div>
-                        <Slider
-                          min={1} max={targetTurns} step={1}
-                          value={[minValid]}
-                          onValueChange={([v]) => setFormData(prev => ({ ...prev, minValidTurns: v }))}
-                        />
-                      </div>
-
-                      <p className="text-[11px] text-slate-400 italic border-t border-slate-200 pt-3">
-                        목표 턴의 80% 도달 시 AI가 자연스럽게 마무리를 유도합니다. 점수는 목표 대비 실제 발화량(턴 수 + 문자 수)으로 정규화됩니다.
-                      </p>
-                    </div>
-                    </TooltipProvider>
-                    );
-                  })()}
-                  
-                  </ScenarioEditorRegion>
-                  <ScenarioEditorRegion sections="publish">
-                  <ScenarioLiveAvatarPolicy key={editingScenario?.id ?? "new"} scenarioId={editingScenario?.id} />
-
-                  {canManageVideoAvatar && <div className="flex items-center gap-3">
-                    <Switch
-                      id="useVideoAvatar"
-                      checked={formData.useVideoAvatar || false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, useVideoAvatar: checked }))}
-                    />
-                    <Label htmlFor="useVideoAvatar" className="text-sm font-medium text-slate-700 cursor-pointer">
-                      🎬 비디오 아바타 사용
-                    </Label>
-                    <span className="text-xs text-slate-500">
-                      {formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
-                    </span>
-                  </div>}
-
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="useVideoAvatar"
-                      checked={formData.useVideoAvatar || false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, useVideoAvatar: checked }))}
-                    />
-                    <Label htmlFor="useVideoAvatar" className="text-sm font-medium text-slate-700 cursor-pointer">
-                      🎬 비디오 아바타 사용
-                    </Label>
-                    <span className="text-xs text-slate-500">
-                      {formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="isDemo"
-                      checked={formData.isDemo || false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isDemo: checked }))}
-                    />
-                    <Label htmlFor="isDemo" className="text-sm font-medium text-slate-700 cursor-pointer">
-                      {t('admin.scenarioManager.form.isDemo', 'Guest Demo Scenario')}
-                    </Label>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="isPublic"
-                      checked={formData.isPublic || false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isPublic: checked }))}
-                    />
-                    <Label htmlFor="isPublic" className="text-sm font-medium text-slate-700 cursor-pointer">
-                      {t('admin.scenarioManager.form.isPublic', '공개 시나리오')}
-                    </Label>
-                    <span className="text-xs text-slate-500">
-                      {formData.isPublic
-                        ? t('admin.scenarioManager.form.isPublicOn', '일반 사용자에게 노출됩니다')
-                        : t('admin.scenarioManager.form.isPublicOff', '관리자/운영자만 접근 가능합니다')}
-                    </span>
-                  </div>
-                  
-                  <div className="border-t pt-3 mt-3 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Switch
-                        id="storeListed"
-                        checked={formData.storeListed || false}
-                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, storeListed: checked }))}
-                      />
-                      <Star className="h-4 w-4 text-amber-500" />
-                      <Label htmlFor="storeListed" className="text-sm font-medium text-slate-700 cursor-pointer">
-                        Publish to Store
-                      </Label>
-                      <span className="text-xs text-slate-500">
-                        {formData.storeListed ? 'Listed in content store' : 'Not in store'}
-                      </span>
-                    </div>
-                    {formData.storeListed && (
-                      <div className="ml-8 space-y-2">
-                        <div className="flex items-center gap-3">
-                          <Label className="text-xs text-slate-600 w-24">Price (USD)</Label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            className="border rounded px-2 py-1 text-sm w-24"
-                            value={formData.storePriceUsd ?? ''}
-                            onChange={e => setFormData(prev => ({ ...prev, storePriceUsd: e.target.value ? parseFloat(e.target.value) : null }))}
-                          />
-                          <span className="text-xs text-slate-500">0 = free</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Label className="text-xs text-slate-600 w-24">Pack ID</Label>
-                          <input
-                            type="text"
-                            placeholder="Store pack ID (optional)"
-                            className="border rounded px-2 py-1 text-sm flex-1"
-                            value={formData.storePackId ?? ''}
-                            onChange={e => setFormData(prev => ({ ...prev, storePackId: e.target.value || null }))}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div id="section-source-locale" className="flex items-center gap-3 border-t pt-3 mt-3">
-                    {!editingScenario ? (
-                      <>
-                        <Switch
-                          id="autoTranslate"
-                          checked={formData.autoTranslate || false}
-                          onCheckedChange={(checked) => setFormData(prev => ({ ...prev, autoTranslate: checked }))}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-amber-500" />
-                          <Label htmlFor="autoTranslate" className="text-sm font-medium text-slate-700 cursor-pointer">
-                            {t('admin.evaluationCriteria.autoTranslate')}
-                          </Label>
-                        </div>
-                        <span className="text-xs text-slate-500">
-                          {t('admin.evaluationCriteria.autoTranslateDescription')}
-                        </span>
-                      </>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => editingScenario?.id && autoTranslateMutation.mutate(editingScenario.id)}
-                        disabled={autoTranslateMutation.isPending}
-                        className="flex items-center gap-2"
-                      >
-                        <Sparkles className="h-4 w-4 text-amber-500" />
-                        {autoTranslateMutation.isPending 
-                          ? t('admin.common.loading')
-                          : t('admin.evaluationCriteria.triggerAutoTranslate')
-                        }
-                      </Button>
-                    )}
-                  </div>
-                  </ScenarioEditorRegion>
-                </div>
-                <ScenarioEditorRegion sections="basic">
-                <div>
-                  <Label htmlFor="description" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.scenarioDescription')}</Label>
-                  <AutoResizeTextarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder={t('admin.scenarioManager.form.scenarioDescriptionPlaceholder')}
-                    className="min-h-[100px] bg-white whitespace-pre-wrap"
-                    required
-                    data-testid="textarea-scenario-description"
-                  />
-                </div>
-
-                </ScenarioEditorRegion>
-                <ScenarioEditorRegion sections="assessment">
-                {/* 평가 기준 선택 */}
-                <div>
-                  <Label htmlFor="evaluationCriteria" className="text-sm font-medium text-slate-700">
-                    {t('admin.scenarioManager.form.evaluationCriteria')}
-                  </Label>
-                  <Select 
-                    value={formData.evaluationCriteriaSetId || 'default'} 
-                    onValueChange={(val) => setFormData(prev => ({ ...prev, evaluationCriteriaSetId: val === 'default' ? '' : val }))}
-                  >
-                    <SelectTrigger 
-                      className="bg-white"
-                      data-testid="select-evaluation-criteria"
-                    >
-                      <SelectValue placeholder={t('admin.scenarioManager.form.selectEvaluationCriteria')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">{t('admin.scenarioManager.form.defaultCriteria', 'Use default criteria')}</SelectItem>
-                      {evaluationCriteriaSets?.map(criteria => (
-                        <SelectItem key={criteria.id} value={criteria.id} data-testid={`criteria-option-${criteria.id}`}>
-                          {criteria.name} {criteria.isDefault && `(${t('common.default', 'Default')})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {t('admin.scenarioManager.form.evaluationCriteriaHelp')}
-                  </p>
-                  <ScenarioCriteriaPreview criteriaSetId={formData.evaluationCriteriaSetId} />
-                </div>
-                </ScenarioEditorRegion>
-              </ScenarioEditorRegion>
-              {/* 상황 설정 */}
-              <ScenarioEditorRegion sections="situation" className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('admin.scenarioManager.form.situationSettings', 'Situation Settings')}</h3>
-                
-                <div>
-                  <Label htmlFor="situation" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.situation')}</Label>
-                  <AutoResizeTextarea
-                    id="situation"
-                    value={formData.context.situation}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      context: { ...prev.context, situation: e.target.value }
-                    }))}
-                    placeholder={t('admin.scenarioManager.form.situationPlaceholder')}
-                    className="min-h-[80px] bg-white whitespace-pre-wrap"
-                    data-testid="textarea-situation"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="timeline" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.timeline')}</Label>
-                    <Input
-                      id="timeline"
-                      value={formData.context.timeline}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { ...prev.context, timeline: e.target.value }
-                      }))}
-                      placeholder={t('admin.scenarioManager.form.timelinePlaceholder')}
-                      data-testid="input-timeline"
-                      className="bg-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="stakes" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.stakes')}</Label>
-                    <AutoResizeTextarea
-                      id="stakes"
-                      value={formData.context.stakes}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { ...prev.context, stakes: e.target.value }
-                      }))}
-                      placeholder={t('admin.scenarioManager.form.stakesPlaceholder')}
-                      data-testid="input-stakes"
-                      className="min-h-[80px] bg-white whitespace-pre-wrap"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="position" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerPosition', 'Player Position')}</Label>
-                    <Input
-                      id="position"
-                      value={formData.context.playerRole.position}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { 
-                          ...prev.context, 
-                          playerRole: { ...prev.context.playerRole, position: e.target.value }
-                        }
-                      }))}
-                      placeholder={t('admin.scenarioManager.form.playerPositionPlaceholder', 'e.g., Junior Developer')}
-                      data-testid="input-position"
-                      className="bg-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="playerDepartment" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerDepartment', 'Player Department')}</Label>
-                    <Input
-                      id="playerDepartment"
-                      value={formData.context.playerRole.department}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { 
-                          ...prev.context, 
-                          playerRole: { ...prev.context.playerRole, department: e.target.value }
-                        }
-                      }))}
-                      placeholder={t('admin.scenarioManager.form.playerDepartmentPlaceholder', 'e.g., Development Team')}
-                      data-testid="input-player-department"
-                      className="bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="playerExperience" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerExperience', 'Player Experience')}</Label>
-                    <Input
-                      id="playerExperience"
-                      value={formData.context.playerRole.experience}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { 
-                          ...prev.context, 
-                          playerRole: { ...prev.context.playerRole, experience: e.target.value }
-                        }
-                      }))}
-                      placeholder={t('admin.scenarioManager.form.playerExperiencePlaceholder', 'e.g., 6 months')}
-                      data-testid="input-player-experience"
-                      className="bg-white"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="responsibility" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.playerResponsibility', 'Responsibility')}</Label>
-                    <Input
-                      id="responsibility"
-                      value={formData.context.playerRole.responsibility}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        context: { 
-                          ...prev.context, 
-                          playerRole: { ...prev.context.playerRole, responsibility: e.target.value }
-                        }
-                      }))}
-                      placeholder={t('admin.scenarioManager.form.playerResponsibilityPlaceholder', 'e.g., Coordinate with departments')}
-                      data-testid="input-responsibility"
-                      className="bg-white"
-                    />
-                  </div>
-                </div>
-              </ScenarioEditorRegion>
-
-              {/* 목표 및 성공 기준 */}
-              <ScenarioEditorRegion sections="goals" id="section-success-criteria" className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200 flex items-center">{t('admin.scenarioManager.form.objectivesAndCriteria', 'Objectives & Success Criteria')}<SectionIssueIcon sectionId="section-success-criteria" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></h3>
-                
-                <div>
-                  <Label htmlFor="objectiveType" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.objectiveType')}</Label>
-                  <Select 
-                    value={formData.objectiveType || ''} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, objectiveType: value }))}
-                  >
-                    <SelectTrigger className="bg-white">
-                      <SelectValue placeholder={t('admin.scenarioManager.form.selectObjectiveType')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="역할책임명확화">역할 및 책임 명확화</SelectItem>
-                      <SelectItem value="우선순위협의">우선순위 협의 및 합의</SelectItem>
-                      <SelectItem value="공정평가기준수립">공정한 평가 기준 수립</SelectItem>
-                      <SelectItem value="세대간이해증진">세대 간 상호 이해 증진</SelectItem>
-                      <SelectItem value="효과적소통정보공유">효과적 소통 및 정보 공유</SelectItem>
-                      <SelectItem value="의사결정표준화">의사결정 프로세스 표준화</SelectItem>
-                      <SelectItem value="리더십스타일조정">리더십 스타일 조정</SelectItem>
-                      <SelectItem value="공로분배팀워크">공로 분배 및 팀워크 강화</SelectItem>
-                      <SelectItem value="정보투명성공유">정보 투명성 및 공유</SelectItem>
-                      <SelectItem value="책임소재명확화">책임 소재 명확화</SelectItem>
-                      <SelectItem value="업무프로세스조정">업무 프로세스 조정</SelectItem>
-                      <SelectItem value="목표정렬">목표 정렬 및 방향성 통일</SelectItem>
-                      <SelectItem value="전문성존중학습">전문성 존중 및 학습</SelectItem>
-                      <SelectItem value="업무경계협력">업무 경계 설정 및 협력</SelectItem>
-                      <SelectItem value="공정한조직문화">공정한 조직 문화 조성</SelectItem>
-                      <SelectItem value="신뢰회복감정해소">신뢰 회복 및 감정 해소</SelectItem>
-                      <SelectItem value="기여도인정동기부여">기여도 인정 및 동기 부여</SelectItem>
-                      <SelectItem value="신뢰관계재구축">신뢰 관계 재구축</SelectItem>
-                      <SelectItem value="리소스배분협의">리소스 배분 협의 및 최적화</SelectItem>
-                      <SelectItem value="다양성포용성증진">다양성 이해 및 포용성 증진</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="objectives" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.objectives')} ({t('admin.scenarioManager.form.separatedByNewline', 'separated by newline')})</Label>
-                  <AutoResizeTextarea
-                    id="objectives"
-                    value={formData.objectives.join('\n')}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      objectives: e.target.value.split('\n').filter(obj => obj.trim())
-                    }))}
-                    placeholder="각 부서의 이해관계와 우려사항 파악&#10;부서 간 갈등을 중재하고 합의점 도출&#10;품질과 일정을 균형있게 고려한 현실적 해결책 제시"
-                    className="min-h-[100px] bg-white whitespace-pre-wrap"
-                    data-testid="textarea-objectives"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="optimal" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.optimal')}</Label>
-                    <AutoResizeTextarea
-                      id="optimal"
-                      value={formData.successCriteria.optimal}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        successCriteria: { ...prev.successCriteria, optimal: e.target.value }
-                      }))}
-                      placeholder="모든 부서가 만족하는 타협안 도출"
-                      className="min-h-[60px] bg-white whitespace-pre-wrap"
-                      data-testid="textarea-optimal"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="good" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.good')}</Label>
-                    <AutoResizeTextarea
-                      id="good"
-                      value={formData.successCriteria.good}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        successCriteria: { ...prev.successCriteria, good: e.target.value }
-                      }))}
-                      placeholder="주요 이해관계자들의 핵심 요구사항 반영"
-                      className="min-h-[60px] bg-white whitespace-pre-wrap"
-                      data-testid="textarea-good"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="acceptable" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.acceptable')}</Label>
-                    <AutoResizeTextarea
-                      id="acceptable"
-                      value={formData.successCriteria.acceptable}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        successCriteria: { ...prev.successCriteria, acceptable: e.target.value }
-                      }))}
-                      placeholder="최소한의 품질 기준을 유지하면서 일정 준수"
-                      className="min-h-[60px] bg-white whitespace-pre-wrap"
-                      data-testid="textarea-acceptable"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="failure" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.failure')}</Label>
-                    <AutoResizeTextarea
-                      id="failure"
-                      value={formData.successCriteria.failure}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        successCriteria: { ...prev.successCriteria, failure: e.target.value }
-                      }))}
-                      placeholder="부서 간 갈등 심화 또는 비현실적 해결책 제시"
-                      className="min-h-[60px] bg-white whitespace-pre-wrap"
-                      data-testid="textarea-failure"
-                    />
-                  </div>
-                </div>
-              </ScenarioEditorRegion>
-
-              {/* 역량 및 페르소나 */}
-              <ScenarioEditorRegion sections={['basic', 'actors']} className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <ScenarioEditorRegion sections="actors">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200 flex items-center">{t('admin.scenarioManager.form.competenciesAndPersonas')}<SectionIssueIcon sectionId="section-personas" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></h3>
-                
-                </ScenarioEditorRegion>
-                <ScenarioEditorRegion sections="basic">
-                <div>
-                  <Label htmlFor="skills" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.skills')} ({t('admin.scenarioManager.form.separatedByComma', 'comma-separated')})</Label>
-                  <Input
-                    id="skills"
-                    value={formData.skills.join(', ')}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                    }))}
-                    placeholder={t('admin.scenarioManager.form.skillsPlaceholder', 'Conflict mediation, stakeholder management, problem solving, negotiation')}
-                    data-testid="input-skills"
-                    className="bg-white"
-                  />
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {formData.skills.map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {skill}
-                        <button 
-                          type="button"
-                          onClick={() => removeSkill(index)}
-                          className="ml-1 hover:bg-red-200"
-                          data-testid={`remove-skill-${index}`}
+                        <SelectTrigger
+                          id="category"
+                          className={`bg-white ${!formData.categoryId ? 'border-red-300' : ''}`}
+                          data-testid="select-category"
                         >
-                          ×
-                        </button>
-                      </Badge>
+                          <SelectValue placeholder={t('admin.scenarioManager.form.categoryPlaceholder')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories?.map(cat => {
+                            const hierarchyLabel = cat.company && cat.organization
+                              ? `${cat.company.name} > ${cat.organization.name} > ${cat.name}`
+                              : cat.organization
+                              ? `${cat.organization.name} > ${cat.name}`
+                              : cat.name;
+                            return (
+                              <SelectItem key={cat.id} value={String(cat.id)} data-testid={`category-option-${cat.id}`}>
+                                {hierarchyLabel}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label={t('admin.scenarioManager.form.estimatedTime', 'Estimated Time')} htmlFor="estimatedTime" required
+                      hint="목록에 표시되는 안내 문구입니다. 실제 대화 길이는 평가 방식에서 정합니다.">
+                      <Input
+                        id="estimatedTime"
+                        value={formData.estimatedTime}
+                        onChange={(e) => setFormData(prev => ({ ...prev, estimatedTime: e.target.value }))}
+                        placeholder={t('admin.scenarioManager.form.estimatedTimePlaceholder', 'e.g., 30-45 min')}
+                        required
+                        data-testid="input-estimated-time"
+                        className="bg-white"
+                      />
+                    </Field>
+                  </FieldGrid>
+                  <Field label={t('admin.scenarioManager.form.scenarioDescription')} htmlFor="description" required>
+                    <AutoResizeTextarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder={t('admin.scenarioManager.form.scenarioDescriptionPlaceholder')}
+                      className="min-h-[100px] bg-white whitespace-pre-wrap"
+                      required
+                      data-testid="textarea-scenario-description"
+                    />
+                  </Field>
+                </EditorGroup>
+
+                <EditorGroup title="연습할 역량" description="이 시나리오로 키우려는 역량입니다. 쉼표로 구분해 입력하면 태그로 정리됩니다.">
+                  <Field label={t('admin.scenarioManager.form.skills')} htmlFor="skills">
+                    <Input
+                      id="skills"
+                      value={formData.skills.join(', ')}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                      }))}
+                      placeholder={t('admin.scenarioManager.form.skillsPlaceholder', 'Conflict mediation, stakeholder management, problem solving, negotiation')}
+                      data-testid="input-skills"
+                      className="bg-white"
+                    />
+                  </Field>
+                  {formData.skills.length > 0 && (
+                    <ul className="se-tags" aria-label="입력된 역량">
+                      {formData.skills.map((skill, index) => (
+                        <li key={index} className="se-tag">
+                          {skill}
+                          <button
+                            type="button"
+                            onClick={() => removeSkill(index)}
+                            aria-label={`${skill} 삭제`}
+                            data-testid={`remove-skill-${index}`}
+                          >
+                            <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </EditorGroup>
+              </ScenarioEditorRegion>
+
+              {/* ── 상황과 학습자 역할 ── */}
+              <ScenarioEditorRegion sections="situation" className="se-stack">
+                <EditorGroup title="상황" description="대화가 시작되기 직전까지 무슨 일이 있었는지 적습니다.">
+                  <Field label={t('admin.scenarioManager.form.situation')} htmlFor="situation">
+                    <AutoResizeTextarea
+                      id="situation"
+                      value={formData.context.situation}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        context: { ...prev.context, situation: e.target.value }
+                      }))}
+                      placeholder={t('admin.scenarioManager.form.situationPlaceholder')}
+                      className="min-h-[80px] bg-white whitespace-pre-wrap"
+                      data-testid="textarea-situation"
+                    />
+                  </Field>
+                  <FieldGrid>
+                    <Field label={t('admin.scenarioManager.form.timeline')} htmlFor="timeline">
+                      <Input
+                        id="timeline"
+                        value={formData.context.timeline}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          context: { ...prev.context, timeline: e.target.value }
+                        }))}
+                        placeholder={t('admin.scenarioManager.form.timelinePlaceholder')}
+                        data-testid="input-timeline"
+                        className="bg-white"
+                      />
+                    </Field>
+                    <Field label={t('admin.scenarioManager.form.stakes')} htmlFor="stakes">
+                      <AutoResizeTextarea
+                        id="stakes"
+                        value={formData.context.stakes}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          context: { ...prev.context, stakes: e.target.value }
+                        }))}
+                        placeholder={t('admin.scenarioManager.form.stakesPlaceholder')}
+                        data-testid="input-stakes"
+                        className="min-h-[40px] bg-white whitespace-pre-wrap"
+                      />
+                    </Field>
+                  </FieldGrid>
+                </EditorGroup>
+
+                <EditorGroup title="학습자 역할" description="학습자가 맡을 인물입니다. 대화 상대는 이 정보를 기준으로 반응합니다.">
+                  <FieldGrid>
+                    {([
+                      { key: 'position', id: 'position', testId: 'input-position', label: t('admin.scenarioManager.form.playerPosition', 'Player Position'), placeholder: t('admin.scenarioManager.form.playerPositionPlaceholder', 'e.g., Junior Developer') },
+                      { key: 'department', id: 'playerDepartment', testId: 'input-player-department', label: t('admin.scenarioManager.form.playerDepartment', 'Player Department'), placeholder: t('admin.scenarioManager.form.playerDepartmentPlaceholder', 'e.g., Development Team') },
+                      { key: 'experience', id: 'playerExperience', testId: 'input-player-experience', label: t('admin.scenarioManager.form.playerExperience', 'Player Experience'), placeholder: t('admin.scenarioManager.form.playerExperiencePlaceholder', 'e.g., 6 months') },
+                      { key: 'responsibility', id: 'responsibility', testId: 'input-responsibility', label: t('admin.scenarioManager.form.playerResponsibility', 'Responsibility'), placeholder: t('admin.scenarioManager.form.playerResponsibilityPlaceholder', 'e.g., Coordinate with departments') },
+                    ] as const).map(f => (
+                      <Field key={f.key} label={f.label} htmlFor={f.id}>
+                        <Input
+                          id={f.id}
+                          value={formData.context.playerRole[f.key]}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            context: { ...prev.context, playerRole: { ...prev.context.playerRole, [f.key]: e.target.value } }
+                          }))}
+                          placeholder={f.placeholder}
+                          data-testid={f.testId}
+                          className="bg-white"
+                        />
+                      </Field>
                     ))}
+                  </FieldGrid>
+                </EditorGroup>
+
+                <AdvancedDisclosure summary="학습자 행동 제약과 난이도 조정" description="필요할 때만 설정합니다. 비워 두면 기본 동작을 따릅니다.">
+                  <EditorGroup flat id="section-player-constraints"
+                    title={<>학습자 행동 제약<SectionIssueIcon sectionId="section-player-constraints" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></>}
+                    description="학습자가 해서는 안 되는 말이나 반드시 지켜야 할 조건입니다."
+                    actions={<AiGenerateButton onClick={handleGeneratePlayerConstraints} loading={isGeneratingPlayerConstraints}
+                      disabled={!canGenerateAI || isGeneratingPlayerConstraints || isAnyGenerating}
+                      blockedReason={aiBlockedReason({ needsContext: !canGenerateAI, otherRunning: isAnyGenerating && !isGeneratingPlayerConstraints })} />}>
+                    <PlayerConstraintsBuilder
+                      value={playerConstraintsValue}
+                      onChange={setPlayerConstraintsValue}
+                    />
+                  </EditorGroup>
+                  <EditorGroup flat title="난이도 프로파일" description="대화 상대의 저항 강도와 단서 제공 정도를 조정합니다.">
+                    <DifficultyProfileBuilder
+                      value={difficultyProfileValue}
+                      onChange={setDifficultyProfileValue}
+                    />
+                  </EditorGroup>
+                </AdvancedDisclosure>
+              </ScenarioEditorRegion>
+
+              {/* ── 대화 상대 ── */}
+              <ScenarioEditorRegion sections="actors" id="section-personas" className="se-stack">
+                <div className="se-toolbar">
+                  <div className="min-w-0">
+                    <p className="se-toolbar-title">
+                      {t('admin.scenarioManager.form.personaManagement')}
+                      <span className="se-count">{formData.personas.length}명</span>
+                      <SectionIssueIcon sectionId="section-personas" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
+                    </p>
+                    <p className="se-toolbar-hint">카드를 펼쳐 인물의 프로필, 입장, 반응 방식과 문화 설정을 편집하세요.</p>
                   </div>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        personas: [...prev.personas, {
+                          id: '',
+                          name: '',
+                          gender: 'male',
+                          mbti: '',
+                          department: '',
+                          position: '',
+                          experience: '',
+                          personaRef: '',
+                          stance: '',
+                          goal: '',
+                          tradeoff: ''
+                        }]
+                      }));
+                    }}
+                    size="sm"
+                    className="se-primary-action"
+                    data-testid="add-persona"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    {t('admin.scenarioManager.form.addPersona')}
+                  </Button>
                 </div>
 
-                </ScenarioEditorRegion>
-                <ScenarioEditorRegion sections="actors" id="section-personas">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaManagement')}</Label>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          personas: [...prev.personas, {
-                            id: '',
-                            name: '',
-                            gender: 'male',
-                            mbti: '',
-                            department: '',
-                            position: '',
-                            experience: '',
-                            personaRef: '',
-                            stance: '',
-                            goal: '',
-                            tradeoff: ''
-                          }]
-                        }));
-                      }}
-                      variant="outline"
-                      size="sm"
-                      data-testid="add-persona"
-                    >
-                      <i className="fas fa-plus mr-1"></i>
-                      {t('admin.scenarioManager.form.addPersona')}
-                    </Button>
+                {invalidCultureActors.size > 0 && (
+                  <div role="alert" className="se-alert is-warn">
+                    <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>문화적 특성을 켠 대화 상대는 프로필 선택이 필요합니다. 미완료: {Array.from(invalidCultureActors).sort((a, b) => a - b).map((i) => `${i + 1}번`).join(', ')}</span>
                   </div>
-                  
-                  {formData.personas.length >= 2 && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mt-3">
-                      <Label className="text-sm font-medium text-slate-700 block mb-2">
-                        페르소나 전환 방식
-                      </Label>
+                )}
+
+                {formData.personas.length >= 2 && (
+                  <EditorGroup title="상대 전환 방식" description="둘 이상의 상대가 등장할 때 새 상대가 들어오는 방식입니다.">
+                    <Field label="전환 방식" htmlFor="persona-switch-mode" className="se-narrow">
                       <Select
                         value={formData.personaSwitchMode ?? 'replace'}
                         onValueChange={(value: 'replace' | 'join' | 'none') =>
                           setFormData(prev => ({ ...prev, personaSwitchMode: value }))
                         }
                       >
-                        <SelectTrigger className="bg-white">
+                        <SelectTrigger id="persona-switch-mode" className="bg-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="replace">
                             <div>
-                              <div className="font-medium">Replace (교체)</div>
-                              <div className="text-xs text-slate-500">다음 페르소나가 이전 페르소나를 교체합니다</div>
+                              <div className="font-medium">교체</div>
+                              <div className="text-xs text-slate-500">다음 상대가 이전 상대를 대신합니다</div>
                             </div>
                           </SelectItem>
                           <SelectItem value="join">
                             <div>
-                              <div className="font-medium">Join (합류)</div>
-                              <div className="text-xs text-slate-500">다음 페르소나가 기존 페르소나와 함께 참여합니다</div>
+                              <div className="font-medium">합류</div>
+                              <div className="text-xs text-slate-500">다음 상대가 기존 상대와 함께 참여합니다</div>
                             </div>
                           </SelectItem>
                           <SelectItem value="none">
                             <div>
-                              <div className="font-medium">없음 (전환 안 함)</div>
-                              <div className="text-xs text-slate-500">페르소나 전환 없음 — 첫 번째 페르소나만 유지됩니다</div>
+                              <div className="font-medium">전환 안 함</div>
+                              <div className="text-xs text-slate-500">첫 번째 상대만 대화에 남습니다</div>
                             </div>
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                  )}
+                    </Field>
+                  </EditorGroup>
+                )}
 
-                  <div className="space-y-4">
-                    {invalidCultureActors.size > 0 && (
-                      <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-                        문화적 특성을 켠 Actor는 프로필 선택이 필요합니다. 미완료 Actor: {Array.from(invalidCultureActors).sort((a, b) => a - b).map((i) => i + 1).join(', ')}
-                      </div>
-                    )}
-                    {formData.personas.map((persona, index) => (
-                      <details key={index} id={`scenario-actor-${index}`} open={index === 0 ? true : undefined} className="border border-slate-300 rounded-lg p-4 space-y-3 bg-white shadow-sm">
-                        <summary>{persona.name || `${index + 1}번 대화 상대`} <span className="text-xs font-normal text-slate-500">{[persona.department, persona.position].filter(Boolean).join(' · ')}</span></summary>
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-slate-700">{t('admin.scenarioManager.form.personaNumber', { number: index + 1 })}</h4>
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setInvalidCultureActors((current) => {
-                                const adjusted = new Set<number>();
-                                current.forEach((actorIndex) => {
-                                  if (actorIndex < index) adjusted.add(actorIndex);
-                                  else if (actorIndex > index) adjusted.add(actorIndex - 1);
+                <div className="se-actor-list">
+                  {formData.personas.map((persona, index) => {
+                    const updatePersona = (patch: Partial<ScenarioPersona>) => {
+                      const newPersonas = [...formData.personas];
+                      newPersonas[index] = { ...persona, ...patch };
+                      setFormData(prev => ({ ...prev, personas: newPersonas }));
+                    };
+                    return (
+                    <details key={index} id={`scenario-actor-${index}`} open={index === 0 ? true : undefined} className="se-actor">
+                      <summary className="se-actor-summary">
+                        <span className="se-actor-index" aria-hidden="true">{index + 1}</span>
+                        <span className="se-actor-name">
+                          {persona.name || `${index + 1}번 대화 상대`}
+                          <small>{[persona.department, persona.position, persona.mbti].filter(Boolean).join(' · ') || '프로필 미입력'}</small>
+                        </span>
+                        {persona.isPrimary && <span className="se-chip is-info">주 상대</span>}
+                        {persona.culture && <span className="se-chip">문화 설정</span>}
+                        <ChevronDown className="se-actor-chevron h-4 w-4" aria-hidden="true" />
+                      </summary>
+                      <div className="se-actor-body">
+                        <EditorGroup flat title="프로필" description="등록된 페르소나를 고르면 성격 유형이 자동으로 채워집니다."
+                          actions={
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                setInvalidCultureActors((current) => {
+                                  const adjusted = new Set<number>();
+                                  current.forEach((actorIndex) => {
+                                    if (actorIndex < index) adjusted.add(actorIndex);
+                                    else if (actorIndex > index) adjusted.add(actorIndex - 1);
+                                  });
+                                  return adjusted;
                                 });
-                                return adjusted;
-                              });
-                              setFormData(prev => ({
-                                ...prev,
-                                personas: prev.personas.filter((_, i) => i !== index)
-                              }));
-                            }}
-                            variant="destructive"
-                            size="sm"
-                            data-testid={`remove-persona-${index}`}
-                          >
-                            <i className="fas fa-trash"></i>
-                          </Button>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          <div>
-                            <Label htmlFor={`persona-id-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaId')} *</Label>
-                            <Select
-                              value={getScenarioPersonaTemplateId(persona)}
-                              onValueChange={(selectedId) => {
-                                if (selectedId === '__new_persona__') {
-                                  handleSaveAndGoToPersona();
-                                  return;
-                                }
-                                const selectedPersona = availablePersonas.find(p => p.id === selectedId);
-                                if (selectedPersona) {
-                                  const newPersonas = [...formData.personas];
-                                  const actorId = stableActorIdForTemplate(selectedId, persona, formData.personas);
-                                  newPersonas[index] = { 
-                                    ...persona, 
-                                    id: actorId,
-                                    mbti: selectedPersona.mbti.toUpperCase(),
-                                    personaRef: selectedId 
-                                  };
-                                  setFormData(prev => ({ ...prev, personas: newPersonas }));
-                                }
+                                setFormData(prev => ({
+                                  ...prev,
+                                  personas: prev.personas.filter((_, i) => i !== index)
+                                }));
                               }}
+                              variant="ghost"
+                              size="sm"
+                              className="se-danger-ghost"
+                              aria-label={`${index + 1}번 대화 상대 삭제`}
+                              data-testid={`remove-persona-${index}`}
                             >
-                              <SelectTrigger data-testid={`select-persona-id-${index}`} className="bg-white">
-                                <SelectValue placeholder={t('admin.scenarioManager.form.selectPersona')} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__new_persona__">
-                                  <div className="flex items-center gap-2 text-indigo-600 font-medium">
-                                    <span>＋</span>
-                                    <span>페르소나 신규 생성</span>
-                                  </div>
-                                </SelectItem>
-                                {getAvailablePersonasForSlot().length === 0 ? (
-                                  <div className="py-2 px-3 text-sm text-slate-500">
-                                    {t('admin.scenarioManager.form.noPersonasAvailable')}
-                                  </div>
-                                ) : (
-                                  getAvailablePersonasForSlot().map((p) => (
-                                    <SelectItem key={p.id} value={p.id}>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-medium">{p.mbti}</span>
-                                        <span className="text-xs text-slate-500">({p.id})</span>
-                                      </div>
-                                    </SelectItem>
-                                  ))
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`persona-name-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaName', 'Name')} *</Label>
-                            <Input
-                              id={`persona-name-${index}`}
-                              value={persona.name}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, name: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder={t('admin.scenarioManager.form.personaNamePlaceholder', 'e.g., John Doe')}
-                              data-testid={`input-persona-name-${index}`}
-                              className="bg-white"
-                            />
-                          </div>
-
-                          <div>
-                            <Label htmlFor={`persona-gender-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaGender', 'Gender')} *</Label>
-                            <Select
-                              value={persona.gender}
-                              onValueChange={(value: 'male' | 'female') => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, gender: value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                            >
-                              <SelectTrigger data-testid={`select-persona-gender-${index}`} className="bg-white">
-                                <SelectValue placeholder={t('admin.scenarioManager.form.selectGender', 'Select gender')} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="male">{t('admin.personaManager.male')}</SelectItem>
-                                <SelectItem value="female">{t('admin.personaManager.female')}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`persona-department-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaDepartment')} *</Label>
-                            <Input
-                              id={`persona-department-${index}`}
-                              value={persona.department}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, department: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder={t('admin.scenarioManager.form.personaDepartmentPlaceholder')}
-                              data-testid={`input-persona-department-${index}`}
-                              className="bg-white"
-                            />
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`persona-position-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaPosition')} *</Label>
-                            <Input
-                              id={`persona-position-${index}`}
-                              value={persona.position}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, position: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder={t('admin.scenarioManager.form.personaPositionPlaceholder')}
-                              data-testid={`input-persona-position-${index}`}
-                              className="bg-white"
-                            />
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor={`persona-experience-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaExperience', 'Experience')}</Label>
-                            <Input
-                              id={`persona-experience-${index}`}
-                              value={persona.experience}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, experience: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder={t('admin.scenarioManager.form.personaExperiencePlaceholder', 'e.g., 8 years, junior, 5 years')}
-                              data-testid={`input-persona-experience-${index}`}
-                              className="bg-white"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor={`persona-stance-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaStance')} *</Label>
-                          <AutoResizeTextarea
-                            id={`persona-stance-${index}`}
-                            value={persona.stance}
-                            onChange={(e) => {
-                              const newPersonas = [...formData.personas];
-                              newPersonas[index] = { ...persona, stance: e.target.value };
-                              setFormData(prev => ({ ...prev, personas: newPersonas }));
-                            }}
-                            placeholder={t('admin.scenarioManager.form.personaStancePlaceholder')}
-                            data-testid={`input-persona-stance-${index}`}
-                            className="bg-white whitespace-pre-wrap"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor={`persona-goal-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaGoal')} *</Label>
-                          <AutoResizeTextarea
-                            id={`persona-goal-${index}`}
-                            value={persona.goal}
-                            onChange={(e) => {
-                              const newPersonas = [...formData.personas];
-                              newPersonas[index] = { ...persona, goal: e.target.value };
-                              setFormData(prev => ({ ...prev, personas: newPersonas }));
-                            }}
-                            placeholder={t('admin.scenarioManager.form.personaGoalPlaceholder')}
-                            data-testid={`input-persona-goal-${index}`}
-                            className="bg-white whitespace-pre-wrap"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor={`persona-tradeoff-${index}`} className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaTradeoff')}</Label>
-                          <AutoResizeTextarea
-                            id={`persona-tradeoff-${index}`}
-                            value={persona.tradeoff}
-                            onChange={(e) => {
-                              const newPersonas = [...formData.personas];
-                              newPersonas[index] = { ...persona, tradeoff: e.target.value };
-                              setFormData(prev => ({ ...prev, personas: newPersonas }));
-                            }}
-                            placeholder={t('admin.scenarioManager.form.personaTradeoffPlaceholder')}
-                            data-testid={`input-persona-tradeoff-${index}`}
-                            className="bg-white whitespace-pre-wrap"
-                          />
-                        </div>
-
-                        {/* Multi-persona switching fields */}
-                        <div className="border-t border-slate-200 pt-3 mt-1">
-                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Multi-Persona Switching</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id={`persona-isprimary-${index}`}
-                                checked={!!persona.isPrimary}
-                                onChange={(e) => {
-                                  const newPersonas = [...formData.personas];
-                                  if (e.target.checked) {
-                                    newPersonas.forEach((p, i) => {
-                                      newPersonas[i] = { ...p, isPrimary: i === index };
-                                    });
-                                  } else {
-                                    const otherPrimaryExists = newPersonas.some((p, i) => i !== index && !!p.isPrimary);
-                                    if (otherPrimaryExists) {
-                                      newPersonas[index] = { ...persona, isPrimary: false };
-                                    }
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                              <span>삭제</span>
+                            </Button>
+                          }>
+                          <FieldGrid cols={3}>
+                            <Field label={t('admin.scenarioManager.form.personaId')} htmlFor={`persona-id-${index}`} required>
+                              <Select
+                                value={getScenarioPersonaTemplateId(persona)}
+                                onValueChange={(selectedId) => {
+                                  if (selectedId === '__new_persona__') {
+                                    handleSaveAndGoToPersona();
+                                    return;
                                   }
-                                  setFormData(prev => ({ ...prev, personas: newPersonas }));
+                                  const selectedPersona = availablePersonas.find(p => p.id === selectedId);
+                                  if (selectedPersona) {
+                                    const newPersonas = [...formData.personas];
+                                    const actorId = stableActorIdForTemplate(selectedId, persona, formData.personas);
+                                    newPersonas[index] = {
+                                      ...persona,
+                                      id: actorId,
+                                      mbti: selectedPersona.mbti.toUpperCase(),
+                                      personaRef: selectedId
+                                    };
+                                    setFormData(prev => ({ ...prev, personas: newPersonas }));
+                                  }
                                 }}
-                                className="rounded border-slate-300"
+                              >
+                                <SelectTrigger id={`persona-id-${index}`} data-testid={`select-persona-id-${index}`} className="bg-white">
+                                  <SelectValue placeholder={t('admin.scenarioManager.form.selectPersona')} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__new_persona__">
+                                    <div className="flex items-center gap-2 font-medium text-[color:var(--editor-sky)]">
+                                      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                                      <span>페르소나 신규 생성</span>
+                                    </div>
+                                  </SelectItem>
+                                  {getAvailablePersonasForSlot().length === 0 ? (
+                                    <div className="py-2 px-3 text-sm text-slate-500">
+                                      {t('admin.scenarioManager.form.noPersonasAvailable')}
+                                    </div>
+                                  ) : (
+                                    getAvailablePersonasForSlot().map((p) => (
+                                      <SelectItem key={p.id} value={p.id}>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium">{p.mbti}</span>
+                                          <span className="text-xs text-slate-500">({p.id})</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                            <Field label={t('admin.scenarioManager.form.personaName', 'Name')} htmlFor={`persona-name-${index}`} required>
+                              <Input
+                                id={`persona-name-${index}`}
+                                value={persona.name}
+                                onChange={(e) => updatePersona({ name: e.target.value })}
+                                placeholder={t('admin.scenarioManager.form.personaNamePlaceholder', '예: 김서연')}
+                                data-testid={`input-persona-name-${index}`}
+                                className="bg-white"
                               />
-                              <Label htmlFor={`persona-isprimary-${index}`} className="text-sm font-medium text-slate-700">Primary Persona</Label>
-                            </div>
-                            <div>
-                              <Label htmlFor={`persona-voiceid-${index}`} className="text-sm font-medium text-slate-700">Voice ID (ElevenLabs)</Label>
+                            </Field>
+                            <Field label={t('admin.scenarioManager.form.personaGender', 'Gender')} htmlFor={`persona-gender-${index}`} required>
+                              <Select
+                                value={persona.gender}
+                                onValueChange={(value: 'male' | 'female') => updatePersona({ gender: value })}
+                              >
+                                <SelectTrigger id={`persona-gender-${index}`} data-testid={`select-persona-gender-${index}`} className="bg-white">
+                                  <SelectValue placeholder={t('admin.scenarioManager.form.selectGender', 'Select gender')} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="male">{t('admin.personaManager.male')}</SelectItem>
+                                  <SelectItem value="female">{t('admin.personaManager.female')}</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                            <Field label={t('admin.scenarioManager.form.personaDepartment')} htmlFor={`persona-department-${index}`} required>
+                              <Input
+                                id={`persona-department-${index}`}
+                                value={persona.department}
+                                onChange={(e) => updatePersona({ department: e.target.value })}
+                                placeholder={t('admin.scenarioManager.form.personaDepartmentPlaceholder')}
+                                data-testid={`input-persona-department-${index}`}
+                                className="bg-white"
+                              />
+                            </Field>
+                            <Field label={t('admin.scenarioManager.form.personaPosition')} htmlFor={`persona-position-${index}`} required>
+                              <Input
+                                id={`persona-position-${index}`}
+                                value={persona.position}
+                                onChange={(e) => updatePersona({ position: e.target.value })}
+                                placeholder={t('admin.scenarioManager.form.personaPositionPlaceholder')}
+                                data-testid={`input-persona-position-${index}`}
+                                className="bg-white"
+                              />
+                            </Field>
+                            <Field label={t('admin.scenarioManager.form.personaExperience', 'Experience')} htmlFor={`persona-experience-${index}`}>
+                              <Input
+                                id={`persona-experience-${index}`}
+                                value={persona.experience}
+                                onChange={(e) => updatePersona({ experience: e.target.value })}
+                                placeholder={t('admin.scenarioManager.form.personaExperiencePlaceholder', 'e.g., 8 years, junior, 5 years')}
+                                data-testid={`input-persona-experience-${index}`}
+                                className="bg-white"
+                              />
+                            </Field>
+                          </FieldGrid>
+                        </EditorGroup>
+
+                        <EditorGroup flat title="대화 속 입장" description="이 인물이 무엇을 원하고, 무엇을 양보할 수 있는지 정합니다.">
+                          <Field label={t('admin.scenarioManager.form.personaStance')} htmlFor={`persona-stance-${index}`} required>
+                            <AutoResizeTextarea
+                              id={`persona-stance-${index}`}
+                              value={persona.stance}
+                              onChange={(e) => updatePersona({ stance: e.target.value })}
+                              placeholder={t('admin.scenarioManager.form.personaStancePlaceholder')}
+                              data-testid={`input-persona-stance-${index}`}
+                              className="bg-white whitespace-pre-wrap"
+                            />
+                          </Field>
+                          <FieldGrid>
+                            <Field label={t('admin.scenarioManager.form.personaGoal')} htmlFor={`persona-goal-${index}`} required>
+                              <AutoResizeTextarea
+                                id={`persona-goal-${index}`}
+                                value={persona.goal}
+                                onChange={(e) => updatePersona({ goal: e.target.value })}
+                                placeholder={t('admin.scenarioManager.form.personaGoalPlaceholder')}
+                                data-testid={`input-persona-goal-${index}`}
+                                className="bg-white whitespace-pre-wrap"
+                              />
+                            </Field>
+                            <Field label={t('admin.scenarioManager.form.personaTradeoff')} htmlFor={`persona-tradeoff-${index}`} optional>
+                              <AutoResizeTextarea
+                                id={`persona-tradeoff-${index}`}
+                                value={persona.tradeoff}
+                                onChange={(e) => updatePersona({ tradeoff: e.target.value })}
+                                placeholder={t('admin.scenarioManager.form.personaTradeoffPlaceholder')}
+                                data-testid={`input-persona-tradeoff-${index}`}
+                                className="bg-white whitespace-pre-wrap"
+                              />
+                            </Field>
+                          </FieldGrid>
+                        </EditorGroup>
+
+                        <AdvancedDisclosure summary="등장 방식과 음성" description="여러 상대가 순서대로 등장할 때 사용합니다.">
+                          <label htmlFor={`persona-isprimary-${index}`} className="se-check">
+                            <input
+                              type="checkbox"
+                              id={`persona-isprimary-${index}`}
+                              checked={!!persona.isPrimary}
+                              onChange={(e) => {
+                                const newPersonas = [...formData.personas];
+                                if (e.target.checked) {
+                                  newPersonas.forEach((p, i) => {
+                                    newPersonas[i] = { ...p, isPrimary: i === index };
+                                  });
+                                } else {
+                                  const otherPrimaryExists = newPersonas.some((p, i) => i !== index && !!p.isPrimary);
+                                  if (otherPrimaryExists) {
+                                    newPersonas[index] = { ...persona, isPrimary: false };
+                                  }
+                                }
+                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                              }}
+                            />
+                            <span><strong>주 상대로 지정</strong><small>대화를 처음 시작하는 인물입니다. 한 명만 지정할 수 있습니다.</small></span>
+                          </label>
+                          <FieldGrid>
+                            <Field label="음성 ID" htmlFor={`persona-voiceid-${index}`} optional hint="ElevenLabs 음성 ID. 비워 두면 기본 음성을 씁니다.">
                               <Input
                                 id={`persona-voiceid-${index}`}
                                 value={persona.voiceId ?? ''}
-                                onChange={(e) => {
-                                  const newPersonas = [...formData.personas];
-                                  newPersonas[index] = { ...persona, voiceId: e.target.value };
-                                  setFormData(prev => ({ ...prev, personas: newPersonas }));
-                                }}
-                                placeholder="Optional voice ID override"
+                                onChange={(e) => updatePersona({ voiceId: e.target.value })}
+                                placeholder="voice id"
+                                className="bg-white font-mono text-sm"
+                              />
+                            </Field>
+                            <Field label="첫 대사" htmlFor={`persona-entryline-${index}`} optional hint="이 인물이 대화에 들어올 때 처음 하는 말입니다.">
+                              <Input
+                                id={`persona-entryline-${index}`}
+                                value={persona.entryLine ?? ''}
+                                onChange={(e) => updatePersona({ entryLine: e.target.value })}
+                                placeholder="예: 잠깐 제가 이야기를 이어받겠습니다."
                                 className="bg-white"
                               />
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            <Label htmlFor={`persona-entryline-${index}`} className="text-sm font-medium text-slate-700">Entry Line</Label>
-                            <Input
-                              id={`persona-entryline-${index}`}
-                              value={persona.entryLine ?? ''}
-                              onChange={(e) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, entryLine: e.target.value };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
-                              placeholder="First line said when this persona enters (e.g. 'Hello, I'm here to help...')"
-                              className="bg-white"
-                            />
-                          </div>
-                          <div className="mt-2">
-                            <Label htmlFor={`persona-triggerhints-${index}`} className="text-sm font-medium text-slate-700">Trigger Hints (one per line)</Label>
+                            </Field>
+                          </FieldGrid>
+                          <Field label="등장 계기가 되는 표현" htmlFor={`persona-triggerhints-${index}`} optional hint="한 줄에 하나씩 입력합니다. 학습자가 이런 말을 하면 이 인물로 전환됩니다.">
                             <AutoResizeTextarea
                               id={`persona-triggerhints-${index}`}
                               value={(persona.triggerHints ?? []).join('\n')}
                               onChange={(e) => {
-                                const newPersonas = [...formData.personas];
                                 const hints = e.target.value.split('\n').map((s: string) => s.trim()).filter(Boolean);
-                                newPersonas[index] = { ...persona, triggerHints: hints };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
+                                updatePersona({ triggerHints: hints });
                               }}
-                              placeholder={"Enter phrases that should trigger switching to this persona\ne.g. 'budget approval'\n'legal review needed'"}
+                              placeholder={'예: 예산 승인\n법무 검토 필요'}
                               className="bg-white whitespace-pre-wrap text-sm"
                             />
-                          </div>
-                          <div className="mt-2">
-                            <div className="flex items-center justify-between mb-1">
-                              <Label className="text-sm font-medium text-slate-700">
-                                NPC Behavior Harness <span className="text-xs text-slate-400 font-normal">(선택사항)</span>
-                              </Label>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 text-xs gap-1.5"
-                                        disabled={!canGenerateAI || !!isGeneratingNpcBehaviorHarness[index] || isAnyGenerating}
-                                        onClick={() => handleGenerateNpcBehaviorHarness(index)}
-                                      >
-                                        {isGeneratingNpcBehaviorHarness[index] ? (
-                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                        ) : (
-                                          <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-                                        )}
-                                        AI 생성
-                                      </Button>
-                                    </span>
-                                  </TooltipTrigger>
-                                  {!canGenerateAI && (
-                                    <TooltipContent side="left" className="text-xs">
-                                      시나리오 제목 또는 설명을 먼저 입력해주세요
-                                    </TooltipContent>
-                                  )}
-                                  {canGenerateAI && isAnyGenerating && !isGeneratingNpcBehaviorHarness[index] && (
-                                    <TooltipContent side="left" className="text-xs">
-                                      다른 AI 생성이 진행 중입니다
-                                    </TooltipContent>
-                                  )}
-                                </Tooltip>
-                              </TooltipProvider>
-                            </div>
-                            <NpcBehaviorHarnessBuilder
-                              value={persona.npcBehaviorHarness}
-                              onChange={(updated: NpcBehaviorHarness | null) => {
-                                const newPersonas = [...formData.personas];
-                                newPersonas[index] = { ...persona, npcBehaviorHarness: updated ?? undefined };
-                                setFormData(prev => ({ ...prev, personas: newPersonas }));
-                              }}
+                          </Field>
+                        </AdvancedDisclosure>
+
+                        <AdvancedDisclosure summary="반응 방식" description="감정 변화, 말투, 양보 조건 등 세부 반응을 정합니다.">
+                          <div className="se-inline-actions">
+                            <p className="se-field-hint">시나리오 내용을 바탕으로 초안을 만든 뒤 다듬을 수 있습니다.</p>
+                            <AiGenerateButton
+                              onClick={() => handleGenerateNpcBehaviorHarness(index)}
+                              loading={!!isGeneratingNpcBehaviorHarness[index]}
+                              disabled={!canGenerateAI || !!isGeneratingNpcBehaviorHarness[index] || isAnyGenerating}
+                              blockedReason={aiBlockedReason({ needsContext: !canGenerateAI, otherRunning: isAnyGenerating && !isGeneratingNpcBehaviorHarness[index] })}
                             />
                           </div>
-                          <ActorCultureEditor
-                            key={`${editingScenario?.id ?? 'new'}-${persona.id || index}-${index}`}
-                            actorKey={`${editingScenario?.id ?? 'new'}-${persona.id || index}-${index}`}
-                            value={persona.culture}
-                            onValidityChange={(incomplete) => {
-                              setInvalidCultureActors((current) => {
-                                const next = new Set(current);
-                                if (incomplete) next.add(index);
-                                else next.delete(index);
-                                return next;
-                              });
-                            }}
-                            onChange={(culture) => {
-                              const newPersonas = [...formData.personas];
-                              newPersonas[index] = { ...persona, culture };
-                              setFormData(prev => ({ ...prev, personas: newPersonas }));
-                            }}
+                          <NpcBehaviorHarnessBuilder
+                            value={persona.npcBehaviorHarness}
+                            onChange={(updated: NpcBehaviorHarness | null) => updatePersona({ npcBehaviorHarness: updated ?? undefined })}
                           />
-                        </div>
-                      </details>
-                    ))}
-                    
-                    {formData.personas.length === 0 && (
-                      <div className="text-center py-8 text-slate-500">
-                        <i className="fas fa-users text-4xl mb-2"></i>
-                        <p>{t('admin.scenarioManager.form.personaRequired')}</p>
+                        </AdvancedDisclosure>
+
+                        <ActorCultureEditor
+                          key={`${editingScenario?.id ?? 'new'}-${persona.id || index}-${index}`}
+                          actorKey={`${editingScenario?.id ?? 'new'}-${persona.id || index}-${index}`}
+                          value={persona.culture}
+                          onValidityChange={(incomplete) => {
+                            setInvalidCultureActors((current) => {
+                              const next = new Set(current);
+                              if (incomplete) next.add(index);
+                              else next.delete(index);
+                              return next;
+                            });
+                          }}
+                          onChange={(culture) => updatePersona({ culture })}
+                        />
                       </div>
-                    )}
-                  </div>
+                    </details>
+                    );
+                  })}
+
+                  {formData.personas.length === 0 && (
+                    <div className="se-empty">
+                      <UserX className="h-6 w-6" aria-hidden="true" />
+                      <p className="se-empty-title">아직 대화 상대가 없습니다</p>
+                      <p>{t('admin.scenarioManager.form.personaRequired')}</p>
+                    </div>
+                  )}
                 </div>
-                </ScenarioEditorRegion>
               </ScenarioEditorRegion>
 
-              <ScenarioEditorRegion sections="flow">
-              <details className="scenario-editor-advanced">
-                <summary>고급 설정 · 시뮬레이션 정책</summary>
-              {/* Simulation Policy: simulationHarness structured editor */}
-              <div id="section-simulation-harness" className="border border-slate-200 rounded-lg p-4 bg-white space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-slate-800 text-sm mb-0.5 flex items-center">시뮬레이션 정책 (선택사항)<SectionIssueIcon sectionId="section-simulation-harness" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></h3>
-                    <p className="text-xs text-slate-500">시나리오별 감정 모델, 도구 호출 상한, 허용 이벤트를 설정합니다. 비활성화하면 전역 기본값이 적용됩니다.</p>
-                  </div>
-                  <div className="flex items-center gap-2 ml-4 shrink-0">
-                    <label className="text-xs text-slate-600 font-medium">사용</label>
-                    <input type="checkbox" checked={harnessEnabled} onChange={e => setHarnessEnabled(e.target.checked)} className="h-4 w-4 accent-blue-600" />
-                  </div>
-                </div>
+              {/* ── 학습 목표와 성공 기준 ── */}
+              <ScenarioEditorRegion sections="goals" id="section-success-criteria" className="se-stack">
+                <EditorGroup title={<>학습 목표<SectionIssueIcon sectionId="section-success-criteria" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></>}
+                  description="학습자가 이 대화에서 무엇을 해내야 하는지 정합니다.">
+                  <Field label={t('admin.scenarioManager.form.objectiveType')} htmlFor="objectiveType" className="se-narrow">
+                    <Select
+                      value={formData.objectiveType || ''}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, objectiveType: value }))}
+                    >
+                      <SelectTrigger id="objectiveType" className="bg-white">
+                        <SelectValue placeholder={t('admin.scenarioManager.form.selectObjectiveType')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OBJECTIVE_TYPES.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label={t('admin.scenarioManager.form.objectives')} htmlFor="objectives" hint="한 줄에 목표 하나씩 입력합니다.">
+                    <AutoResizeTextarea
+                      id="objectives"
+                      value={formData.objectives.join('\n')}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        objectives: e.target.value.split('\n').filter(obj => obj.trim())
+                      }))}
+                      placeholder={'각 부서의 이해관계와 우려사항 파악\n부서 간 갈등을 중재하고 합의점 도출\n품질과 일정을 균형있게 고려한 현실적 해결책 제시'}
+                      className="min-h-[100px] bg-white whitespace-pre-wrap"
+                      data-testid="textarea-objectives"
+                    />
+                  </Field>
+                </EditorGroup>
+
+                <EditorGroup title="성공 기준" description="대화 결과를 네 단계로 구분합니다. 위에서 아래로 갈수록 낮은 결과입니다.">
+                  <ol className="se-tiers">
+                    {([
+                      { key: 'optimal', label: t('admin.scenarioManager.form.optimal'), placeholder: '모든 부서가 만족하는 타협안 도출' },
+                      { key: 'good', label: t('admin.scenarioManager.form.good'), placeholder: '주요 이해관계자들의 핵심 요구사항 반영' },
+                      { key: 'acceptable', label: t('admin.scenarioManager.form.acceptable'), placeholder: '최소한의 품질 기준을 유지하면서 일정 준수' },
+                      { key: 'failure', label: t('admin.scenarioManager.form.failure'), placeholder: '부서 간 갈등 심화 또는 비현실적 해결책 제시' },
+                    ] as const).map(tier => (
+                      <li key={tier.key} className="se-tier" data-tier={tier.key}>
+                        <Field label={tier.label} htmlFor={tier.key}>
+                          <AutoResizeTextarea
+                            id={tier.key}
+                            value={formData.successCriteria[tier.key]}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              successCriteria: { ...prev.successCriteria, [tier.key]: e.target.value }
+                            }))}
+                            placeholder={tier.placeholder}
+                            className="min-h-[44px] bg-white whitespace-pre-wrap"
+                            data-testid={`textarea-${tier.key}`}
+                          />
+                        </Field>
+                      </li>
+                    ))}
+                  </ol>
+                </EditorGroup>
+              </ScenarioEditorRegion>
+
+              {/* ── 대화 흐름 ── */}
+              <ScenarioEditorRegion sections="flow" className="se-stack">
+                <EditorGroup id="section-flow-graph"
+                  title={<>대화 단계<SectionIssueIcon sectionId="section-flow-graph" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></>}
+                  description="단계마다 학습자가 할 일과 다음 단계로 넘어가는 조건을 정합니다. 설정하지 않으면 기존 동작을 유지합니다.">
+                  <FlowGraphBuilder
+                    focused
+                    key={`fg-${builderKey}`}
+                    defaultValue={flowGraphValue}
+                    onChange={setFlowGraphValue}
+                  />
+                </EditorGroup>
+
+                <AdvancedDisclosure summary="상대 자동 전환과 종료 규칙" description="조건에 따라 대화 상대를 바꾸거나 대화를 끝냅니다.">
+                  <EditorGroup flat id="section-persona-switch"
+                    title={<>상대 자동 전환<SectionIssueIcon sectionId="section-persona-switch" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></>}
+                    description="조건이 맞으면 다른 대화 상대가 등장합니다.">
+                    <PersonaSwitchRulesBuilder
+                      key={`psr-${builderKey}`}
+                      defaultValue={personaSwitchRulesValue}
+                      onChange={setPersonaSwitchRulesValue}
+                      personaCount={Math.max(2, formData.personas.length)}
+                    />
+                  </EditorGroup>
+                  <EditorGroup flat title="자동 종료 조건" description="성공, 실패, 시간 초과 조건 중 하나라도 충족하면 대화를 끝냅니다.">
+                    <TerminationRulesBuilder
+                      key={`tr-${builderKey}`}
+                      defaultValue={terminationRulesValue}
+                      onChange={setTerminationRulesValue}
+                    />
+                  </EditorGroup>
+                </AdvancedDisclosure>
+
+                <AdvancedDisclosure summary="시뮬레이션 정책" description="감정 변화 폭, 돌발 상황의 종류와 빈도를 조정합니다. 끄면 전역 기본값을 씁니다.">
+              <div id="section-simulation-harness" className="se-stack">
+                <ToggleRow
+                  id="harness-enabled"
+                  label={<>시나리오 전용 정책 사용<SectionIssueIcon sectionId="section-simulation-harness" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></>}
+                  description={harnessEnabled ? '아래 설정이 이 시나리오에 적용됩니다.' : '전역 기본값이 적용됩니다.'}
+                  checked={harnessEnabled}
+                  onCheckedChange={setHarnessEnabled}
+                />
 
                 {harnessEnabled && (
                   <div className="space-y-4">
@@ -3775,7 +2873,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             onChange={e => setHarnessPreferredSignals(prev => prev.map((s, i) => i === idx ? { ...s, value: e.target.value } : s))}
                             className="text-xs h-7 flex-1"
                           />
-                          <button type="button" onClick={() => setHarnessPreferredSignals(prev => prev.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-red-500 text-xs px-1">✕</button>
+                          <button type="button" onClick={() => setHarnessPreferredSignals(prev => prev.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-red-500 text-xs px-1" aria-label="신호 삭제"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
                         </div>
                       ))}
                       <button
@@ -3933,7 +3031,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                           <div className="mt-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 space-y-1">
                             {harnessWarnings.map((w, i) => (
                               <p key={i} className="text-xs text-amber-700 flex items-start gap-1.5">
-                                <span className="shrink-0 mt-0.5">⚠</span>
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" aria-hidden="true" />
                                 <span>{w}</span>
                               </p>
                             ))}
@@ -4001,7 +3099,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                   <div className="rounded bg-amber-50 border border-amber-200 px-2 py-1.5 space-y-1">
                                     {harnessWarnings.map((w, i) => (
                                       <p key={i} className="text-[10px] text-amber-700 flex items-start gap-1">
-                                        <span className="shrink-0">⚠</span>
+                                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                                         <span>{w}</span>
                                       </p>
                                     ))}
@@ -4021,7 +3119,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                                   <p>변화량: <span className="font-semibold">{harnessEffective.maxDeltaPerCall}</span></p>
                                   <p>전역 쿨다운: <span className="font-semibold">{harnessEffective.globalCooldownSec}s</span></p>
                                   <p>유형 쿨다운: <span className="font-semibold">{harnessEffective.perTypeCooldownSec}s</span></p>
-                                  <p>상태 업데이트: <span className={`font-semibold ${harnessEffective.stateUpdatesEnabled ? 'text-green-600' : 'text-slate-400'}`}>{harnessEffective.stateUpdatesEnabled ? '✓' : '✗'}</span></p>
+                                  <p>상태 업데이트: <span className={`font-semibold ${harnessEffective.stateUpdatesEnabled ? 'text-green-600' : 'text-slate-400'}`}>{harnessEffective.stateUpdatesEnabled ? '켜짐' : '꺼짐'}</span></p>
                                 </div>
                                 <div>
                                   <p className="text-slate-400 text-[10px] mb-0.5">허용 이벤트 ({harnessEffective.allowedTypes!.length})</p>
@@ -4044,248 +3142,453 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   </div>
                 )}
               </div>
-
-              </details>
+                </AdvancedDisclosure>
               </ScenarioEditorRegion>
-              {/* State Machine: FlowGraph, PersonaSwitchRules, TerminationRules visual builders */}
-              <ScenarioEditorRegion sections={['flow', 'assessment', 'situation']} className="border border-slate-200 rounded-lg p-4 bg-white space-y-6">
-                <ScenarioEditorRegion sections="flow">
-                <div>
-                  <h3 className="font-semibold text-slate-800 text-sm mb-1">대화 단계</h3>
-                  <p className="text-xs text-slate-500">다룰 내용과 다음 단계로 넘어갈 조건을 정합니다. 설정하지 않으면 기존 동작을 유지합니다.</p>
-                </div>
 
-                {/* FlowGraph Builder */}
-                <div id="section-flow-graph" className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                    대화 단계별 목표와 전환
-                    <span className="text-xs text-slate-400 font-normal">(대화 단계 전환 상태 머신)</span>
-                    <SectionIssueIcon sectionId="section-flow-graph" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
-                  </Label>
-                  <FlowGraphBuilder
-                    focused
-                    key={`fg-${builderKey}`}
-                    defaultValue={flowGraphValue}
-                    onChange={setFlowGraphValue}
-                  />
-                </div>
+              {/* ── 평가 방식 ── */}
+              <ScenarioEditorRegion sections="assessment" className="se-stack">
+                <EditorGroup title={t('admin.scenarioManager.form.evaluationCriteria')} description={t('admin.scenarioManager.form.evaluationCriteriaHelp')}>
+                  <Field label="적용할 기준 세트" htmlFor="evaluationCriteria" className="se-narrow">
+                    <Select
+                      value={formData.evaluationCriteriaSetId || 'default'}
+                      onValueChange={(val) => setFormData(prev => ({ ...prev, evaluationCriteriaSetId: val === 'default' ? '' : val }))}
+                    >
+                      <SelectTrigger
+                        id="evaluationCriteria"
+                        className="bg-white"
+                        data-testid="select-evaluation-criteria"
+                      >
+                        <SelectValue placeholder={t('admin.scenarioManager.form.selectEvaluationCriteria')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">{t('admin.scenarioManager.form.defaultCriteria', 'Use default criteria')}</SelectItem>
+                        {evaluationCriteriaSets?.map(criteria => (
+                          <SelectItem key={criteria.id} value={criteria.id} data-testid={`criteria-option-${criteria.id}`}>
+                            {criteria.name} {criteria.isDefault && `(${t('common.default', 'Default')})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <ScenarioCriteriaPreview criteriaSetId={formData.evaluationCriteriaSetId} />
+                </EditorGroup>
 
-                <details className="scenario-editor-advanced">
-                  <summary>고급 설정 · 상대 자동 전환 및 종료 규칙</summary>
-                {/* PersonaSwitchRules Builder */}
-                <div id="section-persona-switch" className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                    personaSwitchRules
-                    <span className="text-xs text-slate-400 font-normal">(페르소나 자동 전환 규칙)</span>
-                    <SectionIssueIcon sectionId="section-persona-switch" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
-                  </Label>
-                  <PersonaSwitchRulesBuilder
-                    key={`psr-${builderKey}`}
-                    defaultValue={personaSwitchRulesValue}
-                    onChange={setPersonaSwitchRulesValue}
-                    personaCount={Math.max(2, formData.personas.length)}
-                  />
-                </div>
+                <ConversationLengthGroup
+                  difficulty={formData.difficulty}
+                  targetDurationMinutes={formData.targetDurationMinutes}
+                  targetTurns={formData.targetTurns}
+                  minValidTurns={formData.minValidTurns}
+                  onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
+                />
 
-                {/* TerminationRules Builder */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                    terminationRules
-                    <span className="text-xs text-slate-400 font-normal">(자동 종료 조건)</span>
-                  </Label>
-                  <TerminationRulesBuilder
-                    key={`tr-${builderKey}`}
-                    defaultValue={terminationRulesValue}
-                    onChange={setTerminationRulesValue}
-                  />
-                </div>
-
-                </details>
-                </ScenarioEditorRegion>
-                <ScenarioEditorRegion sections="assessment">
-                {/* evaluationHarness — visual builder */}
-                <div id="section-evaluation">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                      세부 평가 기준
-                      <span className="text-xs text-slate-400 font-normal">(점수 기준 가중치 및 신호 재정의)</span>
-                      <SectionIssueIcon sectionId="section-evaluation" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
-                    </Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs gap-1.5"
-                              disabled={!canGenerateAI || isGeneratingEvaluationHarness || isAnyGenerating}
-                              onClick={handleGenerateEvaluationHarness}
-                            >
-                              {isGeneratingEvaluationHarness ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-                              )}
-                              AI 생성
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        {!canGenerateAI && (
-                          <TooltipContent side="left" className="text-xs">
-                            시나리오 제목 또는 설명을 먼저 입력해주세요
-                          </TooltipContent>
-                        )}
-                        {canGenerateAI && isAnyGenerating && !isGeneratingEvaluationHarness && (
-                          <TooltipContent side="left" className="text-xs">
-                            다른 AI 생성이 진행 중입니다
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
+                <EditorGroup id="section-evaluation"
+                  title={<>세부 평가 기준<SectionIssueIcon sectionId="section-evaluation" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></>}
+                  description="점수 항목의 가중치와 판단 신호를 이 시나리오에 맞게 조정합니다. 비워 두면 기준 세트를 그대로 씁니다."
+                  actions={<AiGenerateButton onClick={handleGenerateEvaluationHarness} loading={isGeneratingEvaluationHarness}
+                    disabled={!canGenerateAI || isGeneratingEvaluationHarness || isAnyGenerating}
+                    blockedReason={aiBlockedReason({ needsContext: !canGenerateAI, otherRunning: isAnyGenerating && !isGeneratingEvaluationHarness })} />}>
                   <EvaluationHarnessBuilder
                     key={`eh-${builderKey}`}
                     defaultValue={evaluationHarnessValue}
                     onChange={setEvaluationHarnessValue}
                   />
-                </div>
+                </EditorGroup>
 
-                </ScenarioEditorRegion>
-                <ScenarioEditorRegion sections="situation">
-                <details className="scenario-editor-advanced">
-                  <summary>고급 설정 · 학습자 행동 제약과 난이도</summary>
-                <div id="section-player-constraints">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                      플레이어 행동 제약 (playerConstraints)
-                      <SectionIssueIcon sectionId="section-player-constraints" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
-                    </Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs gap-1.5"
-                              disabled={!canGenerateAI || isGeneratingPlayerConstraints || isAnyGenerating}
-                              onClick={handleGeneratePlayerConstraints}
-                            >
-                              {isGeneratingPlayerConstraints ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-                              )}
-                              AI 생성
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        {!canGenerateAI && (
-                          <TooltipContent side="left" className="text-xs">
-                            시나리오 제목 또는 설명을 먼저 입력해주세요
-                          </TooltipContent>
-                        )}
-                        {canGenerateAI && isAnyGenerating && !isGeneratingPlayerConstraints && (
-                          <TooltipContent side="left" className="text-xs">
-                            다른 AI 생성이 진행 중입니다
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <PlayerConstraintsBuilder
-                    value={playerConstraintsValue}
-                    onChange={setPlayerConstraintsValue}
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium text-slate-700 flex items-center gap-1 mb-2">
-                    난이도 프로파일 (difficultyProfile)
-                  </Label>
-                  <DifficultyProfileBuilder
-                    value={difficultyProfileValue}
-                    onChange={setDifficultyProfileValue}
-                  />
-                </div>
-                </details>
-                </ScenarioEditorRegion>
+                <AdvancedDisclosure summary="분석 지표와 비교 그룹" description="리포트에 표시할 섹션과 추적 지표, 비교 기준 그룹을 정합니다.">
+                  <Field label="추적 지표">
+                    <div className="se-check-grid">
+                      {TRACKED_METRICS.map((metric) => (
+                        <label key={metric} className="se-check-chip">
+                          <input
+                            type="checkbox"
+                            checked={analyticsTrackedMetrics.includes(metric)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAnalyticsTrackedMetrics(prev => [...prev, metric]);
+                              } else {
+                                setAnalyticsTrackedMetrics(prev => prev.filter(m => m !== metric));
+                              }
+                            }}
+                          />
+                          <span>{metric}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+                  <Field label="보고서 섹션" hint="선택한 섹션만 피드백 리포트에 표시됩니다. 비워 두면 모든 섹션이 표시됩니다.">
+                    <div className="se-check-grid">
+                      {REPORT_SECTIONS.map((sec) => (
+                        <label key={sec} className="se-check-chip">
+                          <input
+                            type="checkbox"
+                            checked={analyticsReportSections.includes(sec)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAnalyticsReportSections(prev => [...prev, sec]);
+                              } else {
+                                setAnalyticsReportSections(prev => prev.filter(s => s !== sec));
+                              }
+                            }}
+                          />
+                          <span>{sec}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+                  <Field label="비교 그룹" htmlFor="analytics-benchmark-group" className="se-narrow" hint="같은 그룹의 시나리오끼리 평균 점수를 비교합니다.">
+                    <Input
+                      id="analytics-benchmark-group"
+                      value={analyticsBenchmarkGroup}
+                      onChange={(e) => setAnalyticsBenchmarkGroup(e.target.value)}
+                      placeholder="예: customer-complaint"
+                      className="bg-white font-mono text-sm"
+                    />
+                  </Field>
+                </AdvancedDisclosure>
               </ScenarioEditorRegion>
 
-              {/* Analytics Spec Section */}
-              <ScenarioEditorRegion sections="assessment">
-              <details className="scenario-editor-advanced">
-                <summary>고급 설정 · 분석 지표와 비교 그룹</summary>
-              <div className="bg-violet-50 border border-violet-200 rounded-xl p-5 space-y-4">
-                <h3 className="text-sm font-semibold text-violet-800 flex items-center gap-2">
-                  <BarChart2 className="h-4 w-4 text-violet-500" />
-                  분석 지표 스펙 (analyticsSpec)
-                </h3>
-
-                <div>
-                  <Label className="text-sm font-medium text-slate-700 mb-2 block">추적 지표 (trackedMetrics)</Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {TRACKED_METRICS.map((metric) => (
-                      <label key={metric} className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-slate-300 text-violet-600"
-                          checked={analyticsTrackedMetrics.includes(metric)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setAnalyticsTrackedMetrics(prev => [...prev, metric]);
-                            } else {
-                              setAnalyticsTrackedMetrics(prev => prev.filter(m => m !== metric));
-                            }
-                          }}
+              {/* ── 이미지·영상 ── */}
+              <ScenarioEditorRegion sections="media" className="se-stack">
+                <EditorGroup title="시나리오 이미지" description="목록 카드와 시작 화면에 쓰입니다. 생성하거나 이미 만든 이미지를 고르세요."
+                  actions={<Button type="button" variant="outline" size="sm" onClick={handleOpenImageSelector} className="se-secondary-action">
+                    <Folder className="h-4 w-4" aria-hidden="true" />{t('admin.scenarioManager.form.selectExisting', '기존 이미지 선택')}
+                  </Button>}>
+                  <div className="se-media">
+                    <div className="se-media-preview">
+                      {!formData.image ? (
+                        <div className="se-media-empty"><ImageOff className="h-6 w-6" aria-hidden="true" /><span>아직 이미지가 없습니다</span></div>
+                      ) : imageLoadFailed ? (
+                        <div className="se-media-empty is-warn">
+                          <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+                          <span>이미지 파일을 찾을 수 없습니다</span>
+                          <Button type="button" variant="ghost" size="sm" className="se-danger-ghost"
+                            onClick={() => { setFormData(prev => ({ ...prev, image: '' })); setImageLoadFailed(false); }}>
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />이미지 경로 지우기
+                          </Button>
+                        </div>
+                      ) : (
+                        <button type="button" className="se-media-frame" aria-label="이미지 크게 보기"
+                          onClick={() => setImagePreviewUrl(selectedImageSignedUrl || toMediaUrl(formData.image) || null)}
+                          data-testid="image-preview-container">
+                          <img
+                            src={selectedImageSignedUrl || toMediaUrl(formData.image)}
+                            alt={t('admin.scenarioManager.form.imagePreview')}
+                            onError={() => setImageLoadFailed(true)}
+                            onLoad={() => setImageLoadFailed(false)}
+                            data-testid="scenario-image-preview"
+                          />
+                          <span className="se-media-zoom"><Eye className="h-3.5 w-3.5" aria-hidden="true" />크게 보기</span>
+                        </button>
+                      )}
+                    </div>
+                    <div className="se-media-controls">
+                      <Field label={t('admin.scenarioManager.form.imagePromptLabel', '이미지 생성 설명')} htmlFor="imagePrompt" optional
+                        hint="비워 두면 시나리오 내용으로 자동 작성합니다."
+                        action={<button type="button" className="se-link" onClick={handleLoadDefaultImagePrompt} disabled={!formData.title}>
+                          {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
+                        </button>}>
+                        <AutoResizeTextarea
+                          id="imagePrompt"
+                          value={formData.imagePrompt || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, imagePrompt: e.target.value }))}
+                          placeholder={t('admin.scenarioManager.form.imagePromptPlaceholder', 'Enter custom image prompt. Leave empty to auto-generate.')}
+                          className="min-h-[80px] bg-white whitespace-pre-wrap"
+                          data-testid="textarea-image-prompt"
                         />
-                        <span className="text-xs text-slate-700">{metric}</span>
-                      </label>
+                      </Field>
+                      <AiGenerateButton
+                        variant="primary"
+                        block
+                        testId="button-generate-image"
+                        onClick={handleGenerateImage}
+                        loading={isGeneratingImage}
+                        loadingLabel={t('admin.scenarioManager.form.generatingImage')}
+                        label={t('admin.scenarioManager.form.generateImage')}
+                        disabled={isGeneratingImage || !formData.title || isAnyGenerating}
+                        blockedReason={aiBlockedReason({ needsContext: !formData.title, contextMessage: '시나리오 제목을 먼저 입력해 주세요', otherRunning: isAnyGenerating && !isGeneratingImage })}
+                      />
+                      <Field label={t('admin.scenarioManager.form.imageUrl')} htmlFor="image" hint="이미지 경로를 직접 입력할 수도 있습니다.">
+                        <Input
+                          id="image"
+                          value={formData.image || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
+                          placeholder={t('admin.scenarioManager.form.imageUrlPlaceholder')}
+                          data-testid="input-scenario-image"
+                          className="bg-white font-mono text-sm"
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                </EditorGroup>
+
+                <EditorGroup title={t('admin.scenarioManager.form.introVideo')} description="대화 시작 전에 재생할 영상을 고릅니다.">
+                  <div role="radiogroup" aria-label="시작 영상 방식" className="se-segment">
+                    {([
+                      { mode: 'none', label: '사용 안 함', hint: '영상 없이 바로 시작', Icon: VideoOff },
+                      { mode: 'default', label: '기본 영상', hint: '모든 시나리오 공통', Icon: Film },
+                      { mode: 'custom', label: '전용 영상', hint: '이 시나리오만의 영상', Icon: Video },
+                    ] as const).map(({ mode, label, hint, Icon }) => (
+                      <button key={mode} type="button" role="radio" aria-checked={formData.introVideoMode === mode}
+                        onClick={() => setFormData(prev => ({ ...prev, introVideoMode: mode }))}
+                        data-testid={`video-mode-${mode}`}>
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                        <span className="se-segment-label">{label}</span>
+                        <span className="se-segment-hint">{hint}</span>
+                      </button>
                     ))}
                   </div>
-                </div>
 
-                <div>
-                  <Label className="text-sm font-medium text-slate-700 mb-2 block">보고서 섹션 (reportSections)</Label>
-                  <p className="text-xs text-slate-400 mb-2">선택된 섹션만 피드백 리포트에 표시됩니다. 비워두면 모든 섹션이 표시됩니다.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {REPORT_SECTIONS.map((sec) => (
-                      <label key={sec} className="flex items-center gap-1.5 cursor-pointer bg-white border border-slate-200 rounded-lg px-3 py-1.5 select-none hover:border-violet-300 transition-colors">
+                  {formData.introVideoMode === 'default' && (
+                    <div className="se-media is-video">
+                      <div className="se-media-preview is-dark">
+                        <video
+                          key={defaultVideoInfo?.url}
+                          src={defaultVideoInfo?.hasCustomVideo ? toMediaUrl(defaultVideoInfo.url) : '/videos/intro_default.webm'}
+                          controls
+                          preload="metadata"
+                          data-testid="default-video-preview"
+                        />
+                      </div>
+                      <div className="se-media-controls">
+                        <p className="se-field-hint">
+                          {defaultVideoInfo?.hasCustomVideo ? '교체된 공통 영상을 사용 중입니다.' : '기본 제공 영상을 사용 중입니다.'}
+                          {' '}교체하면 기본 영상을 쓰는 모든 시나리오에 적용됩니다. WebM 또는 MP4를 지원합니다.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="outline" size="sm" className="se-secondary-action"
+                            disabled={isUploadingDefaultVideo} onClick={() => defaultVideoInputRef.current?.click()}>
+                            {isUploadingDefaultVideo
+                              ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />업로드 중…</>
+                              : <><Upload className="h-4 w-4" aria-hidden="true" />공통 영상 교체</>}
+                          </Button>
+                          {defaultVideoInfo?.hasCustomVideo && (
+                            <Button type="button" variant="ghost" size="sm" className="se-danger-ghost" onClick={handleResetDefaultVideo}>
+                              기본 제공 영상으로 되돌리기
+                            </Button>
+                          )}
+                        </div>
                         <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 rounded border-slate-300 text-violet-600"
-                          checked={analyticsReportSections.includes(sec)}
+                          ref={defaultVideoInputRef}
+                          type="file"
+                          accept="video/webm,video/mp4"
+                          className="hidden"
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              setAnalyticsReportSections(prev => [...prev, sec]);
-                            } else {
-                              setAnalyticsReportSections(prev => prev.filter(s => s !== sec));
-                            }
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadDefaultVideo(file);
                           }}
                         />
-                        <span className="text-xs text-slate-700">{sec}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                      </div>
+                    </div>
+                  )}
 
-                <div>
-                  <Label className="text-sm font-medium text-slate-700 mb-1 block">벤치마크 그룹 (benchmarkGroup)</Label>
-                  <p className="text-xs text-slate-400 mb-2">동일 그룹 시나리오끼리 평균 점수를 비교합니다. 예: <code className="bg-slate-100 px-1 rounded">customer-complaint</code></p>
-                  <input
-                    type="text"
-                    value={analyticsBenchmarkGroup}
-                    onChange={(e) => setAnalyticsBenchmarkGroup(e.target.value)}
-                    placeholder="예: customer-complaint"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+                  {formData.introVideoMode === 'custom' && (
+                    <div className="se-media is-video">
+                      <div className="se-media-preview is-dark">
+                        {isGeneratingVideo ? (
+                          <div className="se-media-empty"><Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" /><span>영상을 생성하고 있습니다</span></div>
+                        ) : videoLoadFailed ? (
+                          <div className="se-media-empty is-warn"><AlertTriangle className="h-6 w-6" aria-hidden="true" /><span>영상을 불러올 수 없습니다. 새로 생성해 주세요.</span></div>
+                        ) : formData.introVideoUrl ? (
+                          <div className="se-media-frame is-video" data-testid="video-preview-container">
+                            <video
+                              key={formData.introVideoUrl}
+                              src={toMediaUrl(formData.introVideoUrl)}
+                              controls
+                              preload="metadata"
+                              onError={() => {
+                                setVideoLoadFailed(true);
+                                setFormData(prev => ({ ...prev, introVideoUrl: '', introVideoModel: '' }));
+                              }}
+                              data-testid="scenario-video-preview"
+                            />
+                            <div className="se-media-caption">
+                              {formData.introVideoModel && (
+                                <span className="se-chip">{formData.introVideoModel.includes('lite') ? 'Lite' : formData.introVideoModel.includes('fast') ? 'Fast' : 'Full'}</span>
+                              )}
+                              <button type="button" className="se-link" onClick={() => setVideoPreviewUrl(toMediaUrl(formData.introVideoUrl) || null)}>
+                                <Eye className="h-3.5 w-3.5" aria-hidden="true" />크게 보기
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="se-media-empty"><Video className="h-6 w-6" aria-hidden="true" /><span>아직 영상이 없습니다</span></div>
+                        )}
+                      </div>
+                      <div className="se-media-controls">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={handleOpenVideoSelector} className="se-secondary-action">
+                            <Folder className="h-4 w-4" aria-hidden="true" />{t('admin.scenarioManager.form.selectExistingVideo', '기존 비디오 선택')}
+                          </Button>
+                          {formData.introVideoUrl && (
+                            <Button type="button" variant="ghost" size="sm" onClick={handleDeleteVideo} className="se-danger-ghost" data-testid="button-delete-video">
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />{t('common.delete')}
+                            </Button>
+                          )}
+                        </div>
+                        <Field label={t('admin.scenarioManager.form.videoPromptLabel', '영상 생성 설명')} htmlFor="videoPrompt" optional
+                          action={<button type="button" className="se-link" onClick={handleLoadDefaultVideoPrompt} disabled={!formData.title}>
+                            {t('admin.scenarioManager.form.loadDefaultPrompt', '기본 프롬프트 로드')}
+                          </button>}>
+                          <AutoResizeTextarea
+                            id="videoPrompt"
+                            value={formData.videoPrompt || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, videoPrompt: e.target.value }))}
+                            placeholder={t('admin.scenarioManager.form.videoPromptPlaceholder')}
+                            className="min-h-[80px] bg-white whitespace-pre-wrap"
+                            data-testid="textarea-video-prompt"
+                          />
+                        </Field>
+                        <AiGenerateButton
+                          variant="primary"
+                          block
+                          testId="button-generate-video"
+                          onClick={handleGenerateVideo}
+                          loading={isGeneratingVideo}
+                          loadingLabel={t('admin.scenarioManager.form.generatingVideo')}
+                          label={editingScenario?.id ? t('admin.scenarioManager.form.generateVideo') : t('admin.scenarioManager.form.videoAfterSave')}
+                          disabled={isGeneratingVideo || !editingScenario?.id || isAnyGenerating}
+                          blockedReason={aiBlockedReason({ needsContext: !editingScenario?.id, contextMessage: '시나리오를 먼저 저장해야 영상을 생성할 수 있습니다', otherRunning: isAnyGenerating && !isGeneratingVideo })}
+                        />
+                        <Field label="영상 경로" htmlFor="introVideoUrl" hint="경로를 직접 입력할 수도 있습니다.">
+                          <Input
+                            id="introVideoUrl"
+                            value={formData.introVideoUrl || ''}
+                            onChange={(e) => {
+                              setFormData(prev => ({ ...prev, introVideoUrl: e.target.value, introVideoModel: '' }));
+                              if (e.target.value) setVideoLoadFailed(false);
+                            }}
+                            placeholder="/scenarios/videos/intro.webm"
+                            data-testid="input-intro-video-url"
+                            className="bg-white font-mono text-sm"
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                  )}
+
+                  <AdvancedDisclosure summary="영상 생성 모델" description={formData.modelVideoOverride ? `이 시나리오는 ${VIDEO_MODELS.find(m => m.value === formData.modelVideoOverride)?.label ?? formData.modelVideoOverride} 모델을 사용합니다.` : '전역 기본 모델을 사용합니다.'}>
+                    <Field label="비디오 모델" htmlFor="model-video-override" className="se-narrow" hint="설정하면 시스템 전역 비디오 모델보다 우선 적용됩니다.">
+                      <Select
+                        value={formData.modelVideoOverride || '__global__'}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, modelVideoOverride: v === '__global__' ? '' : v }))}
+                      >
+                        <SelectTrigger id="model-video-override" className="bg-white">
+                          <SelectValue placeholder="전역 기본값 사용" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__global__">전역 기본값 사용</SelectItem>
+                          {VIDEO_MODELS.map(m => (
+                            <SelectItem key={m.value} value={m.value}>
+                              {m.label}{(m as any).recommended ? ' (권장)' : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </AdvancedDisclosure>
+                </EditorGroup>
+              </ScenarioEditorRegion>
+
+              {/* ── 공개 설정 ── */}
+              <ScenarioEditorRegion sections="publish" className="se-stack">
+                <EditorGroup title="공개 범위" description="누가 이 시나리오를 볼 수 있는지 정합니다.">
+                  <ToggleRow
+                    id="isPublic"
+                    label={t('admin.scenarioManager.form.isPublic', '공개 시나리오')}
+                    description={formData.isPublic
+                      ? t('admin.scenarioManager.form.isPublicOn', '일반 사용자에게 노출됩니다')
+                      : t('admin.scenarioManager.form.isPublicOff', '관리자/운영자만 접근 가능합니다')}
+                    checked={formData.isPublic || false}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isPublic: checked }))}
                   />
-                </div>
-              </div>
+                  <ToggleRow
+                    id="isDemo"
+                    label={t('admin.scenarioManager.form.isDemo', 'Guest Demo Scenario')}
+                    description={formData.isDemo ? '로그인하지 않은 방문자도 체험할 수 있습니다.' : '체험 모드에 표시되지 않습니다.'}
+                    checked={formData.isDemo || false}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isDemo: checked }))}
+                  />
+                </EditorGroup>
 
-              </details>
+                <EditorGroup title="아바타 표시" description="실시간 아바타 허용 정책은 아래의 정책 저장 버튼으로 별도 반영합니다. 영상 클립 설정은 상단 저장에 포함됩니다.">
+                  <ScenarioLiveAvatarPolicy key={editingScenario?.id ?? "new"} scenarioId={editingScenario?.id} />
+                  {canManageVideoAvatar && (
+                    <ToggleRow
+                      id="useVideoAvatar"
+                      label="기본 아바타에 영상 클립 사용"
+                      description={formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
+                      checked={formData.useVideoAvatar || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, useVideoAvatar: checked }))}
+                    />
+                  )}
+                </EditorGroup>
+
+                <EditorGroup title="콘텐츠 스토어" description="다른 조직이 구매하거나 받을 수 있도록 스토어에 등록합니다.">
+                  <ToggleRow
+                    id="storeListed"
+                    icon={<Star className="h-4 w-4 text-[color:var(--editor-amber)]" aria-hidden="true" />}
+                    label="스토어에 등록"
+                    description={formData.storeListed ? '콘텐츠 스토어에 표시됩니다.' : '스토어에 표시되지 않습니다.'}
+                    checked={formData.storeListed || false}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, storeListed: checked }))}
+                  />
+                  {formData.storeListed && (
+                    <FieldGrid>
+                      <Field label="가격 (USD)" htmlFor="store-price" hint="0이면 무료입니다.">
+                        <Input
+                          id="store-price"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="bg-white"
+                          value={formData.storePriceUsd ?? ''}
+                          onChange={e => setFormData(prev => ({ ...prev, storePriceUsd: e.target.value ? parseFloat(e.target.value) : null }))}
+                        />
+                      </Field>
+                      <Field label="팩 ID" htmlFor="store-pack-id" optional>
+                        <Input
+                          id="store-pack-id"
+                          type="text"
+                          placeholder="스토어 팩 ID"
+                          className="bg-white font-mono text-sm"
+                          value={formData.storePackId ?? ''}
+                          onChange={e => setFormData(prev => ({ ...prev, storePackId: e.target.value || null }))}
+                        />
+                      </Field>
+                    </FieldGrid>
+                  )}
+                </EditorGroup>
+
+                <EditorGroup id="section-source-locale" title="언어"
+                  description={!editingScenario ? t('admin.evaluationCriteria.autoTranslateDescription') : '원문을 기준으로 지원 언어의 번역을 다시 만듭니다.'}>
+                  {!editingScenario ? (
+                    <ToggleRow
+                      id="autoTranslate"
+                      icon={<Languages className="h-4 w-4" aria-hidden="true" />}
+                      label={t('admin.evaluationCriteria.autoTranslate')}
+                      checked={formData.autoTranslate || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, autoTranslate: checked }))}
+                    />
+                  ) : (
+                    <div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => editingScenario?.id && autoTranslateMutation.mutate(editingScenario.id)}
+                        disabled={autoTranslateMutation.isPending}
+                        className="se-secondary-action"
+                      >
+                        {autoTranslateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Languages className="h-4 w-4" aria-hidden="true" />}
+                        {autoTranslateMutation.isPending
+                          ? t('admin.common.loading')
+                          : t('admin.evaluationCriteria.triggerAutoTranslate')
+                        }
+                      </Button>
+                    </div>
+                  )}
+                </EditorGroup>
               </ScenarioEditorRegion>
           </ScenarioEditor>
         </Dialog>
