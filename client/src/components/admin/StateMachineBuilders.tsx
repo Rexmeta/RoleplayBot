@@ -82,7 +82,7 @@ function RawJsonPanel({ value, onImport }: RawJsonPanelProps) {
             </>
           ) : (
             <>
-              <Textarea
+              <AutoResizeTextarea
                 value={rawText}
                 onChange={e => { setRawText(e.target.value); setImportError(''); }}
                 rows={8}
@@ -174,17 +174,24 @@ function newStageRow(): FlowStageRow {
 interface FlowGraphBuilderProps {
   defaultValue: FlowGraph | null;
   onChange: (value: FlowGraph | null) => void;
+  focused?: boolean;
 }
 
-export function FlowGraphBuilder({ defaultValue, onChange }: FlowGraphBuilderProps) {
+export function FlowGraphBuilder({ defaultValue, onChange, focused = false }: FlowGraphBuilderProps) {
   const [stages, setStages] = useState<FlowStageRow[]>(() => flowGraphToRows(defaultValue));
+  const [selectedStage, setSelectedStage] = useState<string | null>(null);
+  const selected = stages.some(s => s._id === selectedStage) ? selectedStage : stages[0]?._id;
 
   function update(newStages: FlowStageRow[]) {
     setStages(newStages);
     onChange(rowsToFlowGraph(newStages));
   }
 
-  function addStage() { update([...stages, newStageRow()]); }
+  function addStage() {
+    const added = newStageRow();
+    update([...stages, added]);
+    setSelectedStage(added._id);
+  }
 
   function removeStage(idx: number) {
     update(stages.filter((_, i) => i !== idx));
@@ -239,52 +246,68 @@ export function FlowGraphBuilder({ defaultValue, onChange }: FlowGraphBuilderPro
 
   return (
     <div className="space-y-3">
+      <div className={focused ? 'scenario-flow-layout' : undefined}>
+      {focused && <nav className="scenario-flow-stages" aria-label="대화 단계">
+        {stages.map((stage, i) => <button key={stage._id} type="button" aria-current={selected === stage._id ? 'step' : undefined}
+          onClick={() => setSelectedStage(stage._id)}>
+          <span className="scenario-flow-number">{i + 1}</span>
+          <span className="scenario-flow-stage-label">{stage.goal || `${i + 1}단계 목표를 입력하세요`}
+            <span className="scenario-flow-stage-hint block">조건 {stage.exitConditions.length}개 · 다음: {stage.nextStage || '미설정'}</span>
+          </span>
+        </button>)}
+        <Button type="button" variant="ghost" onClick={addStage}><Plus className="h-4 w-4 mr-1" />단계 추가</Button>
+      </nav>}
+      <div className={focused ? 'scenario-flow-panel' : 'space-y-3'}>
       {stages.length === 0 && (
         <p className="text-xs text-slate-400 italic">스테이지 없음 — 아래 버튼으로 추가하세요.</p>
       )}
 
       {stages.map((stage, si) => (
-        <div key={stage._id} className="border border-slate-200 rounded-lg bg-slate-50 p-3 space-y-3">
+        <div key={stage._id} hidden={focused && selected !== stage._id} className="border border-slate-200 rounded-lg bg-slate-50 p-4 space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-slate-600">스테이지 {si + 1}</span>
+            <span className="text-xs font-semibold text-slate-600">{si + 1}단계</span>
             <div className="flex items-center gap-1">
-              <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveStage(si, -1)} disabled={si === 0} title="위로">
+              <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveStage(si, -1)} disabled={si === 0} title="위로" aria-label={`${si + 1}단계 앞으로 이동`}>
                 <ArrowUp className="h-3 w-3" />
               </Button>
-              <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveStage(si, 1)} disabled={si === stages.length - 1} title="아래로">
+              <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-slate-700" onClick={() => moveStage(si, 1)} disabled={si === stages.length - 1} title="아래로" aria-label={`${si + 1}단계 뒤로 이동`}>
                 <ArrowDown className="h-3 w-3" />
               </Button>
-              <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => removeStage(si)}>
+              <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => removeStage(si)} aria-label={`${si + 1}단계 삭제`}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs text-slate-600 mb-0.5 block">스테이지 ID</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <details className="border border-dashed border-slate-200 rounded-md px-3" open={focused ? undefined : true}>
+              <summary className="text-xs text-slate-600">내부 ID</summary>
+              <Label className="text-xs text-slate-600 mb-1 block">다른 규칙에서 참조하는 단계 ID</Label>
               <Input
+                aria-label={`${si + 1}단계 내부 ID`}
                 value={stage.id}
                 onChange={e => updateStage(si, { id: e.target.value })}
                 placeholder="intro, conflict, resolution…"
                 className="h-7 text-xs bg-white"
               />
-            </div>
+            </details>
             <div>
-              <Label className="text-xs text-slate-600 mb-0.5 block">다음 스테이지</Label>
+              <Label className="text-xs text-slate-600 mb-1 block">다음으로 진행할 단계</Label>
               {stageIds.length > 1 ? (
                 <Select value={stage.nextStage} onValueChange={v => updateStage(si, { nextStage: v })}>
-                  <SelectTrigger className="h-7 text-xs bg-white">
+                  <SelectTrigger aria-label={`${si + 1}단계 다음 단계`} className="h-10 text-xs bg-white">
                     <SelectValue placeholder="선택..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {stageIds.filter(id => id !== stage.id.trim()).map(id => (
-                      <SelectItem key={id} value={id}>{id}</SelectItem>
+                    {stage.nextStage && !stageIds.includes(stage.nextStage) && <SelectItem value={stage.nextStage}>{stage.nextStage} (기존 참조)</SelectItem>}
+                    {Array.from(new Set(stageIds)).map(id => (
+                      <SelectItem key={id} value={id}>{stages.find(s => s.id.trim() === id)?.goal || id} · {id}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               ) : (
                 <Input
+                  aria-label={`${si + 1}단계 다음 단계`}
                   value={stage.nextStage}
                   onChange={e => updateStage(si, { nextStage: e.target.value })}
                   placeholder="다음 스테이지 ID"
@@ -295,18 +318,19 @@ export function FlowGraphBuilder({ defaultValue, onChange }: FlowGraphBuilderPro
           </div>
 
           <div>
-            <Label className="text-xs text-slate-600 mb-0.5 block">목표 설명</Label>
-            <Input
+            <Label className="text-sm text-slate-700 mb-2 block">이 단계에서 학습자가 해야 할 일</Label>
+            <AutoResizeTextarea
+              aria-label={`${si + 1}단계 목표`}
               value={stage.goal}
               onChange={e => updateStage(si, { goal: e.target.value })}
               placeholder="이 단계에서 달성할 목표..."
-              className="h-7 text-xs bg-white"
+              className="min-h-[64px] text-sm bg-white"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <Label className="text-xs text-slate-600">종료 조건</Label>
+              <Label className="text-sm text-slate-700">다음으로 넘어가는 시점</Label>
               {stage.exitConditions.length > 1 && (
                 <Select value={stage.exitConditionsLogic} onValueChange={v => updateStage(si, { exitConditionsLogic: v as 'all' | 'any' })}>
                   <SelectTrigger className="h-6 text-xs w-24 bg-white">
@@ -401,10 +425,12 @@ export function FlowGraphBuilder({ defaultValue, onChange }: FlowGraphBuilderPro
           </div>
         </div>
       ))}
+      </div>
+      </div>
 
-      <Button type="button" variant="outline" size="sm" className="text-xs" onClick={addStage}>
+      {!focused && <Button type="button" variant="outline" size="sm" className="text-xs" onClick={addStage}>
         <Plus className="h-3.5 w-3.5 mr-1" /> 스테이지 추가
-      </Button>
+      </Button>}
 
       <RawJsonPanel value={rowsToFlowGraph(stages)} onImport={handleImport} />
     </div>

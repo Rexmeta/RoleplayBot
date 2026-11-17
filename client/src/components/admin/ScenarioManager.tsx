@@ -48,6 +48,7 @@ import { ActorCultureEditor } from '@/components/admin/cultureMap/ActorCultureEd
 import { ScenarioLiveAvatarPolicy } from '@/components/admin/ScenarioLiveAvatarPolicy';
 import type { ActorCulture } from '@shared/cultureMap';
 import { getScenarioPersonaTemplateId, stableActorIdForTemplate } from '@/components/admin/cultureMap/actorIdentity';
+import { ScenarioEditor, ScenarioEditorRegion, useScenarioEditorNavigation, revealScenarioEditorTarget } from './scenarioEditor/ScenarioEditor';
 
 interface ScenarioPersona {
   id: string;
@@ -224,11 +225,13 @@ function ScenarioQualityPanel({
   isLive?: boolean;
   savedScore?: number;
 }) {
+  const editorNavigation = useScenarioEditorNavigation();
   if (!validation) return null;
 
   const { score, issues } = validation;
 
   const scrollToSection = (sectionId: string) => {
+    if (editorNavigation) { editorNavigation.reveal(sectionId); return; }
     const el = document.getElementById(sectionId);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -1108,6 +1111,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     // 필수 필드 검증
     const normalizedTitle = formData.title.trim();
     if (!normalizedTitle) {
+      revealScenarioEditorTarget('title');
       toast({
         title: t('admin.scenarioManager.toast.titleRequired'),
         description: t('admin.scenarioManager.toast.titleRequiredDesc'),
@@ -1117,6 +1121,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
     }
     
     if (!formData.categoryId) {
+      revealScenarioEditorTarget('category');
       toast({
         title: t('admin.scenarioManager.toast.categoryRequired'),
         description: t('admin.scenarioManager.toast.categoryRequiredDesc'),
@@ -1125,6 +1130,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       return;
     }
     if (invalidCultureActors.size > 0) {
+      revealScenarioEditorTarget(`scenario-actor-${Math.min(...Array.from(invalidCultureActors))}`);
       toast({
         title: '문화적 특성 설정을 확인해 주세요',
         description: '문화적 특성을 켠 Actor는 프로필을 선택해야 저장할 수 있습니다.',
@@ -2042,28 +2048,39 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           
-            <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
-              <DialogHeader className="bg-white px-6 py-4 -mx-6 -mt-6 border-b border-slate-200">
-                <DialogTitle className="text-xl text-slate-900">
-                  {editingScenario ? (editingScenario.title || t('admin.scenarioManager.editScenario')) : t('admin.scenarioManager.newScenario')}
-                </DialogTitle>
-              </DialogHeader>
-            
-            <form onSubmit={handleSubmit} className="space-y-6 pt-6">
+            <ScenarioEditor
+              title={formData.title || editingScenario?.title || ''}
+              isNew={!editingScenario}
+              pending={createMutation.isPending || updateMutation.isPending}
+              onSubmit={handleSubmit}
+              onClose={() => { setIsCreateOpen(false); setEditingScenario(null); resetForm(); }}
+              revision={JSON.stringify({
+                formData, flowGraphValue, personaSwitchRulesValue, terminationRulesValue,
+                evaluationHarnessValue, playerConstraintsValue, difficultyProfileValue,
+                analyticsTrackedMetrics, analyticsReportSections, analyticsBenchmarkGroup,
+                harnessEnabled, harnessAffectiveAxes, harnessMaxCallsPerTurn, harnessMaxDeltaPerCall,
+                harnessAllowedTypes, harnessGlobalCooldownSec, harnessPerTypeCooldownSec,
+                harnessStateUpdatesEnabled, harnessPreferredSignals, harnessRawJson,
+              })}
+            >
               {/* 품질 패널 — 편집 모드에서만 표시 (실시간 미리보기 우선) */}
               {editingScenario && (
+                <details className="scenario-editor-quality">
+                  <summary>품질 검토 및 수정 필요 항목</summary>
                 <ScenarioQualityPanel
                   validation={liveValidation ?? validationMap[String(editingScenario.id)]}
                   isLive={!!liveValidation}
                   savedScore={liveValidation ? validationMap[String(editingScenario.id)]?.score : undefined}
                 />
+                </details>
               )}
 
               {/* 기본 정보 */}
-              <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('common.basicInfo', 'Basic Info')}</h3>
+              <ScenarioEditorRegion sections={['basic', 'assessment', 'media', 'publish']} className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+                <ScenarioEditorRegion sections="basic"><h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('common.basicInfo', 'Basic Info')}</h3></ScenarioEditorRegion>
                 
                 {/* 시나리오 이미지 - 최상단으로 이동 */}
+                <ScenarioEditorRegion sections="media">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="image" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.imageUrl')}</Label>
@@ -2490,7 +2507,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   )}
                 </div>
                 
+                </ScenarioEditorRegion>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <ScenarioEditorRegion sections="basic">
                   <div>
                     <Label htmlFor="title" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.scenarioTitle')}</Label>
                     <Input
@@ -2513,6 +2532,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       onValueChange={(val) => setFormData(prev => ({ ...prev, categoryId: val }))}
                     >
                       <SelectTrigger 
+                        id="category"
                         className={`bg-white ${!formData.categoryId ? 'border-red-300' : ''}`}
                         data-testid="select-category"
                       >
@@ -2552,6 +2572,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   </div>
 
                   {/* 대화 시간 설정 */}
+                  </ScenarioEditorRegion>
+                  <ScenarioEditorRegion sections="assessment">
                   {(() => {
                     const difficulty = formData.difficulty ?? 4;
                     const rec = difficulty === 1
@@ -2711,6 +2733,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     );
                   })()}
                   
+                  </ScenarioEditorRegion>
+                  <ScenarioEditorRegion sections="publish">
                   <ScenarioLiveAvatarPolicy key={editingScenario?.id ?? "new"} scenarioId={editingScenario?.id} />
 
                   {canManageVideoAvatar && <div className="flex items-center gap-3">
@@ -2847,8 +2871,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       </Button>
                     )}
                   </div>
+                  </ScenarioEditorRegion>
                 </div>
-
+                <ScenarioEditorRegion sections="basic">
                 <div>
                   <Label htmlFor="description" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.scenarioDescription')}</Label>
                   <AutoResizeTextarea
@@ -2862,6 +2887,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   />
                 </div>
 
+                </ScenarioEditorRegion>
+                <ScenarioEditorRegion sections="assessment">
                 {/* 평가 기준 선택 */}
                 <div>
                   <Label htmlFor="evaluationCriteria" className="text-sm font-medium text-slate-700">
@@ -2891,10 +2918,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   </p>
                   <ScenarioCriteriaPreview criteriaSetId={formData.evaluationCriteriaSetId} />
                 </div>
-              </div>
-
+                </ScenarioEditorRegion>
+              </ScenarioEditorRegion>
               {/* 상황 설정 */}
-              <div className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+              <ScenarioEditorRegion sections="situation" className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
                 <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200">{t('admin.scenarioManager.form.situationSettings', 'Situation Settings')}</h3>
                 
                 <div>
@@ -3019,10 +3046,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     />
                   </div>
                 </div>
-              </div>
+              </ScenarioEditorRegion>
 
               {/* 목표 및 성공 기준 */}
-              <div id="section-success-criteria" className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+              <ScenarioEditorRegion sections="goals" id="section-success-criteria" className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
                 <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200 flex items-center">{t('admin.scenarioManager.form.objectivesAndCriteria', 'Objectives & Success Criteria')}<SectionIssueIcon sectionId="section-success-criteria" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></h3>
                 
                 <div>
@@ -3137,12 +3164,15 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     />
                   </div>
                 </div>
-              </div>
+              </ScenarioEditorRegion>
 
               {/* 역량 및 페르소나 */}
-              <div id="section-personas" className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+              <ScenarioEditorRegion sections={['basic', 'actors']} className="space-y-4 bg-white p-6 rounded-lg border border-slate-200">
+                <ScenarioEditorRegion sections="actors">
                 <h3 className="text-lg font-semibold text-slate-900 pb-3 border-b border-slate-200 flex items-center">{t('admin.scenarioManager.form.competenciesAndPersonas')}<SectionIssueIcon sectionId="section-personas" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} /></h3>
                 
+                </ScenarioEditorRegion>
+                <ScenarioEditorRegion sections="basic">
                 <div>
                   <Label htmlFor="skills" className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.skills')} ({t('admin.scenarioManager.form.separatedByComma', 'comma-separated')})</Label>
                   <Input
@@ -3173,6 +3203,8 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   </div>
                 </div>
 
+                </ScenarioEditorRegion>
+                <ScenarioEditorRegion sections="actors" id="section-personas">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <Label className="text-sm font-medium text-slate-700">{t('admin.scenarioManager.form.personaManagement')}</Label>
@@ -3243,14 +3275,15 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     </div>
                   )}
 
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                  <div className="space-y-4">
                     {invalidCultureActors.size > 0 && (
                       <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
                         문화적 특성을 켠 Actor는 프로필 선택이 필요합니다. 미완료 Actor: {Array.from(invalidCultureActors).sort((a, b) => a - b).map((i) => i + 1).join(', ')}
                       </div>
                     )}
                     {formData.personas.map((persona, index) => (
-                      <div key={index} className="border border-slate-300 rounded-lg p-4 space-y-3 bg-white shadow-sm">
+                      <details key={index} id={`scenario-actor-${index}`} open={index === 0 ? true : undefined} className="border border-slate-300 rounded-lg p-4 space-y-3 bg-white shadow-sm">
+                        <summary>{persona.name || `${index + 1}번 대화 상대`} <span className="text-xs font-normal text-slate-500">{[persona.department, persona.position].filter(Boolean).join(' · ')}</span></summary>
                         <div className="flex items-center justify-between">
                           <h4 className="font-medium text-slate-700">{t('admin.scenarioManager.form.personaNumber', { number: index + 1 })}</h4>
                           <Button
@@ -3600,7 +3633,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                             }}
                           />
                         </div>
-                      </div>
+                      </details>
                     ))}
                     
                     {formData.personas.length === 0 && (
@@ -3611,8 +3644,12 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     )}
                   </div>
                 </div>
-              </div>
+                </ScenarioEditorRegion>
+              </ScenarioEditorRegion>
 
+              <ScenarioEditorRegion sections="flow">
+              <details className="scenario-editor-advanced">
+                <summary>고급 설정 · 시뮬레이션 정책</summary>
               {/* Simulation Policy: simulationHarness structured editor */}
               <div id="section-simulation-harness" className="border border-slate-200 rounded-lg p-4 bg-white space-y-4">
                 <div className="flex items-center justify-between">
@@ -4008,27 +4045,33 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 )}
               </div>
 
+              </details>
+              </ScenarioEditorRegion>
               {/* State Machine: FlowGraph, PersonaSwitchRules, TerminationRules visual builders */}
-              <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-6">
+              <ScenarioEditorRegion sections={['flow', 'assessment', 'situation']} className="border border-slate-200 rounded-lg p-4 bg-white space-y-6">
+                <ScenarioEditorRegion sections="flow">
                 <div>
-                  <h3 className="font-semibold text-slate-800 text-sm mb-1">State Machine (선택사항)</h3>
-                  <p className="text-xs text-slate-500">단계 전환, 페르소나 전환, 자동 종료 조건을 폼으로 설정합니다. 비워두면 기존 동작을 유지합니다.</p>
+                  <h3 className="font-semibold text-slate-800 text-sm mb-1">대화 단계</h3>
+                  <p className="text-xs text-slate-500">다룰 내용과 다음 단계로 넘어갈 조건을 정합니다. 설정하지 않으면 기존 동작을 유지합니다.</p>
                 </div>
 
                 {/* FlowGraph Builder */}
                 <div id="section-flow-graph" className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                    flowGraph
+                    대화 단계별 목표와 전환
                     <span className="text-xs text-slate-400 font-normal">(대화 단계 전환 상태 머신)</span>
                     <SectionIssueIcon sectionId="section-flow-graph" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
                   </Label>
                   <FlowGraphBuilder
+                    focused
                     key={`fg-${builderKey}`}
                     defaultValue={flowGraphValue}
                     onChange={setFlowGraphValue}
                   />
                 </div>
 
+                <details className="scenario-editor-advanced">
+                  <summary>고급 설정 · 상대 자동 전환 및 종료 규칙</summary>
                 {/* PersonaSwitchRules Builder */}
                 <div id="section-persona-switch" className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
@@ -4057,11 +4100,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   />
                 </div>
 
+                </details>
+                </ScenarioEditorRegion>
+                <ScenarioEditorRegion sections="assessment">
                 {/* evaluationHarness — visual builder */}
                 <div id="section-evaluation">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
-                      evaluationHarness
+                      세부 평가 기준
                       <span className="text-xs text-slate-400 font-normal">(점수 기준 가중치 및 신호 재정의)</span>
                       <SectionIssueIcon sectionId="section-evaluation" issuesBySectionId={liveIssuesBySectionId.size > 0 ? liveIssuesBySectionId : issuesBySectionId} />
                     </Label>
@@ -4106,6 +4152,10 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   />
                 </div>
 
+                </ScenarioEditorRegion>
+                <ScenarioEditorRegion sections="situation">
+                <details className="scenario-editor-advanced">
+                  <summary>고급 설정 · 학습자 행동 제약과 난이도</summary>
                 <div id="section-player-constraints">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <Label className="text-sm font-medium text-slate-700 flex items-center gap-1">
@@ -4161,9 +4211,14 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     onChange={setDifficultyProfileValue}
                   />
                 </div>
-              </div>
+                </details>
+                </ScenarioEditorRegion>
+              </ScenarioEditorRegion>
 
               {/* Analytics Spec Section */}
+              <ScenarioEditorRegion sections="assessment">
+              <details className="scenario-editor-advanced">
+                <summary>고급 설정 · 분석 지표와 비교 그룹</summary>
               <div className="bg-violet-50 border border-violet-200 rounded-xl p-5 space-y-4">
                 <h3 className="text-sm font-semibold text-violet-800 flex items-center gap-2">
                   <BarChart2 className="h-4 w-4 text-violet-500" />
@@ -4230,30 +4285,9 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 </div>
               </div>
 
-              <div className="sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-4 z-10">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsCreateOpen(false);
-                    setEditingScenario(null);
-                    resetForm();
-                  }}
-                  data-testid="button-cancel"
-                >
-                  {t('admin.common.cancel')}
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-corporate-600 hover:bg-corporate-700"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  data-testid="button-save-scenario"
-                >
-                  {editingScenario ? t('admin.scenarioManager.editScenario') : t('admin.scenarioManager.addScenario')}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
+              </details>
+              </ScenarioEditorRegion>
+          </ScenarioEditor>
         </Dialog>
       </div>
 
