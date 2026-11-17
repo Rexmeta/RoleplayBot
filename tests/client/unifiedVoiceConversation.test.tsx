@@ -20,7 +20,7 @@ const props: TavusConversationLayoutProps = {
   persona: { id: "p", name: "Mina", role: "Manager" } as any,
   statusLabel: "Conversation live", active: true, elapsedSeconds: 17, remainingSeconds: 103,
   microphoneState: "active", microphoneDisabled: false, onMicrophoneClick: vi.fn(),
-  headerActions: <button>End conversation</button>, stage: <div data-testid="video-stage" />,
+  stage: <div data-testid="video-stage" />,
   sessionControls: <button data-testid="real-session-start">Consent and start</button>,
   history: <p>Confirmed history</p>, transcriptMessages: [],
   captionsAreProvisional: true, hasCaptionEvents: false,

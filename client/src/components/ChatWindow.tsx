@@ -77,7 +77,7 @@ export interface ChatWindowProps {
 
 interface StandardChatWindowProps extends Omit<ChatWindowProps, 'initialInputMode'> {
   initialInputMode?: 'text' | 'realtime-voice';
-  onSelectLiveAvatar?: () => void;
+  onSelectLiveAvatar?: (persona: ScenarioPersona) => void;
 }
 
 function StandardChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting, onSelectLiveAvatar }: StandardChatWindowProps) {
@@ -185,6 +185,11 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const personaSwitchBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePersona, setActivePersona] = useState<ScenarioPersona>(persona);
   const liveAvatarSelection = useLiveAvatarSelection(conversationId, activePersona.id);
+  const activePersonaRef = useRef(activePersona);
+  activePersonaRef.current = activePersona;
+  const liveAvatarSelectable = !liveAvatarSelection.isFetching && !liveAvatarSelection.isError &&
+    liveAvatarSelection.data?.configured && liveAvatarSelection.data.enabled && liveAvatarSelection.data.allowed &&
+    String(liveAvatarSelection.data.personaId) === String(activePersona.id);
   const [personaSwitchAnnounced, setPersonaSwitchAnnounced] = useState(false);
   const conversationLedger = useConversationLedger(conversationId);
 
@@ -454,12 +459,14 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     runData?.scenarioSnapshot?.scenarioSnapshot?._organizationOverride ?? null) as OrganizationOverrideMetadata;
 
   const switchToLiveAvatar = async () => {
-    if (!onSelectLiveAvatar || isSwitchingMode) return;
+    if (!onSelectLiveAvatar || isSwitchingMode || !liveAvatarSelectable) return;
+    const selected = activePersona;
     setIsSwitchingMode(true);
     try {
       await flushRealtimeMessagesRef.current?.(false);
+      if (activePersonaRef.current.id !== selected.id) return;
       realtimeVoice.disconnect();
-      onSelectLiveAvatar();
+      onSelectLiveAvatar(selected);
     } catch {
       toast({ title: t("chat.liveAvatarSwitchFailed", { defaultValue: "대화 기록을 저장하지 못했습니다. 다시 시도해 주세요." }), variant: "destructive" });
     } finally {
@@ -1365,7 +1372,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                               onVoiceInput={handleVoiceInput} onSkipTurn={handleSkipTurn} isLoading={isLoading}
                               isRecording={isRecording} speechSupported={speechSupported}
                               mode="realtime-voice" realtimeVoiceProps={rvBarProps}
-                              onLiveAvatarOptions={liveAvatarSelection.data?.configured ? switchToLiveAvatar : undefined}
+                              onLiveAvatarOptions={liveAvatarSelectable ? switchToLiveAvatar : undefined}
                               onTextModeToggle={() => {
                                 if (handleSwitchToTextModeRef.current) {
                                   handleSwitchToTextModeRef.current();
@@ -1444,7 +1451,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                               <ConversationModeMenu
                                 currentMode="text"
                                 onVoiceModeToggle={() => setShowVoiceModeConfirmDialog(true)}
-                                onLiveAvatarOptions={liveAvatarSelection.data?.configured ? switchToLiveAvatar : undefined}
+                                onLiveAvatarOptions={liveAvatarSelectable ? switchToLiveAvatar : undefined}
                                 disabled={isSwitchingMode || isLoading}
                               />
                             </div>
@@ -1774,6 +1781,10 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 }
 
 export default function ChatWindow(props: ChatWindowProps) {
+  return <ConversationChatWindow key={`${props.conversationId}:${props.persona.id}`} {...props} />;
+}
+
+function ConversationChatWindow(props: ChatWindowProps) {
   const { t, i18n } = useTranslation();
   const restoreText = (key: string, english: string, korean: string) =>
     t(`chat.tavus.${key}`, { defaultValue: i18n.language?.startsWith("ko") ? korean : english });
@@ -1785,36 +1796,39 @@ export default function ChatWindow(props: ChatWindowProps) {
     readyFiredRef.current = true;
     onReadyRef.current?.();
   }, []);
-  const [mode, setMode] = useState<'standard' | 'tavus' | 'checking' | 'choice'>(() =>
-    props.initialInputMode === 'tavus' ? 'tavus' : 'checking'
-  );
+  const [mode, setMode] = useState<'standard' | 'tavus' | 'checking' | 'choice'>('checking');
   const [standardMode, setStandardMode] = useState<'text' | 'realtime-voice' | undefined>(undefined);
-  const selectLiveAvatar = () => {
+  const [livePersona, setLivePersona] = useState(props.persona);
+  const selectLiveAvatar = (persona = props.persona) => {
+    setLivePersona(persona);
     setMode("tavus");
   };
   useEffect(() => {
     readyFiredRef.current = false;
     setStandardMode(undefined);
-  }, [props.conversationId]);
+    setLivePersona(props.persona);
+  }, [props.conversationId, props.persona.id]);
 
   useEffect(() => {
     let cancelled = false;
-    if (props.initialInputMode === 'tavus') {
-      setMode('tavus');
-      return () => { cancelled = true; };
-    }
     setMode('checking');
     notifyReady();
     apiRequest("GET", `/api/tavus/conversations/${encodeURIComponent(props.conversationId)}/session`)
       .then(response => response.json())
-      .then(async (session: { state?: string }) => {
+      .then(async (session: { state?: string; personaId?: string }) => {
         if (cancelled) return;
-        if (session.state && session.state !== "idle") { setMode("tavus"); return; }
-        if (props.initialInputMode !== undefined) { setMode("standard"); return; }
+        if (session.state && session.state !== "idle") {
+          // Recovery belongs to the paid session, never today's selection.
+          const actor = props.scenario.personas.find(p => String(p.id) === session.personaId);
+          setLivePersona(actor ?? { ...props.persona, name: "기존 라이브 세션", role: "", department: "", image: undefined });
+          setMode("tavus");
+          return;
+        }
+        if (props.initialInputMode !== undefined && props.initialInputMode !== "tavus") { setMode("standard"); return; }
         // Only configured Tavus installations add an explicit pre-connect choice.
         // Do not mount/prewarm Gemini before the learner has selected a pipeline.
         try {
-          const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(props.conversationId)}`);
+          const response = await apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(props.conversationId)}&actorId=${encodeURIComponent(props.persona.id)}`);
           const config = await response.json();
           if (!cancelled) setMode((config.selectable ?? config.available) && !props.initialMessages?.length ? "choice" : "standard");
         } catch {
@@ -1826,7 +1840,7 @@ export default function ChatWindow(props: ChatWindowProps) {
         if (!cancelled) setMode("tavus");
       });
     return () => { cancelled = true; };
-  }, [props.conversationId, props.initialInputMode, notifyReady]);
+  }, [props.conversationId, props.persona.id, props.initialInputMode, notifyReady]);
 
   if (mode === 'checking') {
     return (
@@ -1849,7 +1863,7 @@ export default function ChatWindow(props: ChatWindowProps) {
             <Button variant="outline" onClick={() => { setStandardMode("realtime-voice"); setMode("standard"); }}>
               {restoreText("voiceMode", "Voice conversation", "음성 대화")}
             </Button>
-            <Button onClick={selectLiveAvatar}>{t("chat.liveAvatar", "라이브 아바타")}</Button>
+            <Button onClick={() => selectLiveAvatar()}>{t("chat.liveAvatar", "라이브 아바타")}</Button>
             <p className="text-xs text-slate-500">{restoreText("microphoneStartNotice", "Press the microphone in live avatar mode to start a usage-billed connection and send audio, persona, scenario and applicable organization instructions to the external service.", "라이브 아바타 화면에서 마이크를 누르면 요금이 발생하는 연결을 시작하며, 음성·페르소나·시나리오·적용된 조직 지침을 외부 서비스에 전송합니다.")}</p>
             <Button variant="ghost" onClick={props.onExit}>{restoreText("exit", "Exit", "나가기")}</Button>
           </div>
@@ -1860,9 +1874,9 @@ export default function ChatWindow(props: ChatWindowProps) {
   if (mode === 'tavus') {
     return (
       <TavusChatWindow
-        key={props.conversationId}
+        key={`${props.conversationId}:${livePersona.id}`}
         scenario={props.scenario}
-        persona={props.persona}
+        persona={livePersona}
         conversationId={props.conversationId}
         onChatComplete={props.onChatComplete}
         onExit={props.onLiveAvatarExit ?? props.onExit}
@@ -1879,6 +1893,7 @@ export default function ChatWindow(props: ChatWindowProps) {
   return (
     <StandardChatWindow
       {...standardProps}
+      persona={livePersona}
       initialInputMode={standardMode ?? (initialInputMode === 'text' || initialInputMode === 'realtime-voice' ? initialInputMode : undefined)}
       onReady={notifyReady}
       onSelectLiveAvatar={selectLiveAvatar}

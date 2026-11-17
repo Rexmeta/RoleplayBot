@@ -4,6 +4,7 @@ import { ledgerRolloutEnabled, enrollNewWebRun } from "../services/conversationL
 import { usesLedger } from "../services/conversationLedger/transcript";
 import { ledgerRuntimeBinding } from "../services/conversationLedger/transcript";
 import { resolveConversationLanguage } from "../../shared/conversationLanguage";
+import { conversationActor } from "../../shared/conversationActor";
 import { beginLedgerTextTurn } from "../services/conversationLedger/textTurn";
 import { conversationLedgerRuns } from "@shared/schema";
 import { listRecognitionEvidence, confirmRecognition } from '../services/voice/recognitionEvidence';
@@ -301,6 +302,9 @@ export default function createConversationsRouter(isAuthenticated: any) {
         scenarioName: validatedData.scenarioName,
         personaId,
         personaSnapshot: duplicatePersonaRun.personaSnapshot,
+        runtimeScenario: { ...scenarioObj, _runtimeSnapshotBound: !!(scenarioRun as any).scenarioSnapshot },
+        activePersonaIndex: duplicatePersonaRun.activePersonaIndex,
+        personaSwitchLog: duplicatePersonaRun.personaSwitchLog ?? [],
         messages: existingMessages,
         turnCount: existingMessages.filter(m => m.sender === 'user').length,
         status: 'active',
@@ -322,8 +326,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       phase,
       mode: validatedData.mode,
       difficulty: validatedData.difficulty || 4,
-      status: 'active'
-    });
+      status: 'active',
+    }, scenarioObj.personas.indexOf(scenarioPersona));
     if (ledgerRolloutEnabled()) {
       const bound = await enrollNewWebRun(personaRun.id, personaId, scenarioObj, scenarioPersona,
         (scenarioRun as any).evaluationHarnessSnapshot ?? scenarioObj.evaluationHarness,
@@ -383,7 +387,9 @@ export default function createConversationsRouter(isAuthenticated: any) {
       scenarioId: validatedData.scenarioId,
       scenarioName: validatedData.scenarioName,
       personaId,
-      personaSnapshot: validatedData.personaSnapshot,
+      personaSnapshot: personaRun.personaSnapshot,
+      runtimeScenario: { ...scenarioObj, _runtimeSnapshotBound: !!(scenarioRun as any).scenarioSnapshot },
+      activePersonaIndex: personaRun.activePersonaIndex,
       messages: [],
       transcriptProtocol: personaRun.transcriptProtocol,
       language: personaRun.language,
@@ -460,8 +466,19 @@ export default function createConversationsRouter(isAuthenticated: any) {
       throw createHttpError(403, "Unauthorized access");
     }
 
-    const runtimeLanguage = resolveConversationLanguage(
-      (await ledgerRuntimeBinding(personaRunId))?.language, personaRun.language);
+    const ledgerBinding = await ledgerRuntimeBinding(personaRunId);
+    const runtimeLanguage = resolveConversationLanguage(ledgerBinding?.language, personaRun.language);
+    const boundRun = ledgerBinding ? { ...scenarioRun, scenarioSnapshot: ledgerBinding.scenarioSnapshot,
+      evaluationHarnessSnapshot: ledgerBinding.evaluationHarnessSnapshot } : scenarioRun;
+    const runtimeScenario = resolveRuntimeScenario(boundRun as any, boundRun.scenarioSnapshot ? null :
+      (await fileManager.getAllScenarios()).find(s => s.id === scenarioRun.scenarioId));
+    const currentActor = runtimeScenario && conversationActor<any>(runtimeScenario.personas, personaRun);
+    if (personaRun.status === "active" && personaRun.mode !== "tavus_full" && currentActor &&
+        runtimeScenario && runtimeScenario.personas.indexOf(currentActor) !== personaRun.activePersonaIndex) {
+      const activePersonaIndex = runtimeScenario.personas.indexOf(currentActor);
+      await storage.updatePersonaRun(personaRunId, { activePersonaIndex });
+      personaRun.activePersonaIndex = activePersonaIndex;
+    }
     const chatMessages = await storage.getChatMessagesByPersonaRun(personaRunId);
 
     const messages = chatMessages.map(msg => ({
@@ -545,6 +562,8 @@ export default function createConversationsRouter(isAuthenticated: any) {
       scenarioId: scenarioRun.scenarioId,
       scenarioName: scenarioRun.scenarioName,
       personaId: personaRun.personaId,
+      runtimeScenario: runtimeScenario && { ...runtimeScenario, _runtimeSnapshotBound: !!boundRun.scenarioSnapshot },
+      currentPersonaId: currentActor?.id ?? null,
       personaSnapshot: personaRun.personaSnapshot,
       messages,
       transcriptProtocol: personaRun.transcriptProtocol,

@@ -93,7 +93,7 @@ export function ConversationModeMenu({
             )}
           </>
         )}
-        {currentMode !== 'live-avatar' && (
+        {currentMode !== 'live-avatar' && !liveAvatarUnavailable && (
           <>
             <button
               type="button"

@@ -6,6 +6,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // This suite covers existing settings/choice contracts. Paid diagnostics have their own tests.
 vi.mock("../../client/src/components/admin/LiveAvatarTestPanel", () => ({ LiveAvatarTestPanel: () => null }));
+vi.mock("../../client/src/components/chat/LiveAvatarEntry", () => ({
+  useLiveAvatarSelection: (_conversationId: string, actorId: string) => ({
+    data: { configured: true, enabled: true, allowed: true, personaId: actorId },
+    isFetching: false, isError: false,
+  }),
+}));
 vi.mock("../../client/src/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: "test-user" } }),
 }));
@@ -43,7 +49,7 @@ beforeEach(() => {
     if (method === "GET" && url.endsWith("/session")) return response({ session: null, creationUncertain: false });
     if (url.endsWith("/connection")) return response({ authMode: "api-key", state: "unconfigured" });
     if (url.endsWith("/identity")) return response({ state: "unconfigured", audience: "avatarrouter-api", clientId: "roleplayx-avatarrouter", tokenLifetimeSeconds: 45 });
-    if (url.endsWith("/availability")) return response({ ...config, allowed: false, available: false });
+    if (url.includes("/availability?")) return response({ ...config, allowed: false, available: false });
     if (url.endsWith("/policy")) return response({ allowed: method === "PUT" ? (body as any).allowed : false });
     if (url.endsWith("/config")) return response({ ...config, ...(method === "PUT" ? body as any : {}) });
     if (url.endsWith("/diagnostics")) return response({
@@ -140,7 +146,7 @@ describe("optional live avatar UI", () => {
   });
 
   it("defaults to existing mode, blocks live even with consent and never creates a session", async () => {
-    view(<LiveAvatarChoice conversationId="pr" voiceMode />);
+    view(<LiveAvatarChoice conversationId="pr" actorId="actor" voiceMode />);
     expect(screen.getByText("현재: 기존 아바타·음성 사용")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
     await screen.findByText("현재 사용할 수 없음");
@@ -155,7 +161,7 @@ describe("optional live avatar UI", () => {
   });
 
   it("keeps text chat intact and never starts live in text mode", async () => {
-    view(<LiveAvatarChoice conversationId="pr" voiceMode={false} />);
+    view(<LiveAvatarChoice conversationId="pr" actorId="actor" voiceMode={false} />);
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
     await screen.findByText("현재 사용할 수 없음");
     expect(screen.getByText("라이브 아바타는 실시간 음성 대화에서만 사용할 수 있습니다.")).toBeTruthy();
@@ -168,7 +174,7 @@ describe("optional live avatar UI", () => {
         ? { session: null, creationUncertain: false }
         : { ...config, enabled: true, allowed: true, contractReady: true, available: true, blockers: [] },
     ));
-    view(<LiveAvatarChoice conversationId="pr" voiceMode />);
+    view(<LiveAvatarChoice conversationId="pr" actorId="actor" voiceMode />);
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
     await screen.findByText("사용 가능");
     fireEvent.click(screen.getByRole("checkbox"));
@@ -179,7 +185,7 @@ describe("optional live avatar UI", () => {
 
   it("shows availability errors instead of claiming success", async () => {
     api.mockRejectedValue(new Error("403: access denied"));
-    view(<LiveAvatarChoice conversationId="pr" voiceMode />);
+    view(<LiveAvatarChoice conversationId="pr" actorId="actor" voiceMode />);
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
     expect(await screen.findByText(/실시간 사용 가능 상태를 확인하지 못했습니다/)).toBeTruthy();
     expect(screen.queryByText("사용 가능")).toBeNull();

@@ -10,7 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { liveAvatarBlockerText, liveAvatarConnectionError } from "@/lib/liveAvatarBlockers";
 import { AvatarTestSession, avatarTestReady, avatarTestTerminal } from "@shared/avatar/adminAvatarTest";
 import { useAvatarTestRoom } from "@/components/admin/avatarTest/useAvatarTestRoom";
-import type { LiveAvatarPlaybackState } from "./LiveAvatarEntry";
+import { useLiveAvatarSelection, type LiveAvatarPlaybackState } from "./LiveAvatarEntry";
 
 type Props = {
   conversationId: string;
@@ -45,6 +45,11 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
   const tRef = useRef(t);
   tRef.current = t;
   const endpoint = `/api/live-avatar/conversations/${encodeURIComponent(conversationId)}`;
+  const targetQuery = `actorId=${encodeURIComponent(actorId ?? "")}`;
+  const selectionQuery = useLiveAvatarSelection(conversationId, actorId ?? "");
+  const selectionMatches = !selectionQuery.isFetching && !selectionQuery.isError &&
+    selectionQuery.data?.configured &&
+    String(selectionQuery.data.personaId) === String(actorId);
   const [requested, setRequested] = useState(false);
   const [consent, setConsent] = useState(false);
   const [session, setSession] = useState<AvatarTestSession | null>(null);
@@ -74,6 +79,11 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
   const currentActorRef = useRef(actorId);
   currentActorRef.current = actorId;
   const previousActorRef = useRef(actorId);
+  const targetEpochRef = useRef({ key: `${conversationId}:${actorId}`, value: 0 });
+  const targetKey = `${conversationId}:${actorId}`;
+  if (targetEpochRef.current.key !== targetKey) {
+    targetEpochRef.current = { key: targetKey, value: targetEpochRef.current.value + 1 };
+  }
   const retiredSessionIdRef = useRef<string | null>(null);
 
   const assignSession = useCallback((value: AvatarTestSession | null) => {
@@ -99,10 +109,11 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     queryFn: async () =>
-      (await apiRequest("GET", `${endpoint}/availability`)).json(),
+      (await apiRequest("GET", `${endpoint}/availability?${targetQuery}`)).json(),
   });
   const availability = availabilityQuery.data;
-  const canStart = Boolean(voiceMode && consent && availability?.enabled && availability.allowed &&
+  const canStart = Boolean(selectionMatches && actorId !== undefined && !availabilityQuery.isFetching && !availabilityQuery.isError &&
+    voiceMode && consent && availability?.enabled && availability.allowed &&
     availability.contractReady && availability.available && !creating && !creationLocked &&
     !recoveryPending && !recoveryFailed && !creationUncertain &&
     !sessionRef.current && !session);
@@ -125,6 +136,7 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
   const recoverSession = useCallback(async () => {
     const recoveryConversationId = conversationId;
     const recoveryActorId = actorId;
+    const epoch = targetEpochRef.current.value;
     setRecoveryPending(true);
     setRecoveryFailed(false);
     setError("");
@@ -133,10 +145,20 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
       const recovery = await (await apiRequest("GET", `${endpoint}/session`)).json() as {
         session: AvatarTestSession | null;
         creationUncertain: boolean;
+        personaId?: string;
       };
-      if (!mountedRef.current || recoveryConversationRef.current !== recoveryConversationId || currentActorRef.current !== recoveryActorId) return;
+      if (!mountedRef.current || targetEpochRef.current.value !== epoch ||
+          recoveryConversationRef.current !== recoveryConversationId || currentActorRef.current !== recoveryActorId) return;
       setCreationUncertain(recovery.creationUncertain);
       if (recovery.session && !(avatarTestTerminal(recovery.session) && !recovery.session.cleanupPending)) {
+        if (recovery.personaId && recovery.personaId !== String(recoveryActorId)) {
+          stoppedRef.current = true;
+          setCreationLocked(true);
+          assignSession(recovery.session);
+          endKeepalive(recovery.session);
+          setError("이전 페르소나의 라이브 세션을 종료하고 있습니다. 현재 페르소나로 새로 연결하지 않습니다.");
+          return;
+        }
         if (recovery.session.id === retiredSessionIdRef.current) {
           setCreationLocked(true);
           assignSession(null);
@@ -154,16 +176,18 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
         stoppedRef.current = false;
       }
     } catch (cause) {
-      if (mountedRef.current && recoveryConversationRef.current === recoveryConversationId && currentActorRef.current === recoveryActorId) {
+      if (mountedRef.current && targetEpochRef.current.value === epoch &&
+          recoveryConversationRef.current === recoveryConversationId && currentActorRef.current === recoveryActorId) {
         setRecoveryFailed(true);
         setCreationLocked(true);
         const detail = liveAvatarConnectionError(cause, tRef.current) ?? (cause instanceof Error ? cause.message : "");
         setError(detail ? `기존 세션 복구에 실패했습니다: ${detail}` : "기존 세션 복구에 실패했습니다.");
       }
     } finally {
-      if (mountedRef.current && recoveryConversationRef.current === recoveryConversationId && currentActorRef.current === recoveryActorId) setRecoveryPending(false);
+      if (mountedRef.current && targetEpochRef.current.value === epoch &&
+          recoveryConversationRef.current === recoveryConversationId && currentActorRef.current === recoveryActorId) setRecoveryPending(false);
     }
-  }, [conversationId, actorId, endpoint, assignSession]);
+  }, [conversationId, actorId, endpoint, assignSession, endKeepalive]);
 
   const stopMedia = useCallback(async (keepalive = false) => {
     const current = sessionRef.current;
@@ -361,19 +385,24 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
     setError("");
     stoppedRef.current = false;
     const startingActorId = actorId;
+    const startingConversationId = conversationId;
+    const startingEpoch = targetEpochRef.current.value;
     try {
-      const created = await (await apiRequest("POST", `${endpoint}/sessions`, { service: "avatar-router", consent: true })).json() as AvatarTestSession;
-      if (currentActorRef.current !== startingActorId) {
+      const created = await (await apiRequest("POST", `${endpoint}/sessions`, { service: "avatar-router", consent: true, actorId: String(startingActorId ?? "") })).json() as AvatarTestSession;
+      if (!mountedRef.current) {
+        endKeepalive(created);
+        return;
+      }
+      if (targetEpochRef.current.value !== startingEpoch || currentActorRef.current !== startingActorId) {
+        if (recoveryConversationRef.current !== startingConversationId) {
+          endKeepalive(created);
+          return;
+        }
         retiredSessionIdRef.current = created.id;
         stoppedRef.current = true;
         setCreationLocked(true);
         assignSession(created);
         setError("페르소나가 변경되어 이전 아바타 세션을 종료하고 있습니다. 정리가 완료된 뒤 현재 페르소나로 다시 시작하세요.");
-        endKeepalive(created);
-        return;
-      }
-      if (!mountedRef.current) {
-        sessionRef.current = created;
         endKeepalive(created);
         return;
       }
@@ -419,6 +448,8 @@ export function LiveAvatarChoice({ conversationId, voiceMode, portraitHost = nul
     }, Math.max(0, Math.min(60_000, Date.parse(session.expiresAt) - Date.now())));
     return () => window.clearTimeout(timer);
   }, [session?.id, failAndEnd]);
+
+  if (!selectionMatches && !activeSession && !creationLocked && !creating) return null;
 
   return (
     <section className="space-y-3 rounded-lg border bg-card p-4" aria-label={t("liveAvatar.choice.title", { defaultValue: "실시간 아바타 선택" })}>

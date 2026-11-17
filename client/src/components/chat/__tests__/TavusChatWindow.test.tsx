@@ -82,6 +82,36 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it("disables a direct live entry when the server rejects the selected persona", async () => {
+    apiRequestMock.mockImplementation(async (_method: string, url: string) =>
+      response(url.startsWith("/api/tavus/config?")
+        ? { available: false, targetMatched: false, blockers: ["avatar_persona_mismatch"] }
+        : { state: "idle" }));
+    render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="unassigned"
+      onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await waitFor(() => expect(apiRequestMock).toHaveBeenCalledWith("GET",
+      "/api/tavus/config?runId=unassigned&actorId=persona"));
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("button-live-avatar-microphone"));
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+    expect((screen.getByTestId("button-live-avatar-microphone") as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("ends a late old-persona creation without connecting it on the new screen", async () => {
+    let finishStart!: (value: unknown) => void;
+    apiRequestMock.mockImplementation(async (_method: string, url: string) => {
+      if (url.endsWith("/start")) return new Promise(resolve => { finishStart = resolve; });
+      if (url.startsWith("/api/tavus/config?")) return response({ available: true, targetMatched: true });
+      return response({ state: "idle" });
+    });
+    const props = { scenario, conversationId: "late", onChatComplete: vi.fn(), onExit: vi.fn(), onExitMode: vi.fn() };
+    const view = render(<TavusChatWindow {...props} persona={persona} />);
+    await pressMicrophone();
+    view.rerender(<TavusChatWindow {...props} persona={{ ...persona, id: "third", name: "Third" }} />);
+    await act(async () => { finishStart(response({ id: "old-session", state: "active", personaId: "persona" })); });
+    expect(screen.queryByTestId("mock-daily-room")).toBeNull();
+    expect(apiRequestMock.mock.calls.some(([, url]) => url.endsWith("/connection"))).toBe(false);
+    expect(fetch).toHaveBeenCalledWith("/api/tavus/conversations/late/end", expect.objectContaining({ keepalive: true }));
+  });
   it.each([[5, 5], [12, 10]])("shows the scenario duration %s with a live limit of %s minutes", async (target, expected) => {
     render(<TavusChatWindow scenario={{ ...scenario, targetDurationMinutes: target }} persona={persona}
       conversationId="duration" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
@@ -127,20 +157,20 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
     await pressMicrophone();
     await waitFor(() => expect(apiRequestMock).toHaveBeenCalledWith(
-      "POST", "/api/tavus/conversations/stock-budget/start", { consent: true },
+      "POST", "/api/tavus/conversations/stock-budget/start", { consent: true, actorId: "persona" },
     ));
     expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/start"))).toHaveLength(1);
   });
-  it("uses the voice-style early-exit header and leaves mode switching to the bottom menu", async () => {
+  it("removes the duplicate header exit and leaves mode switching to the bottom menu", async () => {
     const exit = vi.fn();
     const exitMode = vi.fn();
     render(<TavusChatWindow scenario={scenario} persona={persona} conversationId="header-menu"
       onChatComplete={vi.fn()} onExit={exit} onExitMode={exitMode} />);
     await waitFor(() => expect((screen.getByTestId("button-live-avatar-microphone") as HTMLButtonElement).disabled).toBe(false));
-    expect(screen.getByTestId("tavus-exit").textContent).toBe("End early");
+    expect(screen.queryByTestId("tavus-exit")).toBeNull();
+    expect(screen.getByTestId("button-conversation-mode-menu")).toBeTruthy();
     expect(screen.queryByText("Back to chat modes")).toBeNull();
-    fireEvent.click(screen.getByTestId("tavus-exit"));
-    expect(exit).toHaveBeenCalledTimes(1);
+    expect(exit).not.toHaveBeenCalled();
     expect(exitMode).not.toHaveBeenCalled();
     expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
   });
@@ -278,7 +308,7 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(screen.queryByTestId("tavus-start")).toBeNull();
     expect(view.container.textContent).not.toMatch(/\b(Anam|Tavus)\b/i);
     expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/start"))).toHaveLength(1);
-    expect(apiRequestMock).toHaveBeenCalledWith("POST", "/api/tavus/conversations/direct-live/start", { consent: true });
+    expect(apiRequestMock).toHaveBeenCalledWith("POST", "/api/tavus/conversations/direct-live/start", { consent: true, actorId: "persona" });
     expect(screen.getByTestId("button-live-avatar-microphone").getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByTestId("button-live-avatar-microphone"));
     await waitFor(() => expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && url.endsWith("/end"))).toHaveLength(1));
@@ -358,7 +388,7 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(await screen.findByTestId("mock-daily-room")).toBeTruthy();
     expect(apiRequestMock.mock.calls.filter(([method, url]) => method === "POST" && String(url).endsWith("/start"))).toHaveLength(1);
     expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/tavus/conversations/run-1/session", undefined);
-    expect(apiRequestMock).toHaveBeenCalledWith("POST", "/api/tavus/conversations/run-1/start", { consent: true });
+    expect(apiRequestMock).toHaveBeenCalledWith("POST", "/api/tavus/conversations/run-1/start", { consent: true, actorId: "persona" });
     expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/tavus/conversations/run-1/connection");
     expect(apiRequestMock.mock.calls.some(([, , body]) => (JSON.stringify(body) || "").includes("ephemeral-secret"))).toBe(false);
 

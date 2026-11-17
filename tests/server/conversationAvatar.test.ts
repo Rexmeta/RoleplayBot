@@ -40,6 +40,32 @@ beforeEach(() => {
 });
 
 describe("selected conversation avatar resolution", () => {
+  it.each(["first", "actor", "third"])("only exposes the assigned actor in a three-person snapshot: %s", async personaId => {
+    const { deps, scenarioRun, personaRun, profile } = fixture();
+    personaRun.personaId = personaId;
+    personaRun.activePersonaIndex = 0; // Legacy creation bug.
+    scenarioRun.scenarioSnapshot = { personas: [
+      { id: "first", avatarMode: "image" },
+      { id: "actor", _runtimeProfile: profile },
+      { id: "third", avatarMode: "image" },
+    ] };
+    const selection = await inspectConversationAvatarSelection("owner", "conversation", deps);
+    expect(selection.configured).toBe(personaId === "actor");
+    expect(deps.connection.check).not.toHaveBeenCalled();
+    expect(deps.client.call).not.toHaveBeenCalled();
+    if (personaId !== "actor") {
+      await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects
+        .toMatchObject({ code: "avatar_persona_not_selected" });
+      expect(deps.connection.check).not.toHaveBeenCalled();
+    }
+  });
+  it("rejects an invalid saved active index rather than borrowing the original live assignment", async () => {
+    const { deps, personaRun } = fixture();
+    personaRun.activePersonaIndex = 9;
+    await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects
+      .toMatchObject({ code: "avatar_persona_not_found" });
+    expect(deps.client.call).not.toHaveBeenCalled();
+  });
   function fixture() {
     const scenarioRun: any = { scenarioId: "scenario", userId: "owner", status: "active" };
     const personaRun: any = { personaId: "actor", scenarioRunId: "run", status: "active" };
@@ -274,6 +300,17 @@ describe("selected conversation avatar resolution", () => {
     expect(await resolveConversationAvatar("owner", "conversation", deps)).toMatchObject({ avatarId: "replica", assetId });
     asset.id = "32345678-1234-4234-8234-123456789abc";
     await expect(resolveConversationAvatar("owner", "conversation", deps)).rejects.toMatchObject({ code: "persona_avatar_asset_mismatch" });
+  });
+});
+
+describe("explicit conversation avatar target", () => {
+  it("rejects a different screen actor before paid creation", async () => {
+    const resolve = vi.fn(async () => target);
+    const service = new ConversationAvatarSessions({ resolve, client } as any);
+    await expect(service.create("owner", "conversation", "third")).rejects.toMatchObject({
+      code: "avatar_persona_mismatch",
+    });
+    expect(client.call).not.toHaveBeenCalled();
   });
 });
 

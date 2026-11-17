@@ -45,7 +45,7 @@ export interface ISessionsStorage {
   getUserScenarioRunsWithPersonaRuns(userId: string): Promise<ScenarioRunWithPersonaRuns[]>;
   getScenarioRunWithPersonaRuns(id: string): Promise<ScenarioRunWithPersonaRuns | undefined>;
 
-  createPersonaRun(personaRun: InsertPersonaRun): Promise<PersonaRun>;
+  createPersonaRun(personaRun: InsertPersonaRun, activePersonaIndex?: number): Promise<PersonaRun>;
   getPersonaRun(id: string): Promise<PersonaRun | undefined>;
   getPersonaRunByConversationId(conversationId: string): Promise<PersonaRun | undefined>;
   updatePersonaRun(id: string, updates: Partial<PersonaRun>): Promise<PersonaRun>;
@@ -140,10 +140,10 @@ export function SessionsMixin<TBase extends Constructor>(Base: TBase) {
       return { ...scenarioRun, personaRuns: personas };
     }
 
-    async createPersonaRun(insertPersonaRun: InsertPersonaRun): Promise<PersonaRun> {
+    async createPersonaRun(insertPersonaRun: InsertPersonaRun, activePersonaIndex = 0): Promise<PersonaRun> {
       const language = resolveConversationLanguage(undefined, insertPersonaRun.language,
         insertPersonaRun.language == null ? await ownerLanguage(insertPersonaRun.scenarioRunId) : undefined);
-      const [personaRun] = await db.insert(personaRuns).values({ ...insertPersonaRun, language }).returning();
+      const [personaRun] = await db.insert(personaRuns).values({ ...insertPersonaRun, language, activePersonaIndex }).returning();
       return personaRun;
     }
 

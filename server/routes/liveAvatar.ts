@@ -17,7 +17,7 @@ import { conversationAvatarSessions, type ConversationAvatarSessions } from "../
 
 const enabledSchema = z.object({ enabled: z.boolean() }).strict();
 const policySchema = z.object({ allowed: z.boolean() }).strict();
-const selectionSchema = z.object({ service: z.literal("avatar-router"), consent: z.literal(true) }).strict();
+const selectionSchema = z.object({ service: z.literal("avatar-router"), consent: z.literal(true), actorId: z.string().min(1).max(200) }).strict();
 export const LIVE_AVATAR_SETTINGS_CATEGORY = "live_avatar";
 export const LIVE_AVATAR_POLICY_CATEGORY = "live_avatar_policy";
 
@@ -154,7 +154,11 @@ export default function createLiveAvatarRouter(
 
   router.get("/conversations/:conversationId/selection", asyncHandler(async (req: any, res) => {
     await ownedConversation(req.params.conversationId, req.user.id);
-    try { res.json(await runtimeSessions.selection(req.user.id, req.params.conversationId)); }
+    try {
+      const selection = await runtimeSessions.selection(req.user.id, req.params.conversationId);
+      const matches = typeof req.query.actorId === "string" && req.query.actorId === String(selection.personaId);
+      res.json(matches ? selection : { ...selection, configured: false, blockers: [...selection.blockers, "avatar_persona_mismatch"] });
+    }
     catch (error) {
       if (!(error instanceof AvatarIdentityError)) throw error;
       res.status(error.status).json({ code: error.code, error: error.code });
@@ -163,6 +167,10 @@ export default function createLiveAvatarRouter(
 
   router.get("/conversations/:conversationId/availability", asyncHandler(async (req: any, res) => {
     const { scenarioRun } = await ownedConversation(req.params.conversationId, req.user.id);
+    const selection = await runtimeSessions.selection(req.user.id, req.params.conversationId);
+    if (!selection.configured || req.query.actorId !== String(selection.personaId)) {
+      return res.status(409).json({ code: "avatar_persona_mismatch" });
+    }
     const state = availability(await getEnabled(), await getAllowed(scenarioRun.scenarioId));
     if (!state.enabled || !state.allowed) return res.json(state);
     try { res.json({ ...state, ...await runtimeSessions.availability(req.user.id, req.params.conversationId) }); }
@@ -185,7 +193,11 @@ export default function createLiveAvatarRouter(
       return;
     }
     try {
-      res.status(201).json(await runtimeSessions.create(req.user.id, req.params.conversationId));
+      const selection = await runtimeSessions.selection(req.user.id, req.params.conversationId);
+      if (!selection.configured || String(selection.personaId) !== req.body.actorId) {
+        throw new AvatarIdentityError("avatar_persona_mismatch", 409);
+      }
+      res.status(201).json(await runtimeSessions.create(req.user.id, req.params.conversationId, req.body.actorId));
     } catch (error) {
       if (!(error instanceof AvatarIdentityError)) throw error;
       res.status(error.status).json({ code: error.code, error: error.code });

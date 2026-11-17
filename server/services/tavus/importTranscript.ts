@@ -9,16 +9,23 @@ import { checkAndCompleteScenario } from "../../routes/routerHelpers";
 import { TavusError } from "./client";
 import { transcriptIdentity, type TavusMessage } from "./transcriptAdapter";
 import type { resolveTavusContext } from "./context";
+import { conversationActor } from "../../../shared/conversationActor";
 
 export type RouterTranscriptProvenance = {
   provider: "tavus" | "anam"; projectId: string; sessionId: string; revision: string;
 };
 
 /** Reserve a fresh run before provider creation. Existing Gemini/text evidence is never replaced. */
-export async function reserveTavusRun(runId: string) {
+export async function reserveTavusRun(runId: string, target?: {
+  personaId: string;
+  personas: Array<{ id?: string | number; personaRef?: string }>;
+}) {
   await db.transaction(async tx => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${runId}))`);
-    const [run] = await tx.select().from(personaRuns).where(eq(personaRuns.id, runId));
+    const [run] = await tx.select().from(personaRuns).where(eq(personaRuns.id, runId)).for("update");
+    if (target && (!run || String(conversationActor(target.personas, run)?.id) !== target.personaId)) {
+      throw new TavusError("avatar_persona_mismatch", 409, { creationAttempted: false });
+    }
     const [message] = await tx.select({ id: chatMessages.id }).from(chatMessages)
       .where(eq(chatMessages.personaRunId, runId)).limit(1);
     const [evidence] = await tx.select({ id: voiceUtterances.id }).from(voiceUtterances)

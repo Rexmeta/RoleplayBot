@@ -11,6 +11,12 @@ import { LiveAvatarChoice } from "../../client/src/components/chat/LiveAvatarCho
 
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
+vi.mock("../../client/src/components/chat/LiveAvatarEntry", () => ({
+  useLiveAvatarSelection: (_conversationId: string, actorId: string) => ({
+    data: { configured: true, enabled: true, allowed: true, personaId: actorId },
+    isFetching: false, isError: false,
+  }),
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key }),
 }));
@@ -113,11 +119,12 @@ describe("optional bottom conversation modes", () => {
     await waitFor(() => expect(screen.queryByTestId("panel-conversation-mode-menu")).toBeNull());
   });
 
-  it("disables unavailable avatars but leaves text selection usable", async () => {
+  it("hides unavailable avatars but leaves text selection usable", async () => {
     render(<ConversationModeMenu onTextModeToggle={vi.fn()} />);
     fireEvent.click(screen.getByTestId("button-conversation-mode-menu"));
-    expect((await screen.findByTestId("button-conversation-mode-live-avatar") as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByTestId("text-live-avatar-unavailable")).toBeTruthy();
+    await screen.findByTestId("button-conversation-mode-text");
+    expect(screen.queryByTestId("button-conversation-mode-live-avatar")).toBeNull();
+    expect(screen.queryByTestId("text-live-avatar-unavailable")).toBeNull();
     expect((screen.getByTestId("button-conversation-mode-text") as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -137,10 +144,10 @@ describe("optional bottom conversation modes", () => {
     expect(topBar).not.toContain("LiveAvatarChoice");
     expect(source).not.toContain("<LiveAvatarOptionsDialog");
     expect(source).not.toContain("<LiveAvatarChoice");
-    expect(source).toContain("onLiveAvatarOptions={liveAvatarSelection.data?.configured ? switchToLiveAvatar : undefined}");
+    expect(source).toContain("onLiveAvatarOptions={liveAvatarSelectable ? switchToLiveAvatar : undefined}");
     const switchHandler = source.slice(source.indexOf("const switchToLiveAvatar"), source.indexOf("const { elapsedTime"));
     expect(switchHandler.indexOf("flushRealtimeMessagesRef")).toBeLessThan(switchHandler.indexOf("realtimeVoice.disconnect()"));
-    expect(switchHandler.indexOf("realtimeVoice.disconnect()")).toBeLessThan(switchHandler.indexOf("onSelectLiveAvatar()"));
+    expect(switchHandler.indexOf("realtimeVoice.disconnect()")).toBeLessThan(switchHandler.indexOf("onSelectLiveAvatar(selected)"));
   });
 
   it("opens consent from the bottom and keeps a created session mounted when settings close", async () => {
@@ -160,7 +167,7 @@ describe("optional bottom conversation modes", () => {
         <ChatInputBar {...baseProps} realtimeVoiceProps={voiceProps} onTextModeToggle={vi.fn()}
           onLiveAvatarOptions={() => { setOpen(true); setRequest(n => n + 1); }} />
         <LiveAvatarOptionsDialog open={open} onClose={() => setOpen(false)}>
-          <LiveAvatarChoice conversationId="bottom-1" voiceMode optionsRequest={request} />
+          <LiveAvatarChoice conversationId="bottom-1" actorId="actor" voiceMode optionsRequest={request} />
         </LiveAvatarOptionsDialog>
       </>;
     }
@@ -177,7 +184,7 @@ describe("optional bottom conversation modes", () => {
     await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(start);
     await waitFor(() => expect(api).toHaveBeenCalledWith("POST",
-      "/api/live-avatar/conversations/bottom-1/sessions", { service: "avatar-router", consent: true }));
+      "/api/live-avatar/conversations/bottom-1/sessions", { service: "avatar-router", consent: true, actorId: "actor" }));
     await screen.findByRole("button", { name: "실시간 아바타 종료" });
     const choice = dialog.querySelector('[aria-label="실시간 아바타 선택"]');
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));

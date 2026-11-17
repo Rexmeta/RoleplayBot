@@ -78,13 +78,26 @@ beforeEach(() => {
 });
 
 describe("live avatar policy routes", () => {
+  it("rejects unassigned or mismatched actors before invoking paid creation", async () => {
+    settings.set("live_avatar/enabled", "true");
+    settings.set("live_avatar_policy/scenario", "true");
+    const mismatch = await api("post", "/conversations/pr/sessions")
+      .send({ service: "avatar-router", consent: true, actorId: "third" });
+    expect(mismatch.status).toBe(409);
+    expect(runtimeSessions.create).not.toHaveBeenCalled();
+    runtimeSessions.selection.mockResolvedValue({ configured: false, personaId: "third", blockers: ["avatar_persona_not_selected"] });
+    const unassigned = await api("post", "/conversations/pr/sessions")
+      .send({ service: "avatar-router", consent: true, actorId: "third" });
+    expect(unassigned.status).toBe(409);
+    expect(runtimeSessions.create).not.toHaveBeenCalled();
+  });
   it("dispatches explicitly selected sessions and supports owned recovery/end even with policies later off", async () => {
     settings.set("live_avatar/enabled", "true");
     settings.set("live_avatar_policy/scenario", "true");
     runtimeSessions.create.mockResolvedValue({ id: "live-session", rendererState: "queued" });
-    const created = await api("post", "/conversations/pr/sessions").send({ service: "avatar-router", consent: true });
+    const created = await api("post", "/conversations/pr/sessions").send({ service: "avatar-router", consent: true, actorId: "actor" });
     expect(created.status).toBe(201);
-    expect(runtimeSessions.create).toHaveBeenCalledExactlyOnceWith("owner", "pr");
+    expect(runtimeSessions.create).toHaveBeenCalledExactlyOnceWith("owner", "pr", "actor");
     settings.set("live_avatar/enabled", "false");
     expect((await api("get", "/conversations/pr/session")).status).toBe(200);
     expect(runtimeSessions.recover).toHaveBeenCalledExactlyOnceWith("owner", "pr");
@@ -123,7 +136,7 @@ describe("live avatar policy routes", () => {
       const previous = process.env.AVATAR_ROUTER_BASE_URL;
       process.env.AVATAR_ROUTER_BASE_URL = baseUrl;
       try {
-        const result = await api("get", "/conversations/pr/availability");
+        const result = await api("get", "/conversations/pr/availability?actorId=actor");
         expect(result.body.origin).toBe(baseUrl.endsWith("/api/v1") ? "https://avatar.example.test" : "");
         if (!baseUrl.endsWith("/api/v1")) expect(result.body.blockers).toContain("avatar_connection_invalid");
         expect(result.body.available).toBe(false);
@@ -267,7 +280,7 @@ describe("live avatar policy routes", () => {
   });
 
   it("discovers only the owned conversation's local selection with global OFF and no external or paid work", async () => {
-    const result = await api("get", "/conversations/conversation/selection");
+    const result = await api("get", "/conversations/conversation/selection?actorId=actor");
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ configured: true, enabled: false, allowed: false, personaId: "actor" });
     expect(result.headers["cache-control"]).toBe("no-store");
@@ -283,7 +296,7 @@ describe("live avatar policy routes", () => {
   it.each(["user", "admin", "operator"])("forbids %s from starting external sessions for another owner", async role => {
     expect((await api("get", "/conversations/conversation/selection", role, "other")).status).toBe(403);
     expect((await api("get", "/conversations/pr/availability", role, "other")).status).toBe(403);
-    expect((await api("post", "/conversations/pr/sessions", role, "other").send({ service: "avatar-router", consent: true })).status).toBe(403);
+    expect((await api("post", "/conversations/pr/sessions", role, "other").send({ service: "avatar-router", consent: true, actorId: "actor" })).status).toBe(403);
     expect(externalRequest).not.toHaveBeenCalled();
   });
 
@@ -303,9 +316,9 @@ describe("live avatar policy routes", () => {
     "fails closed for enabled=%s allowed=%s without provider costs or PCM", async (enabled, allowed) => {
       settings.set("live_avatar/enabled", String(enabled));
       settings.set("live_avatar_policy/scenario", String(allowed));
-      const available = await api("get", "/conversations/pr/availability");
+      const available = await api("get", "/conversations/pr/availability?actorId=actor");
       expect(available.body).toMatchObject({ enabled, allowed, available: false, contractReady: true });
-      const selected = await api("post", "/conversations/pr/sessions").send({ service: "avatar-router", consent: true });
+      const selected = await api("post", "/conversations/pr/sessions").send({ service: "avatar-router", consent: true, actorId: "actor" });
       expect(selected.status).toBe(409);
       expect(selected.body.code).toBe(enabled && allowed ?
         "persona_avatar_playback_validation_required" : "live_avatar_policy_disabled");
@@ -316,7 +329,7 @@ describe("live avatar policy routes", () => {
 
   it("rejects completed conversations", async () => {
     deps.storage.getPersonaRun.mockResolvedValue({ scenarioRunId: "sr", status: "completed" });
-    expect((await api("post", "/conversations/pr/sessions").send({ service: "avatar-router", consent: true })).status).toBe(409);
+    expect((await api("post", "/conversations/pr/sessions").send({ service: "avatar-router", consent: true, actorId: "actor" })).status).toBe(409);
     expect(externalRequest).not.toHaveBeenCalled();
   });
 });

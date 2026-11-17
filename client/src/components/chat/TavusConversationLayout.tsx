@@ -20,7 +20,6 @@ export interface TavusConversationLayoutProps {
   active: boolean;
   elapsedSeconds: number;
   remainingSeconds: number | null;
-  headerActions: ReactNode;
   stage: ReactNode;
   sessionControls: ReactNode;
   preStartControls?: ReactNode;
@@ -48,7 +47,6 @@ export default function TavusConversationLayout({
   active,
   elapsedSeconds,
   remainingSeconds,
-  headerActions,
   stage,
   sessionControls,
   preStartControls,
@@ -156,9 +154,6 @@ export default function TavusConversationLayout({
                     {formatRemainingTime(remainingSeconds)}
                   </time>
                 )}
-              </div>
-              <div className="shrink-0 [&_button]:min-h-8 [&_button]:rounded-lg [&_button]:border-white/25 [&_button]:bg-white/10 [&_button]:px-2.5 [&_button]:py-1.5 [&_button]:text-[10px] [&_button]:text-white [&_button]:shadow-none [&_button]:backdrop-blur-sm sm:[&_button]:min-h-9 sm:[&_button]:px-3 sm:[&_button]:text-xs">
-                {headerActions}
               </div>
             </header>
           </VoiceOverlayHeader>

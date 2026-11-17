@@ -17,6 +17,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { GuestDemoBanner } from "@/components/GuestDemoBanner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { conversationActor } from "@shared/conversationActor";
 import { useToast } from "@/hooks/use-toast";
 import PersonalizedDashboard from "@/components/PersonalizedDashboard";
 import {
@@ -124,6 +125,7 @@ export default function Home() {
 
   // 페르소나 컨텍스트에 번역 적용하는 헬퍼 함수
   const applyPersonaContextTranslation = (persona: any) => {
+    if ((selectedScenario as any)?._runtimeSnapshotBound) return persona;
     if (!scenarioTranslation?.personaContexts || currentLang === 'ko') {
       return persona;
     }
@@ -145,6 +147,7 @@ export default function Home() {
 
   // 시나리오에 번역 적용하는 헬퍼 함수 (playerRole, objectives 등)
   const applyScenarioTranslation = (scenario: ComplexScenario | null): ComplexScenario | null => {
+    if ((scenario as any)?._runtimeSnapshotBound) return scenario;
     if (!scenario || !scenarioTranslation || currentLang === 'ko') {
       return scenario;
     }
@@ -188,13 +191,14 @@ export default function Home() {
 
   // URL 파라미터 처리 (대화 재개 & 페르소나 선택 화면 이동)
   useEffect(() => {
+    let cancelled = false;
     const params = new URLSearchParams(search);
     const resumePersonaRunId = params.get('resumePersonaRunId');
     const scenarioId = params.get('scenarioId');
     const scenarioRunIdParam = params.get('scenarioRunId');
     const personaIdParam = params.get('personaId');
 
-    if (resumePersonaRunId && scenarios.length > 0 && !isResumingRef.current) {
+    if (resumePersonaRunId && !isResumingRef.current) {
       // 대화 재개 로직
       isResumingRef.current = true;
       
@@ -203,10 +207,11 @@ export default function Home() {
       apiRequest('GET', `/api/conversations/${resumePersonaRunId}`)
         .then(res => res.json())
         .then(conversation => {
+          if (cancelled) return;
           console.log('📥 대화 재개:', conversation);
           
           // 시나리오 찾기
-          const scenario = scenarios.find((s: any) => s.id === conversation.scenarioId);
+          const scenario = conversation.runtimeScenario ?? scenarios.find((s: any) => s.id === conversation.scenarioId);
           if (!scenario) {
             console.error('시나리오를 찾을 수 없습니다:', conversation.scenarioId);
             isResumingRef.current = false;
@@ -214,7 +219,7 @@ export default function Home() {
           }
 
           // 페르소나 찾기
-          const persona = scenario.personas.find((p: any) => p.id === conversation.personaId);
+          const persona = conversationActor<ScenarioPersona>(scenario.personas, conversation);
           if (!persona) {
             console.error('페르소나를 찾을 수 없습니다:', conversation.personaId);
             isResumingRef.current = false;
@@ -237,6 +242,7 @@ export default function Home() {
           isResumingRef.current = false;
         })
         .catch(error => {
+          if (cancelled) return;
           console.error('대화 재개 실패:', error);
           isResumingRef.current = false;
         });
@@ -280,7 +286,10 @@ export default function Home() {
             apiRequest("POST", "/api/conversations", conversationData)
               .then(res => res.json())
               .then(conversation => {
-                setSelectedPersona(targetPersona);
+                if (cancelled) return;
+                const runtime = conversation.runtimeScenario ?? scenario;
+                setSelectedScenario(runtime);
+                setSelectedPersona(conversationActor<ScenarioPersona>(runtime.personas, conversation) ?? targetPersona);
                 setConversationId(conversation.id);
                 setScenarioRunId(conversation.scenarioRunId);
                 setCurrentView("chat");
@@ -343,6 +352,7 @@ export default function Home() {
         window.history.replaceState({}, '', '/home');
       }
     }
+    return () => { cancelled = true; isResumingRef.current = false; };
   }, [scenarios, search]);
 
   // 시나리오 선택 처리 - 항상 새로운 시도로 시작
@@ -426,7 +436,10 @@ export default function Home() {
       // Use the full persona object from the scenario (includes image, videos, expressions,
       // and all other fields) rather than the display-only mapped object passed by
       // SimplePersonaSelector (which strips fields like videos and overrides image).
-      const fullPersona = selectedScenario.personas.find((p: any) => p.id === persona.id) ?? persona;
+      const runtime = conversation.runtimeScenario ?? selectedScenario;
+      const fullPersona = conversationActor<ScenarioPersona>(runtime.personas, conversation) ??
+        runtime.personas.find((p: any) => p.id === persona.id) ?? persona;
+      setSelectedScenario(runtime);
       setSelectedPersona(fullPersona);
       setConversationId(conversation.id);
       setScenarioRunId(conversation.scenarioRunId); // scenarioRunId 저장

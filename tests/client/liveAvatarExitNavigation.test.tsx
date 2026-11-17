@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 const mocks = vi.hoisted(() => ({
   api: vi.fn(),
+  search: "",
   scenario: {
     id: "scenario-a", title: "협업 시나리오", description: "상황 설명", introVideoMode: "none",
     personas: [{ id: "actor", name: "상대역", mbti: "INTJ", gender: "male" }],
@@ -24,7 +25,7 @@ vi.mock("react-i18next", () => ({
 }));
 vi.mock("../../client/src/lib/i18n", () => ({ default: { language: "ko" } }));
 vi.mock("wouter", () => ({
-  useLocation: () => ["/home", vi.fn()], useSearch: () => "",
+  useLocation: () => ["/home", vi.fn()], useSearch: () => mocks.search,
   Link: ({ children }: any) => <a>{children}</a>,
 }));
 // Exercise the real Home view transitions with small child-component contracts.
@@ -42,6 +43,7 @@ vi.mock("../../client/src/components/SimplePersonaSelector", () => ({
 }));
 vi.mock("../../client/src/components/ChatWindow", () => ({
   default: (p: any) => <div>
+    <p data-testid="selected-runtime-persona">{p.persona.id}:{p.persona.name}:{p.scenario.title}</p>
     <button onClick={p.onLiveAvatarExit}>라이브 대화 종료</button>
     <button onClick={p.onExit}>일반 대화 나가기</button>
   </div>,
@@ -57,6 +59,7 @@ import Home from "../../client/src/pages/home";
 import { queryClient } from "../../client/src/lib/queryClient";
 
 beforeEach(() => {
+  mocks.search = "";
   queryClient.clear();
   queryClient.setQueryData(["/api/scenarios"], [mocks.scenario]);
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => [] })));
@@ -73,6 +76,36 @@ async function enterConversation() {
 }
 
 describe("live avatar return destination", () => {
+  it("resumes the frozen active persona even when no current scenario is listed", async () => {
+    queryClient.setQueryData(["/api/scenarios"], []);
+    mocks.search = "?resumePersonaRunId=saved";
+    mocks.api.mockResolvedValue({ json: async () => ({
+      id: "saved", scenarioId: "scenario-a", personaId: "actor", activePersonaIndex: 1,
+      scenarioRunId: "scenario-run",
+      runtimeScenario: { ...mocks.scenario, title: "Frozen title", _runtimeSnapshotBound: true, personas: [
+        mocks.scenario.personas[0], { id: "live", name: "Frozen live actor" }, { id: "third", name: "Third" },
+      ] },
+    }) });
+    render(<QueryClientProvider client={queryClient}><Home /></QueryClientProvider>);
+    expect((await screen.findByTestId("selected-runtime-persona")).textContent)
+      .toBe("live:Frozen live actor:Frozen title");
+  });
+  it("does not apply a late resume response after navigating to another conversation", async () => {
+    let finishOld!: (response: unknown) => void;
+    mocks.search = "?resumePersonaRunId=old";
+    const saved = (id: string) => ({ json: async () => ({
+      id, scenarioId: "scenario-a", scenarioRunId: "scenario-run", personaId: id,
+      runtimeScenario: { ...mocks.scenario, personas: [{ id, name: id }] },
+    }) });
+    mocks.api.mockImplementation((_method: string, path: string) =>
+      path.endsWith("/old") ? new Promise(resolve => { finishOld = resolve; }) : Promise.resolve(saved("new")));
+    const view = render(<QueryClientProvider client={queryClient}><Home /></QueryClientProvider>);
+    mocks.search = "?resumePersonaRunId=new";
+    view.rerender(<QueryClientProvider client={queryClient}><Home /></QueryClientProvider>);
+    expect((await screen.findByTestId("selected-runtime-persona")).textContent).toContain("new:new:");
+    await act(async () => { finishOld(saved("old")); });
+    expect(screen.getByTestId("selected-runtime-persona").textContent).toContain("new:new:");
+  });
   it("opens the same scenario's detail view after exit, and lets it close normally", async () => {
     await enterConversation();
     fireEvent.click(screen.getByRole("button", { name: "라이브 대화 종료" }));

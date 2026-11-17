@@ -72,7 +72,7 @@ describe("Tavus authenticated routes", () => {
     expect(result.headers["cache-control"]).toBe("private, no-store");
     expect(service.connection).toHaveBeenCalledWith("owner", "run");
     await request(app()).get("/api/tavus/config?runId=run").set("x-user", "owner").expect(200);
-    expect(service.config).toHaveBeenCalledWith("owner", "run");
+    expect(service.config).toHaveBeenCalledWith("owner", "run", undefined);
   });
   it("does not expose another user's session or bypass ownership for admin", async () => {
     const result = await request(app()).get("/api/tavus/conversations/run/session")
@@ -97,9 +97,9 @@ describe("Tavus authenticated routes", () => {
   it("accepts same-origin HTTPS through an HTTP proxy, and rejects cross-origin writes", async () => {
     const result = await request(app()).post("/api/tavus/conversations/run/start")
       .set("Host", "app.example").set("Origin", "https://app.example")
-      .set("x-user", "owner").send({ consent: true }).expect(200);
+      .set("x-user", "owner").send({ consent: true, actorId: "actor" }).expect(200);
     expect(result.headers["cache-control"]).toBe("private, no-store");
-    expect(service.start).toHaveBeenCalledWith("owner", "run", true);
+    expect(service.start).toHaveBeenCalledWith("owner", "run", true, "actor");
     await request(app()).post("/api/tavus/conversations/run/end")
       .set("Host", "app.example").set("Origin", "https://other.example")
       .set("x-user", "owner").send({}).expect(403);
@@ -116,11 +116,11 @@ describe("Tavus authenticated routes", () => {
       creationAttempted: false, blockers: ["avatar_runtime_worker_unavailable"],
     }));
     const blocked = await request(app()).post("/api/tavus/conversations/run/start")
-      .set("x-user", "owner").send({ consent: true }).expect(409);
+      .set("x-user", "owner").send({ consent: true, actorId: "actor" }).expect(409);
     expect(blocked.body).toMatchObject({ code: "avatar_runtime_worker_unavailable", creationAttempted: false });
     service.start.mockRejectedValueOnce(new TavusError("tavus_create_uncertain", 502));
     const uncertain = await request(app()).post("/api/tavus/conversations/run/start")
-      .set("x-user", "owner").send({ consent: true }).expect(502);
+      .set("x-user", "owner").send({ consent: true, actorId: "actor" }).expect(502);
     expect(uncertain.body).not.toHaveProperty("creationAttempted");
   });
   it("routes end and sync to the actual run owner without arbitrary provider IDs", async () => {

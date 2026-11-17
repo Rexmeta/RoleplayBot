@@ -2,13 +2,14 @@ import { z } from "zod";
 import { storage } from "../../storage";
 import { fileManager } from "../fileManager";
 import { ledgerRuntimeBinding } from "../conversationLedger/transcript";
-import { findRuntimePersona, resolveRuntimeScenario, RUNTIME_PERSONA_PROFILE_KEY } from "../runtimeScenario";
+import { resolveRuntimeScenario, RUNTIME_PERSONA_PROFILE_KEY } from "../runtimeScenario";
 import { personaLiveAvatarSchema, personaAvatarAssetSchema, personaStockAvatarSchema } from "../../../shared/avatar/personaAvatar";
 import { AvatarIdentityError } from "./delegatedIdentity";
 import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
 import { testScopes } from "./testContracts";
 import { nativeScopes } from "./managedClient";
+import { conversationActor } from "../../../shared/conversationActor";
 
 export const conversationTargetDeps = {
   storage, fileManager, ledgerRuntimeBinding,
@@ -37,10 +38,7 @@ async function selectedAvatarReference(
   const live = boundRun.scenarioSnapshot ? null :
     (await deps.fileManager.getAllScenarios()).find(s => s.id === scenarioRun.scenarioId);
   const scenario = resolveRuntimeScenario(boundRun, live);
-  const activeIndex = personaRun.activePersonaIndex;
-  const activeActor = scenario && Number.isInteger(activeIndex) && activeIndex >= 0
-    ? scenario.personas?.[activeIndex] : null;
-  const actor = activeActor ?? (scenario && findRuntimePersona(scenario, personaRun.personaId));
+  const actor = scenario && conversationActor<any>(scenario.personas, personaRun);
   if (!actor) throw new AvatarIdentityError("avatar_persona_not_found", 409);
   const profile = boundRun.scenarioSnapshot
     ? actor[RUNTIME_PERSONA_PROFILE_KEY] ?? actor

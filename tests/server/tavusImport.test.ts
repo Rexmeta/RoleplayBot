@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   apply: vi.fn(), read: vi.fn(), enqueue: vi.fn(), update: vi.fn(), complete: vi.fn(),
+  transaction: vi.fn(),
 }));
 vi.mock("../../server/storage", () => ({
-  db: {}, storage: { updatePersonaRun: mocks.update },
+  db: { transaction: mocks.transaction }, storage: { updatePersonaRun: mocks.update },
 }));
 vi.mock("../../server/services/conversationLedger/service", () => ({
   applyLedgerCommand: mocks.apply, readLedgerProjection: mocks.read,
@@ -13,7 +14,7 @@ vi.mock("../../server/services/conversationLedger/transcript", () => ({
 }));
 vi.mock("../../server/services/feedbackGenerationService", () => ({ enqueueFeedbackJob: mocks.enqueue }));
 vi.mock("../../server/routes/routerHelpers", () => ({ checkAndCompleteScenario: mocks.complete }));
-import { importTavusTranscript } from "../../server/services/tavus/importTranscript";
+import { importTavusTranscript, reserveTavusRun } from "../../server/services/tavus/importTranscript";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -30,6 +31,45 @@ const messages: any = [
   { sender: "ai", message: "무엇이 문제인가요?", timestamp: "2026-11-04T01:00:00.000Z" },
   { sender: "user", message: "납기가 촉박합니다.", timestamp: "2026-11-04T01:00:03.000Z" },
 ];
+
+describe("atomic persona validation and native mode reservation", () => {
+  function transactionFor(run: any) {
+    const rowLock = vi.fn(async () => [run]);
+    const where = vi.fn(async () => undefined);
+    const set = vi.fn((values: any) => {
+      where.mockImplementation(async () => { Object.assign(run, values); });
+      return { where };
+    });
+    const update = vi.fn(() => ({ set }));
+    const tx = {
+      execute: vi.fn(),
+      select: vi.fn()
+        .mockImplementationOnce(() => ({ from: () => ({ where: () => ({ for: rowLock }) }) }))
+        .mockImplementation(() => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) })),
+      update,
+    };
+    mocks.transaction.mockImplementation(async (callback: any) => callback(tx));
+    return { update, rowLock };
+  }
+  const personas = [{ id: "first" }, { id: "live" }, { id: "third" }];
+  it("does not reserve live mode when the current actor changed before the locked check", async () => {
+    const run = { personaId: "first", activePersonaIndex: 2, mode: "realtime_voice", status: "active" };
+    const tx = transactionFor(run);
+    await expect(reserveTavusRun("run", { personaId: "live", personas })).rejects.toMatchObject({
+      code: "avatar_persona_mismatch", details: { creationAttempted: false },
+    });
+    expect(tx.rowLock).toHaveBeenCalledWith("update");
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(run.mode).toBe("realtime_voice");
+  });
+  it("reserves only the selected actor while keeping legacy zero defaults consistent", async () => {
+    const run = { personaId: "live", activePersonaIndex: 0, mode: "realtime_voice", status: "active" };
+    const tx = transactionFor(run);
+    await reserveTavusRun("run", { personaId: "live", personas });
+    expect(tx.rowLock).toHaveBeenCalledWith("update");
+    expect(run.mode).toBe("tavus_full");
+  });
+});
 
 describe("Tavus final transcript to existing evaluation", () => {
   it.each(["anam", "tavus"] as const)("keeps %s provenance through ledger finality and durable feedback", async provider => {

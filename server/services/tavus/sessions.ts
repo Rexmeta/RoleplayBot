@@ -19,6 +19,7 @@ export interface TavusSession {
   language?: import("../../../shared/conversationLanguage").ConversationLanguage;
   state: State; token: string; userId: string; runId: string; createdAt: string;
   sessionId?: string; projectId?: string; avatarId?: string; assetId?: string | null;
+  personaId?: string;
   expiresAt?: string; lastError?: string;
   scenarioDeadlineAt?: string;
   rendererState?: string | null; cleanupPending?: boolean;
@@ -44,21 +45,26 @@ export const tavusDeps = {
 export class TavusSessions {
   constructor(private readonly deps = tavusDeps) {}
 
-  async config(userId?: string, runId?: string) {
+  async config(userId?: string, runId?: string, expectedActorId?: string) {
     const blockers: string[] = [];
     // Availability metadata is informational, never a second admission policy.
     // Capacity, budgets and cleanup are evaluated by AvatarRouter on POST.
     const runtime = null;
     let selectable = false;
+    let targetMatched = false;
     let evaluationAvailable = false;
     let providerId: "tavus" | "anam" = "tavus";
     if (!userId) blockers.push("avatar_authenticated_user_required");
     else try {
+      if (runId) await this.deps.owner(userId, runId);
       const auth = await this.deps.connection.check(userId);
       if (!requiredScopes.every(s => auth.scopes.includes(s as any))) blockers.push("avatar_full_pipeline_scopes_missing");
       if (runId) {
         const selection = await this.deps.selection(userId, runId);
         blockers.push(...selection.blockers);
+        if (!selection.configured || (expectedActorId !== undefined && expectedActorId !== String(selection.personaId))) {
+          blockers.push("avatar_persona_mismatch");
+        } else targetMatched = true;
         providerId = selection.providerId ?? "tavus";
       }
       evaluationAvailable = supportsAvatarFinalTranscript(providerId, auth.integration?.features ?? []);
@@ -69,7 +75,7 @@ export class TavusSessions {
     } catch (error) {
       blockers.push(error instanceof AvatarIdentityError || error instanceof TavusError ? error.code : "avatar_router_unavailable");
     }
-    return { available: blockers.length === 0, selectable, blockers, runtime, maxSeconds: null,
+    return { available: blockers.length === 0, selectable, targetMatched, blockers, runtime, maxSeconds: null,
       evaluationAvailable, providerId, managedClient: true, palStrategy: "per_session" };
   }
 
@@ -95,6 +101,7 @@ export class TavusSessions {
       session?.transcriptState ?? "unavailable";
     return { state: session?.state ?? "idle",
       ...(session?.language ? { language: session.language } : {}),
+      ...(session?.personaId ? { personaId: session.personaId } : {}),
       ...(session?.sessionId ? { id: session.sessionId } : {}),
       ...(session?.rendererState !== undefined ? { rendererState: session.rendererState } : {}),
       ...(session?.cleanupPending !== undefined ? { cleanupPending: session.cleanupPending } : {}),
@@ -160,15 +167,29 @@ export class TavusSessions {
     return this.publicSession(saved);
   }
 
-  async start(userId: string, runId: string, consent: boolean) {
+  async start(userId: string, runId: string, consent: boolean, expectedActorId?: string) {
     if (!consent) throw new TavusError("tavus_consent_required", 400);
     const { session, run, scenarioRun } = await this.owned(userId, runId);
-    if (session && session.state !== "create_unknown") return this.session(userId, runId);
+    if (session && expectedActorId !== undefined && session.personaId !== expectedActorId) {
+      throw new TavusError("avatar_existing_session_target_mismatch", 409, { creationAttempted: false });
+    }
+    if (session && session.state !== "create_unknown") {
+      return this.session(userId, runId);
+    }
     if (run.status !== "active" || scenarioRun.status === "completed") throw new TavusError("tavus_fresh_run_required");
-    const target = await this.deps.target(userId, runId);
+    const target = await this.deps.target(userId, runId).catch(error => {
+      if (error instanceof AvatarIdentityError) throw new TavusError(error.code, error.status, { creationAttempted: false });
+      throw error;
+    });
+    if (expectedActorId !== undefined && String(target.personaId) !== expectedActorId) {
+      throw new TavusError("avatar_persona_mismatch", 409, { creationAttempted: false });
+    }
     const auth = await this.deps.connection.check(userId);
     const evaluationAvailable = supportsAvatarFinalTranscript(target.providerId ?? "tavus", auth.integration?.features ?? []);
     const binding = await this.deps.resolve(userId, runId);
+    if (String(binding.persona.id) !== String(target.personaId)) {
+      throw new TavusError("avatar_persona_context_mismatch", 409, { creationAttempted: false });
+    }
     if (target.providerId === "anam" && !binding.immutableContext) {
       throw new TavusError("avatar_frozen_context_required", 409, { creationAttempted: false });
     }
@@ -185,15 +206,30 @@ export class TavusSessions {
         liveAvatarDurationSeconds(binding.scenario?.targetDurationMinutes) * 1000).toISOString(),
       language: binding.language,
       projectId: target.projectId, avatarId: target.avatarId, assetId: target.assetId,
+      personaId: target.personaId,
       providerId: target.providerId ?? "tavus",
       managedClient: true,
       ...(evaluationAvailable ? { transcriptContract: "router-unified-v1" as const } : {}),
       transcriptState: evaluationAvailable ? "pending" : "unavailable",
     });
     if (pending.token !== token) return this.publicSession(pending);
+    let paidRequestAttempted = false;
     try {
-      // Persist paid-create fence and reject native writes before the non-idempotent POST.
-      await this.deps.reserve(runId);
+      const latest = await this.deps.target(userId, runId);
+      if (latest.personaId !== target.personaId || latest.avatarId !== target.avatarId ||
+          latest.assetId !== target.assetId || latest.providerId !== target.providerId || latest.projectId !== target.projectId) {
+        throw new TavusError("avatar_persona_mismatch", 409, { creationAttempted: false });
+      }
+      // Resolve does free remote reads. Check local actor state again after those
+      // awaits so an intervening switch cannot reuse its old identity result.
+      const currentSelection = await this.deps.selection(userId, runId);
+      if (!currentSelection.configured || String(currentSelection.personaId) !== String(target.personaId)) {
+        throw new TavusError("avatar_persona_mismatch", 409, { creationAttempted: false });
+      }
+      // The final actor check and mode change share a locked DB transaction.
+      // No free/remote preparation may fail after this reservation and before POST.
+      await this.deps.reserve(runId, { personaId: String(target.personaId), personas: binding.scenario?.personas ?? [] });
+      paidRequestAttempted = true;
       const created = await this.deps.client.call(userId, "/sessions", routerSessionSchema, {
         providerId: target.providerId ?? "tavus", avatarId: target.avatarId,
         ...(target.assetId ? { avatarAssetId: target.assetId } : {}),
@@ -209,6 +245,16 @@ export class TavusSessions {
       if (bound.state === "ending") return await this.end(userId, runId);
       return await this.session(userId, runId);
     } catch (error) {
+      if (!paidRequestAttempted) {
+        // Nothing billable could have happened and reservation either was not
+        // attempted or rolled back. Do not strand standard chat behind a fence.
+        await this.deps.store.mutate<TavusSession | null>(`run:${runId}`, current =>
+          current?.token === token && !current.sessionId ? session : current);
+        if (error instanceof AvatarIdentityError || error instanceof TavusError) {
+          throw new TavusError(error.code, error.status, { creationAttempted: false });
+        }
+        throw error;
+      }
       await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => current?.token !== token ? current! : ({
         ...current!, state: current?.sessionId ? "ending" : "create_unknown",
         lastError: error instanceof AvatarIdentityError || error instanceof TavusError ? error.code : "tavus_create_uncertain",
@@ -359,7 +405,7 @@ export class TavusSessions {
       const bound = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
         current?.transcriptLeaseToken !== token ? current! : { ...current, transcriptRevision: revision });
       if (bound.transcriptLeaseToken !== token) return this.publicSession(bound);
-      const binding = await this.deps.resolve(userId, runId);
+      const binding = await this.deps.resolve(userId, runId, undefined, session.personaId);
       await this.deps.importTranscript(binding, session.sessionId!, messages, {
         provider: transcript.source, projectId: session.projectId!, sessionId: session.sessionId!,
         revision: transcript.revision,

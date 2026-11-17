@@ -14,7 +14,7 @@ vi.mock("../../client/src/components/chat/useTavusTranscript", () => ({
 vi.mock("../../client/src/components/chat/TavusConversationLayout", () => ({
   default: (p: any) => <div>
     <button disabled={p.microphoneDisabled} onClick={p.onMicrophoneClick}>대화 마이크</button>
-    {p.preStartControls}{p.headerActions}{p.stage}{p.sessionControls}
+    {p.preStartControls}{p.stage}{p.sessionControls}
   </div>,
 }));
 vi.mock("../../client/src/components/chat/ManagedAvatarRoom", () => ({ default: () => <div>legacy media client</div> }));
@@ -37,34 +37,32 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function view(onExit = vi.fn()) {
-  return render(<TavusChatWindow conversationId="run" persona={{ name: "Actor" } as any}
+  return render(<TavusChatWindow conversationId="run" persona={{ id: "actor", name: "Actor" } as any}
     scenario={{ title: "Scenario" } as any} onChatComplete={vi.fn()} onExit={onExit} onExitMode={vi.fn()} />);
 }
 describe("actual external app end and manual reconfirm screen", () => {
-  it("leaves from the header immediately, stops the local room, and sends one keepalive end even if cleanup never responds", async () => {
+  it("removes header exit while preserving keepalive cleanup when an active room unmounts", async () => {
     const onExit = vi.fn();
     vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
     const rendered = view(onExit);
     await screen.findByText("legacy media client");
-    fireEvent.click(screen.getByTestId("tavus-exit"));
-    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("tavus-exit")).toBeNull();
+    rendered.unmount();
+    expect(onExit).not.toHaveBeenCalled();
     expect(screen.queryByText("legacy media client")).toBeNull();
     expect(fetch).toHaveBeenCalledWith("/api/tavus/conversations/run/end",
       expect.objectContaining({ method: "POST", credentials: "include", keepalive: true }));
-    fireEvent.click(screen.getByTestId("tavus-exit"));
-    rendered.unmount();
-    expect(onExit).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
   });
-  it("allows leaving while startup is still pending and never starts a second paid session", async () => {
+  it("keeps pending startup cleanup on unmount without restoring a header exit or starting another session", async () => {
     state = { ...state, state: "creating" };
     const onExit = vi.fn();
-    view(onExit);
+    const rendered = view(onExit);
     await screen.findByText(/대화 공간 시작 상태 확인 중/);
-    expect((screen.getByTestId("tavus-exit") as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(screen.getByTestId("tavus-exit"));
-    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("tavus-exit")).toBeNull();
+    rendered.unmount();
+    expect(onExit).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(mocks.api.mock.calls.every(c => c[0] === "GET")).toBe(true);
   });
@@ -75,8 +73,11 @@ describe("actual external app end and manual reconfirm screen", () => {
       const rendered = view(onExit);
       await waitFor(() => expect(mocks.api.mock.calls.some(c => c[1].includes("/config?"))).toBe(true));
       await waitFor(() => expect(screen.queryByText(/세션 상태를 확인하고 있습니다/)).toBeNull());
-      fireEvent.click(screen.getByTestId("tavus-exit"));
-      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("tavus-exit")).toBeNull();
+      if (stateName === "ended") {
+        fireEvent.click(screen.getByTestId("tavus-close"));
+        expect(onExit).toHaveBeenCalledTimes(1);
+      } else expect(onExit).not.toHaveBeenCalled();
       expect(fetch).not.toHaveBeenCalled();
       rendered.unmount();
       mocks.api.mockClear();
@@ -103,7 +104,7 @@ describe("actual external app end and manual reconfirm screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "대화 마이크" }));
     await waitFor(() => expect(mocks.api.mock.calls.some(c => c[0] === "POST" && c[1].endsWith("/start"))).toBe(true));
   });
-  it("does not lock a manual start when the initial configuration request fails", async () => {
+  it("does not start an unverified persona when the initial configuration request fails", async () => {
     state = { state: "idle" };
     const implementation = mocks.api.getMockImplementation()!;
     mocks.api.mockImplementation(async (method, path) => {
@@ -111,11 +112,12 @@ describe("actual external app end and manual reconfirm screen", () => {
       return implementation(method, path);
     });
     view();
-    await waitFor(() => expect((screen.getByRole("button", { name: "대화 마이크" }) as HTMLButtonElement).disabled).toBe(false));
+    await screen.findByText("대화할 준비가 되었습니다");
+    expect((screen.getByRole("button", { name: "대화 마이크" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole("button", { name: "상태 확인" })).toBeNull();
     expect(screen.queryByTestId("tavus-start")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "대화 마이크" }));
-    await waitFor(() => expect(mocks.api.mock.calls.some(c => c[0] === "POST" && c[1].endsWith("/start"))).toBe(true));
+    expect(mocks.api.mock.calls.some(c => c[0] === "POST" && c[1].endsWith("/start"))).toBe(false);
   });
   it("ends from the report control without asking the learner to reconfirm server cleanup", async () => {
     view();

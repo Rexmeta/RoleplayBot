@@ -1,9 +1,10 @@
 import { storage } from "../../storage";
 import { fileManager } from "../fileManager";
 import { ledgerRuntimeBinding } from "../conversationLedger/transcript";
-import { assertImportedSnapshotComplete, buildRuntimePersonaProfile, findRuntimePersona, resolveRuntimeScenario } from "../runtimeScenario";
+import { assertImportedSnapshotComplete, buildRuntimePersonaProfile, resolveRuntimeScenario } from "../runtimeScenario";
 import { TavusError } from "./client";
 import { resolveConversationLanguage } from "../../../shared/conversationLanguage";
+import { conversationActor } from "../../../shared/conversationActor";
 
 export const ROLEPLAY_PAL_PROMPT = `You are RoleplayX's role-playing actor, not a coach or evaluator.
 Each conversation supplies ROLEPLAY_SESSION_DATA containing your assigned character and scenario.
@@ -47,7 +48,7 @@ export async function resolveTavusOwner(userId: string, runId: string, deps = co
   return { run, scenarioRun };
 }
 
-export async function resolveTavusContext(userId: string, runId: string, deps = contextDeps) {
+export async function resolveTavusContext(userId: string, runId: string, deps = contextDeps, sessionPersonaId?: string) {
   const { run, scenarioRun } = await resolveTavusOwner(userId, runId, deps);
   const ledger = await deps.ledgerRuntimeBinding(runId);
   const bound = ledger ? { ...scenarioRun, scenarioSnapshot: ledger.scenarioSnapshot,
@@ -72,7 +73,10 @@ export async function resolveTavusContext(userId: string, runId: string, deps = 
   }
   if (!scenario) throw new TavusError("tavus_scenario_missing", 409);
   assertImportedSnapshotComplete(scenario);
-  const actor = findRuntimePersona(scenario, run.personaId);
+  // Only stored server-side session bindings may pin a historical paid call's role.
+  const actor = sessionPersonaId
+    ? scenario.personas?.find((p: any) => String(p.id) === sessionPersonaId)
+    : conversationActor<any>(scenario.personas, run);
   if (!actor) throw new TavusError("tavus_persona_missing", 409);
   const profile = bound.scenarioSnapshot || synthetic ? null :
     await deps.storage.getMbtiPersona(String(actor.personaRef ?? run.personaId).replace(/\.json$/i, "").toLowerCase());

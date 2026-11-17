@@ -23,12 +23,13 @@ type Selection = {
 export function useLiveAvatarSelection(conversationId: string, actorId: string | number) {
   return useQuery<Selection>({
     queryKey: ["/api/live-avatar/conversations", conversationId, "selection", actorId],
-    enabled: Boolean(conversationId),
-    staleTime: 30_000,
+    enabled: Boolean(conversationId && actorId !== undefined && actorId !== ""),
+    staleTime: 0,
+    refetchOnMount: "always",
     refetchOnWindowFocus: true,
     queryFn: async () => (await apiRequest(
       "GET",
-      `/api/live-avatar/conversations/${encodeURIComponent(conversationId)}/selection`,
+      `/api/live-avatar/conversations/${encodeURIComponent(conversationId)}/selection?actorId=${encodeURIComponent(actorId)}`,
     )).json(),
   });
 }
@@ -40,7 +41,8 @@ export function LiveAvatarEntry({ conversationId, actorId, optionsOpen, onOpenOp
     if (optionsOpen) void selectionQuery.refetch();
   }, [optionsOpen, selectionQuery.refetch]);
 
-  if (!selectionQuery.data?.configured) return null;
+  if (selectionQuery.isFetching || selectionQuery.isError || !selectionQuery.data?.configured ||
+      String(selectionQuery.data.personaId) !== String(actorId)) return null;
   // The idle card only duplicates the live-avatar controls in the bottom menu.
   // Keep the portrait clear until there is a real status worth surfacing.
   if (!selectionQuery.isError && selectionQuery.data.enabled && selectionQuery.data.allowed &&
@@ -60,10 +62,6 @@ export function LiveAvatarEntry({ conversationId, actorId, optionsOpen, onOpenOp
       <button
         type="button"
         onClick={() => {
-          if (selectionQuery.isError) {
-            void selectionQuery.refetch();
-            return;
-          }
           onOpenOptions();
         }}
         aria-label={selectionQuery.isError

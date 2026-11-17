@@ -77,8 +77,11 @@ export class ConversationAvatarSessions {
     }
     return { enabled, allowed, contractReady: true, available: enabled && allowed && !blockers.length, blockers };
   }
-  async create(userId: string, conversationId: string) {
+  async create(userId: string, conversationId: string, expectedActorId?: string) {
     const target = await this.d.resolve(userId, conversationId);
+    if (expectedActorId !== undefined && expectedActorId !== String(target.personaId)) {
+      throw new AvatarIdentityError("avatar_persona_mismatch", 409);
+    }
     if (target.providerId === "anam") throw new AvatarIdentityError("avatar_native_pipeline_required", 409);
     const key = this.key(userId, target.projectId);
     if (this.creating.has(key)) throw new AvatarIdentityError("avatar_session_creation_in_progress", 409);
@@ -109,6 +112,13 @@ export class ConversationAvatarSessions {
       const record: Record = { ...target, conversationId, sessionId: null, pending: true,
         baseline: sessions.map(s => s.id) };
       await this.save(userId, record);
+      const currentTarget = await this.d.resolve(userId, conversationId);
+      if (currentTarget.personaId !== target.personaId || currentTarget.avatarId !== target.avatarId ||
+          currentTarget.assetId !== target.assetId || currentTarget.projectId !== target.projectId) {
+        // No external POST occurred; do not leave an uncertain-create fence.
+        await this.save(userId, { ...record, pending: false });
+        throw new AvatarIdentityError("avatar_persona_mismatch", 409);
+      }
       const created = await this.d.client.call(userId, "/sessions", sessionSchema, {
         providerId: "tavus", avatarId: target.avatarId, mode: "live", costConfirmed: true,
         ...(target.assetId ? { avatarAssetId: target.assetId, purpose: "conversation" } : {}),
@@ -131,7 +141,8 @@ export class ConversationAvatarSessions {
       await this.save(userId, record);
     }
     const session = record.sessionId ? await this.session(userId, conversationId, record.sessionId) : null;
-    return { session: session && !avatarTestTerminal(session) ? session : null, creationUncertain: false };
+    return { session: session && !avatarTestTerminal(session) ? session : null, creationUncertain: false,
+      personaId: record.personaId };
   }
   private matches(record: Record, session: z.infer<typeof sessionSchema>) {
     return session.providerId === "tavus" && session.avatarId === record.avatarId &&

@@ -8,6 +8,12 @@ import { LiveAvatarChoice } from "../../client/src/components/chat/LiveAvatarCho
 
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
+vi.mock("../../client/src/components/chat/LiveAvatarEntry", () => ({
+  useLiveAvatarSelection: (_conversationId: string, actorId: string) => ({
+    data: { configured: true, enabled: true, allowed: true, personaId: actorId },
+    isFetching: false, isError: false,
+  }),
+}));
 vi.mock("../../client/src/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: "test-user" } }),
 }));
@@ -19,7 +25,7 @@ vi.mock("react-i18next", () => ({
 function MenuHarness() {
   const [open, setOpen] = useState(false);
   return <TopMenuPanel isOpen={open} onToggle={() => setOpen(value => !value)} onClose={() => setOpen(false)}>
-    <LiveAvatarChoice conversationId="conversation-1" voiceMode />
+    <LiveAvatarChoice conversationId="conversation-1" actorId="actor" voiceMode />
   </TopMenuPanel>;
 }
 

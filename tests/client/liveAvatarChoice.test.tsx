@@ -7,6 +7,12 @@ import { LiveAvatarChoice } from "../../client/src/components/chat/LiveAvatarCho
 
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
+vi.mock("../../client/src/components/chat/LiveAvatarEntry", () => ({
+  useLiveAvatarSelection: (_conversationId: string, actorId: string) => ({
+    data: { configured: true, enabled: true, allowed: true, personaId: actorId },
+    isFetching: false, isError: false,
+  }),
+}));
 vi.mock("../../client/src/components/admin/avatarTest/useAvatarTestRoom", () => ({
   useAvatarTestRoom: (() => {
     const disconnectMedia = vi.fn();
@@ -31,7 +37,7 @@ const jsonResponse = (body: unknown) => ({ json: async () => body });
 function setup(voiceMode = true, portraitHost?: HTMLElement | null) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   return render(<QueryClientProvider client={queryClient}>
-    <LiveAvatarChoice conversationId="conversation-1" voiceMode={voiceMode} portraitHost={portraitHost} />
+    <LiveAvatarChoice conversationId="conversation-1" actorId="actor" voiceMode={voiceMode} portraitHost={portraitHost} />
   </QueryClientProvider>);
 }
 
@@ -45,7 +51,7 @@ describe("LiveAvatarChoice", () => {
   ])("explains %s and refreshes free reads without bypassing the paid-start gate", async (blocker, explanation) => {
     let blocked = true;
     api.mockImplementation(async (method: string, path: string) => {
-      if (method === "GET" && path.endsWith("/availability")) {
+      if (method === "GET" && path.includes("/availability?")) {
         return jsonResponse(blocked ? { ...availability, available: false, blockers: [blocker] } : availability);
       }
       if (method === "GET" && path.endsWith("/session")) return jsonResponse({ session: null, creationUncertain: false });
@@ -75,7 +81,7 @@ describe("LiveAvatarChoice", () => {
   it("keeps paid creation locked after an auth timeout and refreshes both availability and recovery on retry", async () => {
     let recoveryCalls = 0, availabilityCalls = 0;
     api.mockImplementation(async (method: string, path: string) => {
-      if (method === "GET" && path.endsWith("/availability")) {
+      if (method === "GET" && path.includes("/availability?")) {
         availabilityCalls++;
         return jsonResponse(availabilityCalls === 1
           ? { ...availability, available: false, blockers: ["avatar_connection_timeout"] } : availability);
@@ -106,7 +112,7 @@ describe("LiveAvatarChoice", () => {
     let completeCreate!: (response: any) => void;
     api.mockImplementation((method: string, path: string) => {
       if (method === "GET" && path.endsWith("/session")) return Promise.resolve(jsonResponse({ session: null, creationUncertain: false }));
-      if (method === "GET" && path.endsWith("/availability")) return Promise.resolve(jsonResponse(availability));
+      if (method === "GET" && path.includes("/availability?")) return Promise.resolve(jsonResponse(availability));
       if (method === "POST" && path.endsWith("/sessions")) return new Promise(resolve => { completeCreate = resolve; });
       return Promise.resolve(jsonResponse({}));
     });
@@ -143,7 +149,7 @@ describe("LiveAvatarChoice", () => {
 
   it("requires voice mode and sends an explicit consented start request", async () => {
     api.mockImplementation((method: string, path: string) => {
-      if (method === "GET" && String(path).endsWith("/availability")) return Promise.resolve(jsonResponse(availability));
+      if (method === "GET" && String(path).includes("/availability?")) return Promise.resolve(jsonResponse(availability));
       if (method === "POST" && String(path).endsWith("/sessions")) return Promise.resolve(jsonResponse(session));
       return Promise.resolve(jsonResponse({}));
     });
@@ -152,19 +158,19 @@ describe("LiveAvatarChoice", () => {
     await screen.findByText("라이브 아바타는 실시간 음성 대화에서만 사용할 수 있습니다.");
     expect(screen.getByRole("button", { name: "실시간 아바타 시작" }).hasAttribute("disabled")).toBe(true);
     view.rerender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <LiveAvatarChoice conversationId="conversation-1" voiceMode />
+      <LiveAvatarChoice conversationId="conversation-1" actorId="actor" voiceMode />
     </QueryClientProvider>);
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 시작" }));
     await waitFor(() => expect(api).toHaveBeenCalledWith("POST", "/api/live-avatar/conversations/conversation-1/sessions", {
-      service: "avatar-router", consent: true,
+      service: "avatar-router", consent: true, actorId: "actor",
     }));
   });
 
   it("restores a persisted same-conversation session without creating a replacement", async () => {
     api.mockImplementation((method: string, path: string) => {
       if (method === "GET" && String(path).endsWith("/session")) return Promise.resolve(jsonResponse({ session, creationUncertain: false }));
-      if (method === "GET" && String(path).endsWith("/availability")) return Promise.resolve(jsonResponse(availability));
+      if (method === "GET" && String(path).includes("/availability?")) return Promise.resolve(jsonResponse(availability));
       return Promise.resolve(jsonResponse({}));
     });
     setup();
@@ -177,7 +183,7 @@ describe("LiveAvatarChoice", () => {
   it("portals the single video mount to the portrait host and leaves it transparent until media is ready", async () => {
     api.mockImplementation((method: string, path: string) => {
       if (method === "GET" && String(path).endsWith("/session")) return Promise.resolve(jsonResponse({ session, creationUncertain: false }));
-      if (method === "GET" && String(path).endsWith("/availability")) return Promise.resolve(jsonResponse(availability));
+      if (method === "GET" && String(path).includes("/availability?")) return Promise.resolve(jsonResponse(availability));
       return Promise.resolve(jsonResponse({}));
     });
     const host = document.createElement("div");
@@ -198,7 +204,7 @@ describe("LiveAvatarChoice", () => {
     let failFirstEnd = true;
     api.mockImplementation((method: string, path: string) => {
       if (method === "GET" && String(path).endsWith("/session")) return Promise.resolve(jsonResponse({ session, creationUncertain: false }));
-      if (method === "GET" && String(path).endsWith("/availability")) return Promise.resolve(jsonResponse(availability));
+      if (method === "GET" && String(path).includes("/availability?")) return Promise.resolve(jsonResponse(availability));
       if (method === "POST" && String(path).endsWith("/end") && failFirstEnd) {
         failFirstEnd = false;
         return Promise.reject(new Error("end unavailable"));

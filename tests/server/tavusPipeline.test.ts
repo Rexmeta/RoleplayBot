@@ -40,13 +40,13 @@ beforeEach(() => {
       if (id !== "owner") throw new TavusError("tavus_conversation_forbidden", 403);
       return { run: { status: "active" }, scenarioRun: { status: "active" } };
     }),
-    selection: vi.fn(async () => ({ blockers: [] })),
+    selection: vi.fn(async () => ({ blockers: [], configured: true, personaId: "actor" })),
     connection: { check: vi.fn(async () => ({
       projectId: "project", scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
       integration: { features: ["tavus_full_pipeline", "unified_roleplay_context", "unified_client_connection", "hosted_browser_client"] },
     })) },
-    target: vi.fn(async () => ({ projectId: "project", avatarId: "selected-face", assetId: null })),
-    resolve: vi.fn(async () => ({ context: "snapshot-bound character and situation", language: "ko", immutableContext: true })),
+    target: vi.fn(async () => ({ projectId: "project", avatarId: "selected-face", assetId: null, personaId: "actor" })),
+    resolve: vi.fn(async () => ({ persona: { id: "actor" }, context: "snapshot-bound character and situation", language: "ko", immutableContext: true })),
     reserve: vi.fn(async () => undefined),
     importTranscript: vi.fn(async () => undefined),
     client: { call: vi.fn(async (_user: string, path: string, schema: any, body: any) => {
@@ -65,6 +65,70 @@ beforeEach(() => {
   };
   service = new TavusSessions(deps);
 });
+
+describe("screen, avatar and role consistency", () => {
+  it("rejects a different requested actor without a paid session", async () => {
+    await expect(service.start("owner", "run", true, "third")).rejects.toMatchObject({
+      code: "avatar_persona_mismatch", details: { creationAttempted: false },
+    });
+    expect(deps.client.call).not.toHaveBeenCalled();
+    expect(deps.reserve).not.toHaveBeenCalled();
+  });
+  it("rejects a different role-context actor even if the avatar is valid", async () => {
+    deps.resolve.mockResolvedValue({ persona: { id: "third" }, context: "third role" });
+    await expect(service.start("owner", "run", true, "actor")).rejects
+      .toMatchObject({ code: "avatar_persona_context_mismatch" });
+    expect(deps.client.call).not.toHaveBeenCalled();
+  });
+  it("rechecks the actor after delayed preparation before sending a paid POST", async () => {
+    deps.target.mockResolvedValueOnce({ projectId: "project", avatarId: "selected-face", assetId: null, personaId: "actor" })
+      .mockResolvedValue({ projectId: "project", avatarId: "other-face", assetId: null, personaId: "third" });
+    await expect(service.start("owner", "run", true, "actor")).rejects.toMatchObject({ code: "avatar_persona_mismatch" });
+    expect(deps.client.call).not.toHaveBeenCalled();
+    expect(deps.reserve).not.toHaveBeenCalled();
+    expect(rows.get("run:run")).toBeNull();
+    expect(await service.session("owner", "run")).toMatchObject({ state: "idle" });
+  });
+  it("checks local selection after delayed remote identity reads", async () => {
+    deps.selection.mockResolvedValue({ configured: false, personaId: "third", blockers: ["avatar_persona_not_selected"] });
+    await expect(service.start("owner", "run", true, "actor")).rejects
+      .toMatchObject({ code: "avatar_persona_mismatch" });
+    expect(deps.client.call).not.toHaveBeenCalled();
+    expect(deps.reserve).not.toHaveBeenCalled();
+    expect(rows.get("run:run")).toBeNull();
+  });
+  it("leaves ordinary chat available when the atomic reservation detects a last-moment actor change", async () => {
+    let mode = "realtime_voice";
+    deps.owner.mockResolvedValue({ run: { status: "active", get mode() { return mode; } }, scenarioRun: { status: "active" } });
+    deps.reserve.mockImplementation(async () => {
+      // The real reservation checks the current actor before committing mode.
+      throw new TavusError("avatar_persona_mismatch", 409, { creationAttempted: false });
+    });
+    await expect(service.start("owner", "run", true, "actor")).rejects
+      .toMatchObject({ code: "avatar_persona_mismatch", details: { creationAttempted: false } });
+    expect(mode).toBe("realtime_voice");
+    expect(rows.get("run:run")).toBeNull();
+    expect(await service.session("owner", "run")).toMatchObject({ state: "idle" });
+    expect(deps.client.call).not.toHaveBeenCalled();
+  });
+  it("keeps existing paid recovery and end bound to the recorded actor after selection changes", async () => {
+    await service.start("owner", "run", true, "actor");
+    expect(rows.get("run:run").personaId).toBe("actor");
+    deps.target.mockRejectedValue(new Error("current persona has no live assignment"));
+    const recovered = await service.session("owner", "run");
+    expect(recovered.personaId).toBe("actor");
+    await expect(service.start("owner", "run", true, "third")).rejects
+      .toMatchObject({ code: "avatar_existing_session_target_mismatch" });
+    await service.end("owner", "run");
+    expect(deps.client.call.mock.calls.filter((c: any[]) => c[1] === "/sessions" && c[3])).toHaveLength(1);
+  });
+  it("does not advertise a different screen actor in initial mode selection", async () => {
+    expect(await service.config("owner", "run", "third")).toMatchObject({
+      selectable: false, targetMatched: false,
+    });
+    expect(deps.client.call).not.toHaveBeenCalled();
+  });
+});
 describe("scenario live avatar duration", () => {
   it("keeps a running native room mounted during supervisor lease handoff", async () => {
     remote.rendererState = "running";
@@ -82,7 +146,7 @@ describe("scenario live avatar duration", () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
     try {
       remote.expiresAt = new Date(now + 3600_000).toISOString();
-      deps.resolve.mockResolvedValue({ context: "snapshot", language: "ko", scenario: { targetDurationMinutes: minutes } });
+      deps.resolve.mockResolvedValue({ persona: { id: "actor" }, context: "snapshot", language: "ko", scenario: { targetDurationMinutes: minutes } });
       await service.start("owner", "run", true);
       const stored = rows.get("run:run");
       expect(Date.parse(stored.scenarioDeadlineAt) - now).toBe(seconds * 1000);
@@ -93,7 +157,7 @@ describe("scenario live avatar duration", () => {
   });
 
   it("never extends a shorter router deadline", async () => {
-    deps.resolve.mockResolvedValue({ context: "snapshot", language: "ko", scenario: { targetDurationMinutes: 5 } });
+    deps.resolve.mockResolvedValue({ persona: { id: "actor" }, context: "snapshot", language: "ko", scenario: { targetDurationMinutes: 5 } });
     await service.start("owner", "run", true);
     expect(rows.get("run:run").expiresAt).toBe(remote.expiresAt);
   });
@@ -112,7 +176,7 @@ describe("scenario live avatar duration", () => {
     try {
       remote.rendererState = "running";
       remote.expiresAt = new Date(Date.now() + 3600_000).toISOString();
-      deps.resolve.mockResolvedValue({ context: "snapshot", language: "ko", scenario: { targetDurationMinutes: 5 } });
+      deps.resolve.mockResolvedValue({ persona: { id: "actor" }, context: "snapshot", language: "ko", scenario: { targetDurationMinutes: 5 } });
       await service.start("owner", "run", true);
       const descriptor = await service.managedConnection("owner", "run");
       expect(descriptor.expiresAt).toBe(rows.get("run:run").scenarioDeadlineAt);
@@ -189,12 +253,12 @@ describe("AvatarRouter Full Pipeline", () => {
       const auth = await original();
       return { ...auth, integration: { features: [...auth.integration.features, `${provider}_full_pipeline`] } };
     });
-    deps.selection.mockResolvedValue({ blockers: [], providerId: provider });
-    deps.target.mockResolvedValue({ projectId: "project", providerId: provider, avatarId: "selected-face", assetId: null });
+    deps.selection.mockResolvedValue({ blockers: [], configured: true, personaId: "actor", providerId: provider });
+    deps.target.mockResolvedValue({ projectId: "project", providerId: provider, avatarId: "selected-face", assetId: null, personaId: "actor" });
     Object.assign(remote, { providerId: provider, pipeline: `${provider}_full`, rendererState: "running" });
     try {
       if (provider === "anam") {
-        deps.resolve.mockResolvedValueOnce({ context: "mutable authoring data", language: "ko", immutableContext: false });
+        deps.resolve.mockResolvedValueOnce({ persona: { id: "actor" }, context: "mutable authoring data", language: "ko", immutableContext: false });
         await expect(service.start("owner", "run", true)).rejects.toMatchObject({
           code: "avatar_frozen_context_required", details: { creationAttempted: false },
         });
@@ -249,14 +313,14 @@ describe("AvatarRouter Full Pipeline", () => {
     { extraFeatures: ["anam_session_context_v1"] },
     { extraFeatures: ["anam_final_transcript_v1"] },
   ])("lets the router judge Anam capability metadata while forwarding immutable context with $extraFeatures", async ({ extraFeatures }) => {
-    deps.selection.mockResolvedValue({ blockers: [], providerId: "anam" });
+    deps.selection.mockResolvedValue({ blockers: [], configured: true, personaId: "actor", providerId: "anam" });
     deps.connection.check.mockResolvedValue({
       projectId: "project",
       scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
       integration: { features: ["anam_full_pipeline", "unified_client_connection", "hosted_browser_client", ...extraFeatures] },
     });
     deps.target.mockResolvedValue({
-      projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null,
+      projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null, personaId: "actor",
     });
     Object.assign(remote, {
       providerId: "anam", avatarId: "anam-persona-default", pipeline: "anam_full", rendererState: "running",
@@ -276,12 +340,12 @@ describe("AvatarRouter Full Pipeline", () => {
   it("dispatches Anam with the common context and managed connection, never a direct SDK or Daily path", async () => {
     vi.stubEnv("AVATAR_ROUTER_BASE_URL", "https://router.example/api/v1");
     try {
-      deps.selection.mockResolvedValue({ blockers: [], providerId: "anam" });
+      deps.selection.mockResolvedValue({ blockers: [], configured: true, personaId: "actor", providerId: "anam" });
       deps.connection.check.mockResolvedValue({
         projectId: "project", scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
         integration: { features: ["anam_full_pipeline", "unified_client_connection", "hosted_browser_client", "unified_roleplay_context", "tavus_final_transcript_v1"] },
       });
-      deps.target.mockResolvedValue({ projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null });
+      deps.target.mockResolvedValue({ projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null, personaId: "actor" });
       Object.assign(remote, { providerId: "anam", avatarId: "anam-persona-default", pipeline: "anam_full", rendererState: "running" });
       deps.client.call.mockImplementation(async (_u, path, schema) => schema.parse(
         path.startsWith("/live-limits") ? limits : path.endsWith("/client-connection") ? {
@@ -307,8 +371,9 @@ describe("AvatarRouter Full Pipeline", () => {
       available: true, maxSeconds: null, evaluationAvailable: false, palStrategy: "per_session",
     });
     expect(deps.client.call).not.toHaveBeenCalled();
-    deps.selection.mockResolvedValue({ blockers: ["avatar_persona_not_selected"] });
-    expect(await service.config("owner", "run")).toMatchObject({ available: false, selectable: false, blockers: ["avatar_persona_not_selected"] });
+    deps.selection.mockResolvedValue({ blockers: ["avatar_persona_not_selected"], configured: false });
+    expect(await service.config("owner", "run")).toMatchObject({ available: false, selectable: false,
+      blockers: expect.arrayContaining(["avatar_persona_not_selected"]) });
   });
   it("accepts the router's 600-second full-pipeline limit and starts once without the old diagnostic cap", async () => {
     limits.sessionSeconds = 600;
@@ -451,7 +516,7 @@ describe("AvatarRouter Full Pipeline", () => {
     await expect(service.end("owner", "run")).rejects.toMatchObject({ code: "persona_avatar_project_mismatch" });
   });
   it("does not silently truncate oversized contexts or bypass budget restrictions", async () => {
-    deps.resolve.mockResolvedValue({ context: "x".repeat(12001), language: "ko" });
+    deps.resolve.mockResolvedValue({ persona: { id: "actor" }, context: "x".repeat(12001), language: "ko" });
     await expect(service.start("owner", "run", true)).rejects.toMatchObject({ code: "tavus_context_too_large" });
     expect(rows.size).toBe(0);
   });
@@ -471,8 +536,8 @@ describe("AvatarRouter Full Pipeline", () => {
 describe.each(["tavus", "anam"] as const)("router-authenticated %s final transcript recovery", provider => {
   let transcript: any;
   beforeEach(() => {
-    deps.selection.mockResolvedValue({ blockers: [], providerId: provider });
-    deps.target.mockResolvedValue({ projectId: "project", avatarId: "selected-face", assetId: null, providerId: provider });
+    deps.selection.mockResolvedValue({ blockers: [], configured: true, personaId: "actor", providerId: provider });
+    deps.target.mockResolvedValue({ projectId: "project", avatarId: "selected-face", assetId: null, providerId: provider, personaId: "actor" });
     Object.assign(remote, { providerId: provider, pipeline: `${provider}_full` });
     const check = deps.connection.check.getMockImplementation();
     deps.connection.check.mockImplementation(async (...args: any[]) => {

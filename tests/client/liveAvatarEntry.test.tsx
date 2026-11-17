@@ -42,11 +42,11 @@ function Harness({ voiceMode = true }: { voiceMode?: boolean }) {
 const json = (body: unknown) => ({ json: async () => body });
 function mockFlow({ configured = true, enabled = true, allowed = true } = {}) {
   api.mockImplementation(async (method: string, path: string) => {
-    if (method === "GET" && path.endsWith("/selection")) return json({
+    if (method === "GET" && path.includes("/selection?")) return json({
       configured, enabled, allowed, personaId: "actor",
       blockers: [...(!enabled ? ["globally_disabled"] : []), ...(!allowed ? ["scenario_not_allowed"] : [])],
     });
-    if (method === "GET" && path.endsWith("/availability")) return json({
+    if (method === "GET" && path.includes("/availability?")) return json({
       enabled, allowed, contractReady: true, available: enabled && allowed, blockers: [],
     });
     if (method === "GET" && path.endsWith("/session")) return json({ session: null, creationUncertain: false });
@@ -68,13 +68,13 @@ describe("visible learner live-avatar entry", () => {
   it("hides the idle status card while keeping controls available in the top menu", async () => {
     mockFlow();
     setup();
-    await waitFor(() => expect(api).toHaveBeenCalledWith("GET", "/api/live-avatar/conversations/conversation/selection"));
+    await waitFor(() => expect(api).toHaveBeenCalledWith("GET", "/api/live-avatar/conversations/conversation/selection?actorId=actor"));
     expect(screen.queryByText("라이브 아바타 연결 대기")).toBeNull();
     expect(screen.queryByRole("button", { name: "라이브 아바타 옵션 열기" })).toBeNull();
     fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
     fireEvent.click(await screen.findByRole("button", { name: "실시간 아바타 옵션 보기" }));
     expect(await screen.findByRole("checkbox")).toBeTruthy();
-    expect(api.mock.calls[0]).toEqual(["GET", "/api/live-avatar/conversations/conversation/selection"]);
+    expect(api.mock.calls[0]).toEqual(["GET", "/api/live-avatar/conversations/conversation/selection?actorId=actor"]);
     expect(api.mock.calls.some(([method]) => method === "POST")).toBe(false);
   });
 
@@ -92,7 +92,7 @@ describe("visible learner live-avatar entry", () => {
     await waitFor(() => expect(start.hasAttribute("disabled")).toBe(false));
     fireEvent.click(start);
     await waitFor(() => expect(api).toHaveBeenCalledWith("POST",
-      "/api/live-avatar/conversations/conversation/sessions", { service: "avatar-router", consent: true }));
+      "/api/live-avatar/conversations/conversation/sessions", { service: "avatar-router", consent: true, actorId: "actor" }));
     const choice = document.querySelector('[aria-label="실시간 아바타 선택"]');
     fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
     expect(choice?.isConnected).toBe(true);
@@ -119,13 +119,13 @@ describe("visible learner live-avatar entry", () => {
     fireEvent.click(screen.getByTestId("button-toggle-top-menu"));
     expect(screen.queryByLabelText("실시간 아바타 선택")).toBeNull();
     expect(screen.queryByRole("button", { name: "실시간 아바타 옵션 보기" })).toBeNull();
-    expect(api.mock.calls.every(([method, path]) => method === "GET" && path.endsWith("/selection"))).toBe(true);
+    expect(api.mock.calls.every(([method, path]) => method === "GET" && path.includes("/selection?"))).toBe(true);
   });
 
   it("does not label a saved selection as playing and shows real renderer startup after explicit Start", async () => {
     mockFlow();
     setup();
-    await waitFor(() => expect(api).toHaveBeenCalledWith("GET", "/api/live-avatar/conversations/conversation/selection"));
+    await waitFor(() => expect(api).toHaveBeenCalledWith("GET", "/api/live-avatar/conversations/conversation/selection?actorId=actor"));
     expect(screen.queryByText("라이브 아바타 연결 대기")).toBeNull();
     expect(screen.queryByText("라이브 아바타 재생 중")).toBeNull();
     fireEvent.click(screen.getByTestId("button-toggle-top-menu"));

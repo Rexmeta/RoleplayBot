@@ -7,6 +7,33 @@ import { adaptTavusTranscript, transcriptIdentity } from "../../server/services/
 import { ledgerPayloadSchema } from "../../shared/conversationLedger";
 
 describe("Tavus dynamic context", () => {
+  it.each([0, 1])("uses the chosen actor and frozen organization instructions with saved index %s", async activePersonaIndex => {
+    const deps: any = {
+      storage: {
+        getPersonaRun: vi.fn(async () => ({ personaId: "live", activePersonaIndex,
+          scenarioRunId: "scenario-run", difficulty: 4 })),
+        getScenarioRun: vi.fn(async () => ({ userId: "owner", scenarioId: "scenario",
+          scenarioSnapshot: { title: "Frozen", _overridePromptBlock: "Frozen organization instructions", personas: [
+            { id: "first", name: "Wrong role", goal: "Do not use" },
+            { id: "live", name: "Live role", goal: "Chosen goal" },
+            { id: "third", name: "Third role" },
+          ] } })),
+        getUser: vi.fn(async () => ({ preferredLanguage: "ko" })),
+        getScenario: vi.fn(), getMbtiPersona: vi.fn(),
+      },
+      ledgerRuntimeBinding: vi.fn(async () => null), fileManager: { getAllScenarios: vi.fn() },
+    };
+    const result = await resolveTavusContext("owner", "conversation", deps);
+    expect(result.persona.id).toBe("live");
+    expect(result.context).toContain("Chosen goal");
+    expect(result.context).toContain("Frozen organization instructions");
+    expect(result.context).not.toContain("Wrong role");
+    expect(deps.storage.getScenario).not.toHaveBeenCalled();
+    expect(deps.storage.getMbtiPersona).not.toHaveBeenCalled();
+    const recovered = await resolveTavusContext("owner", "conversation", deps, "first");
+    expect(recovered.persona.id).toBe("first");
+    expect(recovered.context).toContain("Wrong role");
+  });
   it.each(["ko", "en", "ja", "zh"])("keeps %s in the avatar context after profile changes", async language => {
     const deps: any = {
       storage: {

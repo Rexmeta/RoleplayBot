@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, LoaderCircle, Mic2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { ConversationMessage } from "@shared/schema";
@@ -18,6 +17,7 @@ import { liveAvatarDurationSeconds } from "@shared/avatar/conversationDuration";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
+  personaId?: string;
   id?: string;
   language?: import("@shared/conversationLanguage").ConversationLanguage;
   state: SessionState;
@@ -32,6 +32,7 @@ type Session = {
   timing?: SessionTiming;
 };
 type Config = {
+  targetMatched?: boolean;
   available: boolean; blockers?: string[]; evaluationAvailable?: boolean;
   providerId?: "tavus" | "anam";
   managedClient?: boolean;
@@ -77,7 +78,11 @@ function errorDetails(error: unknown) {
   return { code, message, creationAttempted, routerError };
 }
 
-export default function TavusChatWindow({
+export default function TavusChatWindow(props: Props) {
+  return <TavusChatWindowSession key={`${props.conversationId}:${props.persona.id}`} {...props} />;
+}
+
+function TavusChatWindowSession({
   scenario, persona, conversationId, onChatComplete, onExit, onReady, onExitMode,
 }: Props) {
   const { t, i18n } = useTranslation();
@@ -240,19 +245,6 @@ export default function TavusChatWindow({
     }).catch(() => { endKeepaliveSentRef.current = false; });
   }, [conversationId]);
 
-  // Leaving is distinct from finishing for a report. Do not hold navigation
-  // open for provider cleanup or transcript retrieval; the server owns both.
-  const exitConversation = () => {
-    if (exitRequestedRef.current) return;
-    exitRequestedRef.current = true;
-    releaseScreenWakeLock();
-    setConnection(null);
-    if (loading || startedRef.current || sessionStateRef.current !== "idle") {
-      endKeepalive();
-      if (sessionStateRef.current !== "ended") updateSession({ ...session, state: "ending" });
-    }
-    onExit();
-  };
 
   const checkConnection = useCallback(async () => {
     if (managedRef.current || providerRef.current === "anam") return; // Common client owns the single-use handoff.
@@ -280,7 +272,7 @@ export default function TavusChatWindow({
     notifyReady();
     let cancelled = false;
     Promise.all([
-      apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}`)
+      apiRequest("GET", `/api/tavus/config?runId=${encodeURIComponent(conversationId)}&actorId=${encodeURIComponent(persona.id)}`)
         .then(response => response.json() as Promise<Config>).catch(() => null),
       requestSession("GET"),
     ]).then(([nextConfig, nextSession]) => {
@@ -345,7 +337,8 @@ export default function TavusChatWindow({
   }, [session.state, connection, requestSession, checkConnection, updateSession, endFailed]);
 
   const start = useCallback(async () => {
-    if (startInFlightRef.current || starting || exitRequestedRef.current) return;
+    if (startInFlightRef.current || starting || loading || config?.targetMatched === false || !config ||
+        !["idle", "create_unknown"].includes(sessionStateRef.current) || exitRequestedRef.current) return;
     startInFlightRef.current = true;
     startedRef.current = true;
     // Only the microphone action may start a new paid connection.
@@ -353,7 +346,7 @@ export default function TavusChatWindow({
     setStarting(true);
     setError(null);
     try {
-      const next = await requestSession("POST", "/start", { consent: true });
+      const next = await requestSession("POST", "/start", { consent: true, actorId: String(persona.id) });
       if (endRequestedRef.current && next.state !== "ended") {
         endKeepaliveSentRef.current = false;
         endKeepalive();
@@ -383,7 +376,7 @@ export default function TavusChatWindow({
       startInFlightRef.current = false;
       if (mountedRef.current) setStarting(false);
     }
-  }, [starting, requestScreenWakeLock, requestSession,
+  }, [starting, loading, config, persona.id, requestScreenWakeLock, requestSession,
     endKeepalive, updateSession, checkConnection, releaseScreenWakeLock]);
 
   const end = async () => {
@@ -567,27 +560,12 @@ export default function TavusChatWindow({
       active={session.state === "active"}
       microphoneState={busy || loading ? "busy" : session.state === "active" ? "active"
         : session.state === "ended" ? "ended" : "idle"}
-      microphoneDisabled={busy || loading || session.state === "ended"}
+      microphoneDisabled={busy || loading || session.state === "ended" || (session.state === "idle" && (!config || config.targetMatched === false))}
       onMicrophoneClick={() => { if (session.state === "active") void end(); else void start(); }}
       elapsedSeconds={elapsedSeconds}
       remainingSeconds={remainingSeconds}
       onExitMode={!started ? onExitMode : undefined}
       requiresAttention={Boolean(apiDisplayError) || session.state === "create_unknown" || session.state === "ended"}
-      headerActions={
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={exitConversation}
-          className="shrink-0 text-xs h-7 px-2 border text-slate-400 border-slate-200 hover:bg-slate-50"
-          data-testid="tavus-exit"
-        >
-          {session.state === "ended" ? text("close", "Close session", "세션 닫기")
-            : endFailed ? text("exitAnyway", "Exit anyway", "종료하고 나가기")
-            : started ? t("chat.endConversation", { defaultValue: i18n.language?.startsWith("ko") ? "대화 종료" : "End conversation" })
-            : t("chat.endEarly", { defaultValue: i18n.language?.startsWith("ko") ? "조기 종료" : "End early" })}
-        </Button>
-      }
       stage={roomStage}
       transcriptMessages={transcriptMessages}
       captionsAreProvisional={!canonicalTranscriptReady}
