@@ -6,6 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // This suite covers existing settings/choice contracts. Paid diagnostics have their own tests.
 vi.mock("../../client/src/components/admin/LiveAvatarTestPanel", () => ({ LiveAvatarTestPanel: () => null }));
+vi.mock("../../client/src/hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "test-user" } }),
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_key: string, options?: any) => typeof options === "string" ? options : options?.defaultValue ?? _key }),
 }));
@@ -37,6 +40,7 @@ beforeEach(() => {
   api.mockReset();
   api.mockImplementation(async (method, url, body) => {
     calls.push({ method, url, body });
+    if (method === "GET" && url.endsWith("/session")) return response({ session: null, creationUncertain: false });
     if (url.endsWith("/connection")) return response({ authMode: "api-key", state: "unconfigured" });
     if (url.endsWith("/identity")) return response({ state: "unconfigured", audience: "avatarrouter-api", clientId: "roleplayx-avatarrouter", tokenLifetimeSeconds: 45 });
     if (url.endsWith("/availability")) return response({ ...config, allowed: false, available: false });
@@ -159,7 +163,11 @@ describe("optional live avatar UI", () => {
   });
 
   it("allows live only after positive availability and explicit consent", async () => {
-    api.mockResolvedValue(response({ ...config, enabled: true, allowed: true, contractReady: true, available: true, blockers: [] }));
+    api.mockImplementation(async (method, url) => response(
+      method === "GET" && url.endsWith("/session")
+        ? { session: null, creationUncertain: false }
+        : { ...config, enabled: true, allowed: true, contractReady: true, available: true, blockers: [] },
+    ));
     view(<LiveAvatarChoice conversationId="pr" voiceMode />);
     fireEvent.click(screen.getByRole("button", { name: "실시간 아바타 옵션 보기" }));
     await screen.findByText("사용 가능");

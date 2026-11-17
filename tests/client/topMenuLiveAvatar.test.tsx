@@ -8,6 +8,9 @@ import { LiveAvatarChoice } from "../../client/src/components/chat/LiveAvatarCho
 
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
+vi.mock("../../client/src/hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: "test-user" } }),
+}));
 vi.mock("../../client/src/components/AppHeader", () => ({ AppHeader: () => <div>Menu header</div> }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key }),
