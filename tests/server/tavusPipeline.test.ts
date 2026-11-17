@@ -65,6 +65,64 @@ beforeEach(() => {
   };
   service = new TavusSessions(deps);
 });
+describe("scenario live avatar duration", () => {
+  it.each([[5, 300], [12, 600], [1, 60]])("uses a %s-minute scenario with a %s-second limit", async (minutes, seconds) => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      remote.expiresAt = new Date(now + 3600_000).toISOString();
+      deps.resolve.mockResolvedValue({ context: "snapshot", language: "ko", scenario: { targetDurationMinutes: minutes } });
+      await service.start("owner", "run", true);
+      const stored = rows.get("run:run");
+      expect(Date.parse(stored.scenarioDeadlineAt) - now).toBe(seconds * 1000);
+      expect(stored.expiresAt).toBe(stored.scenarioDeadlineAt);
+      const next = await service.session("owner", "run");
+      expect(next.expiresAt).toBe(stored.scenarioDeadlineAt);
+    } finally { clock.mockRestore(); }
+  });
+
+  it("never extends a shorter router deadline", async () => {
+    deps.resolve.mockResolvedValue({ context: "snapshot", language: "ko", scenario: { targetDurationMinutes: 5 } });
+    await service.start("owner", "run", true);
+    expect(rows.get("run:run").expiresAt).toBe(remote.expiresAt);
+  });
+
+  it("keeps an active conversation running before its target deadline", async () => {
+    remote.rendererState = "running";
+    await service.start("owner", "run", true);
+    deps.client.call.mockClear();
+    expect((await service.session("owner", "run")).state).toBe("active");
+    expect(deps.client.call.mock.calls.some((c: any[]) => c[1].endsWith("/end"))).toBe(false);
+  });
+
+  it("uses the same scenario deadline in the managed browser descriptor", async () => {
+    const prior = process.env.AVATAR_ROUTER_BASE_URL;
+    process.env.AVATAR_ROUTER_BASE_URL = "https://router.example.com/api/v1";
+    try {
+      remote.rendererState = "running";
+      remote.expiresAt = new Date(Date.now() + 3600_000).toISOString();
+      deps.resolve.mockResolvedValue({ context: "snapshot", language: "ko", scenario: { targetDurationMinutes: 5 } });
+      await service.start("owner", "run", true);
+      const descriptor = await service.managedConnection("owner", "run");
+      expect(descriptor.expiresAt).toBe(rows.get("run:run").scenarioDeadlineAt);
+    } finally {
+      if (prior === undefined) delete process.env.AVATAR_ROUTER_BASE_URL;
+      else process.env.AVATAR_ROUTER_BASE_URL = prior;
+    }
+  });
+
+  it("ends at the saved scenario deadline without creating another session", async () => {
+    remote.rendererState = "running";
+    await service.start("owner", "run", true);
+    rows.get("run:run").scenarioDeadlineAt = new Date(Date.now() - 1000).toISOString();
+    deps.client.call.mockClear();
+    const result = await service.session("owner", "run");
+    expect(result.state).toBe("ending");
+    expect(deps.client.call.mock.calls.filter((c: any[]) => c[1] === "/sessions/s1/end")).toHaveLength(1);
+    expect(deps.client.call.mock.calls.some((c: any[]) => c[1] === "/sessions")).toBe(false);
+  });
+});
+
 describe("AvatarRouter Full Pipeline", () => {
   it.each(["tavus", "anam"] as const)("preserves %s timing in GET and reports only the server-bound session", async provider => {
     await service.start("owner", "run", true);

@@ -64,6 +64,9 @@ export function ScenarioLiveAvatarPolicy({ scenarioId }: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          {t("liveAvatar.policy.durationNotice", { defaultValue: "라이브 아바타 대화는 시나리오 목표 시간에 맞춰 진행되며, 최대 10분으로 제한됩니다. 연결 준비 시간이 포함되며, 제공자의 세션 제한이 더 짧으면 해당 제한이 적용됩니다." })}
+        </p>
         {!scenarioId ? (
           <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
             {t("liveAvatar.policy.saveScenarioFirst", { defaultValue: "새 시나리오를 먼저 저장한 뒤 정책을 설정할 수 있습니다." })}

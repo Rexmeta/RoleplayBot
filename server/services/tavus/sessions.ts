@@ -12,6 +12,7 @@ import { dailyConnectionSchema, routerSessionSchema, routerTranscriptSchema } fr
 import { managedConnectionSchema, managedClientDescriptor } from "../liveAvatar/managedClient";
 import { supportsAvatarFinalTranscript } from "../../../shared/avatar/personaAvatar";
 import { videoObservationSchema, type SessionTiming } from "../../../shared/avatar/sessionTiming";
+import { liveAvatarDeadline, liveAvatarDurationSeconds } from "../../../shared/avatar/conversationDuration";
 
 type State = "creating" | "create_unknown" | "active" | "ending" | "ended";
 export interface TavusSession {
@@ -19,6 +20,7 @@ export interface TavusSession {
   state: State; token: string; userId: string; runId: string; createdAt: string;
   sessionId?: string; projectId?: string; avatarId?: string; assetId?: string | null;
   expiresAt?: string; lastError?: string;
+  scenarioDeadlineAt?: string;
   rendererState?: string | null; cleanupPending?: boolean;
   timing?: SessionTiming;
   providerId?: "tavus" | "anam";
@@ -130,6 +132,14 @@ export class TavusSessions {
       return this.publicSession(session);
     }
     const remote = await this.remote(userId, session);
+    if (session.scenarioDeadlineAt && Date.parse(session.scenarioDeadlineAt) <= Date.now() &&
+        session.state !== "ending" && remote.status === "active") {
+      const pending = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({ ...current!, state: "ending" }));
+      await this.deps.client.call(userId, `/sessions/${session.sessionId}/end`, routerSessionSchema, {});
+      // Stop acceptance is not proof that provider cleanup has finished.
+      // Later status polling / the existing worker confirms terminal state.
+      return this.publicSession(pending);
+    }
     const closed = remote.rendererState === "closed" && !remote.cleanupPending && remote.status !== "active";
     const state: State = closed ? "ended" :
       session.state === "ending" || remote.stopRequested || remote.status !== "active" ||
@@ -138,7 +148,7 @@ export class TavusSessions {
     const saved = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => ({
       ...current!, state: current?.state === "ended" ? "ended" :
         current?.state === "ending" && state !== "ended" ? "ending" : state,
-      expiresAt: remote.expiresAt,
+      expiresAt: liveAvatarDeadline(remote.expiresAt, current?.scenarioDeadlineAt),
       rendererState: remote.rendererState, cleanupPending: remote.cleanupPending,
       timing: current?.state === "ended" ? current.timing
         : current?.timing?.evidence === "authenticated_client_report" && remote.timing?.evidence !== "authenticated_client_report"
@@ -168,6 +178,8 @@ export class TavusSessions {
     const pending = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current =>
       current && !(current.state === "create_unknown" && current.token === session?.token) ? current : {
       state: "creating", token, userId, runId, createdAt: new Date().toISOString(),
+      scenarioDeadlineAt: new Date(Date.now() +
+        liveAvatarDurationSeconds(binding.scenario?.targetDurationMinutes) * 1000).toISOString(),
       language: binding.language,
       projectId: target.projectId, avatarId: target.avatarId, assetId: target.assetId,
       providerId: target.providerId ?? "tavus",
@@ -188,7 +200,8 @@ export class TavusSessions {
       });
       // Retain the ID even if a later identity check fails; never create again.
       const bound = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => current?.token !== token ? current! : ({
-        ...current!, sessionId: created.id, expiresAt: created.expiresAt,
+        ...current!, sessionId: created.id,
+        expiresAt: liveAvatarDeadline(created.expiresAt, current?.scenarioDeadlineAt),
       }));
       if (bound.state === "ending") return await this.end(userId, runId);
       return await this.session(userId, runId);
@@ -208,7 +221,7 @@ export class TavusSessions {
     if (session?.managedClient || session?.providerId === "anam") throw new TavusError("avatar_managed_connection_post_required", 405);
     const result = await this.deps.client.call(userId, `/sessions/${session!.sessionId}/full-connection`, dailyConnectionSchema);
     if (Date.parse(result.expiresAt) <= Date.now()) throw new TavusError("tavus_connection_expired", 409);
-    return result;
+    return { ...result, expiresAt: liveAvatarDeadline(result.expiresAt, session?.scenarioDeadlineAt) };
   }
 
   async managedConnection(userId: string, runId: string) {
@@ -232,7 +245,9 @@ export class TavusSessions {
     if (descriptor.pipeline !== (session.providerId === "anam" ? "anam_full" : "tavus_full")) {
       throw new TavusError("tavus_session_mismatch", 502);
     }
-    return managedClientDescriptor(descriptor, session.sessionId!);
+    return managedClientDescriptor({
+      ...descriptor, expiresAt: liveAvatarDeadline(descriptor.expiresAt, session.scenarioDeadlineAt),
+    }, session.sessionId!);
   }
 
   async interrupt(userId: string, runId: string) {

@@ -14,6 +14,7 @@ import { useBrowserCaptions } from "./tavusBrowserCaptions";
 import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../ScenarioOverrideSummary";
 import { AvatarSessionTiming } from "./AvatarSessionTiming";
 import type { SessionTiming } from "@shared/avatar/sessionTiming";
+import { liveAvatarDurationSeconds } from "@shared/avatar/conversationDuration";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
@@ -93,6 +94,7 @@ export default function TavusChatWindow({
       default: return text("requestFailed", "The live avatar request could not be completed.", "라이브 아바타 요청을 완료하지 못했습니다.");
     }
   };
+  const durationMinutes = liveAvatarDurationSeconds(scenario.targetDurationMinutes) / 60;
   // Keep provider codes/messages for internal recovery, never as learner-facing copy.
   const displayError = (details: { code: string; message: string; routerError?: boolean }) =>
     details.routerError ? `${details.message} (${details.code})` : reasonText(details.code);
@@ -560,7 +562,7 @@ export default function TavusChatWindow({
     <TavusConversationLayout
       scenario={scenario}
       persona={persona}
-      statusLabel={labels[session.state]}
+      statusLabel={`${labels[session.state]} · ${text("durationLimit", "Live avatar limit", "라이브 아바타 제한")} ${durationMinutes}${text("minutes", " min", "분")} (${text("maximumTenMinutes", "up to 10 min", "최대 10분")})`}
       language={session.language}
       active={session.state === "active"}
       microphoneState={busy || loading ? "busy" : session.state === "active" ? "active"

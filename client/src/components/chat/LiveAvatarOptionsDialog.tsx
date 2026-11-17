@@ -41,7 +41,12 @@ export function LiveAvatarOptionsDialog({ open, onClose, children }: {
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
-        <div className="p-3">{children}</div>
+        <div className="p-3">
+          <p className="mb-3 text-xs leading-5 text-slate-600">
+            {t("chat.liveAvatarDurationNotice", { defaultValue: "라이브 아바타 대화는 시나리오 목표 시간에 맞춰 진행되며 최대 10분으로 제한됩니다. 연결 준비 시간이 포함되며, 제공자의 세션 제한이 더 짧으면 해당 제한이 적용됩니다." })}
+          </p>
+          {children}
+        </div>
       </div>
     </dialog>
   );

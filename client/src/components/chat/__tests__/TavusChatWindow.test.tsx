@@ -82,6 +82,15 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 describe("TavusChatWindow Daily pipeline", () => {
+  it.each([[5, 5], [12, 10]])("shows the scenario duration %s with a live limit of %s minutes", async (target, expected) => {
+    render(<TavusChatWindow scenario={{ ...scenario, targetDurationMinutes: target }} persona={persona}
+      conversationId="duration" onChatComplete={vi.fn()} onExit={vi.fn()} onExitMode={vi.fn()} />);
+    await screen.findByTestId("button-live-avatar-microphone");
+    expect(screen.getByTestId("tavus-session-status").textContent)
+      .toContain(`Live avatar limit ${expected} min (up to 10 min)`);
+    expect(apiRequestMock.mock.calls.some(([method]) => method === "POST")).toBe(false);
+  });
+
   it("connects timing reporting and displays server observations without treating report failure as session failure", async () => {
     apiRequestMock.mockImplementation(async (_method: string, url: string) => {
       if (url.startsWith("/api/tavus/config?")) return response({ available: true, managedClient: true });
