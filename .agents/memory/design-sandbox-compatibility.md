@@ -1,0 +1,26 @@
+---
+name: Design sandbox compatibility
+description: Theme fidelity and React-version isolation when extracting this app into the connected design sandbox.
+---
+
+원본 앱의 CSS 변수는 완성된 `hsl(...)` 색상이며 연결된 디자인 샌드박스의
+기본 테마는 HSL 채널을 다시 감싸는 방식이다. 변수만 복사하면 유효하지 않은
+중첩 `hsl()`이 생긴다. 원본 UI 프리미티브도 기본 샌드박스 버전과 다르다.
+
+**Why:** 실제 워크플로우를 추출했을 때 입력 필드의 테두리·배경·크기가
+원본과 달라졌다. 소스 JSX만 같다고 시각적 기준이 동일한 것은 아니다.
+
+**How to apply:** 해당 추출 그룹의 스타일 안에서 토큰 해석을 원본 방식으로
+맞추고 필요한 원본 프리미티브를 그룹 내부에 복사한다. 다른 디자인 그룹의
+전역 스타일을 수정하지 않는다.
+
+연결된 샌드박스와 본 앱의 React 메이저 버전이 다르다. 본 앱의 DOM 검사에서
+샌드박스 컴포넌트를 불러올 때 외부 처리된 아이콘 라이브러리까지 다른 React를
+사용하면 정상적인 브라우저 UI도 렌더 오류로 검사에 실패한다.
+
+**Why:** 컴포넌트의 React 별칭만 맞춰도 외부 처리된 아이콘의 React는
+바뀌지 않아 잘못된 React 자식 오류가 발생했다.
+
+**How to apply:** 교차 프로젝트 전용 검사에서는 React·렌더러·아이콘의
+의존성 해석을 한 버전으로 통일한다. 이를 고치려고 실제 앱이나 샌드박스의
+React를 불필요하게 교체하지 않는다.
