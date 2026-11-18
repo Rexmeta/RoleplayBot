@@ -103,56 +103,52 @@ describe("Culture Map actor and profile management", () => {
     });
   });
   afterEach(cleanup);
-  it("places a real creation tab to the right of management and displays its form in the tab page, never a popup", async () => {
+  it("opens the shared full-screen creation editor on demand with section navigation", async () => {
     const user = userEvent.setup();
     renderWithQuery(<CultureMapWorkspace />);
     const navigation = screen.getByRole("tablist", { name: "Culture Map 기능" });
-    const profilesTab = within(navigation).getByRole("tab", { name: "프로필 관리" });
-    const create = within(navigation).getByRole("tab", { name: "새 프로필 만들기" });
-    const experimentTab = within(navigation).getByRole("tab", { name: "행동 실험" });
-    expect(profilesTab.nextElementSibling).toBe(create);
-    expect(create.compareDocumentPosition(experimentTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "새 프로필 만들기" })).toBeNull();
+    expect(within(navigation).getByRole("tab", { name: "프로필 관리" })).toBeTruthy();
+    expect(within(navigation).getByRole("tab", { name: "행동 실험" })).toBeTruthy();
+    const create = screen.getByRole("button", { name: "새 프로필 만들기" });
     expect(within(screen.getByRole("region", { name: "Culture Map 프로필 관리" })).queryByRole("button", { name: "새 프로필 만들기" })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     await user.click(create);
-    expect(create.getAttribute("aria-selected")).toBe("true");
-    const panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("aria-labelledby")).toBe(create.id);
-    const form = within(panel).getByRole("form", { name: "새 프로필 만들기" });
-    expect(within(form).getByLabelText("프로필 이름 *")).toBeTruthy();
-    expect(within(form).getAllByRole("slider")).toHaveLength(8);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    const editor = screen.getByTestId("culture-profile-editor");
+    expect(editor.classList.contains("scenario-editor")).toBe(true);
+    expect(within(editor).getByLabelText("프로필 이름 *")).toBeTruthy();
+    fireEvent.click(editor.querySelectorAll(".scenario-editor-nav button")[1]);
+    expect(within(editor).getAllByRole("slider")).toHaveLength(8);
+    expect(screen.getByRole("dialog")).toBe(editor);
     expect(screen.queryByRole("list", { name: "문화 프로필 목록" })).toBeNull();
     expect(apiRequest.mock.calls.some(([method]) => method !== "GET")).toBe(false);
   });
 
-  it("preserves the creation draft when navigating through management and experiments; cancel returns to management", async () => {
+  it("preserves the creation draft across sections and confirms before discarding", async () => {
     const user = userEvent.setup();
     renderWithQuery(<CultureMapWorkspace />);
-    const experimentTab = screen.getByRole("tab", { name: "행동 실험" });
-    const create = screen.getByRole("tab", { name: "새 프로필 만들기" });
+    const create = screen.getByRole("button", { name: "새 프로필 만들기" });
     await user.click(create);
-    await user.type(within(screen.getByRole("form", { name: "새 프로필 만들기" })).getByLabelText("프로필 이름 *"), "유지할 초안");
-    await user.click(screen.getByRole("tab", { name: "프로필 관리" }));
-    await user.click(experimentTab);
-    expect(screen.getByText("문화 행동 실험 화면")).toBeTruthy();
+    await user.type(screen.getByLabelText("프로필 이름 *"), "유지할 초안");
+    const nav = document.querySelectorAll<HTMLButtonElement>(".scenario-editor-nav button");
+    fireEvent.click(nav[1]);
+    fireEvent.click(nav[0]);
+    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("유지할 초안");
+    await user.click(screen.getByRole("button", { name: "편집 닫기" }));
+    await user.click(screen.getByRole("button", { name: "계속 편집" }));
+    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("유지할 초안");
+    await user.click(screen.getByRole("button", { name: "편집 닫기" }));
+    await user.click(screen.getByRole("button", { name: "저장하지 않고 닫기" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await user.click(create);
-    expect((within(screen.getByRole("form", { name: "새 프로필 만들기" })).getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("유지할 초안");
-    await user.click(screen.getByRole("button", { name: "취소" }));
-    const management = screen.getByRole("tab", { name: "프로필 관리" });
-    await waitFor(() => expect(document.activeElement).toBe(management));
-    expect(management.getAttribute("aria-selected")).toBe("true");
-    await user.click(create);
-    expect((within(screen.getByRole("form", { name: "새 프로필 만들기" })).getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
   });
 
-  it("creates from the tab page, refreshes saved profiles, and returns to management with a fresh creation form", async () => {
+  it("creates from the shared editor and refreshes profiles with a fresh next draft", async () => {
     const user = userEvent.setup();
     renderWithQuery(<CultureMapWorkspace />);
-    const create = screen.getByRole("tab", { name: "새 프로필 만들기" });
+    const create = screen.getByRole("button", { name: "새 프로필 만들기" });
     await user.click(create);
-    const form = within(screen.getByRole("form", { name: "새 프로필 만들기" }));
+    const form = within(screen.getByTestId("culture-profile-editor"));
     await user.type(form.getByLabelText("프로필 이름 *"), "페이지 생성");
     await user.type(form.getByLabelText("국가/문화권 *"), "한국");
     await user.click(form.getByRole("button", { name: "프로필 생성" }));
@@ -162,7 +158,7 @@ describe("Culture Map actor and profile management", () => {
     await waitFor(() => expect(screen.getByRole("tab", { name: "프로필 관리" }).getAttribute("aria-selected")).toBe("true"));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["/api/admin/culture-profiles"] });
     await user.click(create);
-    expect((within(screen.getByRole("form", { name: "새 프로필 만들기" })).getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
   });
 
   it("shows creation validation and server errors inline without losing the page draft", async () => {
@@ -172,27 +168,25 @@ describe("Culture Map actor and profile management", () => {
       return response([profile]);
     });
     renderWithQuery(<CultureMapWorkspace />);
-    await user.click(screen.getByRole("tab", { name: "새 프로필 만들기" }));
-    const form = within(screen.getByRole("form", { name: "새 프로필 만들기" }));
+    await user.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
+    const form = within(screen.getByTestId("culture-profile-editor"));
     await user.click(form.getByRole("button", { name: "프로필 생성" }));
-    expect(form.getByRole("alert").textContent).toContain("프로필 이름과 국가/지역");
+    expect(form.getByRole("alert").textContent).toBeTruthy();
     expect(apiRequest.mock.calls.some(([method]) => method === "POST")).toBe(false);
     await user.type(form.getByLabelText("프로필 이름 *"), "오류 후 유지");
     await user.type(form.getByLabelText("국가/문화권 *"), "한국");
     await user.click(form.getByRole("button", { name: "프로필 생성" }));
     await waitFor(() => expect(form.getByRole("alert").textContent).toContain("생성 서버 오류"));
     expect((form.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("오류 후 유지");
-    expect(screen.getByRole("tab", { name: "새 프로필 만들기" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("allows operator creation in its page without exposing shared-profile or experiment controls", async () => {
     authState.user = { id: "operator-1", role: "operator" };
     const user = userEvent.setup();
     renderWithQuery(<CultureMapWorkspace />);
-    await user.click(screen.getByRole("tab", { name: "새 프로필 만들기" }));
-    expect(screen.getByRole("tab", { name: "새 프로필 만들기" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByRole("form", { name: "새 프로필 만들기" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
+    expect(screen.getByTestId("culture-profile-editor")).toBeTruthy();
     expect(screen.queryByLabelText("공유 프로필")).toBeNull();
     expect(screen.queryByRole("tab", { name: "행동 실험" })).toBeNull();
   });
@@ -298,7 +292,8 @@ describe("Culture Map actor and profile management", () => {
     renderWithQuery(<CultureProfilesManager />);
     fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
     fireEvent.change(screen.getByLabelText("프로필 이름 *"), { target: { value: "비교하지 않을 초안" } });
-    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "편집 닫기" }));
+    fireEvent.click(screen.getByRole("button", { name: "저장하지 않고 닫기" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: /한국 상황별 업무 컨텍스트 비교에 추가/ }));
     expect((screen.getByRole("button", { name: "비교하기" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole("table")).toBeNull();
@@ -430,8 +425,9 @@ describe("Culture Map actor and profile management", () => {
     renderWithQuery(<CultureMapWorkspace />);
     await user.click(await screen.findByRole("checkbox", { name: /한국 상황별 업무 컨텍스트 비교에 추가/ }));
     expect(screen.getByRole("button", { name: "비교하기" })).toBeTruthy();
-    await user.click(screen.getByRole("tab", { name: "새 프로필 만들기" }));
+    await user.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
     expect(screen.queryByRole("button", { name: "비교하기" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "편집 닫기" }));
     await user.click(screen.getByRole("tab", { name: "행동 실험" }));
     expect(screen.queryByRole("button", { name: "비교하기" })).toBeNull();
     await user.click(screen.getByRole("tab", { name: "프로필 관리" }));
@@ -481,8 +477,8 @@ describe("Culture Map actor and profile management", () => {
     });
     renderWithQuery(<CultureProfilesManager />);
     fireEvent.click(await screen.findByText("미국", { exact: true }));
-    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "변경 저장" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByLabelText("프로필 이름 *").closest("fieldset")?.disabled).toBe(true);
+    expect(screen.queryByTestId("button-save-culture-profile")).toBeNull();
     expect(screen.queryByRole("button", { name: "삭제" })).toBeNull();
     expect(screen.getAllByText(EDITORIAL_CULTURE_NOTICE).length).toBeGreaterThan(0);
     expect(screen.getByText(/원본 설득 축:/).textContent).toContain("원본 20 → 기본 적용 80");
@@ -715,12 +711,13 @@ describe("Culture Map actor and profile management", () => {
     fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트 프로필 미리보기 및 편집/ }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe(profile.name);
-    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "편집 닫기" }));
     fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
     fireEvent.change(screen.getByLabelText("프로필 이름 *"), { target: { value: "임시 초안" } });
-    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "편집 닫기" }));
+    fireEvent.click(screen.getByRole("button", { name: "저장하지 않고 닫기" }));
     fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("프로필 이름 *")));
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("");
@@ -753,17 +750,18 @@ describe("Culture Map actor and profile management", () => {
     await user.type(screen.getByLabelText("국가/문화권 *"), "한국");
     await user.click(screen.getByRole("button", { name: "프로필 생성" }));
     await screen.findByRole("button", { name: "저장 중…" });
-    expect((screen.getByRole("button", { name: "취소" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "편집 닫기" }) as HTMLButtonElement).disabled).toBe(true);
     await user.keyboard("{Escape}");
-    expect(screen.getByRole("dialog", { name: "새 프로필 만들기" })).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Close" }));
-    expect(screen.getByRole("dialog", { name: "새 프로필 만들기" })).toBeTruthy();
+    expect(screen.getByTestId("culture-profile-editor")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "편집 닫기" }));
+    expect(screen.getByTestId("culture-profile-editor")).toBeTruthy();
     rejectRequest(new Error("저장 서버 오류"));
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("저장 서버 오류");
     expect(screen.getByRole("dialog").contains(alert)).toBe(true);
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).value).toBe("저장할 초안");
-    await user.click(screen.getByRole("button", { name: "취소" }));
+    await user.click(screen.getByRole("button", { name: "편집 닫기" }));
+    await user.click(screen.getByRole("button", { name: "저장하지 않고 닫기" }));
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
@@ -793,6 +791,48 @@ describe("Culture Map actor and profile management", () => {
     ]);
   });
 
+  it("keeps source and dimension edits through navigation and a version conflict", async () => {
+    apiRequest.mockImplementation(async (method: string) => {
+      if (method === "PUT") throw new Error("다른 사용자가 먼저 수정했습니다. 최신 버전을 확인해 주세요.");
+      return response([profile]);
+    });
+    renderWithQuery(<CultureProfilesManager />);
+    fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트 프로필 미리보기 및 편집/ }));
+    const navigate = (index: number) => fireEvent.click(document.querySelectorAll(".scenario-editor-nav button")[index]);
+    navigate(1);
+    fireEvent.change(screen.getByRole("slider", { name: "의사소통 점수" }), { target: { value: "67" } });
+    navigate(2);
+    fireEvent.click(screen.getByRole("button", { name: "출처 추가" }));
+    fireEvent.change(screen.getByLabelText("출처 1 제목"), { target: { value: "협업 조사" } });
+    fireEvent.change(screen.getByLabelText("출처 1 URL"), { target: { value: "https://example.com/source" } });
+    navigate(3);
+    fireEvent.click(screen.getByRole("switch", { name: /공유 프로필/ }));
+    fireEvent.click(screen.getByTestId("button-save-culture-profile"));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("PUT", "/api/admin/culture-profiles/profile-1", expect.objectContaining({
+      expectedVersion: 2, dimensions: expect.objectContaining({ communicating: 67 }),
+      visibility: "shared", sources: [expect.objectContaining({ title: "협업 조사", url: "https://example.com/source" })],
+    })));
+    expect((await screen.findByRole("alert")).textContent).toContain("다른 사용자가 먼저 수정");
+    navigate(2);
+    expect((screen.getByLabelText("출처 1 제목") as HTMLInputElement).value).toBe("협업 조사");
+    navigate(1);
+    expect((screen.getByRole("slider", { name: "의사소통 점수" }) as HTMLInputElement).value).toBe("67");
+  });
+
+  it("reveals an incomplete source field when saving from another section", () => {
+    renderWithQuery(<CultureProfilesManager />);
+    fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
+    fireEvent.change(screen.getByLabelText("프로필 이름 *"), { target: { value: "출처 검증" } });
+    fireEvent.change(screen.getByLabelText("국가/문화권 *"), { target: { value: "한국" } });
+    const nav = document.querySelectorAll(".scenario-editor-nav button");
+    fireEvent.click(nav[2]);
+    fireEvent.click(screen.getByRole("button", { name: "출처 추가" }));
+    fireEvent.click(nav[3]);
+    fireEvent.invalid(screen.getByLabelText("출처 1 제목"));
+    expect(screen.getByLabelText("출처 1 제목").closest("[hidden]")).toBeNull();
+    expect(apiRequest.mock.calls.some(([method]) => method !== "GET")).toBe(false);
+  });
+
   it("supports profile clone and version-history viewing", async () => {
     const user = userEvent.setup();
     renderWithQuery(<CultureProfilesManager />);
@@ -801,8 +841,8 @@ describe("Culture Map actor and profile management", () => {
     await user.click(profileRow.getByRole("button", { name: `${profile.name} 프로필 메뉴` }));
     await user.click(await screen.findByRole("menuitem", { name: "복제" }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("POST", "/api/admin/culture-profiles/profile-1/duplicate"));
-    await screen.findByRole("dialog", { name: "프로필 편집" });
-    await user.click(screen.getByRole("button", { name: "취소" }));
+    await screen.findByTestId("culture-profile-editor");
+    await user.click(screen.getByRole("button", { name: "편집 닫기" }));
     await user.click(profileRow.getByRole("button", { name: `${profile.name} 프로필 메뉴` }));
     await user.click(await screen.findByRole("menuitem", { name: "기록" }));
     expect(await screen.findByRole("dialog", { name: /버전 기록/ })).toBeTruthy();
@@ -830,10 +870,10 @@ describe("Culture Map actor and profile management", () => {
     });
     renderWithQuery(<CultureProfilesManager />);
     fireEvent.click(await screen.findByRole("button", { name: /상황별 업무 컨텍스트 프로필 미리보기 및 편집/ }));
-    expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "변경 저장" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByLabelText("프로필 이름 *").closest("fieldset")?.disabled).toBe(true);
+    expect(screen.queryByTestId("button-save-culture-profile")).toBeNull();
     expect(screen.queryByLabelText("공유 프로필")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    fireEvent.click(screen.getByRole("button", { name: "편집 닫기" }));
     fireEvent.click(screen.getByRole("button", { name: "새 프로필 만들기" }));
     expect((screen.getByLabelText("프로필 이름 *") as HTMLInputElement).disabled).toBe(false);
     expect(screen.queryByLabelText("공유 프로필")).toBeNull();

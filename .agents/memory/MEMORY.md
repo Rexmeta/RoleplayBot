@@ -41,5 +41,6 @@
 - [대화 언어 고정 정책](conversation-language-policy.md) — 실행 언어는 모드 간 유지하고 프로필 변경은 새 대화에 적용; 과거 언어 기록이 없으면 복구했다고 주장하지 않는다.
 - [Culture experiment lease safety](culture-experiment-lease-safety.md) — 유료 작업은 DB 소유권 확인 실패 시 차단하며, 시간 초과 시 즉시 해제하지 않고 만료까지 격리한다.
 - [디자인 샌드박스 호환성](design-sandbox-compatibility.md) — 원본 테마의 완성형 hsl 값과 React 버전이 샌드박스·앱 간 다르므로 추출과 교차 테스트에서 변환 경계를 확인한다.
+- [콘텐츠 관리 UX/UI 통일](content-management-consistency.md) — 시나리오·페르소나 편집 구조를 기준으로 통일하며 메뉴별 편집 틀과 컨트롤을 중복 구현하지 않는다.
 - [Nested workspace publishing](nested-workspace-publishing.md) — Root-scoped pnpm filters can select generated diagnostic copies; scope commands to the canonical nested workspace.
 - [Picomatch security boundary](picomatch-security-boundary.md) — No upstream fix was published when checked; local mitigation does not clear version-based audit findings.

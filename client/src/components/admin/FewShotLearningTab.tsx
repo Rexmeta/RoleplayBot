@@ -117,11 +117,12 @@ function DraftCardEditor({
         />
       </div>
       <div className="flex items-center justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} className="h-7 text-xs">
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel} className="h-7 text-xs">
           <X className="h-3.5 w-3.5 mr-1" />
           취소
         </Button>
         <Button
+          type="button"
           size="sm"
           onClick={() => onSave(draft)}
           disabled={!canSave || isSaving}
@@ -166,13 +167,14 @@ function SavedExampleCard({
             onCheckedChange={onToggleActive}
             className="scale-75"
           />
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onEdit}>
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={onEdit}>
             <Edit2 className="h-3.5 w-3.5 text-slate-500" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onDelete}>
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={onDelete}>
             <Trash2 className="h-3.5 w-3.5 text-red-500" />
           </Button>
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             className="h-6 w-6"
@@ -411,6 +413,7 @@ export function FewShotLearningTab({ dimensionId }: { dimensionId: string }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={() => importFileInputRef.current?.click()}
@@ -420,7 +423,7 @@ export function FewShotLearningTab({ dimensionId }: { dimensionId: string }) {
             <FileJson className="h-3.5 w-3.5 mr-1" />
             {isImporting ? "가져오는 중..." : "JSON/CSV 가져오기"}
           </Button>
-          <Button variant="outline" size="sm" onClick={addBlankDraft} className="h-7 text-xs">
+          <Button type="button" variant="outline" size="sm" onClick={addBlankDraft} className="h-7 text-xs">
             <Plus className="h-3.5 w-3.5 mr-1" />
             직접 입력 추가
           </Button>

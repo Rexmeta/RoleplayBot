@@ -3,66 +3,22 @@ import { useDefaultSourceLocale } from "@/lib/localeUtils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Star, Check, GripVertical, Copy, Settings, MessageCircle, Target, Lightbulb, Heart, Users, Award, Brain, Zap, Shield, TrendingUp, Eye, Ear, HandHeart, Compass, Flag, ThumbsUp, Megaphone, PenTool, BookOpen, Sparkles, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, ChevronRight, Info, Bot, Download } from "lucide-react";
-import { FewShotLearningTab } from "./FewShotLearningTab";
+import { Plus, Edit, Trash2, Star, Check, Copy, Settings, Target, Brain, Eye, AlertCircle, Languages, GitBranch, History, CheckCircle, XCircle, Archive, ClockIcon, Lock, ArrowLeftRight, UserCheck, LayoutTemplate, FlaskConical, BarChart2, Info, Bot, Download } from "lucide-react";
+import { CriteriaSetEditor, DimensionEditor } from "./evaluationEditor/CriteriaEditors";
+import { getIconComponent, type ScoringRubric } from "./evaluationEditor/shared";
 import { CriteriaSetFewShotTab } from "./CriteriaSetFewShotTab";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-const AVAILABLE_ICONS = [
-  { name: 'Star', icon: Star },
-  { name: 'MessageCircle', icon: MessageCircle },
-  { name: 'Target', icon: Target },
-  { name: 'Lightbulb', icon: Lightbulb },
-  { name: 'Heart', icon: Heart },
-  { name: 'Users', icon: Users },
-  { name: 'Award', icon: Award },
-  { name: 'Brain', icon: Brain },
-  { name: 'Zap', icon: Zap },
-  { name: 'Shield', icon: Shield },
-  { name: 'TrendingUp', icon: TrendingUp },
-  { name: 'Eye', icon: Eye },
-  { name: 'Ear', icon: Ear },
-  { name: 'HandHeart', icon: HandHeart },
-  { name: 'Compass', icon: Compass },
-  { name: 'Flag', icon: Flag },
-  { name: 'ThumbsUp', icon: ThumbsUp },
-  { name: 'Megaphone', icon: Megaphone },
-  { name: 'PenTool', icon: PenTool },
-  { name: 'BookOpen', icon: BookOpen },
-  { name: 'Sparkles', icon: Sparkles },
-  { name: 'Check', icon: Check },
-  { name: 'Settings', icon: Settings },
-];
-
-const getIconComponent = (iconName: string) => {
-  const found = AVAILABLE_ICONS.find(i => i.name === iconName);
-  return found ? found.icon : Star;
-};
-
-interface ScoringRubric {
-  score: number;
-  label: string;
-  description: string;
-  behaviorAnchor?: string;
-  positiveIndicators?: string[];
-  negativeIndicators?: string[];
-}
 
 interface EvaluationDimension {
   id: string;
@@ -162,90 +118,6 @@ const DEFAULT_DIMENSIONS = [
       { score: 10, label: '탁월', description: '전략적 순서로 대화 구성. 상대 반응에 따른 전술 조정. 합의 도출 주도.', behaviorAnchor: '처음부터 끝까지 단계적 전략(공감→공통목표 확인→이익 제시→합의 확인)을 유지하며 상대 반응에 따라 전술을 실시간 조정하고 명확한 합의로 마무리.' },
     ],
   },
-];
-
-function RubricItemsEditor({
-  rubric,
-  onChange,
-}: {
-  rubric: ScoringRubric[];
-  onChange: (updated: ScoringRubric[]) => void;
-}) {
-  if (rubric.length === 0) return null;
-  const missingAnchorCount = rubric.filter(r => !r.behaviorAnchor?.trim()).length;
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Label className="text-xs font-semibold">루브릭 행동 기준 (Behavior Anchors)</Label>
-        {missingAnchorCount > 0 && (
-          <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-            {missingAnchorCount}개 미입력
-          </span>
-        )}
-      </div>
-      <p className="text-[11px] text-slate-500">각 점수대에서 관찰되는 구체적인 행동 패턴을 입력하세요. 증거 기반 채점에 필수입니다.</p>
-      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-        {rubric.map((item, idx) => (
-          <div key={idx} className={`border rounded-md p-2.5 bg-white space-y-1.5 ${!item.behaviorAnchor?.trim() ? 'border-amber-300' : 'border-slate-200'}`}>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{item.score}점</span>
-              <span className="text-xs font-medium text-slate-700">{item.label}</span>
-              {!item.behaviorAnchor?.trim() && (
-                <span className="text-[10px] text-amber-600 ml-auto">행동 기준 필요</span>
-              )}
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 font-medium">행동 기준 *</label>
-              <AutoResizeTextarea
-                value={item.behaviorAnchor || ''}
-                onChange={(e) => {
-                  const updated = [...rubric];
-                  updated[idx] = { ...updated[idx], behaviorAnchor: e.target.value };
-                  onChange(updated);
-                }}
-                className={`text-xs mt-0.5 min-h-[48px] ${!item.behaviorAnchor?.trim() ? 'border-amber-300 focus-visible:ring-amber-300' : ''}`}
-                placeholder="이 점수대에서 관찰되는 구체적 행동 패턴 (예: 핵심 메시지를 명확히 전달하고 논리적 근거를 3가지 이상 제시함)"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] text-slate-500">긍정 지표 (쉼표 구분, 선택)</label>
-                <Input
-                  value={(item.positiveIndicators || []).join(', ')}
-                  onChange={(e) => {
-                    const updated = [...rubric];
-                    updated[idx] = { ...updated[idx], positiveIndicators: e.target.value.split(',').map(s => s.trim()).filter(Boolean) };
-                    onChange(updated);
-                  }}
-                  className="h-7 text-xs mt-0.5"
-                  placeholder="구체적 발화, 공감 표현..."
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-slate-500">부정 지표 (쉼표 구분, 선택)</label>
-                <Input
-                  value={(item.negativeIndicators || []).join(', ')}
-                  onChange={(e) => {
-                    const updated = [...rubric];
-                    updated[idx] = { ...updated[idx], negativeIndicators: e.target.value.split(',').map(s => s.trim()).filter(Boolean) };
-                    onChange(updated);
-                  }}
-                  className="h-7 text-xs mt-0.5"
-                  placeholder="논리 비약, 상대 무시..."
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const DIMENSION_TYPE_OPTIONS = [
-  { value: 'core', label: '필수 기준', description: '반드시 충족해야 하는 핵심 평가 항목', color: 'text-red-600' },
-  { value: 'standard', label: '일반 기준', description: '표준 평가 항목', color: 'text-blue-600' },
-  { value: 'bonus', label: '가점 기준', description: '추가 가점을 받을 수 있는 항목', color: 'text-green-600' },
 ];
 
 export function EvaluationCriteriaManager() {
@@ -620,6 +492,7 @@ export function EvaluationCriteriaManager() {
   };
 
   const handleCreate = () => {
+    if (!formData.name.trim()) return;
     const dimensions = formData.useDefaultDimensions
       ? DEFAULT_DIMENSIONS.map((dim, idx) => ({
           ...dim,
@@ -643,7 +516,7 @@ export function EvaluationCriteriaManager() {
   };
 
   const handleUpdate = () => {
-    if (!selectedSet) return;
+    if (!selectedSet || !formData.name.trim()) return;
     updateMutation.mutate({
       id: selectedSet.id,
       data: {
@@ -700,7 +573,8 @@ export function EvaluationCriteriaManager() {
   };
 
   const handleSaveDimension = () => {
-    if (!selectedSet) return;
+    if (!selectedSet || !dimensionFormData.key || !dimensionFormData.name) return;
+    if (dimensionFormData.scoringRubric.length >= 5 && dimensionFormData.scoringRubric.some(r => !r.behaviorAnchor?.trim())) return;
 
     const data = {
       key: dimensionFormData.key,
@@ -862,6 +736,7 @@ export function EvaluationCriteriaManager() {
                   onDelete={() => { setSetToDelete(set); setIsDeleteConfirmOpen(true); }}
                   onSetDefault={() => setDefaultMutation.mutate(set.id)}
                   onAddDimension={() => handleAddDimension(set)}
+                  onEditDimension={(dimension) => handleEditDimension(set, dimension)}
                   onTransferOwner={isAdmin ? () => handleOpenTransferDialog(set) : undefined}
                   isDefault={set.isDefault}
                   isAdmin={isAdmin}
@@ -873,93 +748,22 @@ export function EvaluationCriteriaManager() {
         </Accordion>
       )}
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>새 평가 기준 세트</DialogTitle>
-            <DialogDescription>
-              대화 피드백에 사용될 새로운 평가 기준 세트를 만듭니다.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">이름 *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="예: 영업팀 평가 기준"
-              />
-            </div>
-            <div>
-              <Label htmlFor="description">설명</Label>
-              <AutoResizeTextarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="이 평가 기준 세트에 대한 설명"
-              />
-            </div>
-            <div>
-              <Label htmlFor="category">연결 카테고리</Label>
-              <Select
-                value={formData.categoryId}
-                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="선택 없음 (모든 카테고리)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">선택 없음</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-500 mt-1">
-                특정 카테고리에 연결하면 해당 카테고리의 시나리오에서만 이 기준이 사용됩니다.
-              </p>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="isDefault">기본 기준으로 설정</Label>
-              <Switch
-                id="isDefault"
-                checked={formData.isDefault}
-                onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="useDefault">기본 5개 평가 차원 포함</Label>
-              <Switch
-                id="useDefault"
-                checked={formData.useDefaultDimensions}
-                onCheckedChange={(checked) => setFormData({ ...formData, useDefaultDimensions: checked })}
-              />
-            </div>
-            <div className="flex items-center justify-between border-t pt-4 mt-4">
-              <div>
-                <Label htmlFor="autoTranslate" className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                  {t('admin.evaluationCriteria.autoTranslate')}
-                </Label>
-                <p className="text-xs text-slate-500 mt-1">
-                  {t('admin.evaluationCriteria.autoTranslateDescription')}
-                </p>
-              </div>
-              <Switch
-                id="autoTranslate"
-                checked={formData.autoTranslate}
-                onCheckedChange={(checked) => setFormData({ ...formData, autoTranslate: checked })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleCreate} disabled={!formData.name || createMutation.isPending}>
-              {createMutation.isPending ? t('admin.common.loading') : t('common.create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+      <Dialog open={isCreateDialogOpen || isEditDialogOpen} onOpenChange={(open) => { if (!open) { setIsCreateDialogOpen(false); setIsEditDialogOpen(false); } }}>
+        {(isCreateDialogOpen || isEditDialogOpen) && (
+          <CriteriaSetEditor
+            key={isEditDialogOpen ? `edit-${selectedSet?.id}` : 'create'}
+            isNew={!isEditDialogOpen}
+            formData={formData}
+            onChange={setFormData}
+            categories={categories}
+            pending={isEditDialogOpen ? updateMutation.isPending : createMutation.isPending}
+            onClose={() => { setIsCreateDialogOpen(false); setIsEditDialogOpen(false); }}
+            onSave={isEditDialogOpen ? handleUpdate : handleCreate}
+            onTranslate={() => selectedSet?.id && autoTranslateMutation.mutate(selectedSet.id)}
+            translatePending={autoTranslateMutation.isPending}
+            canTranslate={!!selectedSet?.id}
+          />
+        )}
       </Dialog>
 
       {/* ── 템플릿 선택 다이얼로그 ── */}
@@ -1010,401 +814,32 @@ export function EvaluationCriteriaManager() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>평가 기준 세트 수정</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-name">이름 *</Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-description">설명</Label>
-              <AutoResizeTextarea
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-category">연결 카테고리</Label>
-              <Select
-                value={formData.categoryId || "none"}
-                onValueChange={(value) => setFormData({ ...formData, categoryId: value === "none" ? "" : value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">선택 없음</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="edit-isActive">활성화</Label>
-              <Switch
-                id="edit-isActive"
-                checked={formData.isActive}
-                onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="edit-isDefault">기본 기준으로 설정</Label>
-              <Switch
-                id="edit-isDefault"
-                checked={formData.isDefault}
-                onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
-              />
-            </div>
-            <div className="flex items-center justify-between border-t pt-4 mt-4">
-              <div>
-                <Label className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                  {t('admin.evaluationCriteria.autoTranslate')}
-                </Label>
-                <p className="text-xs text-slate-500 mt-1">
-                  {t('admin.evaluationCriteria.autoTranslateDescription')}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => selectedSet?.id && autoTranslateMutation.mutate(selectedSet.id)}
-                disabled={autoTranslateMutation.isPending || !selectedSet?.id}
-              >
-                {autoTranslateMutation.isPending 
-                  ? t('admin.common.loading')
-                  : t('admin.evaluationCriteria.triggerAutoTranslate')
-                }
-              </Button>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleUpdate} disabled={!formData.name || updateMutation.isPending}>
-              {updateMutation.isPending ? t('admin.common.loading') : t('common.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={isDimensionDialogOpen} onOpenChange={setIsDimensionDialogOpen}>
-        <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{selectedDimension ? "평가 차원 수정" : "새 평가 차원 추가"}</DialogTitle>
-            <DialogDescription>
-              평가 차원의 세부 설정을 입력하세요.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="dim-key">키 (영문) *</Label>
-                <Input
-                  id="dim-key"
-                  value={dimensionFormData.key}
-                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, key: e.target.value })}
-                  placeholder="clarityLogic"
-                  disabled={!!selectedDimension}
-                />
-              </div>
-              <div>
-                <Label htmlFor="dim-name">이름 *</Label>
-                <Input
-                  id="dim-name"
-                  value={dimensionFormData.name}
-                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, name: e.target.value })}
-                  placeholder="명확성 & 논리성"
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="dim-description">설명</Label>
-              <AutoResizeTextarea
-                id="dim-description"
-                value={dimensionFormData.description}
-                onChange={(e) => setDimensionFormData({ ...dimensionFormData, description: e.target.value })}
-                placeholder="이 평가 차원에 대한 상세 설명"
-              />
-            </div>
-            <div>
-              <Label>차원 유형</Label>
-              <Select
-                value={dimensionFormData.dimensionType}
-                onValueChange={(value: 'core' | 'standard' | 'bonus') => setDimensionFormData({ ...dimensionFormData, dimensionType: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DIMENSION_TYPE_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <div className="flex items-center gap-2">
-                        <span className={opt.color}>{opt.label}</span>
-                        <span className="text-xs text-slate-400">- {opt.description}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="dim-weight">가중치 (%)</Label>
-                <span className="text-lg font-bold text-blue-600">{dimensionFormData.weight}%</span>
-              </div>
-              <Slider
-                id="dim-weight"
-                min={0}
-                max={100}
-                step={5}
-                value={[dimensionFormData.weight]}
-                onValueChange={(values) => setDimensionFormData({ ...dimensionFormData, weight: values[0] })}
-                className="my-2"
-              />
-              <p className="text-xs text-slate-500">모든 활성 차원의 가중치 합계가 100%가 되도록 설정하세요.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="dim-minScore">최소 점수 <span className="text-slate-400 font-normal text-xs">(1~10점 척도)</span></Label>
-                <Input
-                  id="dim-minScore"
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={dimensionFormData.minScore}
-                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, minScore: parseInt(e.target.value) || 1 })}
-                  className={dimensionFormData.minScore < 1 || dimensionFormData.minScore >= dimensionFormData.maxScore ? 'border-red-400 focus-visible:ring-red-400' : ''}
-                />
-              </div>
-              <div>
-                <Label htmlFor="dim-maxScore">최대 점수 <span className="text-slate-400 font-normal text-xs">(1~10점 척도)</span></Label>
-                <Input
-                  id="dim-maxScore"
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={dimensionFormData.maxScore}
-                  onChange={(e) => setDimensionFormData({ ...dimensionFormData, maxScore: parseInt(e.target.value) || 10 })}
-                  className={dimensionFormData.maxScore > 10 || dimensionFormData.minScore >= dimensionFormData.maxScore ? 'border-red-400 focus-visible:ring-red-400' : ''}
-                />
-              </div>
-            </div>
-            {(dimensionFormData.minScore < 1 || dimensionFormData.maxScore > 10 || dimensionFormData.minScore >= dimensionFormData.maxScore) && (
-              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                <span>
-                  점수 범위는 최소 1점, 최대 10점이어야 하며 최소 점수는 최대 점수보다 작아야 합니다. 종합 점수는 가중치 환산을 통해 100점으로 표시됩니다.
-                </span>
-              </div>
-            )}
-            {dimensionFormData.scoringRubric.length < 5 && (
-              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                <span>채점 루브릭은 최소 5단계 이상 입력해야 합니다 (현재: {dimensionFormData.scoringRubric.length}단계).</span>
-              </div>
-            )}
-            {dimensionFormData.scoringRubric.length >= 5 && (() => {
-              const missingBehaviorAnchor = dimensionFormData.scoringRubric.filter(r => !r.behaviorAnchor?.trim()).length;
-              return missingBehaviorAnchor > 0 ? (
-                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span>루브릭 {missingBehaviorAnchor}개 항목에 행동 기준(Behavior Anchor)이 누락되었습니다. 저장 전 모두 입력해 주세요.</span>
-                </div>
-              ) : null;
-            })()}
-            {dimensionFormData.scoringRubric.length > 0 && (
-              <div className="border border-slate-200 rounded-md p-3 bg-slate-50 space-y-3">
-                <div className="flex items-center gap-1.5">
-                  <Bot className="h-3.5 w-3.5 text-indigo-500" />
-                  <span className="text-xs font-semibold text-slate-700">행동 기준 개요 (AI 자동 생성용)</span>
-                </div>
-                <p className="text-[11px] text-slate-500">긍정·부정 행동 개요를 입력한 뒤 AI 생성 버튼을 누르면 각 점수대의 행동 기준·지표가 자동으로 채워집니다.</p>
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-slate-600 font-medium">긍정적 행동 개요</label>
-                    <AutoResizeTextarea
-                      value={rubricOverview.positiveOverview}
-                      onChange={(e) => setRubricOverview(prev => ({ ...prev, positiveOverview: e.target.value }))}
-                      className="text-xs mt-0.5 min-h-[52px]"
-                      placeholder="높은 점수를 받는 사람이 보이는 구체적인 행동 패턴을 설명하세요. (예: 핵심 메시지를 먼저 제시하고 구체적 근거를 들어 논리적으로 설명한다)"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-600 font-medium">부정적 행동 개요</label>
-                    <AutoResizeTextarea
-                      value={rubricOverview.negativeOverview}
-                      onChange={(e) => setRubricOverview(prev => ({ ...prev, negativeOverview: e.target.value }))}
-                      className="text-xs mt-0.5 min-h-[52px]"
-                      placeholder="낮은 점수를 받는 사람이 보이는 구체적인 행동 패턴을 설명하세요. (예: 주장만 반복하고 근거 없이 강압적으로 요구한다)"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="default"
-                  className="w-full gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
-                  disabled={
-                    (!rubricOverview.positiveOverview.trim() && !rubricOverview.negativeOverview.trim()) ||
-                    generateRubricAnchorsMutation.isPending
-                  }
-                  onClick={() => generateRubricAnchorsMutation.mutate({
-                    dimensionName: dimensionFormData.name || '평가 차원',
-                    dimensionDescription: dimensionFormData.description,
-                    minScore: dimensionFormData.minScore,
-                    maxScore: dimensionFormData.maxScore,
-                    positiveOverview: rubricOverview.positiveOverview,
-                    negativeOverview: rubricOverview.negativeOverview,
-                    rubricScores: dimensionFormData.scoringRubric.map(r => r.score),
-                  })}
-                >
-                  {generateRubricAnchorsMutation.isPending ? (
-                    <>
-                      <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                      AI가 생성 중...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-3.5 w-3.5" />
-                      AI로 루브릭 생성
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
-            <RubricItemsEditor
-              rubric={dimensionFormData.scoringRubric}
-              onChange={(updated) => setDimensionFormData({ ...dimensionFormData, scoringRubric: updated })}
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="dim-icon">아이콘</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start gap-2">
-                      {(() => {
-                        const IconComp = getIconComponent(dimensionFormData.icon || 'Star');
-                        return <IconComp className="h-4 w-4" />;
-                      })()}
-                      <span>{dimensionFormData.icon || '아이콘 선택'}</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-3" align="start">
-                    <div className="grid grid-cols-6 gap-2">
-                      {AVAILABLE_ICONS.map(({ name, icon: IconComp }) => (
-                        <Button
-                          key={name}
-                          variant={dimensionFormData.icon === name ? "default" : "ghost"}
-                          size="icon"
-                          className="h-9 w-9"
-                          onClick={() => setDimensionFormData({ ...dimensionFormData, icon: name })}
-                        >
-                          <IconComp className="h-4 w-4" />
-                        </Button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label htmlFor="dim-color">색상</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-between px-3">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <div 
-                          className="w-4 h-4 rounded-full shrink-0 border border-slate-200" 
-                          style={{ backgroundColor: dimensionFormData.color || '#6366f1' }}
-                        />
-                        <span className="truncate text-xs font-mono">{dimensionFormData.color || '#6366f1'}</span>
-                      </div>
-                      <Settings className="h-4 w-4 opacity-50 shrink-0" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[220px] p-3" align="end">
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-4 gap-2">
-                        {PRESET_COLORS.map((color) => (
-                          <button
-                            key={color}
-                            className={`w-8 h-8 rounded-md border border-slate-200 hover:scale-110 transition-transform ${dimensionFormData.color === color ? 'ring-2 ring-slate-950 ring-offset-1' : ''}`}
-                            style={{ backgroundColor: color }}
-                            onClick={() => setDimensionFormData({ ...dimensionFormData, color })}
-                            title={color}
-                          />
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-2 pt-2 border-t">
-                        <Input
-                          type="color"
-                          value={dimensionFormData.color || '#6366f1'}
-                          onChange={(e) => setDimensionFormData({ ...dimensionFormData, color: e.target.value })}
-                          className="w-10 h-8 p-1 cursor-pointer shrink-0 border-none bg-transparent"
-                        />
-                        <Input
-                          type="text"
-                          value={dimensionFormData.color || '#6366f1'}
-                          onChange={(e) => setDimensionFormData({ ...dimensionFormData, color: e.target.value })}
-                          className="h-8 text-xs font-mono"
-                          placeholder="#000000"
-                        />
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Label htmlFor="dim-evaluationPrompt">평가 요청 스크립트</Label>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50">AI 전용</Badge>
-              </div>
-              <AutoResizeTextarea
-                id="dim-evaluationPrompt"
-                value={dimensionFormData.evaluationPrompt}
-                onChange={(e) => setDimensionFormData({ ...dimensionFormData, evaluationPrompt: e.target.value })}
-                className="font-mono text-xs bg-slate-50 border-dashed"
-                placeholder="AI 모델에 전달할 평가 지침을 입력하세요. 이 내용은 피드백 생성 시 AI에 전달되며 일반 유저에게는 보이지 않습니다."
-              />
-              <p className="text-[11px] text-slate-400 mt-1">이 스크립트는 AI가 해당 차원을 평가할 때 참고하는 지침입니다. 일반 유저에게 노출되지 않습니다.</p>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="dim-isActive">활성화</Label>
-              <Switch
-                id="dim-isActive"
-                checked={dimensionFormData.isActive}
-                onCheckedChange={(checked) => setDimensionFormData({ ...dimensionFormData, isActive: checked })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDimensionDialogOpen(false)}>{t('common.cancel')}</Button>
-            <Button 
-              onClick={handleSaveDimension} 
-              disabled={
-                !dimensionFormData.key ||
-                !dimensionFormData.name ||
-                createDimensionMutation.isPending ||
-                updateDimensionMutation.isPending ||
-                (dimensionFormData.scoringRubric.length >= 5 &&
-                  dimensionFormData.scoringRubric.some(r => !r.behaviorAnchor?.trim()))
-              }
-            >
-              {(createDimensionMutation.isPending || updateDimensionMutation.isPending) ? t('admin.common.loading') : t('common.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        {isDimensionDialogOpen && (
+          <DimensionEditor
+            key={selectedDimension?.id ?? `new-${selectedSet?.id}`}
+            isNew={!selectedDimension}
+            dimensionId={selectedDimension?.id}
+            formData={dimensionFormData}
+            onChange={setDimensionFormData}
+            rubricOverview={rubricOverview}
+            onRubricOverviewChange={setRubricOverview}
+            presetColors={PRESET_COLORS}
+            pending={createDimensionMutation.isPending || updateDimensionMutation.isPending}
+            generating={generateRubricAnchorsMutation.isPending}
+            onGenerate={() => generateRubricAnchorsMutation.mutate({
+              dimensionName: dimensionFormData.name || '평가 차원',
+              dimensionDescription: dimensionFormData.description,
+              minScore: dimensionFormData.minScore,
+              maxScore: dimensionFormData.maxScore,
+              positiveOverview: rubricOverview.positiveOverview,
+              negativeOverview: rubricOverview.negativeOverview,
+              rubricScores: dimensionFormData.scoringRubric.map(r => r.score),
+            })}
+            onClose={() => setIsDimensionDialogOpen(false)}
+            onSave={handleSaveDimension}
+          />
+        )}
       </Dialog>
 
       {/* 소유자 이관 다이얼로그 */}
@@ -1521,294 +956,6 @@ export function EvaluationCriteriaManager() {
   );
 }
 
-function InlineDimensionEditor({
-  dimension,
-  onSave,
-  onCancel,
-  onDelete,
-  isSaving,
-}: {
-  dimension: EvaluationDimension;
-  onSave: (data: any) => void;
-  onCancel: () => void;
-  onDelete: () => void;
-  isSaving: boolean;
-}) {
-  const { t } = useTranslation();
-  const [editData, setEditData] = useState({
-    name: dimension.name,
-    description: dimension.description || '',
-    weight: dimension.weight,
-    dimensionType: (dimension as any).dimensionType || 'standard' as 'core' | 'standard' | 'bonus',
-    minScore: dimension.minScore,
-    maxScore: dimension.maxScore,
-    icon: dimension.icon || 'Star',
-    color: dimension.color || '#6366f1',
-    isActive: dimension.isActive,
-    scoringRubric: dimension.scoringRubric || [],
-    evaluationPrompt: dimension.evaluationPrompt || '',
-  });
-
-  const PRESET_COLORS_INLINE = [
-    '#6366f1', '#3b82f6', '#0ea5e9', '#06b6d4',
-    '#10b981', '#22c55e', '#eab308', '#f97316',
-    '#ef4444', '#ec4899', '#d946ef', '#a855f7',
-  ];
-
-  const [dimEditorTab, setDimEditorTab] = useState<'settings' | 'fewshot'>('settings');
-
-  const handleSave = () => {
-    onSave({
-      key: dimension.key,
-      name: editData.name,
-      description: editData.description || null,
-      weight: editData.weight,
-      dimensionType: editData.dimensionType,
-      minScore: editData.minScore,
-      maxScore: editData.maxScore,
-      icon: editData.icon || 'Star',
-      color: editData.color || '#6366f1',
-      isActive: editData.isActive,
-      scoringRubric: editData.scoringRubric.length > 0 ? editData.scoringRubric : null,
-      evaluationPrompt: editData.evaluationPrompt || null,
-    });
-  };
-
-  return (
-    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{dimension.key}</span>
-          <Switch
-            checked={editData.isActive}
-            onCheckedChange={(checked) => setEditData({ ...editData, isActive: checked })}
-          />
-          <span className="text-xs text-slate-500">{editData.isActive ? t('admin.evaluationCriteria.active') : t('admin.evaluationCriteria.inactive')}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={onCancel} className="h-7 text-xs">
-            {t('common.cancel')}
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={
-              !editData.name ||
-              isSaving ||
-              (editData.scoringRubric.length >= 5 && editData.scoringRubric.some(r => !r.behaviorAnchor?.trim()))
-            }
-            className="h-7 text-xs"
-          >
-            {isSaving ? t('admin.common.loading') : t('common.save')}
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={onDelete}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      <Tabs value={dimEditorTab} onValueChange={(v) => setDimEditorTab(v as any)}>
-        <TabsList className="h-7 text-xs mb-3">
-          <TabsTrigger value="settings" className="text-xs h-6 px-3">기본 설정</TabsTrigger>
-          <TabsTrigger value="fewshot" className="text-xs h-6 px-3">퓨샷 예시</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="fewshot" className="mt-0">
-          <FewShotLearningTab dimensionId={dimension.id} />
-        </TabsContent>
-
-        <TabsContent value="settings" className="mt-0">
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <Label className="text-xs">{t('admin.evaluationCriteria.name')}</Label>
-          <Input
-            value={editData.name}
-            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-            className="h-8 text-sm mt-1"
-          />
-        </div>
-        <div>
-          <Label className="text-xs">{t('admin.evaluationCriteria.type')}</Label>
-          <Select
-            value={editData.dimensionType}
-            onValueChange={(value: 'core' | 'standard' | 'bonus') => setEditData({ ...editData, dimensionType: value })}
-          >
-            <SelectTrigger className="h-8 text-sm mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DIMENSION_TYPE_OPTIONS.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <span className={opt.color}>{opt.label}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div>
-        <Label className="text-xs">{t('admin.evaluationCriteria.descriptionLabel')}</Label>
-        <AutoResizeTextarea
-          value={editData.description}
-          onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-          className="text-sm mt-1 min-h-[60px]"
-        />
-      </div>
-
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Label className="text-xs">평가 요청 스크립트</Label>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-600 bg-amber-50">AI 전용</Badge>
-        </div>
-        <AutoResizeTextarea
-          value={editData.evaluationPrompt}
-          onChange={(e) => setEditData({ ...editData, evaluationPrompt: e.target.value })}
-          className="text-sm mt-1 min-h-[80px] font-mono text-xs bg-slate-100 border-dashed"
-          placeholder="AI 모델에 전달할 평가 지침을 입력하세요. 이 내용은 피드백 생성 시 AI에 전달되며 일반 유저에게는 보이지 않습니다."
-        />
-        <p className="text-[11px] text-slate-400 mt-1">이 스크립트는 AI가 해당 차원을 평가할 때 참고하는 지침입니다. 일반 유저에게 노출되지 않습니다.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <Label className="text-xs">{t('admin.evaluationCriteria.weight')}</Label>
-            <span className="text-sm font-bold text-blue-600">{editData.weight}%</span>
-          </div>
-          <Slider
-            min={0}
-            max={100}
-            step={5}
-            value={[editData.weight]}
-            onValueChange={(values) => setEditData({ ...editData, weight: values[0] })}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <Label className="text-xs">{t('admin.evaluationCriteria.score')} (min) <span className="text-slate-400 font-normal">1~10</span></Label>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={editData.minScore}
-              onChange={(e) => setEditData({ ...editData, minScore: parseInt(e.target.value) || 1 })}
-              className={`h-8 text-sm mt-1 ${editData.minScore < 1 || editData.minScore >= editData.maxScore ? 'border-red-400' : ''}`}
-            />
-          </div>
-          <div>
-            <Label className="text-xs">{t('admin.evaluationCriteria.score')} (max) <span className="text-slate-400 font-normal">1~10</span></Label>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={editData.maxScore}
-              onChange={(e) => setEditData({ ...editData, maxScore: parseInt(e.target.value) || 10 })}
-              className={`h-8 text-sm mt-1 ${editData.maxScore > 10 || editData.minScore >= editData.maxScore ? 'border-red-400' : ''}`}
-            />
-          </div>
-        </div>
-        {(editData.minScore < 1 || editData.maxScore > 10 || editData.minScore >= editData.maxScore) && (
-          <div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5 col-span-full">
-            <AlertCircle className="h-3 w-3 shrink-0" />
-            <span>점수 범위는 최소 1 ~ 최대 10이어야 합니다. 종합 점수는 100점으로 환산됩니다.</span>
-          </div>
-        )}
-        {editData.scoringRubric.length < 5 && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 col-span-full">
-            <AlertCircle className="h-3 w-3 shrink-0" />
-            <span>채점 루브릭은 최소 5단계 이상 필요합니다 (현재: {editData.scoringRubric.length}단계).</span>
-          </div>
-        )}
-        {editData.scoringRubric.length >= 5 && (() => {
-          const missingCount = editData.scoringRubric.filter(r => !r.behaviorAnchor?.trim()).length;
-          return missingCount > 0 ? (
-            <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 col-span-full">
-              <AlertCircle className="h-3 w-3 shrink-0" />
-              <span>루브릭 {missingCount}개 항목에 행동 기준이 누락되었습니다.</span>
-            </div>
-          ) : null;
-        })()}
-        <div className="col-span-full">
-          <RubricItemsEditor
-            rubric={editData.scoringRubric}
-            onChange={(updated) => setEditData({ ...editData, scoringRubric: updated })}
-          />
-        </div>
-        <div>
-          <Label className="text-xs">아이콘 / 색상</Label>
-          <div className="flex items-center gap-2 mt-1">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 w-8 p-0">
-                  {(() => {
-                    const IconComp = getIconComponent(editData.icon || 'Star');
-                    return <IconComp className="h-4 w-4" />;
-                  })()}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-2" align="start">
-                <div className="grid grid-cols-6 gap-1">
-                  {AVAILABLE_ICONS.map(({ name, icon: IconComp }) => (
-                    <Button
-                      key={name}
-                      variant={editData.icon === name ? "default" : "ghost"}
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setEditData({ ...editData, icon: name })}
-                    >
-                      <IconComp className="h-3.5 w-3.5" />
-                    </Button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  className="h-8 w-8 rounded-md border border-slate-200 shrink-0 hover:ring-2 hover:ring-slate-300 transition-all"
-                  style={{ backgroundColor: editData.color || '#6366f1' }}
-                />
-              </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-2" align="start">
-                <div className="grid grid-cols-4 gap-1.5">
-                  {PRESET_COLORS_INLINE.map((color) => (
-                    <button
-                      key={color}
-                      className={`w-7 h-7 rounded-md border border-slate-200 hover:scale-110 transition-transform ${editData.color === color ? 'ring-2 ring-slate-950 ring-offset-1' : ''}`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setEditData({ ...editData, color })}
-                    />
-                  ))}
-                </div>
-                <div className="flex items-center gap-1.5 pt-2 mt-2 border-t">
-                  <Input
-                    type="color"
-                    value={editData.color || '#6366f1'}
-                    onChange={(e) => setEditData({ ...editData, color: e.target.value })}
-                    className="w-8 h-7 p-0.5 cursor-pointer shrink-0 border-none bg-transparent"
-                  />
-                  <Input
-                    type="text"
-                    value={editData.color || '#6366f1'}
-                    onChange={(e) => setEditData({ ...editData, color: e.target.value })}
-                    className="h-7 text-xs font-mono"
-                    placeholder="#000000"
-                  />
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-      </div>
-
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
 function CriteriaSetDetail({
   setId,
   fetchSetWithDimensions,
@@ -1816,6 +963,7 @@ function CriteriaSetDetail({
   onDelete,
   onSetDefault,
   onAddDimension,
+  onEditDimension,
   onTransferOwner,
   isDefault,
   isAdmin,
@@ -1827,6 +975,8 @@ function CriteriaSetDetail({
   onDelete: () => void;
   onSetDefault: () => void;
   onAddDimension: () => void;
+  /** Opens the shared full-screen DimensionEditor owned by the manager. */
+  onEditDimension: (dimension: EvaluationDimension) => void;
   onTransferOwner?: () => void;
   isDefault: boolean;
   isAdmin?: boolean;
@@ -1835,7 +985,6 @@ function CriteriaSetDetail({
   const { t, i18n } = useTranslation();
   const currentLang = i18n.language;
   const { toast } = useToast();
-  const [editingDimId, setEditingDimId] = useState<string | null>(null);
   const [deleteConfirmDimId, setDeleteConfirmDimId] = useState<string | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [compareVersionId, setCompareVersionId] = useState<string | null>(null);
@@ -2011,21 +1160,6 @@ AI: 지연된 이유가 더 있나요?
     },
   });
 
-  const updateDimInlineMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return apiRequest('PUT', `/api/admin/evaluation-dimensions/${id}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
-      toast({ title: "평가 차원이 수정되었습니다" });
-      setEditingDimId(null);
-    },
-    onError: (error: any) => {
-      const msg = String(error.message || '').replace(/^\d+:\s*/, '');
-      toast({ title: "수정 실패", description: msg, variant: "destructive" });
-    },
-  });
-
   const deleteDimInlineMutation = useMutation({
     mutationFn: async (id: string) => {
       return apiRequest('DELETE', `/api/admin/evaluation-dimensions/${id}`);
@@ -2034,7 +1168,6 @@ AI: 지연된 이유가 더 있나요?
       queryClient.invalidateQueries({ queryKey: ['/api/admin/evaluation-criteria'] });
       toast({ title: "평가 차원이 삭제되었습니다" });
       setDeleteConfirmDimId(null);
-      setEditingDimId(null);
     },
     onError: (error: any) => {
       const msg = String(error.message || '').replace(/^\d+:\s*/, '');
@@ -2318,29 +1451,24 @@ AI: 지연된 이유가 더 있나요?
           ) : (
             <div className="space-y-2">
               {dimensions.map((dim, index) => {
-                const isEditing = editingDimId === dim.id;
                 const IconComp = getIconComponent(dim.icon || 'Star');
-
-                if (isEditing) {
-                  return (
-                    <InlineDimensionEditor
-                      key={dim.id}
-                      dimension={dim}
-                      onSave={(data) => updateDimInlineMutation.mutate({ id: dim.id, data })}
-                      onCancel={() => setEditingDimId(null)}
-                      onDelete={() => setDeleteConfirmDimId(dim.id)}
-                      isSaving={updateDimInlineMutation.isPending}
-                    />
-                  );
-                }
-
                 const isApproved = currentStatus === 'approved';
+                const editable = canEdit && !isApproved && currentStatus !== 'archived';
+                const openEditor = () => { if (editable) onEditDimension(dim); };
 
                 return (
                   <div
                     key={dim.id}
-                    className={`border rounded-lg p-3 flex items-center gap-3 transition-colors ${isApproved ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'} ${!dim.isActive ? 'opacity-60 bg-slate-50' : 'bg-white'}`}
-                    onClick={() => { if (!isApproved) setEditingDimId(dim.id); }}
+                    data-testid={`dimension-card-${dim.id}`}
+                    role={editable ? 'button' : undefined}
+                    tabIndex={editable ? 0 : undefined}
+                    aria-label={editable ? `${dim.name} 평가 차원 편집` : undefined}
+                    className={`border rounded-lg p-3 flex items-center gap-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${editable ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'} ${!dim.isActive ? 'opacity-60 bg-slate-50' : 'bg-white'}`}
+                    onClick={openEditor}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditor(); }
+                    }}
                   >
                     <div className="flex items-center justify-center w-7 h-7 rounded-md shrink-0" style={{ backgroundColor: (dim.color || '#6366f1') + '1A' }}>
                       <IconComp className="h-4 w-4" style={{ color: dim.color || '#6366f1' }} />
@@ -2378,11 +1506,19 @@ AI: 지연된 이유가 더 있나요?
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                      ) : (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingDimId(dim.id); }}>
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                      ) : editable ? (
+                        <>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label={`${dim.name} 편집`} tabIndex={-1}
+                            onClick={(e) => { e.stopPropagation(); openEditor(); }}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600" aria-label={`${dim.name} 삭제`}
+                            data-testid={`button-delete-dimension-${dim.id}`}
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmDimId(dim.id); }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 );

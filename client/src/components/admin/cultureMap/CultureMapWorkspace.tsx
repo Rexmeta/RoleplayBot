@@ -9,7 +9,7 @@ import { CultureProfileCreatePage } from "./CultureProfileCreatePage";
 import { CULTURE_DISCLAIMER } from "@shared/cultureMap";
 import { Info, Plus } from "lucide-react";
 
-type WorkspacePanel = "profiles" | "create" | "experiment";
+type WorkspacePanel = "profiles" | "experiment";
 
 export function CultureMapWorkspace() {
   const { user } = useAuth();
@@ -18,9 +18,20 @@ export function CultureMapWorkspace() {
   const [noticeOpen, setNoticeOpen] = useState(false);
   const profilesTabRef = useRef<HTMLButtonElement>(null);
   const visiblePanel = !isAdmin && activePanel === "experiment" ? "profiles" : activePanel;
-  const returnToProfiles = () => {
+  const [createOpen, setCreateOpen] = useState(false);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+  const createdRef = useRef(false);
+  const closeCreate = () => { createdRef.current = false; setCreateOpen(false); };
+  const onCreated = () => {
+    createdRef.current = true;
+    setCreateOpen(false);
     setActivePanel("profiles");
-    profilesTabRef.current?.focus();
+  };
+  const restoreCreateFocus = (event: Event) => {
+    event.preventDefault();
+    const target = createdRef.current ? profilesTabRef.current : createButtonRef.current;
+    createdRef.current = false;
+    target?.focus({ preventScroll: true });
   };
 
   return (
@@ -38,17 +49,6 @@ export function CultureMapWorkspace() {
           >
             <span className="font-semibold">프로필 관리</span>
           </TabsTrigger>
-          <TabsTrigger
-            value="create"
-            className={`gap-1.5 rounded-none border-b-2 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2 ${
-              visiblePanel === "create"
-                ? "border-teal-700 bg-transparent text-teal-950"
-                : "border-transparent bg-transparent text-slate-600 hover:border-teal-300 hover:text-teal-900"
-            }`}
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            <span className="font-semibold">새 프로필 만들기</span>
-          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger
               value="experiment"
@@ -62,6 +62,15 @@ export function CultureMapWorkspace() {
             </TabsTrigger>
           )}
         </TabsList>
+        <button
+          ref={createButtonRef}
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-teal-800 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />새 프로필 만들기
+        </button>
         <TooltipProvider delayDuration={250}>
           <Tooltip>
             <Popover open={noticeOpen} onOpenChange={setNoticeOpen}>
@@ -86,14 +95,12 @@ export function CultureMapWorkspace() {
       <TabsContent value="profiles" forceMount className="data-[state=inactive]:hidden" hidden={visiblePanel !== "profiles"}>
         <CultureProfilesManager showCreateAction={false} />
       </TabsContent>
-      <TabsContent value="create" forceMount className="data-[state=inactive]:hidden" hidden={visiblePanel !== "create"}>
-        <CultureProfileCreatePage onCreated={returnToProfiles} onCancel={returnToProfiles} />
-      </TabsContent>
       {isAdmin && (
         <TabsContent value="experiment" forceMount className="data-[state=inactive]:hidden" hidden={visiblePanel !== "experiment"}>
           <CultureBehaviorExperiment />
         </TabsContent>
       )}
+      {createOpen && <CultureProfileCreatePage onCreated={onCreated} onCancel={closeCreate} onCloseAutoFocus={restoreCreateFocus} />}
     </Tabs>
   );
 }

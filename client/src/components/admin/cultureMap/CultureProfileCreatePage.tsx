@@ -1,18 +1,23 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Dialog } from "@/components/ui/dialog";
 import { CultureProfileForm, emptyCultureProfile, validateCultureProfile } from "./CultureProfileForm";
+import { useSaveCultureProfile } from "./useSaveCultureProfile";
 
-export function CultureProfileCreatePage({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+/** Create flow: opens the same full-screen editor used for editing. Render only while active. */
+export function CultureProfileCreatePage({ onCreated, onCancel, open = true, onCloseAutoFocus }: {
+  onCreated: () => void; onCancel: () => void; open?: boolean;
+  /** Opened without a DialogTrigger, so callers restore focus explicitly. */
+  onCloseAutoFocus?: (event: Event) => void;
+}) {
   const { user } = useAuth();
   const [draft, setDraft] = useState(emptyCultureProfile);
   const [errorText, setErrorText] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const reset = () => { setDraft(emptyCultureProfile()); setErrorText(""); };
-  const saveMutation = useMutation({
-    mutationFn: async () => (await apiRequest("POST", "/api/admin/culture-profiles", draft)).json(),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["/api/admin/culture-profiles"] });
+  const saveMutation = useSaveCultureProfile({
+    draft,
+    onSuccess: () => {
       reset();
       onCreated();
     },
@@ -20,13 +25,16 @@ export function CultureProfileCreatePage({ onCreated, onCancel }: { onCreated: (
   });
 
   return (
-    <section className="w-full max-w-4xl rounded-lg border border-teal-200 bg-[#fbfdfb] p-4 sm:p-7" aria-label="새 문화 프로필 작성">
-      <CultureProfileForm
+    <Dialog open={open} onOpenChange={next => { if (!next && !saveMutation.isPending) { reset(); onCancel(); } }}>
+      {open && <CultureProfileForm
         draft={draft}
         onChange={setDraft}
         isAdmin={user?.role === "admin"}
         saving={saveMutation.isPending}
         errorText={errorText}
+        nameInputRef={nameInputRef}
+        onCloseAutoFocus={onCloseAutoFocus}
+        onOpenAutoFocus={event => { event.preventDefault(); requestAnimationFrame(() => nameInputRef.current?.focus({ preventScroll: true })); }}
         onSave={() => {
           const error = validateCultureProfile(draft);
           setErrorText(error);
@@ -37,7 +45,7 @@ export function CultureProfileCreatePage({ onCreated, onCancel }: { onCreated: (
           reset();
           onCancel();
         }}
-      />
-    </section>
+      />}
+    </Dialog>
   );
 }

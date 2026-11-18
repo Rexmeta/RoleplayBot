@@ -42,7 +42,9 @@ describe("real admin and Culture Map nested tabs", () => {
     await user.click(screen.getByRole("button", { name: "문화 프로필 자료 안내" }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("tab", { name: "새 프로필 만들기", exact: true }));
+    await user.click(screen.getByRole("button", { name: "새 프로필 만들기", exact: true }));
+    expect(await screen.findByTestId("culture-profile-editor")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "편집 닫기" }));
     await user.click(screen.getByRole("tab", { name: "행동 실험", exact: true }));
     await screen.findByRole("option", { name: /통합 검증/ });
     for (const key of ["name", "role", "player-role", "organization", "personality"]) {

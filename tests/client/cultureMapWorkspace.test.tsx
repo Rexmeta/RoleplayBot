@@ -59,15 +59,14 @@ describe("Culture Map workspace navigation", () => {
     expect(startExperiment).toHaveBeenCalledTimes(1);
   });
 
-  it("supports arrow-key navigation between feature tabs", async () => {
+  it("supports arrow-key navigation between feature tabs and keeps creation a separate action", async () => {
     const user = userEvent.setup();
     render(<CultureMapWorkspace />);
     screen.getByRole("tab", { name: /프로필 관리/ }).focus();
     await user.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "새 프로필 만들기" }).getAttribute("aria-selected")).toBe("true");
-    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "새 프로필 만들기" }));
+    expect(screen.queryByRole("tab", { name: "새 프로필 만들기" })).toBeNull();
+    expect(screen.getByRole("button", { name: "새 프로필 만들기" })).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
-    await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "행동 실험" }).getAttribute("aria-selected")).toBe("true");
     expect(document.activeElement).toBe(screen.getByRole("tab", { name: "행동 실험" }));
   });

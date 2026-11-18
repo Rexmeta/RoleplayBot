@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { isSystemCultureProfile } from "@shared/cultureMap";
 import type { CultureProfile, CultureProfileInput } from "@shared/cultureMap";
 import { AlertTriangle, Plus } from "lucide-react";
@@ -13,6 +13,7 @@ import { CultureProfileFilters } from "./CultureProfileFilters";
 import { matchesCultureProfile } from "@shared/cultureComparison";
 import { CultureProfileCard } from "./CultureProfileCard";
 import { CultureProfileComparisonTray } from "./CultureProfileComparisonTray";
+import { useSaveCultureProfile } from "./useSaveCultureProfile";
 
 type VersionEntry = { version: number; content: CultureProfileInput; createdAt: string };
 const listKey = ["/api/admin/culture-profiles"];
@@ -42,7 +43,6 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
   const [deleteTarget, setDeleteTarget] = useState<CultureProfile | null>(null);
   const [historyTarget, setHistoryTarget] = useState<CultureProfile | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const dialogContentRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -72,15 +72,10 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
     },
   });
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const response = editing
-        ? await apiRequest("PUT", `/api/admin/culture-profiles/${editing.id}`, { ...draft, expectedVersion: editing.version })
-        : await apiRequest("POST", "/api/admin/culture-profiles", draft);
-      return response.json();
-    },
+  const saveMutation = useSaveCultureProfile({
+    draft,
+    editing,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: listKey });
       setEditing(null);
       setDraft(emptyInput());
       setErrorText("");
@@ -304,44 +299,32 @@ export function CultureProfilesManager({ showCreateAction = true }: { showCreate
         />
       )}
       <Dialog open={dialogOpen} onOpenChange={requestDialogClose}>
-        <DialogContent
-          ref={dialogContentRef}
-          tabIndex={-1}
+        {dialogOpen && <CultureProfileForm
+          key={editing?.id ?? "new"}
+          draft={draft}
+          onChange={setDraft}
+          editing={editing}
+          readOnly={readOnly}
+          isAdmin={isAdmin}
+          saving={saveMutation.isPending}
+          errorText={errorText}
+          nameInputRef={nameInputRef}
+          duplicatePending={duplicateMutation.isPending}
+          onDuplicate={() => { if (editing) duplicateMutation.mutate(editing.id); }}
+          onSave={save}
+          onCancel={() => requestDialogClose(false)}
+          onOpenAutoFocus={(event) => {
+            if (readOnly) return;
+            event.preventDefault();
+            requestAnimationFrame(() => nameInputRef.current?.focus({ preventScroll: true }));
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const target = returnFocusRef.current;
             if (target?.isConnected && target !== document.body) target.focus({ preventScroll: true });
             else createButtonRef.current?.focus({ preventScroll: true });
           }}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            requestAnimationFrame(() => {
-              if (!readOnly) nameInputRef.current?.focus({ preventScroll: true });
-              else dialogContentRef.current?.focus({ preventScroll: true });
-            });
-          }}
-          className="w-[calc(100%-1rem)] max-h-[min(92dvh,58rem)] max-w-4xl gap-0 overflow-hidden border-teal-200 bg-[#fbfdfb] p-0 sm:w-full"
-          onEscapeKeyDown={(event) => { if (saveMutation.isPending) event.preventDefault(); }}
-          onInteractOutside={(event) => { if (saveMutation.isPending) event.preventDefault(); }}
-        >
-          <div className="max-h-[min(92dvh,58rem)] overflow-y-auto overscroll-contain p-4 sm:p-7">
-            <CultureProfileForm
-              inDialog
-              draft={draft}
-              onChange={setDraft}
-              editing={editing}
-              readOnly={readOnly}
-              isAdmin={isAdmin}
-              saving={saveMutation.isPending}
-              errorText={errorText}
-              nameInputRef={nameInputRef}
-              duplicatePending={duplicateMutation.isPending}
-              onDuplicate={() => { if (editing) duplicateMutation.mutate(editing.id); }}
-              onSave={save}
-              onCancel={() => requestDialogClose(false)}
-            />
-          </div>
-        </DialogContent>
+        />}
       </Dialog>
       {historyTarget && <div role="dialog" aria-modal="true" aria-labelledby="culture-history-title" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistoryTarget(null); }}>
         <div className="max-h-[80dvh] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">

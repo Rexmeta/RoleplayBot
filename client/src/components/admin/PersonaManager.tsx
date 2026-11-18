@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { MoreVertical, RefreshCw, Languages, Download, Upload, Wand2 } from 'lucide-react';
 import { PersonaEditor, PersonaEditorRegion } from './personaEditor/PersonaEditor';
-import { AiGenerateButton, EditorGroup, Field, FieldGrid, ToggleRow } from './scenarioEditor/EditorPrimitives';
+import { AiGenerateButton, EditorGroup, Field, FieldGrid, ToggleRow } from './contentEditor/EditorPrimitives';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 import { PersonaAvatarSettings, type PersonaAvatarMode, type PersonaLiveAvatar } from './PersonaAvatarSettings';

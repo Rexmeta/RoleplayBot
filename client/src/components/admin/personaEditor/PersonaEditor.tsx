@@ -1,8 +1,8 @@
 import React from 'react';
 import { AudioLines, BookUser, Brain, Clapperboard, IdCard, Images, MessagesSquare, ScanFace, Settings2 } from 'lucide-react';
-import { ScenarioEditor, ScenarioEditorRegion, type EditorSectionDef } from '../scenarioEditor/ScenarioEditor';
+import { ContentEditor, ContentEditorRegion, type EditorSectionDef } from '../contentEditor/ContentEditor';
 
-/** Persona-specific section map rendered inside the shared scenario editor shell. */
+/** Persona-specific section map rendered inside the shared content editor shell. */
 export const PERSONA_EDITOR_SECTIONS: readonly EditorSectionDef[] = [
   { id: 'basic', label: '기본 정보', description: '페르소나를 식별하는 ID와 성격 유형입니다. 시나리오에서 이 ID로 페르소나를 불러옵니다.', group: '인물 설정', icon: IdCard },
   { id: 'personality', label: '성격과 동기', description: '대화 중 드러나는 성격 특성, 말투, 동기와 두려움을 정합니다.', group: '인물 설정', icon: Brain },
@@ -18,13 +18,13 @@ export const PERSONA_EDITOR_SECTIONS: readonly EditorSectionDef[] = [
 export type PersonaEditorSection = 'basic' | 'personality' | 'background' | 'communication' | 'voice' | 'images' | 'avatar' | 'video' | 'publish';
 
 export function PersonaEditorRegion({ section, children, id }: { section: PersonaEditorSection; children: React.ReactNode; id?: string }) {
-  return <ScenarioEditorRegion sections={section} id={id} className="se-stack">{children}</ScenarioEditorRegion>;
+  return <ContentEditorRegion sections={section} id={id} className="se-stack">{children}</ContentEditorRegion>;
 }
 
 export function PersonaEditor(props: {
   title: string; revision: string; baseline: string; pending: boolean; isNew: boolean;
   onClose: () => void; onSubmit: React.FormEventHandler<HTMLFormElement>; children: React.ReactNode;
 }) {
-  return <ScenarioEditor {...props} sections={PERSONA_EDITOR_SECTIONS} breadcrumb="페르소나 관리" newTitle="새 페르소나"
+  return <ContentEditor {...props} sections={PERSONA_EDITOR_SECTIONS} breadcrumb="페르소나 관리" newTitle="새 페르소나"
     formId="persona-editor-form" saveTestId="button-save-persona" testId="persona-editor" />;
 }
