@@ -10,6 +10,7 @@ WORKDIR /app
 
 # 패키지 파일 복사 및 의존성 설치
 COPY package*.json ./
+COPY scripts/patch-picomatch.cjs ./scripts/patch-picomatch.cjs
 RUN npm ci
 
 # 소스 코드 복사
@@ -29,6 +30,7 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # 패키지 파일 복사 및 프로덕션 의존성만 설치
 COPY package*.json ./
+COPY scripts/patch-picomatch.cjs ./scripts/patch-picomatch.cjs
 RUN npm ci --only=production && npm cache clean --force
 
 # 빌드된 애플리케이션 복사
