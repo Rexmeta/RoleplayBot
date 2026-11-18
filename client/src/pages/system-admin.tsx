@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { AppHeader } from "@/components/AppHeader";
@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminWorkspace, WorkspacePanel, type WorkspaceSectionDef } from "@/components/admin/contentEditor";
+import { UserEditor } from "@/components/admin/userEditor/UserEditor";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -896,6 +897,69 @@ function RetentionSettingCard({ systemSettings }: { systemSettings: Array<{ cate
   );
 }
 
+const FEATURE_MODEL_DEFAULTS: Record<string, string> = {
+  model_conversation: "gemini-2.5-flash",
+  model_feedback: "gemini-2.5-flash",
+  model_strategy: "gemini-2.5-flash",
+  model_scenario: "gemini-2.5-flash",
+  model_realtime: "gemini-3.1-flash-live-preview",
+  model_emotion: "gemini-2.5-flash",
+  model_translation: "gemini-2.5-flash",
+  model_image: "gemini-2.5-flash-image",
+  model_video: "veo-3.1-generate-preview",
+  model_avatar_video: "veo-3.1-lite-generate-preview",
+};
+
+const VOICE_AUDIO_DEFAULTS: Record<string, number> = {
+  agc_target_rms: 0.15,
+  agc_min_gain: 0.5,
+  agc_max_gain: 4.0,
+  agc_attack_coeff: 0.05,
+  agc_release_coeff: 0.015,
+};
+
+const VOICE_AUDIO_DESCRIPTIONS: Record<string, string> = {
+  agc_target_rms: 'Target RMS level for automatic gain control',
+  agc_min_gain: 'Minimum gain clamp for AGC',
+  agc_max_gain: 'Maximum gain clamp for AGC',
+  agc_attack_coeff: 'AGC attack coefficient — how quickly gain rises',
+  agc_release_coeff: 'AGC release coefficient — how quickly gain falls',
+};
+
+type SettingWrite = { category: string; key: string; value: string; description?: string };
+
+const sameRecord = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+  Object.keys({ ...a, ...b }).every(key => a[key] === b[key]);
+
+/** Clean AI model baseline derived from saved settings (defaults where nothing is saved). */
+function aiBaselineFrom(settings: SystemSetting[]): Record<string, string> {
+  const baseline = { ...FEATURE_MODEL_DEFAULTS };
+  FEATURE_MODEL_INFO.filter(f => f.configurable).forEach(feature => {
+    const saved = settings.find(s => s.category === "ai" && s.key === feature.settingKey);
+    if (saved) baseline[feature.settingKey] = saved.value;
+  });
+  return baseline;
+}
+
+/** Clean voice audio baseline derived from saved settings. */
+function voiceBaselineFrom(settings: SystemSetting[]): Record<string, number> {
+  const baseline = { ...VOICE_AUDIO_DEFAULTS };
+  for (const key of Object.keys(VOICE_AUDIO_DEFAULTS)) {
+    const saved = settings.find(s => s.category === "voice_audio" && s.key === key);
+    const parsed = saved ? parseFloat(saved.value) : NaN;
+    if (!isNaN(parsed)) baseline[key] = parsed;
+  }
+  return baseline;
+}
+
+async function writeSettings(settings: SettingWrite[]) {
+  const results = [];
+  for (const setting of settings) {
+    results.push(await apiRequest("PUT", "/api/system-admin/settings", setting));
+  }
+  return results;
+}
+
 export default function SystemAdminPage() {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
@@ -906,14 +970,6 @@ export default function SystemAdminPage() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
-  const [editFormData, setEditFormData] = useState<{
-    role: string;
-    tier: string;
-    isActive: boolean;
-    assignedCompanyId: string | null;
-    assignedOrganizationId: string | null;
-    assignedCategoryId: string | null;
-  }>({ role: "", tier: "", isActive: true, assignedCompanyId: null, assignedOrganizationId: null, assignedCategoryId: null });
   const [resetPasswordUser, setResetPasswordUser] = useState<UserData | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -923,31 +979,10 @@ export default function SystemAdminPage() {
   const [bulkResult, setBulkResult] = useState<{ succeeded: string[]; failed: { userId: string; reason: string }[] } | null>(null);
 
   // System settings state - per-feature model selection
-  const [featureModels, setFeatureModels] = useState<Record<string, string>>({
-    model_conversation: "gemini-2.5-flash",
-    model_feedback: "gemini-2.5-flash",
-    model_strategy: "gemini-2.5-flash",
-    model_scenario: "gemini-2.5-flash",
-    model_realtime: "gemini-3.1-flash-live-preview",
-    model_emotion: "gemini-2.5-flash",
-    model_translation: "gemini-2.5-flash",
-    model_image: "gemini-2.5-flash-image",
-    model_video: "veo-3.1-generate-preview",
-    model_avatar_video: "veo-3.1-lite-generate-preview",
-  });
-  const [hasSettingsChanges, setHasSettingsChanges] = useState(false);
+  const [featureModels, setFeatureModels] = useState<Record<string, string>>(FEATURE_MODEL_DEFAULTS);
   const [operatorVideoAvatarEnabled, setOperatorVideoAvatarEnabled] = useState(false);
 
-  const VOICE_AUDIO_DEFAULTS = {
-    agc_target_rms: 0.15,
-    agc_min_gain: 0.5,
-    agc_max_gain: 4.0,
-    agc_attack_coeff: 0.05,
-    agc_release_coeff: 0.015,
-  };
-
   const [voiceAudioSettings, setVoiceAudioSettings] = useState<Record<string, number>>(VOICE_AUDIO_DEFAULTS);
-  const [hasVoiceAudioChanges, setHasVoiceAudioChanges] = useState(false);
 
   const { data: users = [], isLoading: usersLoading } = useQuery<UserData[]>({
     queryKey: ["/api/system-admin/users"],
@@ -1182,22 +1217,36 @@ export default function SystemAdminPage() {
     },
   });
 
-  const saveSettingsMutation = useMutation({
-    mutationFn: async (settings: { category: string; key: string; value: string; description?: string }[]) => {
-      const results = [];
-      for (const setting of settings) {
-        const result = await apiRequest("PUT", "/api/system-admin/settings", setting);
-        results.push(result);
-      }
-      return results;
-    },
+  // AI models and voice audio are separate domains: each has its own pending/error state and
+  // only clears its own drafts (by refetching the clean baseline) on success.
+  const saveAiSettingsMutation = useMutation({
+    mutationFn: writeSettings,
     onSuccess: () => {
       toast({
         title: t('systemAdmin.settings.saveSuccess'),
         description: t('systemAdmin.settings.saveSuccessDesc'),
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
-      setHasSettingsChanges(false);
+      // Returned promise keeps the mutation pending until the new baseline has arrived.
+      return queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: t('systemAdmin.settings.saveFailed'),
+        description: error.message || t('systemAdmin.settings.saveFailedDesc'),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveVoiceSettingsMutation = useMutation({
+    mutationFn: writeSettings,
+    onSuccess: () => {
+      toast({
+        title: t('systemAdmin.settings.saveSuccess'),
+        description: t('systemAdmin.settings.saveSuccessDesc'),
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/voice-audio'] });
+      return queryClient.invalidateQueries({ queryKey: ["/api/system-admin/settings"] });
     },
     onError: (error: any) => {
       toast({
@@ -1210,7 +1259,6 @@ export default function SystemAdminPage() {
 
   const handleFeatureModelChange = (settingKey: string, value: string) => {
     setFeatureModels(prev => ({ ...prev, [settingKey]: value }));
-    setHasSettingsChanges(true);
   };
 
   const handleFeaturePolicyChange = (settingKey: string, provider: string, model: string) => {
@@ -1232,7 +1280,7 @@ export default function SystemAdminPage() {
       description: "",
     }));
 
-    saveSettingsMutation.mutate(settings);
+    saveAiSettingsMutation.mutate(settings);
   };
 
   const saveVideoAvatarAccessMutation = useMutation({
@@ -1262,73 +1310,71 @@ export default function SystemAdminPage() {
     },
   });
 
-  // Initialize models from saved settings
+  // Clean baselines from the server. Drafts are hydrated from them only while they are clean, so a
+  // background refetch (e.g. after an unrelated toggle save) never overwrites unsaved edits.
+  const aiBaseline = useMemo(() => aiBaselineFrom(systemSettings), [systemSettings]);
+  const voiceBaseline = useMemo(() => voiceBaselineFrom(systemSettings), [systemSettings]);
+  // Draft state starts with defaults even when TanStack already has cached server data.
+  // Compare that first draft with the same defaults, not the cached result, during hydration.
+  const lastAiBaseline = useRef(FEATURE_MODEL_DEFAULTS);
+  const lastVoiceBaseline = useRef(VOICE_AUDIO_DEFAULTS);
   useEffect(() => {
-    const newFeatureModels: Record<string, string> = { ...featureModels };
-    let hasChanges = false;
-    
-    FEATURE_MODEL_INFO.filter(f => f.configurable && 'settingKey' in f).forEach(feature => {
-      const saved = systemSettings.find(s => s.category === "ai" && s.key === feature.settingKey);
-      if (saved && saved.value !== newFeatureModels[feature.settingKey!]) {
-        newFeatureModels[feature.settingKey!] = saved.value;
-        hasChanges = true;
-      }
-    });
-    
-    if (hasChanges) {
-      setFeatureModels(newFeatureModels);
-    }
-    setHasSettingsChanges(false);
-
-    // Initialize voice audio settings from saved settings
-    const newVoiceAudio: Record<string, number> = { ...VOICE_AUDIO_DEFAULTS };
-    let voiceChanged = false;
-    for (const key of Object.keys(VOICE_AUDIO_DEFAULTS)) {
-      const saved = systemSettings.find(s => s.category === "voice_audio" && s.key === key);
-      if (saved) {
-        const parsed = parseFloat(saved.value);
-        if (!isNaN(parsed)) {
-          newVoiceAudio[key] = parsed;
-          voiceChanged = true;
-        }
-      }
-    }
-    if (voiceChanged) {
-      setVoiceAudioSettings(newVoiceAudio);
-    }
+    const previousAi = lastAiBaseline.current;
+    lastAiBaseline.current = aiBaseline;
+    setFeatureModels(draft => sameRecord(draft, previousAi) ? aiBaseline : draft);
+    const previousVoice = lastVoiceBaseline.current;
+    lastVoiceBaseline.current = voiceBaseline;
+    setVoiceAudioSettings(draft => sameRecord(draft, previousVoice) ? voiceBaseline : draft);
+  }, [aiBaseline, voiceBaseline]);
+  useEffect(() => {
     const videoAvatarSetting = systemSettings.find(
       s => s.category === "features" && s.key === "operator_video_avatar_enabled",
     );
     setOperatorVideoAvatarEnabled(videoAvatarSetting?.value === "true");
-    setHasVoiceAudioChanges(false);
   }, [systemSettings]);
+
+  const hasSettingsChanges = !sameRecord(featureModels, aiBaseline);
+  const hasVoiceAudioChanges = !sameRecord(voiceAudioSettings, voiceBaseline);
+  const settingsDirty = hasSettingsChanges || hasVoiceAudioChanges;
+  const settingsPending = saveAiSettingsMutation.isPending || saveVoiceSettingsMutation.isPending;
+  const discardSettingsDrafts = () => {
+    setFeatureModels(aiBaseline);
+    setVoiceAudioSettings(voiceBaseline);
+  };
 
   const handleVoiceAudioChange = (key: string, value: number) => {
     setVoiceAudioSettings(prev => ({ ...prev, [key]: value }));
-    setHasVoiceAudioChanges(true);
   };
 
   const handleSaveVoiceAudio = () => {
-    const VOICE_AUDIO_DESCRIPTIONS: Record<string, string> = {
-      agc_target_rms: 'Target RMS level for automatic gain control',
-      agc_min_gain: 'Minimum gain clamp for AGC',
-      agc_max_gain: 'Maximum gain clamp for AGC',
-      agc_attack_coeff: 'AGC attack coefficient — how quickly gain rises',
-      agc_release_coeff: 'AGC release coefficient — how quickly gain falls',
-    };
     const settings = Object.entries(voiceAudioSettings).map(([key, value]) => ({
       category: 'voice_audio',
       key,
       value: String(value),
       description: VOICE_AUDIO_DESCRIPTIONS[key] ?? '',
     }));
-    saveSettingsMutation.mutate(settings, {
-      onSuccess: () => {
-        setHasVoiceAudioChanges(false);
-        queryClient.invalidateQueries({ queryKey: ['/api/settings/voice-audio'] });
-      },
-    });
+    saveVoiceSettingsMutation.mutate(settings);
   };
+
+  /** Top save: only the drafted AI / voice domains, each through its own mutation. */
+  const handleSaveDirtySettings = () => {
+    if (settingsPending) return;
+    if (hasSettingsChanges) handleSaveSettings();
+    if (hasVoiceAudioChanges) handleSaveVoiceAudio();
+  };
+
+  const systemAdminSections: WorkspaceSectionDef[] = [
+    { id: "users", label: t('systemAdmin.tabs.users'), description: "계정 역할, 등급, 운영자 권한 범위와 상태를 관리합니다. 수정은 사용자별 편집 화면에서 저장합니다.", group: "사용자와 조직", icon: Users },
+    { id: "companies", label: t('systemAdmin.tabs.hierarchy', '조직/카테고리'), description: "회사 > 조직 > 카테고리 계층을 관리합니다. 항목별 편집 화면에서 저장합니다.", group: "사용자와 조직", icon: FolderTree },
+    { id: "languages", label: t('systemAdmin.tabs.languages'), description: "지원 언어를 추가하거나 수정합니다. 활성화 스위치는 바로 저장됩니다.", group: "사용자와 조직", icon: Languages },
+    { id: "settings", label: t('systemAdmin.tabs.settings'), description: "기능별 AI 모델과 음성 오디오 설정을 편집해 상단 버튼으로 저장합니다. 다른 카드는 각자 바로 저장됩니다.", group: "플랫폼 설정", icon: Settings, kind: "form" },
+    { id: "ai-usage", label: t('systemAdmin.tabs.aiUsage'), description: "기간별 AI 토큰 사용량과 비용을 조회합니다.", group: "플랫폼 설정", icon: Activity },
+    { id: "storage-sync", label: t('systemAdmin.tabs.storageSync', '스토리지'), description: "GCS와 Replit Object Storage의 영상 파일 동기화 상태를 확인합니다.", group: "플랫폼 설정", icon: HardDrive },
+    { id: "agent-keys", label: t('systemAdmin.tabs.agentKeys', 'API키'), description: "조직별 Agent API 키 발급 현황과 사용량을 조회합니다.", group: "연동", icon: KeyRound },
+    { id: "agent-api", label: t('systemAdmin.tabs.agentApi'), description: "Agent API 키를 발급, 회수하고 설정합니다. 키 원문은 발급 직후 한 번만 표시됩니다.", group: "연동", icon: Key },
+    { id: "billing", label: t('systemAdmin.tabs.billing', '결제'), description: "요금제와 결제 정책을 관리합니다. 각 작업은 확인 후 개별 실행됩니다.", group: "수익", icon: CreditCard },
+    { id: "store", label: t('systemAdmin.tabs.store', '스토어'), description: "스토어 판매 팩을 관리합니다.", group: "수익", icon: ShoppingBag },
+  ];
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -1344,67 +1390,6 @@ export default function SystemAdminPage() {
 
   const openEditUserDialog = (user: UserData) => {
     setEditingUser(user);
-    
-    // 기존 권한 정보에서 회사/조직 ID 복원 (카테고리나 조직만 설정된 경우 상위 정보 추론)
-    let companyId = user.assignedCompanyId || null;
-    let orgId = user.assignedOrganizationId || null;
-    
-    // 조직이 설정되어 있는데 회사가 없으면 조직에서 회사 추론
-    if (orgId && !companyId) {
-      const org = organizationsWithHierarchy.find(o => o.id === orgId);
-      if (org?.companyId) {
-        companyId = org.companyId;
-      }
-    }
-    
-    // 카테고리가 설정되어 있는데 조직/회사가 없으면 카테고리에서 추론
-    if (user.assignedCategoryId && !orgId) {
-      const category = allCategoriesWithOrg.find(c => c.id === user.assignedCategoryId);
-      if (category?.organizationId) {
-        orgId = category.organizationId;
-        const org = organizationsWithHierarchy.find(o => o.id === orgId);
-        if (org?.companyId && !companyId) {
-          companyId = org.companyId;
-        }
-      }
-    }
-    
-    setEditFormData({
-      role: user.role,
-      tier: user.tier,
-      isActive: user.isActive,
-      assignedCompanyId: companyId,
-      assignedOrganizationId: orgId,
-      assignedCategoryId: user.assignedCategoryId || null,
-    });
-  };
-
-  const handleSaveUser = () => {
-    if (!editingUser) return;
-
-    const updates: any = {};
-    if (editFormData.role !== editingUser.role) updates.role = editFormData.role;
-    if (editFormData.tier !== editingUser.tier) updates.tier = editFormData.tier;
-    if (editFormData.isActive !== editingUser.isActive) updates.isActive = editFormData.isActive;
-    if (editFormData.assignedCompanyId !== editingUser.assignedCompanyId) {
-      updates.assignedCompanyId = editFormData.assignedCompanyId;
-    }
-    if (editFormData.assignedOrganizationId !== editingUser.assignedOrganizationId) {
-      updates.assignedOrganizationId = editFormData.assignedOrganizationId;
-    }
-    if (editFormData.assignedCategoryId !== editingUser.assignedCategoryId) {
-      updates.assignedCategoryId = editFormData.assignedCategoryId;
-    }
-
-    if (Object.keys(updates).length === 0) {
-      toast({
-        title: t('systemAdmin.toast.noChanges'),
-        description: t('systemAdmin.toast.noChangesDesc'),
-      });
-      return;
-    }
-
-    updateUserMutation.mutate({ id: editingUser.id, updates });
   };
 
   const getCategoryName = (categoryId: string | null | undefined) => {
@@ -1471,55 +1456,42 @@ export default function SystemAdminPage() {
       <AppHeader
         title={t('systemAdmin.title')}
         subtitle={t('systemAdmin.subtitle')}
-        showBackButton
       />
 
-      <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="system-admin-page">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-9 h-auto p-1 gap-1">
-            <TabsTrigger value="users" className="flex items-center gap-2" data-testid="tab-users">
-              <Users className="h-4 w-4" />
-              {t('systemAdmin.tabs.users')}
-            </TabsTrigger>
-            <TabsTrigger value="companies" className="flex items-center gap-2" data-testid="tab-companies">
-              <FolderTree className="h-4 w-4" />
-              {t('systemAdmin.tabs.hierarchy', '조직/카테고리')}
-            </TabsTrigger>
-            <TabsTrigger value="languages" className="flex items-center gap-2" data-testid="tab-languages">
-              <Languages className="h-4 w-4" />
-              {t('systemAdmin.tabs.languages')}
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center gap-2" data-testid="tab-settings">
-              <Settings className="h-4 w-4" />
-              {t('systemAdmin.tabs.settings')}
-            </TabsTrigger>
-            <TabsTrigger value="ai-usage" className="flex items-center gap-2" data-testid="tab-ai-usage">
-              <Activity className="h-4 w-4" />
-              {t('systemAdmin.tabs.aiUsage')}
-            </TabsTrigger>
-            <TabsTrigger value="agent-keys" className="flex items-center gap-2" data-testid="tab-agent-keys">
-              <KeyRound className="h-4 w-4" />
-              {t('systemAdmin.tabs.agentKeys', 'API키')}
-            </TabsTrigger>
-            <TabsTrigger value="storage-sync" className="flex items-center gap-2" data-testid="tab-storage-sync">
-              <HardDrive className="h-4 w-4" />
-              {t('systemAdmin.tabs.storageSync', '스토리지')}
-            </TabsTrigger>
-            <TabsTrigger value="agent-api" className="flex items-center gap-2" data-testid="tab-agent-api">
-              <Key className="h-4 w-4" />
-              {t('systemAdmin.tabs.agentApi')}
-            </TabsTrigger>
-            <TabsTrigger value="billing" className="flex items-center gap-2" data-testid="tab-billing">
-              <CreditCard className="h-4 w-4" />
-              {t('systemAdmin.tabs.billing', '결제')}
-            </TabsTrigger>
-            <TabsTrigger value="store" className="flex items-center gap-2" data-testid="tab-store">
-              <ShoppingBag className="h-4 w-4" />
-              {t('systemAdmin.tabs.store', '스토어')}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="users" className="space-y-6 mt-6">
+      <AdminWorkspace
+        testId="system-admin-page"
+        idPrefix="system-admin"
+        title={t('systemAdmin.title')}
+        breadcrumb="시스템 관리"
+        sections={systemAdminSections}
+        active={activeTab}
+        onActiveChange={setActiveTab}
+        dirty={settingsDirty}
+        dirtyLabel="저장하지 않은 AI/음성 설정"
+        pending={settingsPending}
+        onDiscard={discardSettingsDrafts}
+        headerActions={activeTab === "settings" ? (
+          <button
+            type="button"
+            className="scenario-editor-button primary"
+            onClick={handleSaveDirtySettings}
+            disabled={!settingsDirty || settingsPending}
+            data-testid="button-save-settings-top"
+          >
+            {settingsPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {settingsPending ? t('systemAdmin.settings.saving') : "AI/음성 설정 저장"}
+          </button>
+        ) : undefined}
+        toolbar={activeTab === "settings" ? (
+          <p className="w-full rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900" data-testid="settings-save-scope-note">
+            상단 저장 버튼은 기능별 AI 모델과 음성 오디오(AGC) 변경 사항만 저장합니다. 화상 아바타 접근, LiveAvatar, 기본 소개 영상, 보존 기간 등 나머지 항목은 각 카드에서 바로 저장됩니다.
+          </p>
+        ) : undefined}
+        footerNote={activeTab === "settings" && !settingsDirty && !settingsPending
+          ? "AI/음성 설정 외 항목은 각 카드에서 개별 저장됩니다."
+          : undefined}
+      >
+          <WorkspacePanel id="users">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card data-testid="card-total-users">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1636,7 +1608,7 @@ export default function SystemAdminPage() {
                   </div>
                 ) : (
                   <div className="rounded-md border">
-                    <Table>
+                    <Table className="min-w-[960px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-[44px]">
@@ -1820,17 +1792,17 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="companies" className="space-y-6 mt-6">
+          <WorkspacePanel id="companies">
             <HierarchyTreeManager />
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="languages" className="space-y-6 mt-6">
+          <WorkspacePanel id="languages">
             <LanguageManager />
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="settings" className="space-y-6 mt-6">
+          <WorkspacePanel id="settings">
             <LiveAvatarSettingsPanel />
             <Card>
               <CardHeader>
@@ -1980,10 +1952,10 @@ export default function SystemAdminPage() {
                     <div className="flex items-center gap-4 pt-2">
                       <Button
                         onClick={handleSaveSettings}
-                        disabled={!hasSettingsChanges || saveSettingsMutation.isPending}
+                        disabled={!hasSettingsChanges || saveAiSettingsMutation.isPending}
                         data-testid="button-save-settings"
                       >
-                        {saveSettingsMutation.isPending ? (
+                        {saveAiSettingsMutation.isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             {t('systemAdmin.settings.saving')}
@@ -2280,9 +2252,9 @@ export default function SystemAdminPage() {
                     <div className="flex items-center gap-4 pt-4 border-t">
                       <Button
                         onClick={handleSaveVoiceAudio}
-                        disabled={!hasVoiceAudioChanges || saveSettingsMutation.isPending}
+                        disabled={!hasVoiceAudioChanges || saveVoiceSettingsMutation.isPending}
                       >
-                        {saveSettingsMutation.isPending ? (
+                        {saveVoiceSettingsMutation.isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             Saving…
@@ -2298,7 +2270,6 @@ export default function SystemAdminPage() {
                         variant="outline"
                         onClick={() => {
                           setVoiceAudioSettings({ ...VOICE_AUDIO_DEFAULTS });
-                          setHasVoiceAudioChanges(true);
                         }}
                       >
                         Reset to Defaults
@@ -2315,9 +2286,9 @@ export default function SystemAdminPage() {
             <DefaultIntroVideoManager />
 
             <RetentionSettingCard systemSettings={systemSettings} />
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="ai-usage" className="space-y-6 mt-6">
+          <WorkspacePanel id="ai-usage">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -2630,9 +2601,9 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="agent-keys" className="space-y-6 mt-6">
+          <WorkspacePanel id="agent-keys">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -2734,221 +2705,35 @@ export default function SystemAdminPage() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="storage-sync" className="space-y-6 mt-6">
+          <WorkspacePanel id="storage-sync">
             <StorageSyncPanel />
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="agent-api" className="space-y-6 mt-6">
+          <WorkspacePanel id="agent-api">
             <AgentKeyManager />
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="billing" className="space-y-6 mt-6">
+          <WorkspacePanel id="billing">
             <PlansBillingTab />
-          </TabsContent>
+          </WorkspacePanel>
 
-          <TabsContent value="store" className="space-y-6 mt-6">
+          <WorkspacePanel id="store">
             <StorePackManager />
-          </TabsContent>
-        </Tabs>
-      </div>
+          </WorkspacePanel>
+      </AdminWorkspace>
 
-      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
-        <DialogContent data-testid="dialog-edit-user" className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('systemAdmin.dialogs.editUser.title')}</DialogTitle>
-            <DialogDescription>
-              {editingUser?.name} ({editingUser?.email})
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.role')}</label>
-              <Select
-                value={editFormData.role}
-                onValueChange={(value) => setEditFormData((prev) => ({ ...prev, role: value }))}
-              >
-                <SelectTrigger data-testid="select-edit-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">{t('systemAdmin.roles.admin')}</SelectItem>
-                  <SelectItem value="operator">{t('systemAdmin.roles.operator')}</SelectItem>
-                  <SelectItem value="user">{t('systemAdmin.roles.user')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {editFormData.role === "operator" && (
-              <div className="space-y-4 p-4 border rounded-lg bg-slate-50">
-                <h4 className="text-sm font-semibold text-slate-700">
-                  {t('systemAdmin.dialogs.editUser.permissionScope', '권한 범위 설정')}
-                </h4>
-                <p className="text-xs text-muted-foreground mb-3">
-                  {t('systemAdmin.dialogs.editUser.permissionScopeHint', '회사만 선택하면 해당 회사의 모든 조직/카테고리에 접근 가능합니다. 조직을 선택하면 해당 조직의 모든 카테고리에 접근 가능합니다. 카테고리까지 선택하면 해당 카테고리만 접근 가능합니다.')}
-                </p>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedCompany', '담당 회사')}</label>
-                  <Select
-                    value={editFormData.assignedCompanyId || "none"}
-                    onValueChange={(value) =>
-                      setEditFormData((prev) => ({
-                        ...prev,
-                        assignedCompanyId: value === "none" ? null : value,
-                        assignedOrganizationId: null,
-                        assignedCategoryId: null,
-                      }))
-                    }
-                  >
-                    <SelectTrigger data-testid="select-edit-company">
-                      <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectCompany', '회사를 선택하세요')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">{t('systemAdmin.dialogs.editUser.noAssignment', '미지정')}</SelectItem>
-                      {companies.map((company) => (
-                        <SelectItem key={company.id} value={company.id}>
-                          {company.name} {company.code && `(${company.code})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {editFormData.assignedCompanyId && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedOrganization', '담당 조직')} <span className="text-muted-foreground">(선택)</span></label>
-                    <Select
-                      value={editFormData.assignedOrganizationId || "none"}
-                      onValueChange={(value) =>
-                        setEditFormData((prev) => ({
-                          ...prev,
-                          assignedOrganizationId: value === "none" ? null : value,
-                          assignedCategoryId: null,
-                        }))
-                      }
-                    >
-                      <SelectTrigger data-testid="select-edit-organization">
-                        <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectOrganization', '조직을 선택하세요')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">{t('systemAdmin.dialogs.editUser.allOrganizations', '전체 조직 (회사 레벨)')}</SelectItem>
-                        {organizationsWithHierarchy
-                          .filter((org) => org.companyId === editFormData.assignedCompanyId)
-                          .map((org) => (
-                            <SelectItem key={org.id} value={org.id}>
-                              {org.name} {org.code && `(${org.code})`}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                {editFormData.assignedCompanyId && editFormData.assignedOrganizationId && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.assignedCategory', '담당 카테고리')} <span className="text-muted-foreground">(선택)</span></label>
-                    <Select
-                      value={editFormData.assignedCategoryId || "none"}
-                      onValueChange={(value) =>
-                        setEditFormData((prev) => ({
-                          ...prev,
-                          assignedCategoryId: value === "none" ? null : value,
-                        }))
-                      }
-                    >
-                      <SelectTrigger data-testid="select-edit-category">
-                        <SelectValue placeholder={t('systemAdmin.dialogs.editUser.selectCategory', '카테고리를 선택하세요')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">{t('systemAdmin.dialogs.editUser.allCategories', '전체 카테고리 (조직 레벨)')}</SelectItem>
-                        {allCategoriesWithOrg
-                          .filter((cat) => cat.organizationId === editFormData.assignedOrganizationId)
-                          .map((cat) => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                <div className="mt-3 p-2 bg-blue-50 rounded text-xs text-blue-700">
-                  <strong>현재 권한 범위:</strong>{' '}
-                  {!editFormData.assignedCompanyId && '미지정'}
-                  {editFormData.assignedCompanyId && !editFormData.assignedOrganizationId && (
-                    <>회사 전체 ({companies.find(c => c.id === editFormData.assignedCompanyId)?.name})</>
-                  )}
-                  {editFormData.assignedCompanyId && editFormData.assignedOrganizationId && !editFormData.assignedCategoryId && (
-                    <>조직 전체 ({organizationsWithHierarchy.find(o => o.id === editFormData.assignedOrganizationId)?.name})</>
-                  )}
-                  {editFormData.assignedCompanyId && editFormData.assignedOrganizationId && editFormData.assignedCategoryId && (
-                    <>카테고리 ({allCategoriesWithOrg.find(c => c.id === editFormData.assignedCategoryId)?.name})</>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.tier')}</label>
-              <Select
-                value={editFormData.tier}
-                onValueChange={(value) => setEditFormData((prev) => ({ ...prev, tier: value }))}
-              >
-                <SelectTrigger data-testid="select-edit-tier">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bronze">{t('systemAdmin.tiers.bronze')}</SelectItem>
-                  <SelectItem value="silver">{t('systemAdmin.tiers.silver')}</SelectItem>
-                  <SelectItem value="gold">{t('systemAdmin.tiers.gold')}</SelectItem>
-                  <SelectItem value="platinum">{t('systemAdmin.tiers.platinum')}</SelectItem>
-                  <SelectItem value="diamond">{t('systemAdmin.tiers.diamond')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <label className="text-sm font-medium">{t('systemAdmin.dialogs.editUser.accountStatus')}</label>
-                <p className="text-sm text-muted-foreground">
-                  {t('systemAdmin.dialogs.editUser.accountStatusHint')}
-                </p>
-              </div>
-              <Switch
-                checked={editFormData.isActive}
-                onCheckedChange={(checked) =>
-                  setEditFormData((prev) => ({ ...prev, isActive: checked }))
-                }
-                data-testid="switch-edit-active"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingUser(null)} data-testid="button-cancel-edit">
-              {t('systemAdmin.common.cancel')}
-            </Button>
-            <Button
-              onClick={handleSaveUser}
-              disabled={updateUserMutation.isPending}
-              data-testid="button-save-edit"
-            >
-              {updateUserMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {t('systemAdmin.common.saving')}
-                </>
-              ) : (
-                t('systemAdmin.common.save')
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <UserEditor
+        user={editingUser}
+        companies={companies}
+        organizations={organizationsWithHierarchy}
+        categories={allCategoriesWithOrg}
+        pending={updateUserMutation.isPending}
+        onClose={() => setEditingUser(null)}
+        onSave={(id, updates) => updateUserMutation.mutate({ id, updates })}
+        onNoChanges={() => toast({ title: t('systemAdmin.toast.noChanges'), description: t('systemAdmin.toast.noChangesDesc') })}
+      />
 
       <Dialog open={bulkAnonymizeOpen} onOpenChange={(open) => { if (!open) { setBulkAnonymizeOpen(false); setBulkResult(null); } }}>
         <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-lg">

@@ -37,7 +37,7 @@ describe("real admin and Culture Map nested tabs", () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     render(<QueryClientProvider client={queryClient}><AdminManagement /></QueryClientProvider>);
-    await user.click(screen.getByRole("tab", { name: "Culture Map", exact: true }));
+    await user.click(screen.getByTestId("tab-culture-map"));
     // Open and close the real notice popover before changing panels.
     await user.click(screen.getByRole("button", { name: "문화 프로필 자료 안내" }));
     expect(await screen.findByRole("dialog")).toBeTruthy();

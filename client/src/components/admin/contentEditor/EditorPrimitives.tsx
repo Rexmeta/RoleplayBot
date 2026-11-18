@@ -51,9 +51,9 @@ export function FieldGrid({ cols = 2, children }: { cols?: 2 | 3; children: Reac
 }
 
 /** Switch with a full-width clickable label and a state-aware explanation. */
-export function ToggleRow({ id, label, description, checked, onCheckedChange, icon }: {
+export function ToggleRow({ id, label, description, checked, onCheckedChange, icon, testId, disabled }: {
   id: string; label: React.ReactNode; description?: React.ReactNode; checked: boolean;
-  onCheckedChange: (checked: boolean) => void; icon?: React.ReactNode;
+  onCheckedChange: (checked: boolean) => void; icon?: React.ReactNode; testId?: string; disabled?: boolean;
 }) {
   return (
     <div className="se-toggle">
@@ -61,7 +61,7 @@ export function ToggleRow({ id, label, description, checked, onCheckedChange, ic
         <span className="se-toggle-label">{icon}{label}</span>
         {description && <span className="se-toggle-desc">{description}</span>}
       </Label>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} data-testid={testId} disabled={disabled} />
     </div>
   );
 }

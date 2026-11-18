@@ -8,7 +8,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 const output = process.argv[2];
 if (!output) throw new Error('An explicit temporary output directory is required');
-const editor = ['persona', 'content'].includes(process.argv[3]) ? process.argv[3] : 'scenario';
+const editor = ['persona', 'content', 'admin'].includes(process.argv[3]) ? process.argv[3] : 'scenario';
 const root = process.cwd();
 const fixture = path.join(root, `tests/fixtures/${editor}EditorReviewData.ts`);
 const stubs = {

@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -13,14 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { ContentEditorRegion, EditorDialog, EditorGroup, Field, submitWith, type EditorSectionDef } from "@/components/admin/contentEditor";
 import {
   Collapsible,
   CollapsibleContent,
@@ -30,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   Loader2, Plus, Pencil, Trash2, Building2, Users, FolderTree, 
-  ChevronRight, ChevronDown, MoreHorizontal, UserCircle
+  ChevronRight, ChevronDown, MoreHorizontal, UserCircle, MapPin
 } from "lucide-react";
 import {
   Popover,
@@ -85,6 +77,11 @@ interface User {
 }
 
 type DialogType = 'company' | 'organization' | 'category' | null;
+
+const HIERARCHY_SECTIONS: readonly EditorSectionDef[] = [
+  { id: 'basic', label: '기본 정보', description: '이름, 코드, 설명을 입력합니다.', group: '항목', icon: FolderTree },
+  { id: 'placement', label: '소속 위치', description: '회사 > 조직 > 카테고리 계층에서의 위치입니다.', group: '항목', icon: MapPin },
+];
 type DialogMode = 'create' | 'edit';
 
 export function HierarchyTreeManager() {
@@ -418,6 +415,19 @@ export function HierarchyTreeManager() {
   const isPending = createCompanyMutation.isPending || updateCompanyMutation.isPending ||
     createOrgMutation.isPending || updateOrgMutation.isPending ||
     createCategoryMutation.isPending || updateCategoryMutation.isPending;
+
+  const editorTitle = dialogMode === 'edit'
+    ? (dialogType === 'company' ? t('companyOrg.editCompany', '회사 수정')
+      : dialogType === 'organization' ? t('companyOrg.editOrg', '조직 수정')
+      : t('hierarchy.editCategory', '카테고리 수정'))
+    : (dialogType === 'company' ? t('companyOrg.addCompany', '회사 추가')
+      : dialogType === 'organization' ? t('companyOrg.addOrg', '조직 추가')
+      : t('hierarchy.addCategory', '카테고리 추가'));
+  const placementOrg = organizations.find(o => o.id === formData.organizationId);
+  const placementCompany = companies.find(c => c.id === (formData.companyId || placementOrg?.companyId));
+  const placementSummary = dialogType === 'company'
+    ? '회사는 계층의 최상위 항목입니다.'
+    : [placementCompany?.name, dialogType === 'category' ? placementOrg?.name : null].filter(Boolean).join(' > ') || '미할당';
 
   if (companiesLoading) {
     return (
@@ -768,36 +778,77 @@ export function HierarchyTreeManager() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogType !== null} onOpenChange={() => closeDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {dialogMode === 'edit' 
-                ? (dialogType === 'company' ? t('companyOrg.editCompany', '회사 수정') 
-                   : dialogType === 'organization' ? t('companyOrg.editOrg', '조직 수정')
-                   : t('hierarchy.editCategory', '카테고리 수정'))
-                : (dialogType === 'company' ? t('companyOrg.addCompany', '회사 추가')
-                   : dialogType === 'organization' ? t('companyOrg.addOrg', '조직 추가')
-                   : t('hierarchy.addCategory', '카테고리 추가'))
-              }
-            </DialogTitle>
-            <DialogDescription>
-              {dialogType === 'company' ? t('companyOrg.companyFormDesc', '회사 정보를 입력하세요.')
-                : dialogType === 'organization' ? t('companyOrg.orgFormDesc', '조직 정보를 입력하세요.')
-                : t('hierarchy.categoryFormDesc', '카테고리 정보를 입력하세요.')
-              }
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            {dialogType === 'organization' && dialogMode === 'create' && (
-              <div className="space-y-2">
-                <Label>{t('companyOrg.company', '소속 회사')}</Label>
+      <EditorDialog
+        open={dialogType !== null}
+        editorKey={`${dialogType}-${dialogMode}-${editingItem?.id ?? 'new'}`}
+        title={dialogMode === 'edit' ? formData.name : ''}
+        newTitle={editorTitle}
+        breadcrumb={t('hierarchy.title', '조직 구조 관리')}
+        breadcrumbMode={editorTitle}
+        isNew={dialogMode === 'create'}
+        revision={JSON.stringify(formData)}
+        pending={isPending}
+        onClose={closeDialog}
+        onSubmit={submitWith(handleSubmit)}
+        sections={HIERARCHY_SECTIONS}
+        formId="hierarchy-editor-form"
+        saveTestId="button-save-hierarchy"
+        saveLabel={dialogMode === 'edit' ? t('common.save', '저장') : t('common.create', '생성')}
+        saveDisabled={!formData.name.trim()}
+      >
+        <ContentEditorRegion sections="basic">
+          <EditorGroup title={editorTitle} description={
+            dialogType === 'company' ? t('companyOrg.companyFormDesc', '회사 정보를 입력하세요.')
+              : dialogType === 'organization' ? t('companyOrg.orgFormDesc', '조직 정보를 입력하세요.')
+              : t('hierarchy.categoryFormDesc', '카테고리 정보를 입력하세요.')
+          }>
+            <Field label={
+              dialogType === 'company' ? t('companyOrg.companyName', '회사명')
+                : dialogType === 'organization' ? t('companyOrg.orgName', '조직명')
+                : t('hierarchy.categoryName', '카테고리명')
+            } htmlFor="hierarchy-name" required>
+              <Input
+                id="hierarchy-name"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder={
+                  dialogType === 'company' ? t('companyOrg.companyNamePlaceholder', '예: 삼성전자')
+                    : dialogType === 'organization' ? t('companyOrg.orgNamePlaceholder', '예: 개발팀')
+                    : t('hierarchy.categoryNamePlaceholder', '예: 영업 시나리오')
+                }
+              />
+            </Field>
+            {(dialogType === 'company' || dialogType === 'organization') && (
+              <Field label={t('companyOrg.code', '코드')} htmlFor="hierarchy-code" optional hint="영문 대문자로 저장됩니다. 최대 20자.">
+                <Input
+                  id="hierarchy-code"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  placeholder={t('companyOrg.codePlaceholder', '예: SAMSUNG')}
+                  maxLength={20}
+                />
+              </Field>
+            )}
+            <Field label={t('companyOrg.description', '설명')} htmlFor="hierarchy-description" optional>
+              <Input
+                id="hierarchy-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder={t('companyOrg.descriptionPlaceholder', '간단한 설명')}
+              />
+            </Field>
+          </EditorGroup>
+        </ContentEditorRegion>
+        <ContentEditorRegion sections="placement">
+          <EditorGroup title="소속 위치" description="계층에서 이 항목이 놓일 위치입니다. 생성 후에는 이 화면에서 소속을 바꿀 수 없습니다.">
+            {dialogType === 'organization' && dialogMode === 'create' ? (
+              <Field label={t('companyOrg.company', '소속 회사')} htmlFor="hierarchy-company">
                 <Select
                   value={formData.companyId}
                   onValueChange={(value) => setFormData({ ...formData, companyId: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="hierarchy-company">
                     <SelectValue placeholder={t('companyOrg.selectCompany', '회사 선택')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -808,17 +859,14 @@ export function HierarchyTreeManager() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-
-            {dialogType === 'category' && dialogMode === 'create' && (
-              <div className="space-y-2">
-                <Label>{t('hierarchy.parentOrg', '소속 조직')}</Label>
+              </Field>
+            ) : dialogType === 'category' && dialogMode === 'create' ? (
+              <Field label={t('hierarchy.parentOrg', '소속 조직')} htmlFor="hierarchy-org">
                 <Select
                   value={formData.organizationId}
                   onValueChange={(value) => setFormData({ ...formData, organizationId: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="hierarchy-org">
                     <SelectValue placeholder={t('hierarchy.selectOrg', '조직 선택')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -832,63 +880,13 @@ export function HierarchyTreeManager() {
                     })}
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
+            ) : (
+              <p className="text-sm text-slate-600">{placementSummary}</p>
             )}
-            
-            <div className="space-y-2">
-              <Label>
-                {dialogType === 'company' ? t('companyOrg.companyName', '회사명')
-                  : dialogType === 'organization' ? t('companyOrg.orgName', '조직명')
-                  : t('hierarchy.categoryName', '카테고리명')
-                }
-              </Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder={
-                  dialogType === 'company' ? t('companyOrg.companyNamePlaceholder', '예: 삼성전자')
-                    : dialogType === 'organization' ? t('companyOrg.orgNamePlaceholder', '예: 개발팀')
-                    : t('hierarchy.categoryNamePlaceholder', '예: 영업 시나리오')
-                }
-              />
-            </div>
-            
-            {(dialogType === 'company' || dialogType === 'organization') && (
-              <div className="space-y-2">
-                <Label>{t('companyOrg.code', '코드')}</Label>
-                <Input
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                  placeholder={t('companyOrg.codePlaceholder', '예: SAMSUNG')}
-                  maxLength={20}
-                />
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <Label>{t('companyOrg.description', '설명')}</Label>
-              <Input
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder={t('companyOrg.descriptionPlaceholder', '간단한 설명')}
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>
-              {t('common.cancel', '취소')}
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={!formData.name || isPending}
-            >
-              {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {dialogMode === 'edit' ? t('common.save', '저장') : t('common.create', '생성')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </EditorGroup>
+        </ContentEditorRegion>
+      </EditorDialog>
     </div>
   );
 }

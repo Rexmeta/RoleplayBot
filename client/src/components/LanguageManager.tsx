@@ -13,17 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { ContentEditorRegion, EditorDialog, EditorGroup, Field, FieldGrid, submitWith, type EditorSectionDef } from "@/components/admin/contentEditor";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Plus, Pencil, Trash2, Languages, Globe } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Languages, Globe, ListOrdered } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface SupportedLanguage {
@@ -35,6 +28,11 @@ interface SupportedLanguage {
   displayOrder: number;
   createdAt: string;
 }
+
+const LANGUAGE_SECTIONS: readonly EditorSectionDef[] = [
+  { id: "identity", label: "언어 정보", description: "ISO 639-1 언어 코드와 표시 이름입니다. 코드는 생성 후 바꿀 수 없습니다.", group: "언어", icon: Languages },
+  { id: "display", label: "표시 설정", description: "언어 선택 목록에서의 순서입니다.", group: "언어", icon: ListOrdered },
+];
 
 export function LanguageManager() {
   const { t } = useTranslation();
@@ -120,6 +118,11 @@ export function LanguageManager() {
       resetForm();
     }
     setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingLanguage(null);
   };
 
   const handleSubmit = () => {
@@ -290,79 +293,73 @@ export function LanguageManager() {
         </CardContent>
       </Card>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingLanguage ? "언어 수정" : "새 언어 추가"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingLanguage
-                ? "언어 설정을 수정합니다."
-                : "새로운 지원 언어를 추가합니다. 언어 코드는 ISO 639-1 표준을 따릅니다."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">언어 코드 *</label>
+      <EditorDialog
+        open={isDialogOpen}
+        editorKey={editingLanguage?.code ?? "new"}
+        title={editingLanguage ? editingLanguage.nativeName : ""}
+        newTitle="새 언어 추가"
+        breadcrumb="지원 언어 관리"
+        isNew={!editingLanguage}
+        revision={JSON.stringify(formData)}
+        pending={createMutation.isPending || updateMutation.isPending}
+        onClose={closeDialog}
+        onSubmit={submitWith(handleSubmit)}
+        sections={LANGUAGE_SECTIONS}
+        formId="language-editor-form"
+        saveTestId="button-save-language"
+        saveLabel={editingLanguage ? "수정" : "추가"}
+      >
+        <ContentEditorRegion sections="identity">
+          <EditorGroup title="언어 정보" description={editingLanguage ? "언어 설정을 수정합니다." : "새로운 지원 언어를 추가합니다. 언어 코드는 ISO 639-1 표준을 따릅니다."}>
+            <Field label="언어 코드" htmlFor="language-code" required hint="ISO 639-1 언어 코드 (예: ko=한국어, en=영어, ja=일본어)">
               <Input
+                id="language-code"
+                required
                 value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value.toLowerCase() })}
                 placeholder="예: ko, en, ja, zh, vi"
                 maxLength={10}
-                disabled={!!editingLanguage}
+                readOnly={!!editingLanguage}
+                aria-readonly={!!editingLanguage}
+                className={editingLanguage ? "bg-slate-100" : undefined}
               />
-              <p className="text-xs text-muted-foreground">
-                ISO 639-1 언어 코드 (예: ko=한국어, en=영어, ja=일본어)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">영어 이름 *</label>
+            </Field>
+            <FieldGrid>
+              <Field label="영어 이름" htmlFor="language-name" required>
+                <Input
+                  id="language-name"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="예: Korean, English, Japanese"
+                />
+              </Field>
+              <Field label="네이티브 이름" htmlFor="language-native" required>
+                <Input
+                  id="language-native"
+                  required
+                  value={formData.nativeName}
+                  onChange={(e) => setFormData({ ...formData, nativeName: e.target.value })}
+                  placeholder="예: 한국어, English, 日本語"
+                />
+              </Field>
+            </FieldGrid>
+          </EditorGroup>
+        </ContentEditorRegion>
+        <ContentEditorRegion sections="display">
+          <EditorGroup title="표시 설정" description="숫자가 작을수록 목록 앞쪽에 표시됩니다. 활성화 여부는 목록의 스위치로 바로 바뀝니다.">
+            <Field label="표시 순서" htmlFor="language-order" optional>
               <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="예: Korean, English, Japanese"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">네이티브 이름 *</label>
-              <Input
-                value={formData.nativeName}
-                onChange={(e) => setFormData({ ...formData, nativeName: e.target.value })}
-                placeholder="예: 한국어, English, 日本語"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">표시 순서</label>
-              <Input
+                id="language-order"
                 type="number"
                 value={formData.displayOrder}
                 onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value) || 0 })}
                 min={1}
               />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              취소
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={createMutation.isPending || updateMutation.isPending}
-            >
-              {(createMutation.isPending || updateMutation.isPending) && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              {editingLanguage ? "수정" : "추가"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </Field>
+          </EditorGroup>
+        </ContentEditorRegion>
+      </EditorDialog>
     </div>
   );
 }

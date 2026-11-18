@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Label } from '@/components/ui/label';
+import { Gauge, ListChecks, MessageSquare, Plus, X } from 'lucide-react';
+import { ContentEditorRegion, EditorDialog, EditorGroup, Field, submitWith, type EditorSectionDef } from '@/components/admin/contentEditor';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 
@@ -62,6 +64,12 @@ const defaultDifficultySettings: Record<number, DifficultyGuidelines> = {
     constraints: ['감정적으로 격앙된 표현(분노, 실망, 불신 등)은 사용하되, 욕설·비하·차별 표현은 절대 사용하지 않을 것', '사용자가 책임을 회피하거나 모호하게 답하면, "그렇게 하면 안 되는 이유"와 함께 다시 책임 있는 답을 요구할 것', '힌트는 사용자가 명시적으로 요청하거나 여러 번 시도 후에도 전혀 진전이 없을 때에만 제한적으로 제공할 것', '한 번의 턴에서 복수의 조건(예: "문제 정의 → 원인 가설 → 대안 3개 → 최종 선택과 근거")을 요구해 고난도 의사결정을 유도할 것', '상황의 심각성(해고, 계약 해지, 대규모 손실 가능성 등)을 반복적으로 상기시키되, "학습·훈련 목적"이라는 메타 설명은 하지 않을 것']
   }
 };
+
+const DIFFICULTY_SECTIONS: readonly EditorSectionDef[] = [
+  { id: 'overview', label: '기본 정의', description: '난이도 이름과 설명, 응답 길이 기준입니다.', group: '난이도 지침', icon: Gauge },
+  { id: 'behavior', label: '대화 태도', description: '말투, 압박 수준, 피드백 방식을 정합니다.', group: '난이도 지침', icon: MessageSquare },
+  { id: 'constraints', label: '제약 조건', description: 'AI가 반드시 지켜야 할 규칙 목록입니다.', group: '난이도 지침', icon: ListChecks },
+];
 
 export function DifficultySettingsTab() {
   const { t } = useTranslation();
@@ -186,150 +194,49 @@ export function DifficultySettingsTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {[1, 2, 3, 4].map((level) => {
           const settings = currentSettings[level];
-          const isEditing = editingLevel === level;
-          const formData = isEditing ? editForm : settings;
-
           return (
             <Card key={level} className={`border-2 ${levelColors[level]}`} data-testid={`card-difficulty-level-${level}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <i className={`fas ${levelIcons[level]}`}></i>
-                    Level {level}: {isEditing ? (
-                      <Input 
-                        value={formData?.name || ''} 
-                        onChange={(e) => setEditForm({ ...formData!, name: e.target.value })}
-                        className="w-48 h-8 text-sm"
-                        data-testid={`input-difficulty-name-${level}`}
-                      />
-                    ) : (
-                      <span>{settings?.name}</span>
-                    )}
+                    Level {level}: <span>{settings?.name}</span>
                   </CardTitle>
                   <div className="flex gap-2">
-                    {isEditing ? (
-                      <>
-                        <Button size="sm" variant="outline" onClick={handleCancel} data-testid={`button-cancel-${level}`}>
-                          {t('common.cancel')}
-                        </Button>
-                        <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending} data-testid={`button-save-${level}`}>
-                          {saveMutation.isPending ? <i className="fas fa-spinner fa-spin mr-1"></i> : null}
-                          {t('common.save')}
-                        </Button>
-                      </>
-                    ) : (
-                      <Button size="sm" variant="ghost" onClick={() => handleEdit(level)} data-testid={`button-edit-${level}`}>
-                        <i className="fas fa-edit"></i>
-                      </Button>
-                    )}
+                    <Button size="sm" variant="ghost" onClick={() => handleEdit(level)} data-testid={`button-edit-${level}`} aria-label={`Level ${level} 편집`}>
+                      <i className="fas fa-edit"></i>
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.description')}</Label>
-                  {isEditing ? (
-                    <Input 
-                      value={formData?.description || ''} 
-                      onChange={(e) => setEditForm({ ...formData!, description: e.target.value })}
-                      className="mt-1"
-                      data-testid={`input-difficulty-description-${level}`}
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{settings?.description}</p>
-                  )}
+                  <p className="text-sm mt-1">{settings?.description}</p>
                 </div>
 
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.responseLength')}</Label>
-                  {isEditing ? (
-                    <Input 
-                      value={formData?.responseLength || ''} 
-                      onChange={(e) => setEditForm({ ...formData!, responseLength: e.target.value })}
-                      className="mt-1"
-                      data-testid={`input-difficulty-responseLength-${level}`}
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{settings?.responseLength}</p>
-                  )}
+                  <p className="text-sm mt-1">{settings?.responseLength}</p>
                 </div>
 
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.tone')}</Label>
-                  {isEditing ? (
-                    <AutoResizeTextarea 
-                      value={formData?.tone || ''} 
-                      onChange={(e) => setEditForm({ ...formData!, tone: e.target.value })}
-                      className="mt-1"
-                      data-testid={`input-difficulty-tone-${level}`}
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{settings?.tone}</p>
-                  )}
+                  <p className="text-sm mt-1">{settings?.tone}</p>
                 </div>
 
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.pressure')}</Label>
-                  {isEditing ? (
-                    <AutoResizeTextarea 
-                      value={formData?.pressure || ''} 
-                      onChange={(e) => setEditForm({ ...formData!, pressure: e.target.value })}
-                      className="mt-1"
-                      data-testid={`input-difficulty-pressure-${level}`}
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{settings?.pressure}</p>
-                  )}
+                  <p className="text-sm mt-1">{settings?.pressure}</p>
                 </div>
 
                 <div>
                   <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.feedback')}</Label>
-                  {isEditing ? (
-                    <AutoResizeTextarea 
-                      value={formData?.feedback || ''} 
-                      onChange={(e) => setEditForm({ ...formData!, feedback: e.target.value })}
-                      className="mt-1"
-                      data-testid={`input-difficulty-feedback-${level}`}
-                    />
-                  ) : (
-                    <p className="text-sm mt-1">{settings?.feedback}</p>
-                  )}
+                  <p className="text-sm mt-1">{settings?.feedback}</p>
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.constraintsCount', { count: formData?.constraints?.length || 0 })}</Label>
-                  {isEditing ? (
-                    <div className="space-y-2 mt-2">
-                      {formData?.constraints?.map((constraint, index) => (
-                        <div key={index} className="flex gap-2">
-                          <Input 
-                            value={constraint}
-                            onChange={(e) => handleConstraintChange(index, e.target.value)}
-                            className="flex-1"
-                            data-testid={`input-difficulty-constraint-${level}-${index}`}
-                          />
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => handleRemoveConstraint(index)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <i className="fas fa-times"></i>
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleAddConstraint}
-                        className="w-full"
-                        data-testid={`button-add-constraint-${level}`}
-                      >
-                        <i className="fas fa-plus mr-2"></i>
-                        {t('admin.difficultySettings.form.addConstraint')}
-                      </Button>
-                    </div>
-                  ) : (
+                  <Label className="text-xs font-semibold text-slate-600">{t('admin.difficultySettings.form.constraintsCount', { count: settings?.constraints?.length || 0 })}</Label>
                     <ul className="text-sm mt-1 space-y-1">
                       {settings?.constraints?.slice(0, 3).map((constraint, index) => (
                         <li key={index} className="flex items-start gap-2">
@@ -341,13 +248,90 @@ export function DifficultySettingsTab() {
                         <li className="text-slate-500 text-xs">{t('admin.difficultySettings.form.moreConstraints', { count: (settings?.constraints?.length || 0) - 3 })}</li>
                       )}
                     </ul>
-                  )}
                 </div>
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      <EditorDialog
+        open={editingLevel !== null && !!editForm}
+        editorKey={`difficulty-${editingLevel}`}
+        title={editForm ? `Level ${editForm.level}: ${editForm.name}` : ''}
+        newTitle={t('admin.difficultySettings.title')}
+        breadcrumb={t('admin.difficultySettings.title')}
+        isNew={false}
+        revision={JSON.stringify(editForm)}
+        pending={saveMutation.isPending}
+        onClose={handleCancel}
+        onSubmit={submitWith(handleSave)}
+        sections={DIFFICULTY_SECTIONS}
+        formId="difficulty-editor-form"
+        saveTestId={`button-save-${editingLevel}`}
+        closeTestId={`button-cancel-${editingLevel}`}
+        saveLabel={t('common.save')}
+      >
+        {editForm && editingLevel !== null && <>
+          <ContentEditorRegion sections="overview">
+            <EditorGroup title={`Level ${editingLevel}`} description="학습자에게 보이는 이름과 이 난이도의 성격입니다.">
+              <Field label="이름" htmlFor="difficulty-name" required>
+                <Input id="difficulty-name" required value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  data-testid={`input-difficulty-name-${editingLevel}`} />
+              </Field>
+              <Field label={t('admin.difficultySettings.form.description')} htmlFor="difficulty-description">
+                <AutoResizeTextarea id="difficulty-description" value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  data-testid={`input-difficulty-description-${editingLevel}`} />
+              </Field>
+              <Field label={t('admin.difficultySettings.form.responseLength')} htmlFor="difficulty-response-length">
+                <AutoResizeTextarea id="difficulty-response-length" value={editForm.responseLength}
+                  onChange={(e) => setEditForm({ ...editForm, responseLength: e.target.value })}
+                  data-testid={`input-difficulty-responseLength-${editingLevel}`} />
+              </Field>
+            </EditorGroup>
+          </ContentEditorRegion>
+          <ContentEditorRegion sections="behavior">
+            <EditorGroup title="대화 태도" description="AI 상대역이 이 난이도에서 어떻게 말하고 압박하는지 정합니다.">
+              <Field label={t('admin.difficultySettings.form.tone')} htmlFor="difficulty-tone">
+                <AutoResizeTextarea id="difficulty-tone" value={editForm.tone}
+                  onChange={(e) => setEditForm({ ...editForm, tone: e.target.value })}
+                  data-testid={`input-difficulty-tone-${editingLevel}`} />
+              </Field>
+              <Field label={t('admin.difficultySettings.form.pressure')} htmlFor="difficulty-pressure">
+                <AutoResizeTextarea id="difficulty-pressure" value={editForm.pressure}
+                  onChange={(e) => setEditForm({ ...editForm, pressure: e.target.value })}
+                  data-testid={`input-difficulty-pressure-${editingLevel}`} />
+              </Field>
+              <Field label={t('admin.difficultySettings.form.feedback')} htmlFor="difficulty-feedback">
+                <AutoResizeTextarea id="difficulty-feedback" value={editForm.feedback}
+                  onChange={(e) => setEditForm({ ...editForm, feedback: e.target.value })}
+                  data-testid={`input-difficulty-feedback-${editingLevel}`} />
+              </Field>
+            </EditorGroup>
+          </ContentEditorRegion>
+          <ContentEditorRegion sections="constraints">
+            <EditorGroup title={t('admin.difficultySettings.form.constraintsCount', { count: editForm.constraints.length })}
+              actions={<Button type="button" size="sm" variant="outline" onClick={handleAddConstraint} data-testid={`button-add-constraint-${editingLevel}`}>
+                <Plus className="mr-1 h-4 w-4" />{t('admin.difficultySettings.form.addConstraint')}
+              </Button>}>
+              {editForm.constraints.length === 0 && <p className="text-sm text-slate-500">등록된 제약 조건이 없습니다.</p>}
+              {editForm.constraints.map((constraint, index) => (
+                <div key={index} className="flex items-start gap-2">
+                  <AutoResizeTextarea value={constraint} aria-label={`제약 조건 ${index + 1}`}
+                    onChange={(e) => handleConstraintChange(index, e.target.value)} className="flex-1"
+                    data-testid={`input-difficulty-constraint-${editingLevel}-${index}`} />
+                  <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveConstraint(index)}
+                    className="text-red-600 hover:text-red-700" aria-label={`제약 조건 ${index + 1} 삭제`}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </EditorGroup>
+          </ContentEditorRegion>
+        </>}
+      </EditorDialog>
 
       <Card className="bg-blue-50 border-blue-200">
         <CardContent className="py-4">

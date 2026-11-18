@@ -3,10 +3,9 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { ContentEditorRegion, EditorDialog, EditorGroup, Field, submitWith, type EditorSectionDef } from '@/components/admin/contentEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -14,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Loader2, Plus, Pencil, Trash2, FolderTree, Building2, ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, FolderTree, Building2, ChevronRight, ChevronDown, Folder, FolderOpen, MapPin, ListOrdered } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface UserInfo {
@@ -50,6 +49,17 @@ interface Category {
   organization?: { id: string; name: string } | null;
   company?: { id: string; name: string } | null;
 }
+
+const ORG_SECTIONS: readonly EditorSectionDef[] = [
+  { id: 'company', label: '소속 회사', description: '조직이 속한 회사입니다. 생성 후에는 바꿀 수 없습니다.', group: '조직', icon: Building2 },
+  { id: 'basic', label: '기본 정보', description: '조직 이름, 코드, 설명입니다.', group: '조직', icon: FolderTree },
+];
+
+const CATEGORY_SECTIONS: readonly EditorSectionDef[] = [
+  { id: 'placement', label: '상위 조직', description: '카테고리가 속한 조직입니다. 생성 후에는 바꿀 수 없습니다.', group: '카테고리', icon: MapPin },
+  { id: 'basic', label: '기본 정보', description: '카테고리 이름과 설명입니다.', group: '카테고리', icon: Folder },
+  { id: 'display', label: '표시 순서', description: '목록에서의 정렬 순서입니다.', group: '카테고리', icon: ListOrdered },
+];
 
 type DialogMode = 'create-org' | 'edit-org' | 'create-category' | 'edit-category' | null;
 
@@ -257,6 +267,11 @@ export function OrganizationCategoryTree() {
     }
   };
 
+  const isOrgDialog = dialogMode === 'create-org' || dialogMode === 'edit-org';
+  const isCategoryDialog = dialogMode === 'create-category' || dialogMode === 'edit-category';
+  const orgPending = createOrgMutation.isPending || updateOrgMutation.isPending;
+  const categoryPending = createCategoryMutation.isPending || updateCategoryMutation.isPending;
+
   const handleDelete = () => {
     if (!deleteTarget) return;
     if (deleteTarget.type === 'org') {
@@ -307,6 +322,7 @@ export function OrganizationCategoryTree() {
         {canManageOrgs && (
           <Button 
             onClick={openCreateOrgDialog} 
+            data-testid="button-create-org"
             size="sm"
             disabled={isAdmin && companies.length === 0}
             title={isAdmin && companies.length === 0 ? t('orgCategoryTree.noCompanies', '먼저 회사를 생성해야 합니다.') : undefined}
@@ -369,7 +385,7 @@ export function OrganizationCategoryTree() {
                                 checked={org.isActive}
                                 onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: org.id, isActive: checked })}
                               />
-                              <Button variant="ghost" size="sm" onClick={() => openEditOrgDialog(org)}>
+                              <Button variant="ghost" size="sm" onClick={() => openEditOrgDialog(org)} data-testid={`button-edit-org-${org.id}`} aria-label={`${org.name} 조직 수정`}>
                                 <Pencil className="w-4 h-4" />
                               </Button>
                               <Button variant="ghost" size="sm" onClick={() => setDeleteTarget({ type: 'org', item: org })}>
@@ -407,7 +423,7 @@ export function OrganizationCategoryTree() {
                                 </div>
                                 <div className="flex items-center gap-1">
                                   {canEditCategories && (
-                                    <Button variant="ghost" size="sm" onClick={() => openEditCategoryDialog(category)}>
+                                    <Button variant="ghost" size="sm" onClick={() => openEditCategoryDialog(category)} data-testid={`button-edit-category-${category.id}`} aria-label={`${category.name} 카테고리 수정`}>
                                       <Pencil className="w-3 h-3" />
                                     </Button>
                                   )}
@@ -426,6 +442,7 @@ export function OrganizationCategoryTree() {
                               size="sm"
                               className="w-full mt-2"
                               onClick={() => openCreateCategoryDialog(org)}
+                              data-testid={`button-create-category-${org.id}`}
                             >
                               <Plus className="w-3 h-3 mr-1" />
                               {t('orgCategoryTree.addCategory', '카테고리 추가')}
@@ -442,24 +459,33 @@ export function OrganizationCategoryTree() {
         )}
       </CardContent>
 
-      <Dialog open={dialogMode === 'create-org' || dialogMode === 'edit-org'} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {dialogMode === 'create-org'
-                ? t('orgCategoryTree.createOrgDialog.title', '새 조직 생성')
-                : t('orgCategoryTree.editOrgDialog.title', '조직 수정')}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {isAdmin && dialogMode === 'create-org' && companies.length > 0 && (
-              <div>
-                <Label>{t('orgCategoryTree.form.company', '회사')} *</Label>
+      <EditorDialog
+        open={isOrgDialog}
+        editorKey={`${dialogMode}-${selectedOrganization?.id ?? 'new'}`}
+        title={selectedOrganization?.name ?? ''}
+        newTitle={t('orgCategoryTree.createOrgDialog.title', '새 조직 생성')}
+        breadcrumb={t('orgCategoryTree.title', '조직 및 카테고리')}
+        isNew={dialogMode === 'create-org'}
+        revision={JSON.stringify(orgFormData)}
+        pending={orgPending}
+        onClose={closeDialog}
+        onSubmit={submitWith(handleOrgSubmit)}
+        sections={ORG_SECTIONS}
+        formId="org-tree-org-form"
+        saveTestId="button-save-org"
+        closeTestId="button-cancel-org"
+        saveLabel={dialogMode === 'create-org' ? t('common.create', '생성') : t('common.save', '저장')}
+        saveDisabled={!orgFormData.name.trim() || (isAdmin && dialogMode === 'create-org' && !orgFormData.companyId)}
+      >
+        <ContentEditorRegion sections="company">
+          <EditorGroup title={t('orgCategoryTree.form.company', '회사')}>
+            {isAdmin && dialogMode === 'create-org' && companies.length > 0 ? (
+              <Field label={t('orgCategoryTree.form.company', '회사')} htmlFor="org-tree-company" required>
                 <Select
                   value={orgFormData.companyId}
                   onValueChange={(value) => setOrgFormData(prev => ({ ...prev, companyId: value }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="org-tree-company" data-testid="select-org-company">
                     <SelectValue placeholder={t('orgCategoryTree.form.selectCompany', '회사를 선택하세요')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -468,109 +494,120 @@ export function OrganizationCategoryTree() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
+            ) : isAdmin && dialogMode === 'edit-org' && selectedOrganization ? (
+              <Field label={t('orgCategoryTree.form.company', '회사')} htmlFor="org-tree-company-readonly" hint="조직의 회사는 변경할 수 없습니다.">
+                <Input id="org-tree-company-readonly" value={selectedOrganization.company?.name || ''} readOnly className="bg-slate-100" data-testid="input-org-company-readonly" />
+              </Field>
+            ) : (
+              <p className="text-sm text-slate-600">담당 회사에 생성됩니다. 소속 회사는 운영자 권한 범위로 정해집니다.</p>
             )}
-            {isAdmin && dialogMode === 'edit-org' && selectedOrganization && (
-              <div>
-                <Label>{t('orgCategoryTree.form.company', '회사')}</Label>
-                <Input value={selectedOrganization.company?.name || ''} disabled className="bg-slate-100" />
-              </div>
-            )}
-            <div>
-              <Label>{t('orgCategoryTree.form.orgName', '조직 이름')} *</Label>
+          </EditorGroup>
+        </ContentEditorRegion>
+        <ContentEditorRegion sections="basic">
+          <EditorGroup title={dialogMode === 'create-org' ? t('orgCategoryTree.createOrgDialog.title', '새 조직 생성') : t('orgCategoryTree.editOrgDialog.title', '조직 수정')}>
+            <Field label={t('orgCategoryTree.form.orgName', '조직 이름')} htmlFor="org-tree-name" required>
               <Input
+                id="org-tree-name"
+                required
                 value={orgFormData.name}
                 onChange={(e) => setOrgFormData(prev => ({ ...prev, name: e.target.value }))}
                 placeholder={t('orgCategoryTree.form.orgNamePlaceholder', '조직 이름을 입력하세요')}
+                data-testid="input-org-name"
               />
-            </div>
-            <div>
-              <Label>{t('orgCategoryTree.form.orgCode', '조직 코드')}</Label>
+            </Field>
+            <Field label={t('orgCategoryTree.form.orgCode', '조직 코드')} htmlFor="org-tree-code" optional>
               <Input
+                id="org-tree-code"
                 value={orgFormData.code}
                 onChange={(e) => setOrgFormData(prev => ({ ...prev, code: e.target.value }))}
                 placeholder={t('orgCategoryTree.form.orgCodePlaceholder', '예: ORG001')}
+                data-testid="input-org-code"
               />
-            </div>
-            <div>
-              <Label>{t('orgCategoryTree.form.description', '설명')}</Label>
+            </Field>
+            <Field label={t('orgCategoryTree.form.description', '설명')} htmlFor="org-tree-description" optional>
               <AutoResizeTextarea
+                id="org-tree-description"
                 value={orgFormData.description}
                 onChange={(e) => setOrgFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder={t('orgCategoryTree.form.descriptionPlaceholder', '설명을 입력하세요')}
+                data-testid="input-org-description"
               />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>
-              {t('common.cancel', '취소')}
-            </Button>
-            <Button
-              onClick={handleOrgSubmit}
-              disabled={!orgFormData.name || (isAdmin && dialogMode === 'create-org' && !orgFormData.companyId) || createOrgMutation.isPending || updateOrgMutation.isPending}
-            >
-              {(createOrgMutation.isPending || updateOrgMutation.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-              {dialogMode === 'create-org' ? t('common.create', '생성') : t('common.save', '저장')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </Field>
+          </EditorGroup>
+        </ContentEditorRegion>
+      </EditorDialog>
 
-      <Dialog open={dialogMode === 'create-category' || dialogMode === 'edit-category'} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {dialogMode === 'create-category'
-                ? t('orgCategoryTree.createCategoryDialog.title', '새 카테고리 생성')
-                : t('orgCategoryTree.editCategoryDialog.title', '카테고리 수정')}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {dialogMode === 'create-category' && selectedOrganization && (
-              <div>
-                <Label>{t('orgCategoryTree.form.parentOrg', '상위 조직')}</Label>
-                <Input value={selectedOrganization.name} disabled className="bg-slate-100" />
-              </div>
-            )}
-            <div>
-              <Label>{t('orgCategoryTree.form.categoryName', '카테고리 이름')} *</Label>
+      <EditorDialog
+        open={isCategoryDialog}
+        editorKey={`${dialogMode}-${selectedCategory?.id ?? selectedOrganization?.id ?? 'new'}`}
+        title={selectedCategory?.name ?? ''}
+        newTitle={t('orgCategoryTree.createCategoryDialog.title', '새 카테고리 생성')}
+        breadcrumb={t('orgCategoryTree.title', '조직 및 카테고리')}
+        isNew={dialogMode === 'create-category'}
+        revision={JSON.stringify(categoryFormData)}
+        pending={categoryPending}
+        onClose={closeDialog}
+        onSubmit={submitWith(handleCategorySubmit)}
+        sections={CATEGORY_SECTIONS}
+        formId="org-tree-category-form"
+        saveTestId="button-save-category"
+        closeTestId="button-cancel-category"
+        saveLabel={dialogMode === 'create-category' ? t('common.create', '생성') : t('common.save', '저장')}
+        saveDisabled={!categoryFormData.name.trim() || (dialogMode === 'create-category' && !selectedOrganization)}
+      >
+        <ContentEditorRegion sections="placement">
+          <EditorGroup title={t('orgCategoryTree.form.parentOrg', '상위 조직')}>
+            <Field label={t('orgCategoryTree.form.parentOrg', '상위 조직')} htmlFor="category-parent-org" hint="상위 조직은 이 화면에서 바꿀 수 없습니다.">
               <Input
+                id="category-parent-org"
+                readOnly
+                className="bg-slate-100"
+                value={dialogMode === 'create-category'
+                  ? selectedOrganization?.name || ''
+                  : selectedCategory?.organization?.name || '미할당'}
+                data-testid="input-category-parent-org"
+              />
+            </Field>
+          </EditorGroup>
+        </ContentEditorRegion>
+        <ContentEditorRegion sections="basic">
+          <EditorGroup title={dialogMode === 'create-category' ? t('orgCategoryTree.createCategoryDialog.title', '새 카테고리 생성') : t('orgCategoryTree.editCategoryDialog.title', '카테고리 수정')}>
+            <Field label={t('orgCategoryTree.form.categoryName', '카테고리 이름')} htmlFor="category-name" required>
+              <Input
+                id="category-name"
+                required
                 value={categoryFormData.name}
                 onChange={(e) => setCategoryFormData(prev => ({ ...prev, name: e.target.value }))}
                 placeholder={t('orgCategoryTree.form.categoryNamePlaceholder', '카테고리 이름을 입력하세요')}
+                data-testid="input-category-name"
               />
-            </div>
-            <div>
-              <Label>{t('orgCategoryTree.form.description', '설명')}</Label>
+            </Field>
+            <Field label={t('orgCategoryTree.form.description', '설명')} htmlFor="category-description" optional>
               <AutoResizeTextarea
+                id="category-description"
                 value={categoryFormData.description}
                 onChange={(e) => setCategoryFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder={t('orgCategoryTree.form.descriptionPlaceholder', '설명을 입력하세요')}
+                data-testid="input-category-description"
               />
-            </div>
-            <div>
-              <Label>{t('orgCategoryTree.form.order', '정렬 순서')}</Label>
+            </Field>
+          </EditorGroup>
+        </ContentEditorRegion>
+        <ContentEditorRegion sections="display">
+          <EditorGroup title={t('orgCategoryTree.form.order', '정렬 순서')} description="숫자가 작을수록 목록 앞쪽에 표시됩니다.">
+            <Field label={t('orgCategoryTree.form.order', '정렬 순서')} htmlFor="category-order" optional>
               <Input
+                id="category-order"
                 type="number"
                 value={categoryFormData.order}
                 onChange={(e) => setCategoryFormData(prev => ({ ...prev, order: parseInt(e.target.value) || 0 }))}
+                data-testid="input-category-order"
               />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>
-              {t('common.cancel', '취소')}
-            </Button>
-            <Button
-              onClick={handleCategorySubmit}
-              disabled={!categoryFormData.name || createCategoryMutation.isPending || updateCategoryMutation.isPending}
-            >
-              {(createCategoryMutation.isPending || updateCategoryMutation.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-              {dialogMode === 'create-category' ? t('common.create', '생성') : t('common.save', '저장')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </Field>
+          </EditorGroup>
+        </ContentEditorRegion>
+      </EditorDialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

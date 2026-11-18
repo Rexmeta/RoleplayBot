@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearch } from "wouter";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Building2, ClipboardCheck, FileText, Gauge, Globe2, SlidersHorizontal, UserRound } from "lucide-react";
+import { AdminWorkspace, WorkspacePanel, type WorkspaceSectionDef } from "@/components/admin/contentEditor";
 import { OrganizationCategoryTree } from "@/components/admin/OrganizationCategoryTree";
 import { ScenarioManager } from "@/components/admin/ScenarioManager";
 import { PersonaManager } from "@/components/admin/PersonaManager";
@@ -24,70 +25,77 @@ export default function AdminManagement() {
   const isAdmin = currentUser?.role === "admin";
 
   useEffect(() => {
+    if (urlTab) setActiveTab(urlTab);
+  }, [urlTab]);
+
+  useEffect(() => {
     const onDirty = (event: Event) => setOverrideDirty(Boolean((event as CustomEvent<boolean>).detail));
     window.addEventListener("scenario-override-dirty", onDirty);
     return () => window.removeEventListener("scenario-override-dirty", onDirty);
   }, []);
 
-  const changeTab = (next: string) => {
-    if (activeTab === "scenario-overrides" && next !== activeTab && overrideDirty &&
-      !window.confirm("저장되지 않은 조직 Override 변경 사항이 있습니다. 탭을 이동하시겠습니까?")) return;
-    setActiveTab(next);
-  };
+  const sections: WorkspaceSectionDef[] = [
+    { id: "manage-scenarios", label: "시나리오", description: "역할극 시나리오를 만들고 수정합니다. 각 시나리오는 편집 화면에서 개별 저장됩니다.", group: "훈련 콘텐츠", icon: FileText },
+    { id: "culture-map", label: "Culture Map", description: "문화 프로필과 문화 차원 지도를 관리합니다.", group: "훈련 콘텐츠", icon: Globe2 },
+    { id: "manage-personas", label: "페르소나", description: "대화 상대 페르소나를 만들고 수정합니다.", group: "훈련 콘텐츠", icon: UserRound },
+    { id: "evaluation-criteria", label: "평가기준", description: "대화 평가에 쓰이는 루브릭과 기준을 관리합니다.", group: "평가와 난이도", icon: ClipboardCheck },
+    { id: "difficulty-settings", label: "대화 난이도", description: "레벨별 AI 응답 지침을 편집합니다. 레벨마다 편집 화면에서 저장합니다.", group: "평가와 난이도", icon: Gauge },
+    { id: "manage-structure", label: "조직/카테고리", description: "조직과 카테고리 구조를 관리합니다.", group: "조직 운영", icon: Building2 },
+    { id: "scenario-overrides", label: "조직 Override", description: "조직별로 시나리오 설정을 덮어씁니다. 변경 내용은 이 화면의 저장 버튼으로 저장합니다.", group: "조직 운영", icon: SlidersHorizontal, kind: "form" },
+  ];
+  const overrideGuardActive = activeTab === "scenario-overrides" && overrideDirty;
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <AppHeader 
+      <AppHeader
         title={t('admin.contentManagement.title')}
         subtitle={t('admin.contentManagement.subtitle')}
-        showBackButton
       />
-      <div className="container mx-auto p-3 md:p-6 space-y-6" data-testid="admin-management">
-        <Tabs value={activeTab} onValueChange={changeTab} className="space-y-6">
-          <TabsList className="flex flex-wrap w-full h-auto p-1 gap-1">
-            <TabsTrigger value="manage-scenarios" data-testid="tab-manage-scenarios">시나리오</TabsTrigger>
-            <TabsTrigger value="culture-map" data-testid="tab-culture-map">Culture Map</TabsTrigger>
-            <TabsTrigger value="manage-personas" data-testid="tab-manage-personas">페르소나</TabsTrigger>
-            <TabsTrigger value="evaluation-criteria" data-testid="tab-evaluation-criteria">평가기준</TabsTrigger>
-            <TabsTrigger value="manage-structure" data-testid="tab-manage-structure">조직/카테고리</TabsTrigger>
-            <TabsTrigger value="difficulty-settings" data-testid="tab-difficulty-settings">대화 난이도</TabsTrigger>
-            <TabsTrigger value="scenario-overrides" data-testid="tab-scenario-overrides">조직 Override</TabsTrigger>
-          </TabsList>
+      <AdminWorkspace
+        testId="admin-management"
+        idPrefix="admin-management"
+        title={t('admin.contentManagement.title')}
+        breadcrumb="콘텐츠 관리"
+        sections={sections}
+        active={activeTab}
+        onActiveChange={setActiveTab}
+        keepVisited
+        dirty={overrideGuardActive}
+        dirtyLabel="저장하지 않은 조직 Override"
+        onDiscard={(id) => { if (id === "scenario-overrides") setOverrideDirty(false); }}
+      >
+        <WorkspacePanel id="manage-scenarios">
+          <ScenarioManager onGoToPersonas={() => {
+            setActiveTab('manage-personas');
+            setPersonaCreateTrigger(prev => prev + 1);
+          }} />
+        </WorkspacePanel>
 
-          <TabsContent value="manage-scenarios" className="space-y-6">
-            <ScenarioManager onGoToPersonas={() => {
-              setActiveTab('manage-personas');
-              setPersonaCreateTrigger(prev => prev + 1);
-            }} />
-          </TabsContent>
+        <WorkspacePanel id="culture-map">
+          <CultureMapWorkspace />
+        </WorkspacePanel>
 
-          <TabsContent value="culture-map" className="space-y-6">
-            <CultureMapWorkspace />
-          </TabsContent>
+        <WorkspacePanel id="manage-personas">
+          <PersonaManager openCreateTrigger={personaCreateTrigger} />
+        </WorkspacePanel>
 
-          <TabsContent value="manage-personas" className="space-y-6">
-            <PersonaManager openCreateTrigger={personaCreateTrigger} />
-          </TabsContent>
+        <WorkspacePanel id="evaluation-criteria">
+          <EvaluationCriteriaManager />
+        </WorkspacePanel>
 
-          <TabsContent value="evaluation-criteria" className="space-y-6">
-            <EvaluationCriteriaManager />
-          </TabsContent>
+        <WorkspacePanel id="manage-structure">
+          <OrganizationCategoryTree />
+        </WorkspacePanel>
 
-          <TabsContent value="manage-structure" className="space-y-6">
-            <OrganizationCategoryTree />
-          </TabsContent>
+        <WorkspacePanel id="difficulty-settings">
+          <DifficultySettingsTab />
+        </WorkspacePanel>
 
-          <TabsContent value="difficulty-settings" className="space-y-6">
-            <DifficultySettingsTab />
-          </TabsContent>
-
-          <TabsContent value="scenario-overrides" className="space-y-6">
-            {(isAdmin || currentUser?.role === "operator") && <ScenarioOverrideManager />}
-            {!isAdmin && currentUser?.role !== "operator" && <p className="text-muted-foreground text-sm">관리자 또는 권한이 위임된 운영자만 접근할 수 있습니다.</p>}
-          </TabsContent>
-
-        </Tabs>
-      </div>
+        <WorkspacePanel id="scenario-overrides">
+          {(isAdmin || currentUser?.role === "operator") && <ScenarioOverrideManager />}
+          {!isAdmin && currentUser?.role !== "operator" && <p className="text-muted-foreground text-sm">관리자 또는 권한이 위임된 운영자만 접근할 수 있습니다.</p>}
+        </WorkspacePanel>
+      </AdminWorkspace>
     </div>
   );
 }
