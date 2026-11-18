@@ -16,7 +16,9 @@ export const EDITOR_SECTIONS = [
   { id: 'publish', label: '공개 설정', description: '공개 범위, 체험 모드와 언어 설정을 확인합니다.', group: '배포', icon: Settings2 },
 ] as const;
 export type EditorSection = typeof EDITOR_SECTIONS[number]['id'];
-type EditorNavigation = { active: EditorSection; reveal: (id: string) => void };
+/** Generic section definition so other editors (e.g. personas) can reuse this shell. */
+export type EditorSectionDef = { id: string; label: string; description: string; group: string; icon: typeof FileText };
+type EditorNavigation = { active: string; reveal: (id: string) => void };
 const Navigation = createContext<EditorNavigation | null>(null);
 export const useScenarioEditorNavigation = () => useContext(Navigation);
 export function revealScenarioEditorTarget(id: string) {
@@ -25,31 +27,39 @@ export function revealScenarioEditorTarget(id: string) {
 
 /** Keep every editor mounted: builder-local state must survive navigation. */
 export function ScenarioEditorRegion({ sections, children, className, id }: {
-  sections: EditorSection | EditorSection[]; children: React.ReactNode; className?: string; id?: string;
+  sections: string | string[]; children: React.ReactNode; className?: string; id?: string;
 }) {
   const navigation = useScenarioEditorNavigation();
-  const allowed = typeof sections === 'string' ? [sections] : sections;
+  const allowed: string[] = typeof sections === 'string' ? [sections] : sections;
   const hidden = !!navigation && !allowed.includes(navigation.active);
   return <div id={id} data-scenario-editor-section={allowed[0]} hidden={hidden}
     className={className} style={hidden ? { display: 'none' } : className ? undefined : { display: 'contents' }}>{children}</div>;
 }
 
-export function ScenarioEditor({ title, revision, pending, onClose, onSubmit, children, isNew }: {
+export function ScenarioEditor({ title, revision, pending, onClose, onSubmit, children, isNew,
+  sections = EDITOR_SECTIONS, breadcrumb = '시나리오 관리', newTitle = '새 시나리오',
+  formId = 'scenario-editor-form', saveTestId = 'button-save-scenario', baseline: baselineOverride, testId }: {
   title: string; revision: string; pending: boolean; onClose: () => void;
   onSubmit: React.FormEventHandler<HTMLFormElement>; children: React.ReactNode; isNew: boolean;
+  /** Optional shell configuration. Defaults keep the scenario editor unchanged. */
+  sections?: readonly EditorSectionDef[]; breadcrumb?: string; newTitle?: string; formId?: string; saveTestId?: string;
+  /** Controlled clean revision (e.g. after a background auto-save). Defaults to the revision at mount. */
+  baseline?: string; testId?: string;
 }) {
-  const [active, setActive] = useState<EditorSection>('basic');
-  const [baseline] = useState(revision);
+  const [active, setActive] = useState(sections[0].id);
+  const [initialBaseline] = useState(revision);
+  const baseline = baselineOverride ?? initialBaseline;
+  const groups = Array.from(new Set(sections.map(s => s.group)));
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [invalidMessage, setInvalidMessage] = useState('');
   const root = useRef<HTMLDivElement>(null);
   const scroll = useRef<HTMLFormElement>(null);
   const firstInvalid = useRef(false);
   const dirty = baseline !== revision;
-  const section = EDITOR_SECTIONS.find(s => s.id === active)!;
-  const index = EDITOR_SECTIONS.indexOf(section);
+  const section = sections.find(s => s.id === active) ?? sections[0];
+  const index = sections.indexOf(section);
   const requestClose = () => { if (!pending) dirty ? setConfirmLeave(true) : onClose(); };
-  const navigate = (id: EditorSection) => {
+  const navigate = (id: string) => {
     setActive(id);
     scroll.current?.scrollTo?.({ top: 0, behavior: 'auto' });
     requestAnimationFrame(() => {
@@ -61,7 +71,7 @@ export function ScenarioEditor({ title, revision, pending, onClose, onSubmit, ch
     const element = document.getElementById(id);
     if (!element || !root.current?.contains(element)) return;
     const region = element.closest<HTMLElement>('[data-scenario-editor-section]');
-    if (region) setActive(region.dataset.scenarioEditorSection as EditorSection);
+    if (region?.dataset.scenarioEditorSection) setActive(region.dataset.scenarioEditorSection);
     for (let parent: HTMLElement | null = element; parent && parent !== root.current; parent = parent.parentElement) {
       if (parent instanceof HTMLDetailsElement) parent.open = true;
     }
@@ -92,13 +102,13 @@ export function ScenarioEditor({ title, revision, pending, onClose, onSubmit, ch
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
   }, [pending]);
-  const navButton = (s: typeof EDITOR_SECTIONS[number]) => {
+  const navButton = (s: EditorSectionDef) => {
     const Icon = s.icon;
     return <button key={s.id} type="button" aria-current={active === s.id ? 'page' : undefined}
       onClick={() => navigate(s.id)}><Icon size={16} aria-hidden="true" /><span>{s.label}</span></button>;
   };
 
-  return <DialogContent ref={root} className="scenario-editor" aria-describedby="scenario-editor-description"
+  return <DialogContent ref={root} className="scenario-editor" data-testid={testId} aria-describedby="scenario-editor-description"
     onEscapeKeyDown={event => { event.preventDefault(); requestClose(); }}
     onPointerDownOutside={event => event.preventDefault()}>
     <Navigation.Provider value={{ active, reveal }}>
@@ -106,19 +116,19 @@ export function ScenarioEditor({ title, revision, pending, onClose, onSubmit, ch
         <header className="scenario-editor-header">
           <div className="scenario-editor-bar">
             <div className="min-w-0 flex-1">
-              <div className="scenario-editor-breadcrumb">시나리오 관리 <ChevronRight size={12} /> {isNew ? '새로 만들기' : '수정'}</div>
-              <DialogTitle className="scenario-editor-title">{title || '새 시나리오'}</DialogTitle>
+              <div className="scenario-editor-breadcrumb">{breadcrumb} <ChevronRight size={12} /> {isNew ? '새로 만들기' : '수정'}</div>
+              <DialogTitle className="scenario-editor-title">{title || newTitle}</DialogTitle>
               <DialogDescription id="scenario-editor-description" className="sr-only">섹션을 이동하며 편집하세요. 변경 내용은 저장 버튼을 누르면 전체가 함께 저장됩니다.</DialogDescription>
             </div>
             <span className={`scenario-editor-status ${dirty ? 'is-dirty' : ''}`} role="status">
-              {pending ? '저장 중…' : dirty ? '저장하지 않은 변경 사항' : isNew ? '새 시나리오' : '변경 없음'}
+              {pending ? '저장 중…' : dirty ? '저장하지 않은 변경 사항' : isNew ? newTitle : '변경 없음'}
             </span>
             <button type="button" className="scenario-editor-button" onClick={requestClose} disabled={pending} aria-label="편집 닫기"><X size={16} /><span className="hidden sm:inline">닫기</span></button>
-            <button type="submit" form="scenario-editor-form" className="scenario-editor-button primary" disabled={pending} data-testid="button-save-scenario"><Save size={16} />{pending ? '저장 중…' : '저장'}</button>
+            <button type="submit" form={formId} className="scenario-editor-button primary" disabled={pending} data-testid={saveTestId}><Save size={16} />{pending ? '저장 중…' : '저장'}</button>
           </div>
-          <nav className="scenario-editor-mobile" aria-label="편집 섹션">{EDITOR_SECTIONS.map(navButton)}</nav>
+          <nav className="scenario-editor-mobile" aria-label="편집 섹션">{sections.map(navButton)}</nav>
         </header>
-        <form ref={scroll} id="scenario-editor-form" className="scenario-editor-scroll"
+        <form ref={scroll} id={formId} className="scenario-editor-scroll"
           onSubmit={event => { if (pending) { event.preventDefault(); return; } setInvalidMessage(''); onSubmit(event); }}
           onInvalidCapture={event => {
             event.preventDefault();
@@ -127,7 +137,7 @@ export function ScenarioEditor({ title, revision, pending, onClose, onSubmit, ch
             const field = event.target as HTMLInputElement;
             setInvalidMessage(field.validationMessage || '필수 입력 항목을 확인해 주세요.');
             const region = field.closest<HTMLElement>('[data-scenario-editor-section]');
-            if (region) setActive(region.dataset.scenarioEditorSection as EditorSection);
+            if (region?.dataset.scenarioEditorSection) setActive(region.dataset.scenarioEditorSection);
             for (let parent = field.parentElement; parent && parent !== root.current; parent = parent.parentElement) {
               if (parent instanceof HTMLDetailsElement) parent.open = true;
             }
@@ -135,8 +145,8 @@ export function ScenarioEditor({ title, revision, pending, onClose, onSubmit, ch
           }}>
           <div className="scenario-editor-layout">
             <nav className="scenario-editor-nav" aria-label="편집 섹션">
-              {['교육 내용', '진행 방식', '배포'].map(group => <div key={group}>
-                <p>{group}</p>{EDITOR_SECTIONS.filter(s => s.group === group).map(navButton)}
+              {groups.map(group => <div key={group}>
+                <p>{group}</p>{sections.filter(s => s.group === group).map(navButton)}
               </div>)}
             </nav>
             <main className="scenario-editor-main">
@@ -149,9 +159,9 @@ export function ScenarioEditor({ title, revision, pending, onClose, onSubmit, ch
         <footer className="scenario-editor-footer">
           <span className="scenario-editor-footer-status">{dirty ? '변경 내용은 모든 섹션이 함께 저장됩니다.' : <><Check size={15} />섹션을 이동해도 편집 내용은 유지됩니다.</>}</span>
           <div className="flex items-center gap-2">
-            <button type="button" className="scenario-editor-button" disabled={index === 0} onClick={() => navigate(EDITOR_SECTIONS[index - 1].id)}><ChevronLeft size={16} />이전</button>
-            <span className="text-xs text-slate-500">{index + 1} / {EDITOR_SECTIONS.length}</span>
-            <button type="button" className="scenario-editor-button" disabled={index === EDITOR_SECTIONS.length - 1} onClick={() => navigate(EDITOR_SECTIONS[index + 1].id)}>다음<ChevronRight size={16} /></button>
+            <button type="button" className="scenario-editor-button" disabled={index === 0} onClick={() => navigate(sections[index - 1].id)}><ChevronLeft size={16} />이전</button>
+            <span className="text-xs text-slate-500">{index + 1} / {sections.length}</span>
+            <button type="button" className="scenario-editor-button" disabled={index === sections.length - 1} onClick={() => navigate(sections[index + 1].id)}>다음<ChevronRight size={16} /></button>
           </div>
         </footer>
         <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>

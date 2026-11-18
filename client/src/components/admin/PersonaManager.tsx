@@ -3,18 +3,18 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { MoreVertical, RefreshCw, Languages, Download, Upload } from 'lucide-react';
+import { MoreVertical, RefreshCw, Languages, Download, Upload, Wand2 } from 'lucide-react';
+import { PersonaEditor, PersonaEditorRegion } from './personaEditor/PersonaEditor';
+import { AiGenerateButton, EditorGroup, Field, FieldGrid, ToggleRow } from './scenarioEditor/EditorPrimitives';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 import { PersonaAvatarSettings, type PersonaAvatarMode, type PersonaLiveAvatar } from './PersonaAvatarSettings';
@@ -326,6 +326,57 @@ interface MBTIPersonaFormData {
   liveAvatarSeed?: PersonaSeedDraft | null;
 }
 
+type PersonaRawInputs = {
+  personality_traits: string; fears: string; personal_values: string;
+  hobbies: string; key_phrases: string; win_conditions: string;
+};
+
+const splitList = (value: string) => value.split(',').map(s => s.trim()).filter(s => s);
+
+const emptyExpressions = () => ({ 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' });
+
+function emptyPersonaForm(): MBTIPersonaFormData {
+  return {
+    id: '', mbti: '', gender: 'male',
+    personality_traits: [], communication_style: '', motivation: '', fears: [],
+    background: { personal_values: [], hobbies: [], social: { preference: '', behavior: '' } },
+    communication_patterns: { opening_style: '', key_phrases: [], response_to_arguments: {}, win_conditions: [] },
+    voice: { tone: '', pace: '' },
+    freeChatAvailable: false, freeChatDescription: '',
+    storeListed: false, storePriceUsd: null, storePackId: null,
+    avatarMode: 'image', liveAvatar: null, liveAvatarSeed: null,
+    images: { base: '', style: '', male: { expressions: emptyExpressions() }, female: { expressions: emptyExpressions() } },
+    videos: { enabled: false, avatarId: '', clips: { male: {}, female: {} } },
+  };
+}
+
+function rawFromForm(form: MBTIPersonaFormData): PersonaRawInputs {
+  return {
+    personality_traits: (form.personality_traits || []).join(', '),
+    fears: (form.fears || []).join(', '),
+    personal_values: (form.background?.personal_values || []).join(', '),
+    hobbies: (form.background?.hobbies || []).join(', '),
+    key_phrases: (form.communication_patterns?.key_phrases || []).join(', '),
+    win_conditions: (form.communication_patterns?.win_conditions || []).join(', '),
+  };
+}
+
+/** Fold the comma-separated text fields into the payload arrays (same parsing as onBlur). */
+function applyRawInputs(form: MBTIPersonaFormData, raw: PersonaRawInputs): MBTIPersonaFormData {
+  return {
+    ...form,
+    personality_traits: splitList(raw.personality_traits),
+    fears: splitList(raw.fears),
+    background: { ...form.background, personal_values: splitList(raw.personal_values), hobbies: splitList(raw.hobbies) },
+    communication_patterns: { ...form.communication_patterns, key_phrases: splitList(raw.key_phrases), win_conditions: splitList(raw.win_conditions) },
+  };
+}
+
+/** Dirty-tracking snapshot. Includes raw list text so un-blurred edits count as changes. */
+function editorRevision(form: MBTIPersonaFormData, raw: PersonaRawInputs) {
+  return JSON.stringify({ form, raw });
+}
+
 interface PersonaManagerProps {
   openCreateTrigger?: number;
 }
@@ -335,12 +386,16 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   const { toast } = useToast();
   const { user } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Remounts the editor shell per open so the active section resets to the first page.
+  const [editorSession, setEditorSession] = useState(0);
+  const [editorBaseline, setEditorBaseline] = useState('');
+  const openCreateRef = useRef<() => void>(() => {});
   const prevTriggerRef = useRef(0);
 
   useEffect(() => {
     if (openCreateTrigger > prevTriggerRef.current) {
       prevTriggerRef.current = openCreateTrigger;
-      setIsCreateOpen(true);
+      openCreateRef.current();
     }
   }, [openCreateTrigger]);
 
@@ -379,7 +434,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   const [imageCacheBuster, setImageCacheBuster] = useState<number>(Date.now());
   
   // 쉼표로 구분된 입력 필드의 원시 텍스트 상태 (타이핑 중 쉼표 유지)
-  const [rawInputs, setRawInputs] = useState({
+  const [rawInputs, setRawInputs] = useState<PersonaRawInputs>({
     personality_traits: '',
     fears: '',
     personal_values: '',
@@ -525,8 +580,12 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
       const response = await apiRequest("PUT", `/api/admin/personas/${personaData.id}`, personaData);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, savedForm) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/personas'] });
+      if (autoSavingRef.current) {
+        // Background auto-save persisted the whole form: treat it as the new clean state.
+        setEditorBaseline(editorRevision(savedForm, rawFromForm(savedForm)));
+      }
       
       // 이미지 자동 저장인 경우 다이얼로그 유지, 수동 저장인 경우만 닫기
       if (!autoSavingRef.current) {
@@ -1020,62 +1079,33 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
   };
 
   const resetForm = () => {
-    setFormData({
-      id: '',
-      mbti: '',
-      gender: 'male', // 성별 기본값 추가
-      personality_traits: [],
-      communication_style: '',
-      motivation: '',
-      fears: [],
-      background: {
-        personal_values: [],
-        hobbies: [],
-        social: {
-          preference: '',
-          behavior: ''
-        }
-      },
-      communication_patterns: {
-        opening_style: '',
-        key_phrases: [],
-        response_to_arguments: {},
-        win_conditions: []
-      },
-      voice: {
-        tone: '',
-        pace: '',
-      },
-      freeChatAvailable: false,
-      freeChatDescription: '',
-      storeListed: false,
-      storePriceUsd: null,
-      storePackId: null,
-      avatarMode: 'image',
-      liveAvatar: null,
-      liveAvatarSeed: null,
-      images: {
-        base: '',
-        style: '',
-        male: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } },
-        female: { expressions: { 중립: '', 기쁨: '', 슬픔: '', 분노: '', 놀람: '', 호기심: '', 불안: '', 단호: '', 실망: '', 당혹: '' } }
-      },
-      videos: { enabled: false, avatarId: '', clips: { male: {}, female: {} } },
-    });
-    setRawInputs({
-      personality_traits: '',
-      fears: '',
-      personal_values: '',
-      hobbies: '',
-      key_phrases: '',
-      win_conditions: ''
-    });
+    setFormData(emptyPersonaForm());
+    setRawInputs(rawFromForm(emptyPersonaForm()));
     setFailedImages(new Set());
+  };
+
+  const openCreate = () => {
+    const empty = emptyPersonaForm();
+    setFormData(empty);
+    setRawInputs(rawFromForm(empty));
+    setFailedImages(new Set());
+    setEditorBaseline(editorRevision(empty, rawFromForm(empty)));
+    setEditorSession(n => n + 1);
+    setEditingPersona(null);
+    setIsCreateOpen(true);
+  };
+
+  openCreateRef.current = openCreate;
+
+  const closeEditor = () => {
+    setIsCreateOpen(false);
+    setEditingPersona(null);
+    resetForm();
   };
 
   const handleEdit = (persona: MBTIPersona) => {
     setFailedImages(new Set());
-    setFormData({
+    const next: MBTIPersonaFormData = {
       id: persona.id,
       mbti: persona.mbti,
       gender: persona.gender || 'male',
@@ -1156,16 +1186,13 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
           clipModels: { male: rawClipModels.male ?? {}, female: rawClipModels.female ?? {} },
         };
       })(),
-    });
-    // rawInputs도 설정 (쉼표로 구분된 필드들)
-    setRawInputs({
-      personality_traits: (persona.personality_traits || []).join(', '),
-      fears: (persona.fears || []).join(', '),
-      personal_values: (persona.background?.personal_values || []).join(', '),
-      hobbies: (persona.background?.hobbies || []).join(', '),
-      key_phrases: (persona.communication_patterns?.key_phrases || []).join(', '),
-      win_conditions: (persona.communication_patterns?.win_conditions || []).join(', ')
-    });
+        };
+    setFormData(next);
+    const nextRaw = rawFromForm(next);
+    setRawInputs(nextRaw);
+    setEditorBaseline(editorRevision(next, nextRaw));
+    setEditorSession(n => n + 1);
+    setIsCreateOpen(false);
     setEditingPersona(persona);
     setVideoGender(persona.gender === 'female' ? 'female' : 'male');
 
@@ -1197,11 +1224,14 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+    // Comma-separated fields commit on blur; fold any un-blurred text in at final submit
+    // (e.g. when the save shortcut is used while a list field still has focus).
+    const payload = applyRawInputs(formData, rawInputs);
+    setFormData(payload);
     if (editingPersona) {
-      updateMutation.mutate(formData);
+      updateMutation.mutate(payload);
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(payload);
     }
   };
 
@@ -1222,355 +1252,249 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
         </div>
         
         <Dialog open={isCreateOpen || !!editingPersona} onOpenChange={(open) => {
-          if (!open) {
-            setIsCreateOpen(false);
-            setEditingPersona(null);
-            resetForm();
-          }
+          if (!open) closeEditor();
         }}>
-          <DialogTrigger asChild>
-            <Button 
-              onClick={() => {
-                resetForm();
-                setEditingPersona(null);
-                setIsCreateOpen(true);
-              }}
-              className="bg-corporate-600 hover:bg-corporate-700"
-              data-testid="button-create-persona"
+          <Button
+            type="button"
+            onClick={openCreate}
+            className="bg-corporate-600 hover:bg-corporate-700"
+            data-testid="button-create-persona"
+          >
+            {t('admin.personaManager.createPersona')}
+          </Button>
+          {(isCreateOpen || !!editingPersona) && (
+            <PersonaEditor
+              key={editorSession}
+              title={formData.id ? `${formData.id}${formData.mbti ? ` · ${formData.mbti}` : ''}` : ''}
+              revision={editorRevision(formData, rawInputs)}
+              baseline={editorBaseline}
+              pending={createMutation.isPending || updateMutation.isPending}
+              isNew={!editingPersona}
+              onClose={closeEditor}
+              onSubmit={handleSubmit}
             >
-              {t('admin.personaManager.createPersona')}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-50">
-            <DialogHeader className="bg-indigo-600 -m-6 mb-4 p-6 rounded-t-lg">
-              <DialogTitle className="text-white text-xl flex items-center gap-2">
-                <i className="fas fa-user-edit"></i>
-                {editingPersona ? t('admin.personaManager.editPersona') : t('admin.personaManager.addPersona')}
-              </DialogTitle>
-            </DialogHeader>
-            
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* 기본 정보 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-id-card text-indigo-600"></i>
-                  {t('admin.personaManager.section.basicInfo')}
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="id" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personaId')}</Label>
-                    <Input
-                      id="id"
-                      value={formData.id}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^a-z]/g, '');
-                        setFormData(prev => ({ ...prev, id: value }));
-                      }}
-                      placeholder={t('admin.personaManager.form.personaIdPlaceholder')}
-                      required
-                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
-                      data-testid="input-persona-id"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="mbti" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personaType')}</Label>
-                    <Input
-                      id="mbti"
-                      value={formData.mbti}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^A-Z]/g, '');
-                        setFormData(prev => ({ ...prev, mbti: value }));
-                      }}
-                      placeholder={t('admin.personaManager.form.personaTypePlaceholder')}
-                      required
-                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
-                      data-testid="input-mbti"
-                    />
-                  </div>
-                </div>
-              </div>
+              <PersonaEditorRegion section="basic">
+                <EditorGroup title={t('admin.personaManager.section.basicInfo')} description="ID는 영문 소문자만, 유형은 영문 대문자만 입력할 수 있습니다.">
+                  <FieldGrid>
+                    <Field label={t('admin.personaManager.form.personaId')} htmlFor="id" required hint={editingPersona ? '저장된 페르소나의 ID입니다. 시나리오가 이 ID를 참조합니다.' : undefined}>
+                      <Input
+                        id="id"
+                        value={formData.id}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^a-z]/g, '');
+                          setFormData(prev => ({ ...prev, id: value }));
+                        }}
+                        placeholder={t('admin.personaManager.form.personaIdPlaceholder')}
+                        required
+                        data-testid="input-persona-id"
+                      />
+                    </Field>
+                    <Field label={t('admin.personaManager.form.personaType')} htmlFor="mbti" required>
+                      <Input
+                        id="mbti"
+                        value={formData.mbti}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^A-Z]/g, '');
+                          setFormData(prev => ({ ...prev, mbti: value }));
+                        }}
+                        placeholder={t('admin.personaManager.form.personaTypePlaceholder')}
+                        required
+                        data-testid="input-mbti"
+                      />
+                    </Field>
+                  </FieldGrid>
+                </EditorGroup>
+              </PersonaEditorRegion>
 
-              {/* 성격 특성 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-brain text-purple-600"></i>
-                  {t('admin.personaManager.section.personalityTraits')}
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="personality_traits" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personalityTraits')}</Label>
+              <PersonaEditorRegion section="personality">
+                <EditorGroup title={t('admin.personaManager.section.personalityTraits')} description="여러 항목은 쉼표로 구분해 입력하세요.">
+                  <Field label={t('admin.personaManager.form.personalityTraits')} htmlFor="personality_traits" hint="쉼표로 구분">
                     <AutoResizeTextarea
                       id="personality_traits"
                       value={rawInputs.personality_traits}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, personality_traits: e.target.value }))}
                       onBlur={(e) => setFormData(prev => ({
                         ...prev,
-                        personality_traits: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                        personality_traits: splitList(e.target.value)
                       }))}
                       placeholder={t('admin.personaManager.form.personalityTraitsPlaceholder')}
-                      className="min-h-[80px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      className="min-h-[80px]"
                       data-testid="textarea-personality-traits"
                     />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="communication_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.communicationStyle')}</Label>
+                  </Field>
+                  <Field label={t('admin.personaManager.form.communicationStyle')} htmlFor="communication_style">
                     <AutoResizeTextarea
                       id="communication_style"
                       value={formData.communication_style}
                       onChange={(e) => setFormData(prev => ({ ...prev, communication_style: e.target.value }))}
                       placeholder={t('admin.personaManager.form.communicationStylePlaceholder')}
-                      className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      className="min-h-[60px]"
                       data-testid="textarea-communication-style"
                     />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="motivation" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.motivation')}</Label>
+                  </Field>
+                  <Field label={t('admin.personaManager.form.motivation')} htmlFor="motivation">
                     <AutoResizeTextarea
                       id="motivation"
                       value={formData.motivation}
                       onChange={(e) => setFormData(prev => ({ ...prev, motivation: e.target.value }))}
                       placeholder={t('admin.personaManager.form.motivationPlaceholder')}
-                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-motivation"
                     />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="fears" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.fears')}</Label>
+                  </Field>
+                  <Field label={t('admin.personaManager.form.fears')} htmlFor="fears" hint="쉼표로 구분">
                     <Input
                       id="fears"
                       value={rawInputs.fears}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, fears: e.target.value }))}
                       onBlur={(e) => setFormData(prev => ({
                         ...prev,
-                        fears: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                        fears: splitList(e.target.value)
                       }))}
                       placeholder={t('admin.personaManager.form.fearsPlaceholder')}
-                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-fears"
                     />
-                  </div>
-                </div>
-              </div>
+                  </Field>
+                </EditorGroup>
+              </PersonaEditorRegion>
 
-              {/* 배경 정보 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-user-circle text-green-600"></i>
-                  {t('admin.personaManager.section.backgroundInfo')}
-                </h3>
-
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="personal_values" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.personalValues')}</Label>
+              <PersonaEditorRegion section="background">
+                <EditorGroup title={t('admin.personaManager.section.backgroundInfo')} description="가치관과 취미는 쉼표로 구분해 입력하세요.">
+                  <Field label={t('admin.personaManager.form.personalValues')} htmlFor="personal_values">
                     <Input
                       id="personal_values"
                       value={rawInputs.personal_values}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, personal_values: e.target.value }))}
                       onBlur={(e) => setFormData(prev => ({
                         ...prev,
-                        background: {
-                          ...prev.background,
-                          personal_values: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                        }
+                        background: { ...prev.background, personal_values: splitList(e.target.value) }
                       }))}
                       placeholder={t('admin.personaManager.form.personalValuesPlaceholder')}
-                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-personal-values"
                     />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="hobbies" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.hobbies')}</Label>
+                  </Field>
+                  <Field label={t('admin.personaManager.form.hobbies')} htmlFor="hobbies">
                     <Input
                       id="hobbies"
                       value={rawInputs.hobbies}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, hobbies: e.target.value }))}
                       onBlur={(e) => setFormData(prev => ({
                         ...prev,
-                        background: {
-                          ...prev.background,
-                          hobbies: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                        }
+                        background: { ...prev.background, hobbies: splitList(e.target.value) }
                       }))}
                       placeholder={t('admin.personaManager.form.hobbiesPlaceholder')}
-                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-hobbies"
                     />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <Label htmlFor="social_preference" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.socialPreference')}</Label>
+                  </Field>
+                </EditorGroup>
+                <EditorGroup title="사회적 성향" description="사람들과 어울리는 방식과 그때의 행동입니다.">
+                  <FieldGrid>
+                    <Field label={t('admin.personaManager.form.socialPreference')} htmlFor="social_preference">
                       <Input
                         id="social_preference"
                         value={formData.background?.social?.preference || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          background: {
-                            ...prev.background,
-                            social: {
-                              ...prev.background?.social,
-                              preference: e.target.value
-                            }
-                          }
+                          background: { ...prev.background, social: { ...prev.background?.social, preference: e.target.value } }
                         }))}
                         placeholder={t('admin.personaManager.form.socialPreferencePlaceholder')}
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-social-preference"
                       />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="social_behavior" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.socialBehavior')}</Label>
+                    </Field>
+                    <Field label={t('admin.personaManager.form.socialBehavior')} htmlFor="social_behavior">
                       <Input
                         id="social_behavior"
                         value={formData.background?.social?.behavior || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          background: {
-                            ...prev.background,
-                            social: {
-                              ...prev.background?.social,
-                              behavior: e.target.value
-                            }
-                          }
+                          background: { ...prev.background, social: { ...prev.background?.social, behavior: e.target.value } }
                         }))}
                         placeholder={t('admin.personaManager.form.socialBehaviorPlaceholder')}
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-social-behavior"
                       />
-                    </div>
-                  </div>
-                </div>
-              </div>
+                    </Field>
+                  </FieldGrid>
+                </EditorGroup>
+              </PersonaEditorRegion>
 
-              {/* 의사소통 패턴 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-comments text-blue-600"></i>
-                  {t('admin.personaManager.section.communicationPatterns')}
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="opening_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.openingStyle')}</Label>
+              <PersonaEditorRegion section="communication">
+                <EditorGroup title={t('admin.personaManager.section.communicationPatterns')}>
+                  <Field label={t('admin.personaManager.form.openingStyle')} htmlFor="opening_style">
                     <Input
                       id="opening_style"
                       value={formData.communication_patterns?.opening_style || ''}
                       onChange={(e) => setFormData(prev => ({
                         ...prev,
-                        communication_patterns: {
-                          ...prev.communication_patterns,
-                          opening_style: e.target.value
-                        }
+                        communication_patterns: { ...prev.communication_patterns, opening_style: e.target.value }
                       }))}
                       placeholder={t('admin.personaManager.form.openingStylePlaceholder')}
-                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       data-testid="input-opening-style"
                     />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="key_phrases" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.keyPhrases')}</Label>
+                  </Field>
+                  <Field label={t('admin.personaManager.form.keyPhrases')} htmlFor="key_phrases" hint="쉼표로 구분">
                     <AutoResizeTextarea
                       id="key_phrases"
                       value={rawInputs.key_phrases}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, key_phrases: e.target.value }))}
                       onBlur={(e) => setFormData(prev => ({
                         ...prev,
-                        communication_patterns: {
-                          ...prev.communication_patterns,
-                          key_phrases: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                        }
+                        communication_patterns: { ...prev.communication_patterns, key_phrases: splitList(e.target.value) }
                       }))}
                       placeholder={t('admin.personaManager.form.keyPhrasesPlaceholder')}
-                      className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      className="min-h-[60px]"
                       data-testid="textarea-key-phrases"
                     />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="win_conditions" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.winConditions')}</Label>
+                  </Field>
+                  <Field label={t('admin.personaManager.form.winConditions')} htmlFor="win_conditions" hint="쉼표로 구분">
                     <AutoResizeTextarea
                       id="win_conditions"
                       value={rawInputs.win_conditions}
                       onChange={(e) => setRawInputs(prev => ({ ...prev, win_conditions: e.target.value }))}
                       onBlur={(e) => setFormData(prev => ({
                         ...prev,
-                        communication_patterns: {
-                          ...prev.communication_patterns,
-                          win_conditions: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                        }
+                        communication_patterns: { ...prev.communication_patterns, win_conditions: splitList(e.target.value) }
                       }))}
                       placeholder={t('admin.personaManager.form.winConditionsPlaceholder')}
-                      className="min-h-[60px] border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                      className="min-h-[60px]"
                       data-testid="textarea-win-conditions"
                     />
-                  </div>
-                </div>
-              </div>
+                  </Field>
+                </EditorGroup>
+              </PersonaEditorRegion>
 
-              {/* 음성 및 성별 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-microphone text-orange-600"></i>
-                  {t('admin.personaManager.section.voiceAndGender')}
-                </h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div>
-                      <Label htmlFor="voice_tone" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.voiceTone')}</Label>
+              <PersonaEditorRegion section="voice">
+                <EditorGroup title="음성" description="음성 대화에서 사용할 톤과 말하는 속도입니다.">
+                  <FieldGrid>
+                    <Field label={t('admin.personaManager.form.voiceTone')} htmlFor="voice_tone">
                       <Input
                         id="voice_tone"
                         value={formData.voice?.tone || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          voice: { ...prev.voice, tone: e.target.value }
-                        }))}
+                        onChange={(e) => setFormData(prev => ({ ...prev, voice: { ...prev.voice, tone: e.target.value } }))}
                         placeholder={t('admin.personaManager.form.voiceTonePlaceholder')}
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-voice-tone"
                       />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="voice_pace" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.voicePace')}</Label>
+                    </Field>
+                    <Field label={t('admin.personaManager.form.voicePace')} htmlFor="voice_pace">
                       <Input
                         id="voice_pace"
                         value={formData.voice?.pace || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          voice: { ...prev.voice, pace: e.target.value }
-                        }))}
+                        onChange={(e) => setFormData(prev => ({ ...prev, voice: { ...prev.voice, pace: e.target.value } }))}
                         placeholder={t('admin.personaManager.form.voicePacePlaceholder')}
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-voice-pace"
                       />
-                    </div>
-
-                  </div>
-
-                  <div>
-                    <Label htmlFor="gender" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.gender')}</Label>
+                    </Field>
+                  </FieldGrid>
+                </EditorGroup>
+                <EditorGroup title={t('admin.personaManager.gender')} description="성별을 바꾸면 해당 성별의 표정 이미지 세트가 사용됩니다.">
+                  <Field label={t('admin.personaManager.gender')} htmlFor="gender" className="se-narrow">
                     <Select value={formData.gender} onValueChange={(value: 'male' | 'female') => {
                       setFormData(prev => {
                         const neutralImage = value === 'male'
                           ? prev.images?.male?.expressions?.['중립']
                           : prev.images?.female?.expressions?.['중립'];
-
-                        return {
-                          ...prev,
-                          gender: value,
-                          images: {
-                            ...prev.images,
-                            base: neutralImage || prev.images?.base || ''
-                          }
-                        };
+                        return { ...prev, gender: value, images: { ...prev.images, base: neutralImage || prev.images?.base || '' } };
                       });
                     }}>
-                      <SelectTrigger data-testid="select-gender" className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white">
+                      <SelectTrigger id="gender" data-testid="select-gender">
                         <SelectValue placeholder={t('admin.personaManager.form.selectGender')} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1578,104 +1502,66 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                         <SelectItem value="female">{t('admin.personaManager.female')}</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                </div>
-              </div>
+                  </Field>
+                </EditorGroup>
+              </PersonaEditorRegion>
 
-              {/* 이미지 정보 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-image text-pink-600"></i>
-                  {t('admin.personaManager.section.imageInfo')}
-                </h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <Label htmlFor="images_base" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.baseImageUrl')}</Label>
+              <PersonaEditorRegion section="images">
+                <EditorGroup title={t('admin.personaManager.section.imageInfo')}>
+                  <FieldGrid>
+                    <Field label={t('admin.personaManager.form.baseImageUrl')} htmlFor="images_base">
                       <Input
                         id="images_base"
                         value={formData.images?.base || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          images: {
-                            ...prev.images,
-                            base: e.target.value,
-                            style: prev.images.style || '',
-                            male: prev.images.male,
-                            female: prev.images.female
-                          }
+                          images: { ...prev.images, base: e.target.value, style: prev.images.style || '', male: prev.images.male, female: prev.images.female }
                         }))}
                         placeholder={t('admin.personaManager.form.baseImageUrlPlaceholder')}
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-images-base"
                       />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="images_style" className="text-sm font-semibold text-slate-700 mb-1.5 block">{t('admin.personaManager.form.imageStyle')}</Label>
+                    </Field>
+                    <Field label={t('admin.personaManager.form.imageStyle')} htmlFor="images_style">
                       <Input
                         id="images_style"
                         value={formData.images?.style || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
-                          images: {
-                            ...prev.images,
-                            style: e.target.value,
-                            base: prev.images.base || '',
-                            male: prev.images.male,
-                            female: prev.images.female
-                          }
+                          images: { ...prev.images, style: e.target.value, base: prev.images.base || '', male: prev.images.male, female: prev.images.female }
                         }))}
                         placeholder={t('admin.personaManager.form.imageStylePlaceholder')}
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                         data-testid="input-images-style"
                       />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 표정 이미지 생성 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <i className="fas fa-magic text-amber-600"></i>
-                    {t('admin.personaManager.section.expressionImages')}
-                  </h3>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
+                    </Field>
+                  </FieldGrid>
+                </EditorGroup>
+                <EditorGroup
+                  title={t('admin.personaManager.section.expressionImages')}
+                  description={<>{t('admin.personaManager.image.currentSelection')}: <span className="font-semibold">{formData.gender === 'male' ? t('admin.personaManager.image.maleExpressions') : t('admin.personaManager.image.femaleExpressions')}</span></>}
+                  actions={<>
+                    <AiGenerateButton
                       onClick={handleGenerateBaseImage}
+                      loading={isGeneratingBase}
                       disabled={isGeneratingBase || !editingPersona}
-                      data-testid="button-generate-base-image"
-                    >
-                      {isGeneratingBase ? t('admin.personaManager.image.generating') : t('admin.personaManager.image.generateBase')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
+                      blockedReason={!editingPersona ? t('admin.personaManager.image.saveFirstMessage') : undefined}
+                      label={t('admin.personaManager.image.generateBase')}
+                      loadingLabel={t('admin.personaManager.image.generating')}
+                      testId="button-generate-base-image"
+                    />
+                    <AiGenerateButton
                       onClick={handleGenerateExpressions}
+                      loading={isGeneratingExpressions}
                       disabled={isGeneratingExpressions || !editingPersona}
-                      data-testid="button-generate-expressions"
-                    >
-                      {isGeneratingExpressions ? `${t('admin.personaManager.image.generating')} (${generationProgress.current}/${generationProgress.total})` : t('admin.personaManager.image.generateAll')}
-                    </Button>
-                  </div>
-                </div>
-
-                {!editingPersona && (
-                  <p className="text-sm text-slate-500">
-                    {t('admin.personaManager.image.saveFirstMessage')}
-                  </p>
-                )}
-
-                <div className="mb-4">
-                  <p className="text-sm text-slate-600 mb-3">{t('admin.personaManager.image.currentSelection')}: <span className="font-semibold">{formData.gender === 'male' ? t('admin.personaManager.image.maleExpressions') : t('admin.personaManager.image.femaleExpressions')}</span></p>
-                </div>
-
+                      blockedReason={!editingPersona ? t('admin.personaManager.image.saveFirstMessage') : undefined}
+                      label={t('admin.personaManager.image.generateAll')}
+                      loadingLabel={`${t('admin.personaManager.image.generating')} (${generationProgress.current}/${generationProgress.total})`}
+                      testId="button-generate-expressions"
+                    />
+                  </>}
+                >
+                  {!editingPersona && (
+                    <div className="se-alert is-warn">{t('admin.personaManager.image.saveFirstMessage')}</div>
+                  )}
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                   {['중립', '기쁨', '슬픔', '분노', '놀람', '호기심', '불안', '단호', '실망', '당혹'].map((emotion) => {
                     const currentGender = formData.gender;
@@ -1740,8 +1626,10 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                     );
                   })}
                 </div>
-              </div>
+                </EditorGroup>
+              </PersonaEditorRegion>
 
+              <PersonaEditorRegion section="avatar">
               <PersonaAvatarSettings
                 creationSource={{
                   image: (formData.gender === 'male'
@@ -1771,22 +1659,25 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 }))}
                 onLiveAvatarChange={(liveAvatar) => setFormData(prev => ({ ...prev, liveAvatar }))}
               />
+              </PersonaEditorRegion>
 
-              {/* Show video management only when the selected display mode is video and access is allowed. */}
-              {canManageVideoAvatar && (formData.avatarMode ?? (formData.videos?.enabled ? 'video' : 'image')) === 'video' && <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <i className="fas fa-video text-violet-600"></i>
-                    비디오 아바타
-                  </h3>
-                </div>
-
+              <PersonaEditorRegion section="video">
+                {!canManageVideoAvatar ? (
+                  <div className="se-empty" data-testid="persona-video-unavailable">
+                    <span className="se-empty-title">비디오 클립 관리 권한이 없습니다</span>
+                    <span>관리자 또는 비디오 아바타 권한이 허용된 운영자만 클립을 관리할 수 있습니다.</span>
+                  </div>
+                ) : (formData.avatarMode ?? (formData.videos?.enabled ? 'video' : 'image')) !== 'video' ? (
+                  <div className="se-empty" data-testid="persona-video-inactive">
+                    <span className="se-empty-title">영상 아바타 모드가 아닙니다</span>
+                    <span>아바타 표시 섹션에서 영상 모드를 선택하면 클립을 관리할 수 있습니다.</span>
+                  </div>
+                ) : (
+                <EditorGroup title="비디오 아바타" description="행동은 음성 스트림이, 감정은 LLM이 결정합니다.">
                 {/* Mode is managed above so videos.enabled cannot drift from avatarMode. */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-4">
                   <div className="flex-1">
-                    <Label htmlFor="videoAvatarId" className="text-sm font-semibold text-slate-700 mb-1 block">
-                      Avatar ID
-                    </Label>
+                    <Field label="Avatar ID" htmlFor="videoAvatarId" hint="비워두면 페르소나 ID를 사용합니다.">
                     <Input
                       id="videoAvatarId"
                       value={formData.videos?.avatarId ?? formData.id}
@@ -1797,8 +1688,8 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                         }))
                       }
                       placeholder="아바타 ID (기본: 페르소나 ID)"
-                      className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                     />
+                    </Field>
                   </div>
                 </div>
 
@@ -1933,17 +1824,6 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                             }}
                           />
                         </div>
-                        {clipUrl && (
-                          <video
-                            key={clipUrl}
-                            src={clipUrl}
-                            controls
-                            loop
-                            muted
-                            className="w-full rounded border border-slate-200 bg-black"
-                            style={{ maxHeight: 120 }}
-                          />
-                        )}
                         <Input
                           value={clipUrl}
                           onChange={(e) =>
@@ -2005,7 +1885,7 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                           {isGenerating ? (
                             <><RefreshCw className="w-3 h-3 mr-1 animate-spin" />생성 중…</>
                           ) : (
-                            <><i className="fas fa-magic mr-1"></i>Veo 생성</>
+                            <><Wand2 className="w-3 h-3 mr-1" />Veo 생성</>
                           )}
                         </Button>
                       </div>
@@ -2016,115 +1896,65 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                 {!editingPersona && (
                   <p className="text-sm text-slate-500 mt-3">페르소나를 먼저 저장한 후 클립을 생성할 수 있습니다.</p>
                 )}
-              </div>}
+                </EditorGroup>
+                )}
+              </PersonaEditorRegion>
 
-              {/* 자유 대화 설정 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-comments text-emerald-600"></i>
-                  자유 대화 설정
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="freeChatAvailable"
-                      checked={formData.freeChatAvailable ?? false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, freeChatAvailable: checked }))}
-                    />
-                    <Label htmlFor="freeChatAvailable" className="text-sm font-semibold text-slate-700">
-                      자유 대화 활성화
-                    </Label>
-                  </div>
+              <PersonaEditorRegion section="publish">
+                <EditorGroup title="자유 대화" description="학습자가 시나리오 없이 이 페르소나와 대화할 수 있게 합니다.">
+                  <ToggleRow
+                    id="freeChatAvailable"
+                    label="자유 대화 활성화"
+                    description={formData.freeChatAvailable ? '자유 대화 목록에 노출됩니다.' : '자유 대화 목록에 노출되지 않습니다.'}
+                    checked={formData.freeChatAvailable ?? false}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, freeChatAvailable: checked }))}
+                  />
                   {formData.freeChatAvailable && (
-                    <div>
-                      <Label htmlFor="freeChatDescription" className="text-sm font-semibold text-slate-700 mb-1.5 block">
-                        자유 대화 설명
-                      </Label>
+                    <Field label="자유 대화 설명" htmlFor="freeChatDescription">
                       <AutoResizeTextarea
                         id="freeChatDescription"
                         value={formData.freeChatDescription || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, freeChatDescription: e.target.value }))}
                         placeholder="이 페르소나와의 자유 대화에 대한 설명을 입력하세요."
-                        className="border-slate-300 focus:border-indigo-500 focus:ring-indigo-500 bg-white"
                       />
-                    </div>
+                    </Field>
                   )}
-                </div>
-              </div>
-
-              {/* 스토어 설정 섹션 */}
-              <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">
-                <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2 pb-2 border-b border-slate-200">
-                  <i className="fas fa-store text-amber-600"></i>
-                  Store Settings
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="personaStoreListed"
-                      checked={formData.storeListed ?? false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, storeListed: checked }))}
-                    />
-                    <Label htmlFor="personaStoreListed" className="text-sm font-semibold text-slate-700 cursor-pointer">
-                      Publish to Store
-                    </Label>
-                    <span className="text-xs text-slate-500">
-                      {formData.storeListed ? 'Listed in content store' : 'Not in store'}
-                    </span>
-                  </div>
+                </EditorGroup>
+                <EditorGroup title="스토어" description="콘텐츠 스토어에 페르소나를 등록합니다.">
+                  <ToggleRow
+                    id="personaStoreListed"
+                    label="스토어에 등록"
+                    description={formData.storeListed ? '콘텐츠 스토어에 등록됩니다.' : '콘텐츠 스토어에 등록되지 않습니다.'}
+                    checked={formData.storeListed ?? false}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, storeListed: checked }))}
+                  />
                   {formData.storeListed && (
-                    <div className="ml-8 space-y-2">
-                      <div className="flex items-center gap-3">
-                        <Label className="text-xs text-slate-600 w-24">Price (USD)</Label>
-                        <input
+                    <FieldGrid>
+                      <Field label="가격 (USD)" htmlFor="personaStorePrice" hint="0이면 무료입니다.">
+                        <Input
+                          id="personaStorePrice"
                           type="number"
                           min="0"
                           step="0.01"
                           placeholder="0.00"
-                          className="border rounded px-2 py-1 text-sm w-24"
                           value={formData.storePriceUsd ?? ''}
                           onChange={e => setFormData(prev => ({ ...prev, storePriceUsd: e.target.value ? parseFloat(e.target.value) : null }))}
                         />
-                        <span className="text-xs text-slate-500">0 = free</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Label className="text-xs text-slate-600 w-24">Pack ID</Label>
-                        <input
-                          type="text"
-                          placeholder="Store pack ID (optional)"
-                          className="border rounded px-2 py-1 text-sm flex-1"
+                      </Field>
+                      <Field label="Pack ID" htmlFor="personaStorePackId" optional>
+                        <Input
+                          id="personaStorePackId"
+                          placeholder="Store pack ID"
                           value={formData.storePackId ?? ''}
                           onChange={e => setFormData(prev => ({ ...prev, storePackId: e.target.value || null }))}
                         />
-                      </div>
-                    </div>
+                      </Field>
+                    </FieldGrid>
                   )}
-                </div>
-              </div>
-
-              <div className="sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-2 z-10">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    setIsCreateOpen(false);
-                    setEditingPersona(null);
-                    resetForm();
-                  }}
-                >
-                  {t('admin.common.cancel')}
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="bg-corporate-600 hover:bg-corporate-700"
-                  data-testid="button-save-persona"
-                >
-                  {createMutation.isPending || updateMutation.isPending ? t('admin.common.loading') : t('admin.common.save')}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
+                </EditorGroup>
+              </PersonaEditorRegion>
+            </PersonaEditor>
+          )}
         </Dialog>
       </div>
 

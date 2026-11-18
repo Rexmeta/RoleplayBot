@@ -8,8 +8,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 const output = process.argv[2];
 if (!output) throw new Error('An explicit temporary output directory is required');
+const editor = process.argv[3] === 'persona' ? 'persona' : 'scenario';
 const root = process.cwd();
-const fixture = path.join(root, 'tests/fixtures/scenarioEditorReviewData.ts');
+const fixture = path.join(root, `tests/fixtures/${editor}EditorReviewData.ts`);
 const stubs = {
   '@tanstack/react-query': ['useQuery', 'useMutation', 'useQueryClient'],
   '@/hooks/useAuth': ['useAuth'],
@@ -19,7 +20,7 @@ const stubs = {
 };
 await mkdir(output, { recursive: true });
 await build({
-  entryPoints: ['tests/fixtures/scenarioEditorReview.tsx'], bundle: true,
+  entryPoints: [`tests/fixtures/${editor}EditorReview.tsx`], bundle: true,
   outfile: path.join(output, 'review.js'), format: 'esm', platform: 'browser',
   jsx: 'automatic', define: { 'process.env.NODE_ENV': '"development"' },
   tsconfig: 'tsconfig.json', loader: { '.woff2': 'dataurl', '.woff': 'dataurl' },
