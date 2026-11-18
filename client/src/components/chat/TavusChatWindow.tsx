@@ -14,6 +14,7 @@ import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../S
 import { AvatarSessionTiming } from "./AvatarSessionTiming";
 import type { SessionTiming } from "@shared/avatar/sessionTiming";
 import { liveAvatarDurationSeconds } from "@shared/avatar/conversationDuration";
+import { FeedbackTransitionOverlay } from "../FeedbackTransitionOverlay";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
@@ -550,6 +551,16 @@ function TavusChatWindowSession({
     utteranceId: caption.id,
   })) as unknown as ConversationMessage[];
   const transcriptMessages = canonicalTranscriptReady ? transcript.messages : provisionalMessages;
+
+  // Keep transcript synchronization mounted, but never return to the avatar's
+  // ready/connecting stage between timeout, room cleanup and durable feedback admission.
+  // Failed/unsupported/empty histories must still expose their existing recovery UI.
+  const finishingForFeedback = evaluationAvailable &&
+    (session.state === "ending" || session.state === "ended" ||
+      (session.state === "active" && remainingSeconds === 0)) &&
+    !endFailed && !error && !transcript.syncError && !transcript.pollingPaused &&
+    !(session.state === "ended" && ["unavailable", "empty", "failed"].includes(transcript.transcriptState || ""));
+  if (finishingForFeedback) return <FeedbackTransitionOverlay />;
 
   return (
     <TavusConversationLayout

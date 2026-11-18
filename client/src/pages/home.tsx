@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import ScenarioSelector from "@/components/ScenarioSelector";
 import ChatWindow from "@/components/ChatWindow";
+import { FeedbackTransitionOverlay } from "@/components/FeedbackTransitionOverlay";
 import PersonalDevelopmentReport from "@/components/PersonalDevelopmentReport";
 import { SimplePersonaSelector } from "@/components/SimplePersonaSelector";
 import { StrategyReflection } from "@/components/StrategyReflection";
@@ -1177,22 +1178,7 @@ export default function Home() {
         )}
         
         {(isFeedbackGenerating || isTransitioningToFeedback) && (
-          <div 
-            className="fixed inset-0 z-[60] bg-white flex items-center justify-center"
-            data-testid="feedback-transition-overlay"
-          >
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-corporate-600 mx-auto mb-4"></div>
-              <h2 className="text-xl font-semibold text-slate-900 mb-2">
-                {isFeedbackGenerating ? t('home.analyzingFeedback') : t('home.preparingFeedback')}
-              </h2>
-              <p className="text-slate-600">
-                {isFeedbackGenerating 
-                  ? t('home.analyzingFeedbackDesc')
-                  : t('home.preparingFeedbackDesc')}
-              </p>
-            </div>
-          </div>
+          <FeedbackTransitionOverlay analyzing={isFeedbackGenerating} />
         )}
         
         {currentView === "feedback" && selectedScenario && selectedPersona && conversationId && (() => {
