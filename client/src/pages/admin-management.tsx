@@ -59,7 +59,11 @@ export default function AdminManagement() {
         sections={sections}
         active={activeTab}
         onActiveChange={setActiveTab}
-        hideSectionHeading={activeTab === "manage-scenarios" || activeTab === "manage-personas"}
+        hideSectionHeading={
+          activeTab === "manage-scenarios" ||
+          activeTab === "manage-personas" ||
+          activeTab === "evaluation-criteria"
+        }
         keepVisited
         dirty={overrideGuardActive}
         dirtyLabel="저장하지 않은 조직 Override"
