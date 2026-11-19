@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { ChevronDown, Play } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -36,6 +39,8 @@ interface PersonalizedDashboardProps {
   onResumeScenario?: (scenarioRunId: string, scenarioId: string) => void;
   onRecommendedScenario?: (scenarioId: string) => void;
   scenarios?: ComplexScenario[];
+  /** "sidebar" renders a compact version for the scenario library sidebar */
+  variant?: "default" | "sidebar";
 }
 
 function formatDate(dateStr: string): string {
@@ -68,8 +73,10 @@ export default function PersonalizedDashboard({
   onResumeScenario,
   onRecommendedScenario,
   scenarios = [],
+  variant = "default",
 }: PersonalizedDashboardProps) {
   const { user } = useAuth();
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const { data: summary, isLoading } = useQuery<DashboardSummary>({
     queryKey: ["/api/dashboard/summary"],
@@ -89,6 +96,15 @@ export default function PersonalizedDashboard({
   });
 
   if (!user || user.isGuest) return null;
+
+  if (isLoading && variant === "sidebar") {
+    return (
+      <div className="space-y-2" data-testid="dashboard-sidebar-loading">
+        <Skeleton className="h-20 rounded-xl" />
+        <Skeleton className="h-10 rounded-xl" />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -114,6 +130,106 @@ export default function PersonalizedDashboard({
     summary.totalScenarios > 0
       ? Math.min(100, Math.round((summary.totalCompleted / summary.totalScenarios) * 100))
       : 0;
+
+  if (variant === "sidebar") {
+    const resume = summary.resumeScenario;
+    return (
+      <div className="space-y-2" data-testid="dashboard-sidebar">
+        {resume && (
+          <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-3" data-testid="dashboard-resume-card">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-indigo-700">이어하기</p>
+            <p className="mt-1 text-sm font-semibold leading-snug text-slate-900 line-clamp-2">{resume.scenarioName}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{formatDate(resume.startedAt)} 시작</p>
+            <Button
+              size="sm"
+              className="mt-2.5 h-9 w-full rounded-lg bg-indigo-700 text-xs text-white hover:bg-indigo-800"
+              onClick={() => onResumeScenario?.(resume.scenarioRunId, resume.scenarioId)}
+              data-testid="button-resume-scenario"
+            >
+              <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              이어서 연습하기
+            </Button>
+          </div>
+        )}
+
+        <div className="rounded-xl border border-slate-200 bg-white">
+          <button
+            type="button"
+            onClick={() => setSummaryOpen((v) => !v)}
+            aria-expanded={summaryOpen}
+            aria-controls="learning-summary-panel"
+            className="flex w-full min-h-[44px] items-center justify-between gap-2 rounded-xl px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            data-testid="toggle-learning-summary"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-slate-800">학습 요약</span>
+              <span className="block text-xs text-slate-500">
+                완료 {summary.totalCompleted}/{summary.totalScenarios} · {completionRate}%
+              </span>
+            </span>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform motion-reduce:transition-none ${summaryOpen ? "rotate-180" : ""}`} aria-hidden />
+          </button>
+          {summaryOpen && (
+            <div id="learning-summary-panel" className="space-y-3 border-t border-slate-100 px-3 pb-3 pt-2.5 text-xs" data-testid="learning-summary-panel">
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-indigo-600" style={{ width: `${completionRate}%` }} />
+              </div>
+              <dl className="grid grid-cols-2 gap-2">
+                <div>
+                  <dt className="text-slate-500">평균 점수</dt>
+                  <dd className="font-semibold text-slate-800">{summary.averageScore !== null ? `${summary.averageScore}점` : "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">총 연습</dt>
+                  <dd className="font-semibold text-slate-800">{summary.totalPracticeCount}회</dd>
+                </div>
+              </dl>
+              {summary.lastCompletedScenario && (
+                <div>
+                  <p className="text-slate-500">최근 완료</p>
+                  <p className="font-medium text-slate-800 line-clamp-2">{summary.lastCompletedScenario.scenarioName}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-slate-400">{formatDate(summary.lastCompletedScenario.completedAt)}</span>
+                    <ScoreBadge score={summary.lastCompletedScenario.score} />
+                  </div>
+                </div>
+              )}
+              {recommendedScenario && (
+                <div>
+                  <p className="text-slate-500">{summary.isRecommendationRechallenge ? "재도전 추천" : "오늘의 추천"}</p>
+                  <button
+                    type="button"
+                    onClick={() => onRecommendedScenario?.(recommendedScenario.id)}
+                    className="mt-0.5 text-left font-medium text-indigo-800 underline-offset-2 hover:underline"
+                    data-testid="button-recommended-scenario"
+                  >
+                    {recommendedScenario.title}
+                  </button>
+                </div>
+              )}
+              {summary.categoryScores.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-slate-500">카테고리별 평균</p>
+                  {summary.categoryScores.map((cat) => (
+                    <div key={cat.categoryId} className="flex items-center gap-2">
+                      <span className="w-20 shrink-0 truncate text-slate-600" title={cat.categoryName}>{cat.categoryName}</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-indigo-400" style={{ width: `${cat.averageScore}%` }} />
+                      </div>
+                      <span className="w-9 shrink-0 text-right font-semibold text-slate-700">{cat.averageScore}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Link href="/mypage" className="inline-block font-medium text-indigo-800 underline-offset-2 hover:underline" data-testid="link-mypage-summary">
+                마이페이지에서 전체 기록 보기
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-8">

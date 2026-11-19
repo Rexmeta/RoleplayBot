@@ -727,11 +727,17 @@ export default function Home() {
       )}
       
       {/* Main Content */}
-      <main className={`${currentView === "scenarios" ? "py-8 bg-slate-50" : "max-w-6xl mx-auto px-4 py-4 sm:py-8"}`}>
+      <main className={`${currentView === "scenarios" ? "" : "max-w-6xl mx-auto px-4 py-4 sm:py-8"}`}>
         {currentView === "scenarios" && (
-          <div className="max-w-6xl mx-auto px-4">
-            {user && !user.isGuest && (
+          <div>
+            <ScenarioSelector
+              onScenarioSelect={handleScenarioSelect}
+              detailScenario={scenarioDetail}
+              onDetailScenarioChange={setScenarioDetail}
+              playerProfile={playerProfile}
+              sidebarContent={user && !user.isGuest ? (
               <PersonalizedDashboard
+                variant="sidebar"
                 onResumeScenario={(scenarioRunId, scenarioId) => {
                   const foundScenario = scenarios.find((s) => s.id === scenarioId);
                   if (foundScenario) {
@@ -767,12 +773,7 @@ export default function Home() {
                 }}
                 scenarios={scenarios}
               />
-            )}
-            <ScenarioSelector 
-              onScenarioSelect={handleScenarioSelect}
-              detailScenario={scenarioDetail}
-              onDetailScenarioChange={setScenarioDetail}
-              playerProfile={playerProfile}
+              ) : undefined}
             />
           </div>
         )}

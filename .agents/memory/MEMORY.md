@@ -42,5 +42,6 @@
 - [Culture experiment lease safety](culture-experiment-lease-safety.md) — 유료 작업은 DB 소유권 확인 실패 시 차단하며, 시간 초과 시 즉시 해제하지 않고 만료까지 격리한다.
 - [디자인 샌드박스 호환성](design-sandbox-compatibility.md) — 원본 테마의 완성형 hsl 값과 React 버전이 샌드박스·앱 간 다르므로 추출과 교차 테스트에서 변환 경계를 확인한다.
 - [관리 메뉴 UX/UI 통일](content-management-consistency.md) — 콘텐츠·관리자·운영자 메뉴에 공통 섹션 탐색·편집 구조를 확대하고 메뉴별 틀과 컨트롤을 중복 구현하지 않는다.
+- [시나리오 탐색 배치 원칙](scenario-library-layout.md) — 큰 상단 개인화·필터 영역을 되살리지 않고 좌측 탐색과 넓은 목록을 우선한다.
 - [Nested workspace publishing](nested-workspace-publishing.md) — Root-scoped pnpm filters can select generated diagnostic copies; scope commands to the canonical nested workspace.
 - [Picomatch security boundary](picomatch-security-boundary.md) — No upstream fix was published when checked; local mitigation does not clear version-based audit findings.

@@ -1,19 +1,20 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ComplexScenario, getDifficultyLabel } from "@/lib/scenario-system";
-import { Loader2, Search, Filter, ChevronDown, ChevronUp, Folder, Bookmark, BookmarkCheck, Star, Users } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { ComplexScenario } from "@/lib/scenario-system";
+import { Search, SlidersHorizontal, Folder, X, PanelLeftClose, PanelLeftOpen, Users, Clock, Play, SearchX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { ScenarioLibraryCard } from "@/components/scenario-library/ScenarioLibraryCard";
+import { ScenarioFilterPanel, SKILL_OPTIONS, DEPARTMENT_OPTIONS, type ScenarioFilters } from "@/components/scenario-library/ScenarioFilterPanel";
 
 interface Category {
   id: string;
@@ -31,214 +32,141 @@ interface ScenarioSelectorProps {
     department: string;
     experience: string;
   };
+  /** Optional content rendered below exploration filters (e.g. compact dashboard) */
+  sidebarContent?: ReactNode;
 }
 
-export default function ScenarioSelector({ onScenarioSelect, playerProfile, detailScenario: controlledDetailScenario, onDetailScenarioChange }: ScenarioSelectorProps) {
+const EMPTY_FILTERS: ScenarioFilters = {
+  difficulty: "",
+  personaCount: "",
+  searchText: "",
+  department: "",
+  skillType: "",
+  categoryId: "all",
+  bookmarkedOnly: false,
+};
+
+const SKILL_WEIGHTS: Record<string, number> = {
+  '논리적설명': 20, '구조화': 20, '체계적대화': 20, '메시지구성': 20, '논리': 20,
+  '공감': 20, '감정이해': 20, '배려': 20, '경청': 20, '이해': 20,
+  '적절한소통': 20, '상황판단': 20, '유연성': 20, '적응력': 20, '상황대응': 20,
+  '설득': 20, '영향력': 20, '근거제시': 20, '설득력': 20, '논증': 20,
+  '전략적소통': 20, '목표지향': 20, '협상': 20, '갈등해결': 20, '주도성': 20,
+  '문제해결': 15, '전문성': 15, '의사소통': 15, '팀워크': 10, '리더십': 10,
+};
+
+// 원본 배열을 변경하지 않도록 복사 후 정렬
+const sortSkillsByImportance = (skills: string[]): string[] =>
+  [...skills].sort((a, b) => (SKILL_WEIGHTS[b] || 0) - (SKILL_WEIGHTS[a] || 0));
+
+const authHeaders = (): Record<string, string> => {
+  const token = localStorage.getItem("authToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+export default function ScenarioSelector({
+  onScenarioSelect,
+  detailScenario: controlledDetailScenario,
+  onDetailScenarioChange,
+  sidebarContent,
+}: ScenarioSelectorProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
   const currentLang = i18n.language || 'ko';
-  
-  // 필터 상태
-  const [filters, setFilters] = useState({
-    difficulty: '',
-    personaCount: '',
-    searchText: '',
-    department: '',
-    skillType: '',
-    categoryId: '',
-    bookmarkedOnly: false,
-  });
-  
-  // 상세 검색 표시 여부
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // 모바일 필터 패널 열림 상태
+  const [filters, setFilters] = useState<ScenarioFilters>(EMPTY_FILTERS);
+  const patchFilters = (patch: Partial<ScenarioFilters>) => setFilters((prev) => ({ ...prev, ...patch }));
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-  const mobileFilterRef = useRef<HTMLDivElement>(null);
-
-  // 모바일 필터 패널 외부 탭 시 닫기
-  // Radix Select/Popover 등의 포탈 콘텐츠(드롭다운)는 닫기에서 제외
+  // 사이드바 콘텐츠를 한 곳에만 렌더링하기 위한 뷰포트 판별 (lg 기준)
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(min-width: 1024px)').matches
+      : true
+  );
   useEffect(() => {
-    if (!isMobileFilterOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      // Radix UI 포탈 내부 클릭은 무시 (Select 옵션 선택 등)
-      const isRadixPortal = (target as Element)?.closest?.('[data-radix-popper-content-wrapper], [data-radix-select-viewport], [role="listbox"], [role="option"]');
-      if (isRadixPortal) return;
-      if (mobileFilterRef.current && !mobileFilterRef.current.contains(target)) {
-        setIsMobileFilterOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', handleClick);
-    return () => document.removeEventListener('pointerdown', handleClick);
-  }, [isMobileFilterOpen]);
-  
-  // 펼쳐진 시나리오 상태 관리 (한 번에 하나만 펼치기)
-  const [expandedScenarioId, setExpandedScenarioId] = useState<string | number | null>(null);
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
 
-  // 상세 보기 Sheet 상태
   const [localDetailScenario, setLocalDetailScenario] = useState<ComplexScenario | null>(null);
   const detailScenario = controlledDetailScenario === undefined ? localDetailScenario : controlledDetailScenario;
   const setDetailScenario = onDetailScenarioChange ?? setLocalDetailScenario;
-  
-  const toggleScenarioExpand = (scenarioId: string | number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const isCurrentlyExpanded = expandedScenarioId === scenarioId;
-    setExpandedScenarioId(prev => prev === scenarioId ? null : scenarioId);
-    
-    // 카드 클릭 시 카테고리 뱃지가 화면 상단에 위치하도록 스크롤 (펼침 애니메이션 완료 후)
-    if (!isCurrentlyExpanded) {
-      setTimeout(() => {
-        const card = document.querySelector(`[data-testid="scenario-card-${scenarioId}"]`)?.closest('.group');
-        if (card) {
-          const rect = card.getBoundingClientRect();
-          // 카드 상단이 화면 최상단에 위치하도록 스크롤 (헤더 고려하여 약간 여백)
-          const scrollTop = window.scrollY + rect.top - 16;
-          window.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-        }
-      }, 400);
-    }
-  };
+  const detailId = detailScenario?.id ?? null;
 
-  // JSON 파일에서 실시간으로 시나리오와 페르소나 데이터 가져오기
-  const { data: scenarios = [], isLoading: scenariosLoading } = useQuery({
+  const { data: scenarios = [], isLoading: scenariosLoading, isError: scenariosError, refetch: refetchScenarios } = useQuery({
     queryKey: ['/api/scenarios'],
-    queryFn: () => {
-      const token = localStorage.getItem("authToken");
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      return fetch('/api/scenarios', { 
-        credentials: 'include',
-        headers 
-      }).then(res => res.json());
-    }
+    queryFn: async () => {
+      const res = await fetch('/api/scenarios', { credentials: 'include', headers: authHeaders() });
+      if (!res.ok) throw new Error("Failed to load scenarios");
+      const body = await res.json();
+      if (!Array.isArray(body)) throw new Error("Invalid scenario list");
+      return body;
+    },
   });
 
-  // 카테고리 목록 가져오기
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['/api/categories'],
     queryFn: () => fetch('/api/categories').then(res => res.json()),
     staleTime: 1000 * 60 * 30,
   });
 
-  // 펼쳐진 시나리오의 번역 가져오기 (공용 API 사용)
-  const { data: expandedScenarioTranslation } = useQuery({
-    queryKey: ['/api/scenarios', expandedScenarioId, 'translations', currentLang],
+  // 상세 보기 중인 시나리오의 번역 (공용 API)
+  const { data: detailTranslation } = useQuery({
+    queryKey: ['/api/scenarios', detailId, 'translations', currentLang],
     queryFn: async () => {
-      if (!expandedScenarioId || currentLang === 'ko') return null;
-      const token = localStorage.getItem("authToken");
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      const res = await fetch(`/api/scenarios/${expandedScenarioId}/translations/${currentLang}`, {
+      if (!detailId || currentLang === 'ko') return null;
+      const res = await fetch(`/api/scenarios/${detailId}/translations/${currentLang}`, {
         credentials: 'include',
-        headers
+        headers: authHeaders(),
       });
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: !!expandedScenarioId && currentLang !== 'ko',
+    enabled: !!detailId && currentLang !== 'ko',
     staleTime: 1000 * 60 * 10,
   });
 
-  // 시나리오 ID로 번역된 skills 가져오기
-  const getTranslatedSkills = (scenarioId: string | number, originalSkills: string[]): string[] => {
-    if (currentLang === 'ko' || !expandedScenarioTranslation) {
-      return originalSkills;
-    }
-    // 현재 펼쳐진 시나리오의 번역만 사용
-    if (String(expandedScenarioId) === String(scenarioId) && expandedScenarioTranslation.skills?.length > 0) {
-      return expandedScenarioTranslation.skills;
-    }
-    return originalSkills;
+  const tr = (scenarioId: string | number, field: 'title' | 'description' | 'situation', original: string | undefined) => {
+    if (currentLang === 'ko' || !detailTranslation || String(detailId) !== String(scenarioId)) return original;
+    return detailTranslation[field] || original;
+  };
+  const trSkills = (scenarioId: string | number, original: string[]) => {
+    if (currentLang === 'ko' || !detailTranslation || String(detailId) !== String(scenarioId)) return original;
+    return detailTranslation.skills?.length > 0 ? detailTranslation.skills : original;
   };
 
-  // 번역된 제목 가져오기
-  const getTranslatedTitle = (scenarioId: string | number, originalTitle: string): string => {
-    if (currentLang === 'ko' || !expandedScenarioTranslation) {
-      return originalTitle;
-    }
-    if (String(expandedScenarioId) === String(scenarioId) && expandedScenarioTranslation.title) {
-      return expandedScenarioTranslation.title;
-    }
-    return originalTitle;
-  };
-
-  // 번역된 설명 가져오기
-  const getTranslatedDescription = (scenarioId: string | number, originalDescription: string): string => {
-    if (currentLang === 'ko' || !expandedScenarioTranslation) {
-      return originalDescription;
-    }
-    if (String(expandedScenarioId) === String(scenarioId) && expandedScenarioTranslation.description) {
-      return expandedScenarioTranslation.description;
-    }
-    return originalDescription;
-  };
-
-  // 번역된 상황 정보 가져오기
-  const getTranslatedSituation = (scenarioId: string | number, originalSituation: string | undefined): string | undefined => {
-    if (currentLang === 'ko' || !expandedScenarioTranslation || !originalSituation) {
-      return originalSituation;
-    }
-    if (String(expandedScenarioId) === String(scenarioId) && expandedScenarioTranslation.situation) {
-      return expandedScenarioTranslation.situation;
-    }
-    return originalSituation;
-  };
-
-  // 사용자 북마크 목록 조회 (로그인 시에만, 사용자별 캐시 키로 계정 전환 시 교차 오염 방지)
   const { data: bookmarks = [] } = useQuery<{ id: string; userId: string; scenarioId: string }[]>({
     queryKey: ['/api/bookmarks', user?.id],
-    queryFn: () => {
-      const token = localStorage.getItem("authToken");
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      return fetch('/api/bookmarks', { credentials: 'include', headers }).then(res => {
-        if (!res.ok) return [];
-        return res.json();
-      });
-    },
+    queryFn: () =>
+      fetch('/api/bookmarks', { credentials: 'include', headers: authHeaders() }).then(res => (res.ok ? res.json() : [])),
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
   });
 
-  // 시나리오 완료 통계 조회
   const { data: scenarioStats = [] } = useQuery<{ scenarioId: string; completionCount: number; averageScore: number | null }[]>({
     queryKey: ['/api/scenarios/stats'],
     queryFn: () => fetch('/api/scenarios/stats').then(res => res.json()),
     staleTime: 1000 * 60 * 10,
   });
 
-  // 북마크된 scenarioId Set
-  const bookmarkedIds = new Set(bookmarks.map((b) => b.scenarioId));
+  const bookmarkedIds = useMemo(() => new Set(bookmarks.map((b) => b.scenarioId)), [bookmarks]);
+  const statsMap = useMemo(() => new Map(scenarioStats.map((s) => [s.scenarioId, s] as const)), [scenarioStats]);
 
-  // 북마크 통계 맵
-  const statsMap = new Map(scenarioStats.map((s) => [s.scenarioId, s] as const));
-
-  // 북마크 토글 mutation
   const bookmarkMutation = useMutation({
     mutationFn: async ({ scenarioId, isBookmarked }: { scenarioId: string; isBookmarked: boolean }) => {
-      const token = localStorage.getItem("authToken");
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', ...authHeaders() };
       if (isBookmarked) {
-        const res = await fetch(`/api/bookmarks/${encodeURIComponent(scenarioId)}`, {
-          method: 'DELETE',
-          credentials: 'include',
-          headers,
-        });
+        const res = await fetch(`/api/bookmarks/${encodeURIComponent(scenarioId)}`, { method: 'DELETE', credentials: 'include', headers });
         if (!res.ok) throw new Error('북마크 삭제에 실패했습니다.');
       } else {
-        const res = await fetch('/api/bookmarks', {
-          method: 'POST',
-          credentials: 'include',
-          headers,
-          body: JSON.stringify({ scenarioId }),
-        });
+        const res = await fetch('/api/bookmarks', { method: 'POST', credentials: 'include', headers, body: JSON.stringify({ scenarioId }) });
         if (!res.ok) throw new Error('북마크 추가에 실패했습니다.');
       }
     },
@@ -253,667 +181,330 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile, deta
   const handleBookmarkToggle = (e: React.MouseEvent, scenarioId: string) => {
     e.stopPropagation();
     if (!user) return;
-    const isBookmarked = bookmarkedIds.has(scenarioId);
-    bookmarkMutation.mutate({ scenarioId, isBookmarked });
+    bookmarkMutation.mutate({ scenarioId, isBookmarked: bookmarkedIds.has(scenarioId) });
   };
 
-  // MBTI 기본 특성을 시나리오 내에서 직접 처리 (외부 API 호출 없이)
-  const personasLoading = false; // 로딩 상태 제거
+  const getCategoryName = (categoryId: string | undefined): string =>
+    (categoryId && categories.find(c => c.id === categoryId)?.name) || '';
 
-  const handleScenarioClick = (scenario: ComplexScenario) => {
-    // 바로 페르소나 선택 화면으로 이동
-    onScenarioSelect(scenario);
-  };
+  const scenarioList: ComplexScenario[] = Array.isArray(scenarios) ? scenarios : [];
 
-  // 카테고리별 배지 색상 팔레트
-  const categoryColorMap: Record<string, string> = {
-    'default': 'bg-blue-600/90',
-  };
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    scenarioList.forEach((s: any) => {
+      if (s.categoryId) counts[s.categoryId] = (counts[s.categoryId] || 0) + 1;
+    });
+    return counts;
+  }, [scenarioList]);
 
-  // 카테고리 이름 조회 헬퍼 함수
-  const getCategoryName = (categoryId: string | undefined): string => {
-    if (!categoryId) return '';
-    const category = categories.find(c => c.id === categoryId);
-    return category?.name || '';
-  };
-
-  // 카테고리별 뱃지 색상 조회 함수
-  const getCategoryBadgeColor = (categoryId: string | undefined): string => {
-    if (!categoryId) return 'bg-slate-600/90';
-    
-    // 다양한 색상 팔레트
-    const colorPalette = [
-      'bg-blue-600/90',      // 0
-      'bg-purple-600/90',    // 1
-      'bg-pink-600/90',      // 2
-      'bg-red-600/90',       // 3
-      'bg-orange-600/90',    // 4
-      'bg-amber-600/90',     // 5
-      'bg-yellow-600/90',    // 6
-      'bg-green-600/90',     // 7
-      'bg-emerald-600/90',   // 8
-      'bg-teal-600/90',      // 9
-      'bg-cyan-600/90',      // 10
-      'bg-sky-600/90',       // 11
-      'bg-indigo-600/90',    // 12
-      'bg-violet-600/90',    // 13
-      'bg-fuchsia-600/90',   // 14
-      'bg-rose-600/90',      // 15
-      'bg-red-700/90',       // 16
-      'bg-orange-700/90',    // 17
-      'bg-green-700/90',     // 18
-      'bg-blue-700/90',      // 19
-    ];
-    
-    // 카테고리 배열에서 인덱스 찾아서 색상 선택 (더 안정적)
-    const categoryIndex = categories.findIndex(c => c.id === categoryId);
-    const colorIndex = categoryIndex >= 0 ? categoryIndex % colorPalette.length : Math.abs(categoryId.charCodeAt(0)) % colorPalette.length;
-    return colorPalette[colorIndex];
-  };
-
-  // 필터링된 시나리오 목록
-  const filteredScenarios = scenarios.filter((scenario: ComplexScenario) => {
-    // 북마크 필터
-    if (filters.bookmarkedOnly) {
-      if (!bookmarkedIds.has(String(scenario.id))) {
-        return false;
-      }
+  const filteredScenarios = scenarioList.filter((scenario: ComplexScenario) => {
+    if (filters.bookmarkedOnly && !bookmarkedIds.has(String(scenario.id))) return false;
+    if (filters.categoryId && filters.categoryId !== 'all' && (scenario as any).categoryId !== filters.categoryId) return false;
+    if (filters.searchText) {
+      const q = filters.searchText.toLowerCase();
+      if (!scenario.title?.toLowerCase().includes(q) && !scenario.description?.toLowerCase().includes(q)) return false;
     }
-
-    // 카테고리 필터
-    if (filters.categoryId && filters.categoryId !== 'all') {
-      if ((scenario as any).categoryId !== filters.categoryId) {
-        return false;
-      }
-    }
-    
-    // 검색어 필터
-    if (filters.searchText && !scenario.title.toLowerCase().includes(filters.searchText.toLowerCase()) && 
-        !scenario.description.toLowerCase().includes(filters.searchText.toLowerCase())) {
-      return false;
-    }
-    
-    // 페르소나 수 필터
     if (filters.personaCount && filters.personaCount !== 'all') {
-      const personaCount = scenario.personas?.length || 0;
-      const filterCount = parseInt(filters.personaCount);
-      if (personaCount !== filterCount) {
-        return false;
-      }
+      const count = scenario.personas?.length || 0;
+      const target = parseInt(filters.personaCount, 10);
+      // "6" 옵션은 6명 이상을 의미
+      if (target >= 6 ? count < 6 : count !== target) return false;
     }
-    
-    // 부서 필터
     if (filters.department && filters.department !== 'all') {
-      const hasMatchingDepartment = scenario.personas?.some((persona: any) => 
-        typeof persona === 'object' && persona.department?.toLowerCase().includes(filters.department.toLowerCase())
-      );
-      if (!hasMatchingDepartment) {
-        return false;
-      }
+      const dep = filters.department.toLowerCase();
+      if (!scenario.personas?.some((p: any) => typeof p === 'object' && p.department?.toLowerCase().includes(dep))) return false;
     }
-    
-    // 스킬 유형 필터
     if (filters.skillType && filters.skillType !== 'all') {
-      const hasMatchingSkill = scenario.skills?.some((skill: string) =>
-        skill.toLowerCase().includes(filters.skillType.toLowerCase())
-      );
-      if (!hasMatchingSkill) {
-        return false;
-      }
+      const sk = filters.skillType.toLowerCase();
+      if (!scenario.skills?.some((s: string) => s.toLowerCase().includes(sk))) return false;
     }
-    
     return true;
   });
 
-  // 필터 초기화
-  const resetFilters = () => {
-    setFilters({
-      difficulty: '',
-      personaCount: '',
-      searchText: '',
-      department: '',
-      skillType: '',
-      categoryId: 'all',
-      bookmarkedOnly: false,
-    });
-  };
+  const resetFilters = () => setFilters(EMPTY_FILTERS);
 
-  // 활성 필터 개수 계산
-  const activeFilterCount = [
-    filters.searchText,
-    filters.personaCount && filters.personaCount !== 'all' ? filters.personaCount : '',
-    filters.department && filters.department !== 'all' ? filters.department : '',
-    filters.skillType && filters.skillType !== 'all' ? filters.skillType : '',
-    filters.categoryId && filters.categoryId !== 'all' ? filters.categoryId : '',
-    filters.bookmarkedOnly ? 'bookmark' : '',
-  ].filter(Boolean).length;
-
-  // 스코어링 가중치 기반 역량 정렬 (높은 가중치 순)
-  const sortSkillsByImportance = (skills: string[]): string[] => {
-    const skillWeights: Record<string, number> = {
-      // 명확성 & 논리성 (20%)
-      '논리적설명': 20, '구조화': 20, '체계적대화': 20, '메시지구성': 20, '논리': 20,
-      // 경청 & 공감 (20%) 
-      '공감': 20, '감정이해': 20, '배려': 20, '경청': 20, '이해': 20,
-      // 적절성 & 상황 대응 (20%)
-      '적절한소통': 20, '상황판단': 20, '유연성': 20, '적응력': 20, '상황대응': 20,
-      // 설득력 & 영향력 (20%)
-      '설득': 20, '영향력': 20, '근거제시': 20, '설득력': 20, '논증': 20,
-      // 전략적 커뮤니케이션 (20%)
-      '전략적소통': 20, '목표지향': 20, '협상': 20, '갈등해결': 20, '주도성': 20,
-      // 기타 일반 역량
-      '문제해결': 15, '전문성': 15, '의사소통': 15, '팀워크': 10, '리더십': 10
-    };
-
-    return skills.sort((a, b) => {
-      const weightA = skillWeights[a] || 0;
-      const weightB = skillWeights[b] || 0;
-      return weightB - weightA; // 높은 가중치 순으로 정렬
-    });
-  };
-
-  const getRecommendationLevel = (scenario: ComplexScenario): { level: string; color: string; reason: string } => {
-    if (playerProfile?.department === "개발팀" && scenario.id === "app-delay-crisis") {
-      return {
-        level: t('scenario.stronglyRecommended'),
-        color: "green",
-        reason: t('scenario.optimizedForDev')
-      };
-    }
-    return {
-      level: t('scenario.recommended'),
-      color: "blue", 
-      reason: t('scenario.usefulForAll')
-    };
-  };
-
-  if (scenariosLoading || personasLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-slate-600">{t('scenario.loading')}</p>
-        </div>
-      </div>
-    );
+  // 활성 필터 칩
+  const activeChips: { key: string; label: string; clear: () => void }[] = [];
+  if (filters.searchText) activeChips.push({ key: 'search', label: `"${filters.searchText}"`, clear: () => patchFilters({ searchText: '' }) });
+  if (filters.bookmarkedOnly) activeChips.push({ key: 'bookmarked', label: t('scenario.favorites', '즐겨찾기'), clear: () => patchFilters({ bookmarkedOnly: false }) });
+  if (filters.categoryId && filters.categoryId !== 'all') activeChips.push({ key: 'category', label: getCategoryName(filters.categoryId) || filters.categoryId, clear: () => patchFilters({ categoryId: 'all' }) });
+  if (filters.skillType && filters.skillType !== 'all') {
+    const opt = SKILL_OPTIONS.find(s => s.value === filters.skillType);
+    activeChips.push({ key: 'skill', label: opt ? t(opt.key) : filters.skillType, clear: () => patchFilters({ skillType: '' }) });
   }
+  if (filters.personaCount && filters.personaCount !== 'all') {
+    const n = parseInt(filters.personaCount, 10);
+    activeChips.push({ key: 'persona-count', label: n >= 6 ? t('scenario.personaCount6Plus') : t('scenario.personaCountN', { count: n }), clear: () => patchFilters({ personaCount: '' }) });
+  }
+  if (filters.department && filters.department !== 'all') {
+    const opt = DEPARTMENT_OPTIONS.find(d => d.value === filters.department);
+    activeChips.push({ key: 'department', label: opt ? t(opt.key) : filters.department, clear: () => patchFilters({ department: '' }) });
+  }
+  const activeFilterCount = activeChips.length;
+
+  const panelProps = {
+    filters,
+    onChange: patchFilters,
+    categories,
+    categoryCounts,
+    totalCount: scenarioList.length,
+    bookmarkCount: scenarioList.filter(s => bookmarkedIds.has(String(s.id))).length,
+    canBookmark: !!user,
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}       
-
-        <div className="max-w-4xl mx-auto">
-          
-          {/* 필터 섹션 */}
-          <div className="mb-6" ref={mobileFilterRef}>
-            {/* 모바일: 필터 아이콘 토글 버튼 (md 미만에서만 표시) */}
-            <div className="flex items-center justify-between md:hidden mb-2">
-              <span className="text-sm text-slate-600">{t('scenario.totalCount', { count: filteredScenarios.length })}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsMobileFilterOpen(prev => !prev)}
-                className="relative flex items-center gap-1 min-h-[44px] min-w-[44px] px-3 text-slate-600 hover:text-slate-900 active:bg-slate-100"
-                data-testid="mobile-filter-toggle"
-                aria-label={t('scenario.mobileFilterToggle')}
-              >
-                <Filter className="h-4 w-4" />
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </Button>
-            </div>
-
-            {/* 필터 패널: 모바일에서는 isMobileFilterOpen일 때만, 데스크톱에서는 항상 표시 */}
-            <div className={`${isMobileFilterOpen ? 'block' : 'hidden'} md:block p-4 bg-white rounded-lg border border-slate-300 shadow-sm`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-slate-600" />
-                  <h3 className="text-sm font-medium text-slate-700">{t('scenario.totalCount', { count: filteredScenarios.length })}</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {user && (
-                    <Button
-                      variant={filters.bookmarkedOnly ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setFilters(prev => ({ ...prev, bookmarkedOnly: !prev.bookmarkedOnly }))}
-                      className={`min-h-[44px] min-w-[44px] px-3 text-xs flex items-center gap-1 ${filters.bookmarkedOnly ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-600 text-white border-amber-500' : 'text-slate-600 hover:text-slate-900 active:bg-slate-100'}`}
-                      data-testid="filter-bookmarked"
-                    >
-                      <Bookmark className="h-4 w-4" />
-                      <span className="hidden sm:inline">즐겨찾기</span>
-                    </Button>
+    <div className="min-h-[100dvh] bg-[hsl(222_40%_97%)] px-3 py-5 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-7xl">
+        <div className={`lg:grid lg:gap-8 ${sidebarCollapsed ? 'lg:grid-cols-[48px_minmax(0,1fr)]' : 'lg:grid-cols-[252px_minmax(0,1fr)]'}`}>
+          {/* Desktop sidebar */}
+          {isDesktop && <aside className="hidden lg:block" aria-label={t('scenario.exploreSidebar', '시나리오 탐색')} data-testid="scenario-sidebar">
+            <div className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain pb-4 [scrollbar-width:thin]">
+              {sidebarCollapsed ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setSidebarCollapsed(false)}
+                  aria-label={t('scenario.expandSidebar', '탐색 패널 펼치기')}
+                  aria-expanded={false}
+                  className="relative h-11 w-11 rounded-xl border-slate-200 bg-white text-indigo-800"
+                  data-testid="sidebar-toggle"
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-700 px-1 text-[10px] font-bold text-white">{activeFilterCount}</span>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                    className="text-slate-600 hover:text-slate-900 active:bg-slate-100 min-h-[44px] min-w-[44px] px-3 text-xs flex items-center gap-1"
-                    data-testid="toggle-advanced-filters"
-                  >
-                    <span className="hidden sm:inline">{t('scenario.advancedSearch')}</span>
-                    {showAdvancedFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={resetFilters}
-                    className="text-slate-600 hover:text-slate-900 active:bg-slate-100 min-h-[44px] min-w-[44px] px-3 text-xs"
-                    data-testid="reset-filters"
-                  >
-                    {t('scenario.reset')}
-                  </Button>
+                </Button>
+              ) : (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs font-semibold uppercase tracking-[0.1em] text-indigo-900/70">{t('scenario.explore', '탐색')}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSidebarCollapsed(true)}
+                      aria-label={t('scenario.collapseSidebar', '탐색 패널 접기')}
+                      aria-expanded={true}
+                      className="h-9 w-9 rounded-lg text-slate-500 hover:bg-indigo-50 hover:text-indigo-800"
+                      data-testid="sidebar-toggle"
+                    >
+                      <PanelLeftClose className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <ScenarioFilterPanel {...panelProps} />
+                  {sidebarContent}
                 </div>
-              </div>
-              
-              {/* 기본 필터 (항상 표시) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                {/* 검색어 */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              )}
+            </div>
+          </aside>}
+
+          {/* Main */}
+          <section className="min-w-0" aria-label={t('scenario.library', '라이브러리')}>
+            <header className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-indigo-700">{t('scenario.libraryEyebrow', '시나리오 라이브러리')}</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]">{t('scenario.select')}</h1>
+              <div className="mt-4 flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
                   <Input
+                    type="search"
                     placeholder={t('scenario.searchPlaceholder')}
+                    aria-label={t('scenario.searchPlaceholder')}
                     value={filters.searchText}
-                    onChange={(e) => setFilters(prev => ({ ...prev, searchText: e.target.value }))}
-                    className="pl-10 h-9 text-sm"
+                    onChange={(e) => patchFilters({ searchText: e.target.value })}
+                    className="h-11 rounded-xl border-slate-200 bg-white pl-10 text-sm shadow-sm focus-visible:ring-indigo-500"
                     data-testid="filter-search"
                   />
                 </div>
-                
-                {/* 카테고리 필터 */}
-                <Select value={filters.categoryId || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, categoryId: value }))}>
-                  <SelectTrigger data-testid="filter-category" className="h-9 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Folder className="h-4 w-4 text-slate-400" />
-                      <SelectValue placeholder={t('scenario.category')} />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t('scenario.allCategories')}</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                
-                {/* 스킬 유형 */}
-                <Select value={filters.skillType || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, skillType: value }))}>
-                  <SelectTrigger data-testid="filter-skill-type" className="h-9 text-sm">
-                    <SelectValue placeholder={t('scenario.coreSkill')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t('scenario.all')}</SelectItem>
-                    <SelectItem value="협상">{t('scenario.negotiation')}</SelectItem>
-                    <SelectItem value="의사소통">{t('scenario.communication')}</SelectItem>
-                    <SelectItem value="갈등해결">{t('scenario.conflictResolution')}</SelectItem>
-                    <SelectItem value="리더십">{t('scenario.leadership')}</SelectItem>
-                    <SelectItem value="문제해결">{t('scenario.problemSolving')}</SelectItem>
-                    <SelectItem value="팀워크">{t('scenario.teamwork')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {/* 고급 필터 (토글로 표시/숨김) */}
-              {showAdvancedFilters && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
-                  {/* 페르소나 수 */}
-                  <Select value={filters.personaCount || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, personaCount: value }))}>
-                    <SelectTrigger data-testid="filter-persona-count" className="h-9 text-sm">
-                      <SelectValue placeholder={t('scenario.personaCount')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t('scenario.all')}</SelectItem>
-                      <SelectItem value="1">{t('scenario.personaCountN', { count: 1 })}</SelectItem>
-                      <SelectItem value="2">{t('scenario.personaCountN', { count: 2 })}</SelectItem>
-                      <SelectItem value="3">{t('scenario.personaCountN', { count: 3 })}</SelectItem>
-                      <SelectItem value="4">{t('scenario.personaCountN', { count: 4 })}</SelectItem>
-                      <SelectItem value="5">{t('scenario.personaCountN', { count: 5 })}</SelectItem>
-                      <SelectItem value="6">{t('scenario.personaCount6Plus')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  {/* 부서 */}
-                  <Select value={filters.department || undefined} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
-                    <SelectTrigger data-testid="filter-department" className="h-9 text-sm">
-                      <SelectValue placeholder={t('scenario.department')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t('scenario.all')}</SelectItem>
-                      <SelectItem value="개발팀">{t('scenario.devTeam')}</SelectItem>
-                      <SelectItem value="마케팅팀">{t('scenario.marketingTeam')}</SelectItem>
-                      <SelectItem value="QA팀">{t('scenario.qaTeam')}</SelectItem>
-                      <SelectItem value="고객서비스팀">{t('scenario.csTeam')}</SelectItem>
-                      <SelectItem value="경영진">{t('scenario.management')}</SelectItem>
-                      <SelectItem value="물류팀">{t('scenario.logisticsTeam')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              
-              {/* 필터 적용 상태 표시 */}
-              {(filters.searchText || filters.personaCount || filters.department || filters.skillType || (filters.categoryId && filters.categoryId !== 'all') || filters.bookmarkedOnly) && (
-                <div className="mt-3 pt-3 border-t border-slate-200">
-                  <div className="flex items-center justify-center">
-                    <span className="text-xs text-blue-600">{t('scenario.filterApplied')}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            {filteredScenarios.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">🔍</div>
-                <h3 className="text-xl font-medium text-slate-600 mb-2">{t('scenario.noResults')}</h3>
-                <p className="text-slate-500 mb-4">{t('scenario.noResultsHint')}</p>
-                <Button onClick={resetFilters} variant="outline">
-                  {t('scenario.filterReset')}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsMobileFilterOpen(true)}
+                  className="relative h-11 rounded-xl border-slate-200 bg-white px-3 text-slate-700 lg:hidden"
+                  aria-label={t('scenario.mobileFilterToggle')}
+                  data-testid="mobile-filter-toggle"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span className="ml-1.5 hidden sm:inline">{t('scenario.filter', '필터')}</span>
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-700 px-1 text-[10px] font-bold text-white">{activeFilterCount}</span>
+                  )}
                 </Button>
               </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-slate-600" data-testid="scenario-result-count" aria-live="polite">
+                  {t('scenario.totalCount', { count: filteredScenarios.length })}
+                </span>
+                {activeChips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={chip.clear}
+                    aria-label={`${chip.label} ${t('scenario.removeFilter', '필터 제거')}`}
+                    className="inline-flex min-h-[30px] items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 pl-3 pr-2 text-xs font-medium text-indigo-900 transition-colors hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    data-testid={`active-filter-${chip.key}`}
+                  >
+                    {chip.label}
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                ))}
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="min-h-[30px] px-1 text-xs font-medium text-slate-500 underline-offset-2 hover:text-indigo-800 hover:underline"
+                    data-testid="reset-filters"
+                  >
+                    {t('scenario.reset')}
+                  </button>
+                )}
+              </div>
+            </header>
+
+            {/* Mobile: compact sidebar content (resume, summary) above grid */}
+            {sidebarContent && !isDesktop && <div className="mb-5">{sidebarContent}</div>}
+
+            {scenariosLoading ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2" data-testid="scenario-grid-loading">
+                {[0, 1, 2, 3].map(i => (
+                  <div key={i} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <Skeleton className="h-32 rounded-none" />
+                    <div className="space-y-2 p-4">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : scenariosError ? (
+              <div className="rounded-2xl border border-rose-200 bg-white p-8 text-center">
+                <p className="font-medium text-slate-800">{t('scenario.loadError', '시나리오를 불러오지 못했습니다.')}</p>
+                <Button variant="outline" className="mt-4" onClick={() => refetchScenarios()}>{t('common.retry', '다시 시도')}</Button>
+              </div>
+            ) : filteredScenarios.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-indigo-200 bg-white/70 px-6 py-14 text-center" data-testid="scenario-empty">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-700">
+                  <SearchX className="h-5 w-5" aria-hidden />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-slate-800">{t('scenario.noResults')}</h3>
+                <p className="mt-1 text-sm text-slate-500">{t('scenario.noResultsHint')}</p>
+                <Button onClick={resetFilters} variant="outline" className="mt-5">{t('scenario.filterReset')}</Button>
+              </div>
             ) : (
-              filteredScenarios.map((scenario: ComplexScenario) => {
-              const recommendation = getRecommendationLevel(scenario);
-              const isExpanded = expandedScenarioId === scenario.id;
-              
-              return (
-                <Card 
-                  key={scenario.id} 
-                  className="overflow-hidden group relative border-0 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-500"
-                >
-                  {/* 배경 이미지 레이어 - 줌 인 + 밝기 효과 */}
-                  <div
-                    className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-110"
-                    style={{
-                      backgroundImage: `url(${toMediaUrl((scenario as any).thumbnail || scenario.image) || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})`,
-                    }}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2" data-testid="scenario-grid">
+                {filteredScenarios.map((scenario: ComplexScenario) => (
+                  <ScenarioLibraryCard
+                    key={scenario.id}
+                    scenario={scenario}
+                    title={tr(scenario.id, 'title', scenario.title) || scenario.title}
+                    description={tr(scenario.id, 'description', scenario.description) || ''}
+                    skills={sortSkillsByImportance(trSkills(scenario.id, scenario.skills || []))}
+                    categoryName={getCategoryName((scenario as any).categoryId)}
+                    isBookmarked={bookmarkedIds.has(String(scenario.id))}
+                    canBookmark={!!user}
+                    stats={statsMap.get(String(scenario.id))}
+                    onBookmarkToggle={(e) => handleBookmarkToggle(e, String(scenario.id))}
+                    onOpenDetail={() => setDetailScenario(scenario)}
+                    onStart={() => onScenarioSelect(scenario)}
                   />
-                  
-                  {/* 시네마틱 그라디언트 오버레이 - 하단 블랙 80%→투명 */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/10 group-hover:from-black/65 group-hover:via-black/35 group-hover:to-transparent transition-all duration-500" />
-                  
-                  {/* 시나리오 카드 콘텐츠 */}
-                  <div
-                    className="relative cursor-pointer flex flex-col justify-between min-h-[14rem]"
-                    onClick={() => toggleScenarioExpand(scenario.id, { stopPropagation: () => {} } as React.MouseEvent)}
-                    data-testid={`scenario-card-${scenario.id}`}
-                  >
-                    {/* 상단 배지 영역 */}
-                    <div className="flex items-start justify-between p-3 sm:p-4 z-10">
-                      {/* 카테고리 배지 */}
-                      <div className="flex-1 min-w-0 mr-2">
-                        {getCategoryName((scenario as any).categoryId) && (
-                          <Badge className={`${getCategoryBadgeColor((scenario as any).categoryId)} text-white text-xs backdrop-blur-md shadow-lg max-w-full truncate`}>
-                            <Folder className="h-3 w-3 mr-1 flex-shrink-0" />
-                            <span className="truncate">{getCategoryName((scenario as any).categoryId)}</span>
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {/* 북마크 버튼 (로그인 시에만) */}
-                        {user && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => handleBookmarkToggle(e, String(scenario.id))}
-                            className="w-10 h-10 sm:w-11 sm:h-11 p-0 bg-white/20 hover:bg-white/40 active:bg-white/50 backdrop-blur-md rounded-full transition-all duration-300"
-                            data-testid={`button-bookmark-${scenario.id}`}
-                          >
-                            {bookmarkedIds.has(String(scenario.id)) ? (
-                              <BookmarkCheck className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
-                            ) : (
-                              <Bookmark className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                            )}
-                          </Button>
-                        )}
-
-                        {/* 펼치기/접기 버튼 */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => toggleScenarioExpand(scenario.id, e)}
-                          className="w-10 h-10 sm:w-11 sm:h-11 p-0 bg-white/20 hover:bg-white/40 active:bg-white/50 backdrop-blur-md rounded-full transition-all duration-300"
-                          data-testid={`button-expand-scenario-${scenario.id}`}
-                        >
-                          {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-white" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-white" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    {/* 메인 콘텐츠 - 항상 보이는 영역 */}
-                    <div className="p-3 sm:p-5 text-white mt-auto">
-                      <h2 className="text-base sm:text-xl font-bold mb-1.5 sm:mb-2 drop-shadow-lg line-clamp-2 group-hover:text-white transition-colors duration-300 break-words">
-                        {getTranslatedTitle(scenario.id, scenario.title)}
-                      </h2>
-                      
-                      {/* 설명 미리보기 - 모바일에서 line-clamp-2 */}
-                      {!isExpanded && scenario.description && (() => {
-                        const desc = getTranslatedDescription(scenario.id, scenario.description);
-                        return (
-                          <p className="text-xs text-gray-200 mb-2 sm:mb-3 leading-relaxed line-clamp-2 sm:line-clamp-3 drop-shadow-md">
-                            {desc.length > 500 
-                              ? desc.substring(0, 500) + '...' 
-                              : desc}
-                            {desc.length > 500 && (
-                              <span className="text-blue-300 ml-1 font-medium">{t('scenario.viewMore')} ▼</span>
-                            )}
-                          </p>
-                        );
-                      })()}
-                      
-                      <div className="flex items-center gap-1.5 sm:gap-3 text-xs sm:text-sm flex-wrap">
-                        <div className="flex items-center gap-1 sm:gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
-                          <i className="fas fa-users text-xs"></i>
-                          <span className="font-medium">{t('scenario.personaCountN', { count: (scenario.personas || []).length })}</span>
-                        </div>
-                        <div className="flex items-center gap-1 sm:gap-1.5 bg-white/20 backdrop-blur-md rounded-full px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
-                          <i className="fas fa-clock text-xs"></i>
-                          <span className="font-medium">{scenario.estimatedTime}</span>
-                        </div>
-                        {/* 완료 통계 배지 - 모바일에서는 숨김 */}
-                        {(() => {
-                          const stats = statsMap.get(String(scenario.id));
-                          if (!stats || stats.completionCount === 0) return null;
-                          return (
-                            <>
-                              <div className="hidden sm:flex items-center gap-1.5 bg-green-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
-                                <Users className="h-3 w-3" />
-                                <span className="font-medium text-xs">{stats.completionCount}회 완료</span>
-                              </div>
-                              {stats.averageScore != null && (
-                                <div className="hidden sm:flex items-center gap-1.5 bg-yellow-500/30 backdrop-blur-md rounded-full px-3 py-1.5 shadow-sm">
-                                  <Star className="h-3 w-3" />
-                                  <span className="font-medium text-xs">평균 {Number(stats.averageScore).toFixed(1)}점</span>
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                        <Badge variant="outline" className="bg-white/20 text-white border-white/40 backdrop-blur-md text-xs px-2 py-0.5">
-                          {recommendation.level}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* 펼쳐지는 요약 정보 영역 - glass-morphism */}
-                  <div 
-                    className={`relative transition-all duration-500 ease-in-out ${
-                      isExpanded ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
-                    }`}
-                  >
-                    <div className="bg-white/5 backdrop-blur-md border-t border-white/10 p-5 text-white">
-                      {/* 시나리오 개요 요약 (150자) */}
-                      {scenario.description && (() => {
-                        const desc = getTranslatedDescription(scenario.id, scenario.description);
-                        const isTruncated = desc.length > 150;
-                        return (
-                          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-3 mb-3">
-                            <h4 className="font-medium text-white mb-2 flex items-center text-xs">
-                              <i className="fas fa-file-alt mr-2 text-blue-300"></i>
-                              {t('scenario.overview')}
-                            </h4>
-                            <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap">
-                              {isTruncated ? desc.substring(0, 150) + '...' : desc}
-                            </p>
-                          </div>
-                        );
-                      })()}
-
-                      {/* 상황 요약 (3줄 제한) */}
-                      {scenario.context?.situation && (
-                        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-3 mb-3">
-                          <h4 className="font-medium text-white mb-2 flex items-center text-xs">
-                            <i className="fas fa-exclamation-triangle mr-2 text-yellow-300"></i>
-                            {t('scenario.situation')}
-                          </h4>
-                          <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap line-clamp-3">
-                            {getTranslatedSituation(scenario.id, scenario.context?.situation)}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* 역량 태그 (최대 4개) */}
-                      {(() => {
-                        const allSkills = sortSkillsByImportance(getTranslatedSkills(scenario.id, scenario.skills || []));
-                        const visibleSkills = allSkills.slice(0, 4);
-                        const remaining = allSkills.length - 4;
-                        return (
-                          <div className="flex flex-wrap gap-1.5 mb-4">
-                            {visibleSkills.map((skill: string, index: number) => (
-                              <Badge
-                                key={index}
-                                variant="secondary"
-                                className={`text-xs ${index < 2 ? 'bg-blue-500/40 text-blue-100 border-blue-400/50' : 'bg-white/10 text-white border-white/20'}`}
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                            {remaining > 0 && (
-                              <Badge variant="secondary" className="text-xs bg-white/10 text-gray-300 border-white/20">
-                                +{remaining}
-                              </Badge>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* 버튼 영역 */}
-                      <div className="flex gap-2 pt-3 border-t border-white/10">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => { e.stopPropagation(); setDetailScenario(scenario); }}
-                          className="flex-1 text-xs text-gray-300 hover:text-white hover:bg-white/15 border border-white/20 backdrop-blur-sm"
-                        >
-                          <i className="fas fa-expand-alt mr-1.5"></i>
-                          {t('scenario.viewDetail', '상세 내용 보기')}
-                        </Button>
-                        <Button
-                          onClick={(e) => { e.stopPropagation(); handleScenarioClick(scenario); }}
-                          size="sm"
-                          className="flex-1 text-xs bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg"
-                          data-testid={`button-start-scenario-${scenario.id}`}
-                        >
-                          <i className="fas fa-play mr-1.5"></i>
-                          {t('scenario.startScenario')}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              );
-              })
+                ))}
+              </div>
             )}
-          </div>
+          </section>
         </div>
       </div>
 
+      {/* Mobile filter drawer: only closes via explicit apply/close */}
+      <Sheet open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen}>
+        <SheetContent
+          side="left"
+          className="flex w-[88vw] max-w-sm flex-col gap-0 bg-[hsl(222_40%_98%)] p-0"
+          onInteractOutside={(e) => e.preventDefault()}
+          data-testid="mobile-filter-drawer"
+        >
+          <SheetHeader className="border-b border-slate-200 px-5 py-4 text-left">
+            <SheetTitle className="text-base">{t('scenario.filter', '필터')}</SheetTitle>
+            <SheetDescription className="text-xs">{t('scenario.totalCount', { count: filteredScenarios.length })}</SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-4 py-5">
+            <ScenarioFilterPanel {...panelProps} idPrefix={isDesktop ? "mobile-" : ""} />
+          </div>
+          <div className="flex gap-2 border-t border-slate-200 bg-white p-4">
+            <Button variant="outline" className="h-11 flex-1" onClick={resetFilters} data-testid="mobile-reset-filters">
+              {t('scenario.reset')}
+            </Button>
+            <Button className="h-11 flex-[2] bg-indigo-700 text-white hover:bg-indigo-800" onClick={() => setIsMobileFilterOpen(false)} data-testid="mobile-filter-apply">
+              {t('scenario.showResults', { count: filteredScenarios.length, defaultValue: `결과 ${filteredScenarios.length}개 보기` })}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* 상세 내용 보기 Sheet */}
       <Sheet open={!!detailScenario} onOpenChange={(open) => !open && setDetailScenario(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0" data-testid="scenario-detail-sheet">
           {detailScenario && (() => {
-            const desc = getTranslatedDescription(detailScenario.id, detailScenario.description);
-            const situation = getTranslatedSituation(detailScenario.id, detailScenario.context?.situation);
-            const allSkills = sortSkillsByImportance(getTranslatedSkills(detailScenario.id, detailScenario.skills || []));
+            const desc = tr(detailScenario.id, 'description', detailScenario.description);
+            const situation = tr(detailScenario.id, 'situation', detailScenario.context?.situation);
+            const allSkills = sortSkillsByImportance(trSkills(detailScenario.id, detailScenario.skills || []));
+            const image = toMediaUrl((detailScenario as any).thumbnail || detailScenario.image);
+            const categoryName = getCategoryName((detailScenario as any).categoryId);
             return (
               <>
-                {/* 상단 이미지 헤더 */}
-                <div className="relative h-44 w-full flex-shrink-0">
-                  <div
-                    className="absolute inset-0 bg-cover bg-center"
-                    style={{ backgroundImage: `url(${toMediaUrl((detailScenario as any).thumbnail || detailScenario.image) || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=400&fit=crop&auto=format'})` }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                <div className="relative h-44 w-full flex-shrink-0 bg-gradient-to-br from-indigo-200 via-blue-100 to-slate-100">
+                  {image && <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-900/30 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-5">
                     <SheetHeader>
-                      <SheetTitle className="text-white text-xl font-bold drop-shadow leading-tight text-left">
-                        {getTranslatedTitle(detailScenario.id, detailScenario.title)}
+                      <SheetTitle className="text-white text-xl font-bold leading-tight text-left" data-testid="scenario-detail-title">
+                        {tr(detailScenario.id, 'title', detailScenario.title)}
                       </SheetTitle>
+                      <SheetDescription className="sr-only">{t('scenario.overview')}</SheetDescription>
                     </SheetHeader>
-                    {getCategoryName((detailScenario as any).categoryId) && (
-                      <Badge className="mt-1.5 bg-blue-600/90 text-white text-xs w-fit">
+                    {categoryName && (
+                      <Badge className="mt-1.5 w-fit bg-white/95 text-indigo-800 text-xs hover:bg-white">
                         <Folder className="h-3 w-3 mr-1" />
-                        {getCategoryName((detailScenario as any).categoryId)}
+                        {categoryName}
                       </Badge>
                     )}
                   </div>
                 </div>
 
-                {/* 상세 내용 */}
                 <div className="p-5 space-y-5">
-                  {/* 메타 정보 */}
-                  <div className="flex gap-3 text-sm">
-                    <div className="flex items-center gap-1.5 bg-slate-100 rounded-full px-3 py-1.5">
-                      <i className="fas fa-users text-slate-500 text-xs"></i>
-                      <span className="text-slate-700 font-medium">{t('scenario.personaCountN', { count: (detailScenario.personas || []).length })}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-slate-100 rounded-full px-3 py-1.5">
-                      <i className="fas fa-clock text-slate-500 text-xs"></i>
-                      <span className="text-slate-700 font-medium">{detailScenario.estimatedTime}</span>
-                    </div>
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-900">
+                      <Users className="h-3.5 w-3.5" aria-hidden />
+                      {t('scenario.personaCountN', { count: (detailScenario.personas || []).length })}
+                    </span>
+                    {detailScenario.estimatedTime && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-900">
+                        <Clock className="h-3.5 w-3.5" aria-hidden />
+                        {detailScenario.estimatedTime}
+                      </span>
+                    )}
                   </div>
 
-                  {/* 시나리오 개요 */}
                   {desc && (
-                    <div>
-                      <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
-                        <i className="fas fa-file-alt mr-2 text-blue-500"></i>
-                        {t('scenario.overview')}
-                      </h4>
-                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap bg-slate-50 rounded-lg p-3">{desc}</p>
-                    </div>
+                    <section>
+                      <h4 className="mb-2 text-sm font-semibold text-slate-800">{t('scenario.overview')}</h4>
+                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap rounded-lg bg-slate-50 p-3">{desc}</p>
+                    </section>
                   )}
 
-                  {/* 상황 정보 */}
                   {situation && (
-                    <div>
-                      <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
-                        <i className="fas fa-exclamation-triangle mr-2 text-yellow-500"></i>
-                        {t('scenario.situation')}
-                      </h4>
-                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap bg-yellow-50 rounded-lg p-3 border border-yellow-100">{situation}</p>
-                    </div>
+                    <section>
+                      <h4 className="mb-2 text-sm font-semibold text-slate-800">{t('scenario.situation')}</h4>
+                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap rounded-lg border border-amber-100 bg-amber-50 p-3">{situation}</p>
+                    </section>
                   )}
 
-                  {/* 내 역할 */}
                   {(detailScenario.context?.playerRoleText || detailScenario.context?.playerRole?.position) && (
-                    <div>
-                      <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
-                        <i className="fas fa-user-tie mr-2 text-corporate-500"></i>
-                        {t('scenario.yourRole')}
-                      </h4>
-                      <div className="bg-corporate-50 rounded-lg p-3 border border-corporate-100">
+                    <section>
+                      <h4 className="mb-2 text-sm font-semibold text-slate-800">{t('scenario.yourRole')}</h4>
+                      <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 p-3">
                         {detailScenario.context?.playerRoleText ? (
                           <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{detailScenario.context.playerRoleText}</p>
                         ) : (
@@ -925,37 +516,33 @@ export default function ScenarioSelector({ onScenarioSelect, playerProfile, deta
                           </>
                         )}
                       </div>
-                    </div>
+                    </section>
                   )}
 
-                  {/* 주요 역량 전체 */}
                   {allSkills.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold text-slate-800 mb-2 flex items-center text-sm">
-                        <i className="fas fa-lightbulb mr-2 text-green-500"></i>
-                        {t('scenario.keyCompetencies')}
-                      </h4>
+                    <section>
+                      <h4 className="mb-2 text-sm font-semibold text-slate-800">{t('scenario.keyCompetencies')}</h4>
                       <div className="flex flex-wrap gap-2">
                         {allSkills.map((skill: string, index: number) => (
                           <Badge
                             key={index}
                             variant="secondary"
-                            className={`text-xs ${index < 2 ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                            className={`text-xs ${index < 2 ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}
                           >
                             {skill}
                           </Badge>
                         ))}
                       </div>
-                    </div>
+                    </section>
                   )}
 
-                  {/* 시작 버튼 */}
                   <div className="pt-2 pb-safe">
                     <Button
-                      onClick={() => { setDetailScenario(null); handleScenarioClick(detailScenario); }}
-                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium shadow-lg"
+                      onClick={() => { setDetailScenario(null); onScenarioSelect(detailScenario); }}
+                      className="h-11 w-full bg-indigo-700 text-white font-medium hover:bg-indigo-800"
+                      data-testid="button-detail-start-scenario"
                     >
-                      <i className="fas fa-play mr-2"></i>
+                      <Play className="mr-2 h-4 w-4" aria-hidden />
                       {t('scenario.startScenario')}
                     </Button>
                   </div>

@@ -38,3 +38,30 @@ it("keeps the third card visible even when there is no recommendation", () => {
   expect(screen.getByText("추천할 시나리오가 없습니다")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "도전하기" })).toBeNull();
 });
+
+it("hides an empty resume card and keeps personal statistics collapsed in the sidebar", () => {
+  render(<PersonalizedDashboard variant="sidebar" />);
+  expect(screen.queryByTestId("dashboard-resume-card")).toBeNull();
+  expect(screen.queryByTestId("learning-summary-panel")).toBeNull();
+  fireEvent.click(screen.getByTestId("toggle-learning-summary"));
+  expect(screen.getByTestId("learning-summary-panel")).toBeTruthy();
+  expect(screen.getByTestId("link-mypage-summary").getAttribute("href")).toBe("/mypage");
+});
+
+it("resumes the existing run and preserves recommendation access in compact mode", () => {
+  query.data.resumeScenario = {
+    scenarioRunId: "existing-run", scenarioId: "saved-scenario", scenarioName: "진행 중인 연습",
+    startedAt: new Date().toISOString(),
+  };
+  const resume = vi.fn();
+  const recommended = vi.fn();
+  render(<PersonalizedDashboard variant="sidebar" onResumeScenario={resume}
+    onRecommendedScenario={recommended}
+    scenarios={[{ id: "recommended", title: "추천 연습" } as any]} />);
+  fireEvent.click(screen.getByTestId("button-resume-scenario"));
+  expect(resume).toHaveBeenCalledWith("existing-run", "saved-scenario");
+  expect(screen.queryByTestId("button-recommended-scenario")).toBeNull();
+  fireEvent.click(screen.getByTestId("toggle-learning-summary"));
+  fireEvent.click(screen.getByTestId("button-recommended-scenario"));
+  expect(recommended).toHaveBeenCalledWith("recommended");
+});
