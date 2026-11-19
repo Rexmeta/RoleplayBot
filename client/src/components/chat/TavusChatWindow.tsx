@@ -15,6 +15,7 @@ import { AvatarSessionTiming } from "./AvatarSessionTiming";
 import type { SessionTiming } from "@shared/avatar/sessionTiming";
 import { liveAvatarDurationSeconds } from "@shared/avatar/conversationDuration";
 import { FeedbackTransitionOverlay } from "../FeedbackTransitionOverlay";
+import { liveAvatarStartRefusalText } from "@/lib/liveAvatarBlockers";
 
 type SessionState = "idle" | "creating" | "create_unknown" | "active" | "ending" | "ended";
 type Session = {
@@ -90,6 +91,8 @@ function TavusChatWindowSession({
   const text = (key: string, english: string, korean: string) =>
     t(`chat.tavus.${key}`, { defaultValue: i18n.language?.startsWith("ko") ? korean : english });
   const reasonText = (code: string) => {
+    const refusal = liveAvatarStartRefusalText(code, t, i18n.language);
+    if (refusal) return refusal;
     switch (code) {
       case "avatar_runtime_worker_unavailable": return text("workerUnavailable", "The live avatar service is not ready. Please try again later.", "라이브 아바타 서비스가 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.");
       case "avatar_runtime_cleanup_pending": return text("cleanupPending", "A previous avatar session is still being cleaned up. Check again after cleanup finishes; if it persists, contact the router operator.", "이전 아바타 세션을 정리 중입니다. 정리가 끝난 뒤 다시 확인하세요. 계속되면 라우터 운영자의 확인이 필요합니다.");
@@ -111,7 +114,7 @@ function TavusChatWindowSession({
   const [loading, setLoading] = useState(true);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [connectionError, setConnectionError] = useState<{ code: string; message: string } | null>(null);
-  const [error, setError] = useState<{ code: string; message: string } | null>(null);
+  const [error, setError] = useState<ReturnType<typeof errorDetails> | null>(null);
   const [endFailed, setEndFailed] = useState(false);
   const [timingReportFailed, setTimingReportFailed] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -366,7 +369,10 @@ function TavusChatWindowSession({
     } catch (cause) {
       if (mountedRef.current) {
         const details = errorDetails(cause);
-        if (details.creationAttempted === false) {
+        if (details.code === "avatar_existing_session_target_mismatch" || session.state === "create_unknown") {
+          // A refused new request does not clear an older paid/uncertain session.
+          updateSession({ ...session, state: "create_unknown" });
+        } else if (details.creationAttempted === false) {
           startedRef.current = false;
           releaseScreenWakeLock();
           updateSession({ state: "idle" });
@@ -378,7 +384,7 @@ function TavusChatWindowSession({
       if (mountedRef.current) setStarting(false);
     }
   }, [starting, loading, config, persona.id, requestScreenWakeLock, requestSession,
-    endKeepalive, updateSession, checkConnection, releaseScreenWakeLock]);
+    endKeepalive, updateSession, checkConnection, releaseScreenWakeLock, session]);
 
   const end = async () => {
     if (endInFlightRef.current || session.state === "ended") return;
@@ -538,7 +544,14 @@ function TavusChatWindowSession({
   const feedbackReady = feedbackQueued;
   const transcriptUnavailable = session.state === "ended" &&
     (!evaluationAvailable || transcript.transcriptState === "unavailable" || transcript.transcriptState === "empty");
-  const apiDisplayError = error || connectionError || (transcript.syncError ? errorDetails(transcript.syncError) : null);
+  const targetRefusalCode = config?.targetMatched === false
+    ? config.blockers?.find(code => liveAvatarStartRefusalText(code, t, i18n.language)) : undefined;
+  const apiDisplayError = error || connectionError || (transcript.syncError ? errorDetails(transcript.syncError) : null)
+    || (targetRefusalCode ? { code: targetRefusalCode, message: "" } : null);
+  const startRefusal = apiDisplayError && liveAvatarStartRefusalText(apiDisplayError.code, t, i18n.language);
+  const existingTargetMismatch = error?.code === "avatar_existing_session_target_mismatch";
+  const safeModeReturn = !started && session.state === "idle" &&
+    apiDisplayError?.code !== "avatar_existing_session_target_mismatch";
   const canonicalTranscriptReady = session.state === "ended" &&
     (transcript.transcriptState === "completed" || transcript.transcriptState === "empty") &&
     !transcript.messagesLoading && !transcript.messagesError;
@@ -628,9 +641,16 @@ function TavusChatWindowSession({
           </div>}
           {apiDisplayError && <div className="rounded-xl border border-[#efd5d0] bg-[#fff7f4] p-3 text-[#8f4137]" role="alert" data-testid="tavus-error">
             <div className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 text-xs leading-5"><p className="break-words font-semibold">{displayError(apiDisplayError)}</p>
+              {startRefusal && <p className="mt-2" data-testid="tavus-start-refusal-help">
+                {error?.creationAttempted === false && text("refusalNoNewConnection", "No new live connection was created by this request. ", "이번 요청으로 새 라이브 연결은 생성되지 않았습니다. ")}
+                {safeModeReturn
+                  ? text("refusalSafeReturn", "Keep your saved history. Use the bottom conversation menu to return to text or voice, or return to the scenario details to choose your partner. Repeating this request without correcting the selection or settings will not help.", "저장된 기록은 유지됩니다. 하단 대화 메뉴에서 텍스트·음성으로 돌아가거나 시나리오 상세에서 상대를 다시 선택해 주세요. 선택이나 설정을 바로잡지 않은 채 재시도해도 해결되지 않습니다.")
+                  : text("refusalPreserveSession", "An earlier session may still need recovery. This refusal does not mean that session has ended. Safely end it and check its history before changing modes; saved history is kept.", "이전 세션의 복구가 필요할 수 있습니다. 이번 거절은 이전 세션이 종료되었다는 뜻이 아닙니다. 안전하게 종료하고 기록 상태를 확인한 뒤 모드를 바꿔 주세요. 저장된 기록은 유지됩니다.")}
+              </p>}
               <div className="mt-2 flex flex-wrap gap-2">
+                {startRefusal && safeModeReturn && <button type="button" onClick={onExit} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white" data-testid="tavus-refusal-back">{text("refusalBack", "Back to scenario details", "시나리오 상세로 돌아가기")}</button>}
                 {connectionError && !usesManagedClient && <button type="button" onClick={() => { connectionAttemptedRef.current = false; setConnection(null); void checkConnection(); }} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white" data-testid="tavus-connection-retry">{text("retryConnection", "Retry connection details", "연결 정보 다시 확인")}</button>}
-                {session.id && (session.state !== "idle" && session.state !== "ended") && <button type="button" onClick={() => void end()} disabled={busy} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white disabled:opacity-50" data-testid="tavus-end-retry">{endFailed ? text("retryEnd", "Retry safe end", "안전하게 종료 재시도") : text("endSession", "End session", "세션 종료")}</button>}
+                {(session.id || (startRefusal && started)) && (session.state !== "idle" && session.state !== "ended") && <button type="button" onClick={() => void end()} disabled={busy} className="rounded-lg border border-[#d8aaa2] px-3 py-2 font-semibold hover:bg-white disabled:opacity-50" data-testid="tavus-end-retry">{endFailed ? text("retryEnd", "Retry safe end", "안전하게 종료 재시도") : existingTargetMismatch ? text("endPreviousSession", "Safely end previous session", "기존 세션 안전하게 종료") : text("endSession", "End session", "세션 종료")}</button>}
               </div>
             </div></div>
           </div>}

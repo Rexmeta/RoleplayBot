@@ -1,4 +1,12 @@
 {
+  "liveAvatar": {
+    "blockers": {
+      "avatar_persona_mismatch": "The selected partner is not the partner assigned to this conversation. Return to the scenario details and select the assigned partner.",
+      "avatar_persona_not_selected": "No live avatar is assigned to this conversation partner. Ask the person managing the scenario to configure an avatar, then start a new conversation.",
+      "avatar_persona_context_mismatch": "The role saved for this conversation does not match the current partner. Ask the person managing the scenario to check the role settings, then start a new conversation.",
+      "avatar_existing_session_target_mismatch": "This conversation already has a live session for another partner. Safely end the existing session and check its saved history before returning to the scenario details."
+    }
+  },
   "microphone": {
     "requesting": "Checking microphone permission...",
     "allowPrompt": "Choose Allow in the browser microphone prompt. Recording still starts only when you press the recording button.",

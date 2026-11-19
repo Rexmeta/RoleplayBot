@@ -1,5 +1,32 @@
 import type { TFunction } from "i18next";
 
+const startRefusals = {
+  avatar_persona_mismatch: {
+    ko: "선택한 상대가 현재 대화에 배정된 상대와 다릅니다. 시나리오 상세로 돌아가 배정된 상대를 선택해 주세요.",
+    en: "The selected partner is not the partner assigned to this conversation. Return to the scenario details and select the assigned partner.",
+  },
+  avatar_persona_not_selected: {
+    ko: "현재 대화 상대에게 라이브 아바타가 배정되어 있지 않습니다. 담당자에게 아바타 설정을 요청한 뒤 새 대화를 시작해 주세요.",
+    en: "No live avatar is assigned to this conversation partner. Ask the person managing the scenario to configure an avatar, then start a new conversation.",
+  },
+  avatar_persona_context_mismatch: {
+    ko: "대화에 저장된 역할 정보가 현재 상대와 일치하지 않습니다. 담당자에게 시나리오의 역할 설정 확인을 요청한 뒤 새 대화를 시작해 주세요.",
+    en: "The role saved for this conversation does not match the current partner. Ask the person managing the scenario to check the role settings, then start a new conversation.",
+  },
+  avatar_existing_session_target_mismatch: {
+    ko: "이 대화에는 다른 상대의 라이브 세션이 이미 있습니다. 기존 세션을 안전하게 종료하고 기록 저장 상태를 확인한 뒤 시나리오 상세로 돌아가 주세요.",
+    en: "This conversation already has a live session for another partner. Safely end the existing session and check its saved history before returning to the scenario details.",
+  },
+} as const;
+
+export function liveAvatarStartRefusalText(code: string, t: TFunction, language?: string): string | null {
+  if (!Object.prototype.hasOwnProperty.call(startRefusals, code)) return null;
+  const copy = startRefusals[code as keyof typeof startRefusals];
+  return t(`liveAvatar.blockers.${code}`, {
+    defaultValue: language?.startsWith("ko") ? copy.ko : copy.en,
+  });
+}
+
 const descriptions: Record<string, string> = {
   globally_disabled: "관리자가 라이브 아바타 서비스를 꺼 두었습니다.",
   scenario_not_allowed: "이 시나리오에서 라이브 아바타가 허용되지 않았습니다.",
@@ -10,7 +37,6 @@ const descriptions: Record<string, string> = {
   media_transport_unverified: "이 앱의 라이브 영상·음성 수신이 검증되지 않았습니다.",
   custom_avatar_live_unverified: "이 페르소나 이미지의 라이브 아바타 사용이 검증되지 않았습니다.",
   avatar_router_diagnostics_failed: "AvatarRouter 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-  avatar_persona_not_selected: "현재 대화의 페르소나에 Live 아바타가 설정되지 않았습니다. 설정 저장 후 새 대화를 시작하세요.",
   avatar_persona_not_found: "현재 대화에 연결된 페르소나를 찾지 못했습니다.",
   avatar_conversation_ended: "이미 종료된 대화에서는 라이브 아바타를 시작할 수 없습니다.",
   avatar_conversation_scopes_missing: "API 키에 아바타 조회 또는 라이브 세션 사용 권한이 부족합니다.",
@@ -39,7 +65,9 @@ const descriptions: Record<string, string> = {
   avatar_connection_rate_limited: "외부 아바타 서비스의 조회 요청이 많습니다. 잠시 후 다시 확인해 주세요.",
 };
 
-export function liveAvatarBlockerText(code: string, t: TFunction): string {
+export function liveAvatarBlockerText(code: string, t: TFunction, language = "ko"): string {
+  const refusal = liveAvatarStartRefusalText(code, t, language);
+  if (refusal) return refusal;
   return t(`liveAvatar.blockers.${code}`, {
     defaultValue: descriptions[code] ?? "라이브 아바타 시작 조건을 확인하지 못했습니다. 재생 검증 부족으로 단정할 수 없으므로 상태를 다시 확인해 주세요.",
   });
