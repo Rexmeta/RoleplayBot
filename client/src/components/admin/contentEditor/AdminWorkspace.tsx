@@ -48,6 +48,8 @@ export type AdminWorkspaceProps = {
   toolbar?: React.ReactNode;
   /** Overrides the footer explanation for the active section. */
   footerNote?: React.ReactNode;
+  /** Hides the active section title and description above its content. */
+  hideSectionHeading?: boolean;
   idPrefix?: string; testId?: string; children: React.ReactNode;
 };
 
@@ -58,7 +60,8 @@ const defaultClose = () => {
 
 export function AdminWorkspace({ title, breadcrumb, sections, active, onActiveChange, onClose = defaultClose, closeLabel = '닫기',
   dirty = false, dirtyLabel = '저장하지 않은 변경 사항', pending = false, onDiscard, keepVisited = false,
-  headerActions, sectionActions, toolbar, footerNote, idPrefix = 'workspace', testId, children }: AdminWorkspaceProps) {
+  headerActions, sectionActions, toolbar, footerNote, hideSectionHeading = false,
+  idPrefix = 'workspace', testId, children }: AdminWorkspaceProps) {
   const root = useRef<HTMLDivElement>(null);
   const [visited, setVisited] = useState<Set<string>>(() => new Set([active]));
   const [target, setTarget] = useState<Target | null>(null);
@@ -140,13 +143,13 @@ export function AdminWorkspace({ title, breadcrumb, sections, active, onActiveCh
       <div className="scenario-editor-layout">
         <SectionSidebar sections={sections} active={section.id} onSelect={select} label={`${title} 섹션`} tabs={tabs} disabled={pending} />
         <main className="scenario-editor-main">
-          <div className="scenario-editor-heading">
-            <div className="min-w-0">
+          {(!hideSectionHeading || sectionActions) && <div className="scenario-editor-heading">
+            {!hideSectionHeading && <div className="min-w-0">
               <h2 data-workspace-heading tabIndex={-1}>{section.label}</h2>
               <p>{section.description}</p>
-            </div>
+            </div>}
             {sectionActions && <div className="flex shrink-0 flex-wrap items-center gap-2">{sectionActions}</div>}
-          </div>
+          </div>}
           {toolbar && <div className="admin-workspace-toolbar">{toolbar}</div>}
           <Panels.Provider value={{ active: section.id, mounted: keepVisited ? visited : new Set(), idPrefix }}>
             {children}

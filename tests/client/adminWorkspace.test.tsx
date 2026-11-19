@@ -51,6 +51,18 @@ it("mounts expensive panels lazily and keeps already visited panels", () => {
   expect(screen.queryByRole("button", { name: "저장", exact: true })).toBeNull();
 });
 
+it("can hide the active section heading without removing section navigation", () => {
+  render(<AdminWorkspace title="관리 화면" breadcrumb="관리" sections={sections} active="one"
+    onActiveChange={vi.fn()} hideSectionHeading>
+    <WorkspacePanel id="one"><div>시나리오 관리 콘텐츠</div></WorkspacePanel>
+  </AdminWorkspace>);
+  expect(screen.queryByText("첫 번째", { selector: "h2" })).toBeNull();
+  expect(screen.queryByText("첫 화면", { selector: "p" })).toBeNull();
+  expect(document.querySelector(".scenario-editor-heading")).toBeNull();
+  expect(screen.getByTestId("tab-one")).toBeTruthy();
+  expect(screen.getByText("시나리오 관리 콘텐츠")).toBeTruthy();
+});
+
 it("keeps drafts on cancel and resets only after an explicit discard", () => {
   render(<Fixture />);
   fireEvent.change(screen.getByLabelText("초안"), { target: { value: "미저장 초안" } });
