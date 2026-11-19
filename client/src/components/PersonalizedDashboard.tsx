@@ -75,27 +75,36 @@ export default function PersonalizedDashboard({
   scenarios = [],
   variant = "default",
 }: PersonalizedDashboardProps) {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const summaryUserId = !authLoading && isAuthenticated && user?.id && !user.isGuest
+    ? user.id
+    : null;
 
   const { data: summary, isLoading } = useQuery<DashboardSummary>({
-    queryKey: ["/api/dashboard/summary"],
-    queryFn: async () => {
+    // The URL is shared, but the response belongs exclusively to this account.
+    queryKey: ["/api/dashboard/summary", summaryUserId],
+    queryFn: async ({ signal }) => {
+      if (!summaryUserId) throw new Error("An authenticated learner is required");
       const token = localStorage.getItem("authToken");
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
       const res = await fetch("/api/dashboard/summary", {
         credentials: "include",
         headers,
+        signal,
       });
       if (!res.ok) throw new Error("Failed to fetch dashboard summary");
       return res.json();
     },
-    enabled: !!user && !user.isGuest,
+    enabled: summaryUserId !== null,
+    // Never carry an old observer's data over an account-key change, even if
+    // the application later enables keepPreviousData in its query defaults.
+    placeholderData: undefined,
     staleTime: 1000 * 60 * 5,
   });
 
-  if (!user || user.isGuest) return null;
+  if (!summaryUserId || !user) return null;
 
   if (isLoading && variant === "sidebar") {
     return (

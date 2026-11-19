@@ -24,7 +24,7 @@ queryClient.setQueryData(["/api/categories"], [
 ]);
 queryClient.setQueryData(["/api/bookmarks", "library-review"], [{ id: "saved", scenarioId: "review-0" }]);
 queryClient.setQueryData(["/api/scenarios/stats"], []);
-queryClient.setQueryData(["/api/dashboard/summary"], {
+queryClient.setQueryData(["/api/dashboard/summary", "library-review"], {
   resumeScenario: { scenarioRunId: "run", scenarioId: "review-0", scenarioName: titles[0], startedAt: new Date().toISOString() },
   lastCompletedScenario: null, recommendedScenarioId: "review-1", isRecommendationRechallenge: false,
   totalCompleted: 2, totalScenarios: 4, averageScore: 81, totalPracticeCount: 5, categoryScores: [],
