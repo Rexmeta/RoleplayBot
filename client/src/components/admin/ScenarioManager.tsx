@@ -2660,6 +2660,19 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     </div>
                   )}
                 </div>
+
+                <EditorGroup title="아바타 표시" description="실시간 아바타 허용 정책은 아래의 정책 저장 버튼으로 별도 반영합니다. 영상 클립 설정은 상단 저장에 포함됩니다.">
+                  <ScenarioLiveAvatarPolicy key={editingScenario?.id ?? "new"} scenarioId={editingScenario?.id} />
+                  {canManageVideoAvatar && (
+                    <ToggleRow
+                      id="useVideoAvatar"
+                      label="기본 아바타에 영상 클립 사용"
+                      description={formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
+                      checked={formData.useVideoAvatar || false}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, useVideoAvatar: checked }))}
+                    />
+                  )}
+                </EditorGroup>
               </ScenarioEditorRegion>
 
               {/* ── 학습 목표와 성공 기준 ── */}
@@ -3512,19 +3525,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                     checked={formData.isDemo || false}
                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isDemo: checked }))}
                   />
-                </EditorGroup>
-
-                <EditorGroup title="아바타 표시" description="실시간 아바타 허용 정책은 아래의 정책 저장 버튼으로 별도 반영합니다. 영상 클립 설정은 상단 저장에 포함됩니다.">
-                  <ScenarioLiveAvatarPolicy key={editingScenario?.id ?? "new"} scenarioId={editingScenario?.id} />
-                  {canManageVideoAvatar && (
-                    <ToggleRow
-                      id="useVideoAvatar"
-                      label="기본 아바타에 영상 클립 사용"
-                      description={formData.useVideoAvatar ? '페르소나 영상 클립을 재생합니다' : '정적 이미지를 사용합니다'}
-                      checked={formData.useVideoAvatar || false}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, useVideoAvatar: checked }))}
-                    />
-                  )}
                 </EditorGroup>
 
                 <EditorGroup title="콘텐츠 스토어" description="다른 조직이 구매하거나 받을 수 있도록 스토어에 등록합니다.">

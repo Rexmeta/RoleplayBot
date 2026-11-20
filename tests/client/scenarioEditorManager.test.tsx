@@ -46,7 +46,11 @@ vi.mock('@tanstack/react-query', () => ({
   }),
 }));
 vi.mock('@/components/admin/AIScenarioGenerator', () => ({ AIScenarioGenerator: () => null }));
-vi.mock('@/components/admin/ScenarioLiveAvatarPolicy', () => ({ ScenarioLiveAvatarPolicy: () => null }));
+vi.mock('@/components/admin/ScenarioLiveAvatarPolicy', () => ({
+  ScenarioLiveAvatarPolicy: ({ scenarioId }: { scenarioId?: string }) => (
+    <div data-testid="scenario-live-avatar-policy" data-scenario-id={scenarioId} />
+  ),
+}));
 vi.mock('@/components/admin/ScenarioCriteriaPreview', () => ({ ScenarioCriteriaPreview: () => null }));
 import { ScenarioManager } from '@/components/admin/ScenarioManager';
 
@@ -109,6 +113,12 @@ it('keeps all eight sections functional and saves edits from different groups to
   changeField('textarea-situation', '고객이 납기 변경 사유를 설명해 달라고 요청했다.');
   changeField('input-position', '영업 팀장');
   navigateSection('대화 상대');
+  const avatarPolicy = screen.getByTestId('scenario-live-avatar-policy');
+  expect(avatarPolicy.closest('[hidden]')).toBeNull();
+  expect(avatarPolicy.getAttribute('data-scenario-id')).toBe(fixture.id);
+  const videoAvatarToggle = document.getElementById('useVideoAvatar')!;
+  expect(videoAvatarToggle.closest('[hidden]')).toBeNull();
+  fireEvent.click(videoAvatarToggle);
   fireEvent.click(screen.getByTestId('add-persona'));
   changeField('input-persona-name-0', '새로운 대화 상대');
   navigateSection('학습 목표와 성공 기준');
@@ -124,6 +134,8 @@ it('keeps all eight sections functional and saves edits from different groups to
   navigateSection('이미지·영상');
   changeField('input-scenario-image', '/objects/editor-test-image.png');
   navigateSection('공개 설정');
+  expect(avatarPolicy.closest('[hidden]')).not.toBeNull();
+  expect(videoAvatarToggle.closest('[hidden]')).not.toBeNull();
   expect(document.querySelectorAll('#useVideoAvatar')).toHaveLength(1);
   fireEvent.click(document.getElementById('isPublic')!);
   navigateSection('기본 정보');
@@ -134,6 +146,7 @@ it('keeps all eight sections functional and saves edits from different groups to
     successCriteria: { ...fixture.successCriteria, optimal: '일정과 후속 조치를 구체적으로 합의한다.' },
     image: '/objects/editor-test-image.png',
     isPublic: true,
+    useVideoAvatar: true,
     targetDurationMinutes: fixture.targetDurationMinutes,
     targetTurns: fixture.targetTurns,
     minValidTurns: fixture.minValidTurns,
@@ -164,10 +177,10 @@ it('reveals custom title validation without discarding edits in another section'
   expect(api).not.toHaveBeenCalled();
 });
 
-it('does not expose the former duplicate avatar toggle to an operator without access', async () => {
+it('keeps the live policy visible but hides the video toggle from an operator without access', async () => {
   authorization.role = 'operator';
   await openEditor();
-  navigateSection('공개 설정');
+  navigateSection('대화 상대');
+  expect(screen.getByTestId('scenario-live-avatar-policy').closest('[hidden]')).toBeNull();
   expect(document.querySelectorAll('#useVideoAvatar')).toHaveLength(0);
-  expect(document.getElementById('isPublic')).toBeTruthy();
 });
