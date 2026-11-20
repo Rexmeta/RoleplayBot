@@ -53,7 +53,7 @@ function Harness({ initial = null }: { initial?: PersonaLiveAvatar | null }) {
   </>;
 }
 beforeEach(() => { api.mockReset(); api.mockResolvedValue({ json: async () => response() }); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("persona avatar settings", () => {
   it("selects a configured stock avatar while preserving provider routing and offers its test", async () => {
@@ -99,7 +99,7 @@ describe("persona avatar settings", () => {
     fireEvent.change(screen.getByLabelText("연결할 커스텀 자산"), { target: { value: id } });
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual({ ...saved, kind: "custom" });
     expect(screen.getByText(/라우터 자산 상태: 준비 완료/)).toBeTruthy();
-    expect(screen.getByText(/미리보기 URL은 제공되지 않습니다/)).toBeTruthy();
+    expect(screen.getByText(/이미지가 연결된 자산은 프로젝트 보안 경로로 미리보기를 불러옵니다/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "아바타 연결 해제" }));
     expect(screen.getByTestId("draft").textContent).toBe("null");
   });
@@ -128,8 +128,9 @@ describe("persona avatar settings", () => {
     api.mockResolvedValue({ json: async () => response([row({ id: "22345678-1234-4234-8234-123456789abc", status: "processing" })]) });
     render(<Harness initial={saved} />);
     fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
-    await screen.findByLabelText("연결할 커스텀 자산");
-    expect(screen.getByRole("option", { name: /처리 중 · 선택 불가/ }).hasAttribute("disabled")).toBe(true);
+    await screen.findByText(/선택할 수 있는 프로젝트 커스텀 아바타가 없습니다/);
+    expect(screen.queryByLabelText("연결할 커스텀 자산")).toBeNull();
+    expect(screen.queryByRole("option", { name: /처리 중/ })).toBeNull();
     expect(screen.getByText(/새로 조회한 목록에서 저장된 자산을 찾지 못했습니다/)).toBeTruthy();
     expect(JSON.parse(screen.getByTestId("draft").textContent!)).toEqual(saved);
   });
@@ -142,7 +143,7 @@ describe("persona avatar settings", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("assets:read");
     api.mockResolvedValue({ json: async () => response([]) });
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
-    await screen.findByText(/조회 가능한 프로젝트 소유 커스텀 자산이 없습니다/);
+    await screen.findByText(/선택할 수 있는 프로젝트 커스텀 아바타가 없습니다/);
     api.mockResolvedValue({ json: async () => ({ assets: "invalid" }) });
     fireEvent.click(screen.getByRole("button", { name: "목록 새로고침" }));
     await screen.findByRole("alert");
@@ -373,6 +374,10 @@ describe("persona avatar settings", () => {
         <output data-testid="persona-seed-draft">{JSON.stringify(draft)}</output>
       </>;
     }
+    api.mockImplementation(async (_method: string, url: string) => url.endsWith("/thumbnail")
+      ? { blob: async () => new Blob(["thumbnail"], { type: "image/png" }) }
+      : { json: async () => response([row({ imageAssetId: "22345678-1234-4234-8234-123456789abc" })]) });
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:avatar-thumbnail");
     render(<PersonaHarness />);
 
     expect(screen.getByRole("radio", { name: "맞춤 아바타" }).getAttribute("aria-checked")).toBe("true");
@@ -380,7 +385,13 @@ describe("persona avatar settings", () => {
     expect(await screen.findByText("프로젝트 커스텀 아바타")).toBeTruthy();
     expect(screen.getByText("테스트 인물")).toBeTruthy();
     expect(screen.getByText(`자산 ID · ${id}`)).toBeTruthy();
-    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
+    const thumbnail = await screen.findByRole("img", { name: "테스트 인물 썸네일" }) as HTMLImageElement;
+    expect(thumbnail.getAttribute("src")).toBe("blob:avatar-thumbnail");
+    expect(screen.queryByText("선택할 수 없음")).toBeNull();
+    expect(api.mock.calls).toEqual([
+      ["GET", "/api/admin/personas/live-avatar/assets"],
+      ["GET", `/api/admin/personas/live-avatar/assets/${id}/thumbnail`],
+    ]);
 
     fireEvent.click(screen.getByRole("button", { name: "이 자산 선택" }));
     expect(JSON.parse(screen.getByTestId("persona-avatar").textContent!)).toMatchObject({
@@ -388,7 +399,27 @@ describe("persona avatar settings", () => {
     });
     expect(screen.getByTestId("persona-seed-draft").textContent).toBe("null");
     expect(screen.queryByTestId("seed-panel")).toBeNull();
-    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
+    expect(api.mock.calls).toEqual([
+      ["GET", "/api/admin/personas/live-avatar/assets"],
+      ["GET", `/api/admin/personas/live-avatar/assets/${id}/thumbnail`],
+    ]);
+  });
+
+  it("shows only selectable project avatars and explains when none are available", async () => {
+    api.mockResolvedValue({ json: async () => response([
+      row({ id, name: "준비된 아바타" }),
+      row({ id: "32345678-1234-4234-8234-123456789abc", name: "처리 중인 아바타", status: "processing" }),
+    ]) });
+    const seedDraft = { imageAssetId: "seed-image-id", imageVersion: 2, projectId: "project-one" } as any;
+    render(<PersonaAvatarSettings mode="live" liveAvatar={null} onModeChange={() => {}}
+      onLiveAvatarChange={vi.fn()} personaId="persona-123" seedDraft={seedDraft} onSeedDraftChange={vi.fn()} />);
+    expect(await screen.findByText("준비된 아바타")).toBeTruthy();
+    expect(screen.queryByText("처리 중인 아바타")).toBeNull();
+
+    api.mockResolvedValue({ json: async () => response([row({ status: "processing" })]) });
+    fireEvent.click(screen.getByRole("button", { name: "목록 새로고침" }));
+    expect(await screen.findByText(/선택할 수 있는 프로젝트 커스텀 아바타가 없습니다/)).toBeTruthy();
+    expect(screen.queryByText("준비된 아바타")).toBeNull();
   });
 
   it("keeps a saved custom selection on catalog refresh errors in persona editor", async () => {

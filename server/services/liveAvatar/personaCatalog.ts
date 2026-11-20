@@ -12,7 +12,7 @@ import { AvatarIdentityError } from "./delegatedIdentity";
 /** Read-only project catalog. No provisioning, image transfer or paid session calls. */
 export class PersonaAvatarCatalog {
   constructor(
-    private readonly client = new AvatarProjectClient(storage),
+    private readonly client: Pick<AvatarProjectClient, "call" | "image"> = new AvatarProjectClient(storage),
     private readonly connection: Pick<typeof avatarRouterProjectConnection, "check"> = avatarRouterProjectConnection,
   ) {}
 
@@ -34,6 +34,20 @@ export class PersonaAvatarCatalog {
       assets: assets.filter(a => a.providerId === "tavus" || a.providerId === "anam")
         .map(a => ({ ...a, liveValidated: isLiveValidatedPersonaAvatar(a) })),
     };
+  }
+
+  async thumbnail(userId: string, assetId: string) {
+    const parsedId = z.string().uuid().safeParse(assetId);
+    if (!parsedId.success) throw new AvatarIdentityError("avatar_test_path_invalid", 400);
+    await this.authorize(userId);
+    const asset = await this.client.call(
+      userId, `/avatar-assets/${parsedId.data}`, personaAvatarAssetSchema,
+    );
+    if (asset.id !== parsedId.data || !isSelectablePersonaAvatar(asset)) {
+      throw new AvatarIdentityError("persona_avatar_asset_not_ready", 404);
+    }
+    if (!asset.imageAssetId) throw new AvatarIdentityError("persona_avatar_thumbnail_not_available", 404);
+    return this.client.image(userId, asset.imageAssetId);
   }
 
   /** Accept only a server-resolved reference. Browser validation claims never grant activation. */

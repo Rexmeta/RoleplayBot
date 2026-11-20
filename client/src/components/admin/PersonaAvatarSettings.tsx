@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
 import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar, PersonaVoice } from '@shared/avatar/personaAvatar';
@@ -17,6 +18,7 @@ type AvatarAsset = {
   name: string;
   providerId: 'tavus' | 'anam';
   providerAvatarId: string | null;
+  imageAssetId?: string;
   status: 'queued' | 'submitting' | 'processing' | 'ready' | 'failed' | 'reconciliation_required' | 'deleting' | 'deleted';
   capabilities: {
     reusable: boolean;
@@ -69,6 +71,59 @@ const provisioningLabels: Record<AvatarAsset['status'], string> = {
   deleting: '삭제 중',
   deleted: '삭제됨',
 };
+
+function AssetThumbnail({ asset }: { asset: AvatarAsset }) {
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  const name = displayCatalogName(asset.name);
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    setThumbnailUrl(null);
+    setUnavailable(!asset.imageAssetId);
+    if (!asset.imageAssetId) return;
+
+    void apiRequest(
+      'GET',
+      `/api/admin/personas/live-avatar/assets/${encodeURIComponent(asset.id)}/thumbnail`,
+    )
+      .then(response => response.blob())
+      .then(blob => {
+        if (!blob.type.startsWith('image/')) throw new Error('invalid_thumbnail_type');
+        objectUrl = URL.createObjectURL(blob);
+        if (!active) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        setThumbnailUrl(objectUrl);
+      })
+      .catch(() => { if (active) setUnavailable(true); });
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [asset.id, asset.imageAssetId]);
+
+  return (
+    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+      {asset.imageAssetId && thumbnailUrl && !unavailable ? (
+        <img
+          src={thumbnailUrl}
+          alt={`${name} 썸네일`}
+          loading="lazy"
+          className="h-full w-full object-cover"
+          onError={() => setUnavailable(true)}
+        />
+      ) : (
+        <div role="img" aria-label={`${name} 미리보기 없음`} className="flex flex-col items-center gap-1 px-1 text-center text-[10px] text-slate-500">
+          <ImageIcon size={22} aria-hidden="true" />
+          <span>{asset.imageAssetId && !unavailable ? '미리보기 불러오는 중' : '미리보기 없음'}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.name === 'ZodError') return '서버의 아바타 목록 응답 형식이 올바르지 않습니다. 관리자에게 연결 상태 확인을 요청하세요.';
@@ -465,11 +520,11 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
           )}
 
           {selectedKind === 'custom' && assets !== null && !loading && !error && (
-            assets.length === 0 ? (
+            selectableAssets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
-                조회 가능한 프로젝트 소유 커스텀 자산이 없습니다. Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
+                선택할 수 있는 프로젝트 커스텀 아바타가 없습니다. 준비 완료·재사용 가능 자산만 표시합니다.
+                Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
                 기본 아바타 중 일부는 커스텀 자산 목록에 포함되지 않으며 별도의 관리자 라이브 테스트에서 확인할 수 있습니다.
-                준비 완료·재사용 가능 자산만 선택할 수 있습니다.
               </div>
             ) : (
               <div className="space-y-2">
@@ -479,21 +534,19 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                     <p className="text-xs leading-relaxed text-slate-600">
                       완성된 자산은 시드 준비와 별개로 페르소나 편집 초안에 연결됩니다. 페르소나를 저장해야 변경이 반영되며, 목록 조회는 읽기 전용이라 생성·재생 요청을 보내지 않습니다.
                     </p>
-                    {assets.map(asset => {
-                      const eligible = selectableAssets.some(candidate => candidate.id === asset.id);
+                    {selectableAssets.map(asset => {
                       const selected = customAssetId === asset.id;
                       return (
-                        <div key={asset.id} className={`flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between ${selected ? 'border-indigo-400 bg-indigo-50/60' : 'border-slate-200 bg-white'}`}>
-                          <div className="min-w-0">
+                        <div key={asset.id} className={`flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between ${selected ? 'border-indigo-400 bg-indigo-50/60' : 'border-slate-200 bg-white'}`}>
+                          <AssetThumbnail asset={asset} />
+                          <div className="min-w-0 flex-1">
                             <p className="break-words text-sm font-semibold text-slate-800">{displayCatalogName(asset.name)}</p>
                             <p className="mt-1 break-all font-mono text-xs text-slate-500">자산 ID · {asset.id}</p>
-                            <p className="mt-1 text-xs text-slate-600">
-                              라우터 상태: {provisioningLabels[asset.status]}
-                            </p>
+                            <p className="mt-1 text-xs text-slate-600">라우터 상태: {provisioningLabels[asset.status]}</p>
                             {selected && <p className="mt-1 text-xs font-semibold text-indigo-800">현재 페르소나 초안에 연결됨 · 저장 후 반영</p>}
                           </div>
-                          <Button type="button" size="sm" variant={selected ? 'default' : 'outline'} disabled={!eligible || testBusy} onClick={() => chooseAsset(asset.id)}>
-                            {selected ? '선택됨' : eligible ? '이 자산 선택' : '선택할 수 없음'}
+                          <Button type="button" size="sm" variant={selected ? 'default' : 'outline'} disabled={testBusy} onClick={() => chooseAsset(asset.id)}>
+                            {selected ? '선택됨' : '이 자산 선택'}
                           </Button>
                         </div>
                       );
@@ -513,20 +566,16 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                       className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="">자산 선택</option>
-                      {assets.map(asset => {
-                        const eligible = selectableAssets.some(candidate => candidate.id === asset.id);
-                        return (
-                          <option key={asset.id} value={asset.id} disabled={!eligible}>
+                      {selectableAssets.map(asset => (
+                          <option key={asset.id} value={asset.id}>
                             {displayCatalogName(asset.name)} · 외부 서비스 · {provisioningLabels[asset.status]}
-                            {!eligible ? ' · 선택 불가' : ''}
                           </option>
-                        );
-                      })}
+                      ))}
                     </select>
                   </>
                 )}
                 <p className="text-xs leading-relaxed text-slate-500">
-                  선택 조건: 준비 완료, 재사용 가능, 서비스 아바타 ID 보유. 미리보기 URL은 제공되지 않습니다.
+                  선택 조건: 준비 완료, 재사용 가능, 서비스 아바타 ID 보유. 이미지가 연결된 자산은 프로젝트 보안 경로로 미리보기를 불러옵니다.
                   아바타 상태는 라우터가 반환한 내용을 표시합니다.
                 </p>
               </div>

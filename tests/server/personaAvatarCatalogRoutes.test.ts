@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 const fakes = vi.hoisted(() => ({
-  list: vi.fn(), normalize: vi.fn(), create: vi.fn(), update: vi.fn(), get: vi.fn(),
+  list: vi.fn(), thumbnail: vi.fn(), normalize: vi.fn(), create: vi.fn(), update: vi.fn(), get: vi.fn(),
 }));
 vi.mock("../../server/storage", () => ({ storage: {
   getMbtiPersona: fakes.get,
@@ -12,7 +12,7 @@ vi.mock("../../server/services/fileManager", () => ({ fileManager: {
   createMBTIPersona: fakes.create, updateMBTIPersona: fakes.update,
 } }));
 vi.mock("../../server/services/liveAvatar/personaCatalog", () => ({
-  personaAvatarCatalog: { list: fakes.list, normalize: fakes.normalize },
+  personaAvatarCatalog: { list: fakes.list, thumbnail: fakes.thumbnail, normalize: fakes.normalize },
 }));
 vi.mock("../../server/services/gcsStorage", () => ({
   transformPersonasMedia: vi.fn(async p => p), transformPersonaMedia: vi.fn(async p => p),
@@ -39,6 +39,7 @@ function app(role?: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   fakes.list.mockResolvedValue({ projectId: "project-one", runtimeAvailable: false, assets: [] });
+  fakes.thumbnail.mockResolvedValue({ bytes: Buffer.from("thumbnail"), contentType: "image/png" });
   fakes.normalize.mockResolvedValue({});
   fakes.create.mockImplementation(async p => p);
   fakes.update.mockImplementation(async (_id, p) => p);
@@ -56,6 +57,15 @@ describe("persona catalog authenticated bridge", () => {
     expect(response.status).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(fakes.list).toHaveBeenCalledExactlyOnceWith("owner");
+  });
+  it("serves image thumbnails through the authenticated catalog bridge", async () => {
+    const response = await request(app("admin")).get(`${path}/12345678-1234-4234-8234-123456789abc/thumbnail`);
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("image/png");
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    expect(response.body.toString()).toBe("thumbnail");
+    expect(fakes.thumbnail).toHaveBeenCalledExactlyOnceWith("owner", "12345678-1234-4234-8234-123456789abc");
   });
   it("returns safe actionable permission errors without a successful empty list", async () => {
     fakes.list.mockRejectedValue(new AvatarIdentityError("avatar_assets_read_scope_missing", 403));

@@ -51,6 +51,17 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
     catch (error) { catalogError(error, res); }
   }));
 
+  router.get("/api/admin/personas/live-avatar/assets/:assetId/thumbnail", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    try {
+      const image = await personaAvatarCatalog.thumbnail(req.user.id, req.params.assetId);
+      res.set({
+        "Content-Type": image.contentType,
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
+      }).send(image.bytes);
+    } catch (error) { catalogError(error, res); }
+  }));
+
   router.get("/api/admin/personas", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     const [personas, allLocaleRows] = await Promise.all([
       fileManager.getAllMBTIPersonas(),

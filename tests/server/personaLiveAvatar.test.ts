@@ -12,6 +12,7 @@ const stock = (patch: any = {}) => ({
 });
 const asset = (patch: any = {}) => ({
   id, name: "테스트 아바타", providerId: "tavus", providerAvatarId: "provider-face",
+  imageAssetId: "22345678-1234-4234-8234-123456789abc",
   status: "ready", capabilities: { reusable: true, liveRendering: true, validation: "provisioned" }, ...patch,
 });
 const draft = (patch: any = {}) => ({
@@ -28,11 +29,13 @@ const voices = {
 let call: ReturnType<typeof vi.fn>;
 let check: ReturnType<typeof vi.fn>;
 let catalog: PersonaAvatarCatalog;
+let image: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   call = vi.fn(async (_user, path, schema) => schema.parse(path === "/avatars" ? [stock()]
     : path === "/avatar-assets" ? [asset()] : path === "/voices" ? voices : asset()));
+  image = vi.fn(async () => ({ bytes: Buffer.from("thumbnail"), contentType: "image/png" }));
   check = vi.fn(async () => ({ projectId: "project-one", scopes: ["assets:read"] }));
-  catalog = new PersonaAvatarCatalog({ call } as any, { check } as any);
+  catalog = new PersonaAvatarCatalog({ call, image } as any, { check } as any);
 });
 
 describe("persona project catalog and inactive drafts", () => {
@@ -60,6 +63,22 @@ describe("persona project catalog and inactive drafts", () => {
       ["operator", "/avatar-assets"], ["operator", "/avatars"], ["operator", "/voices"],
     ]);
     expect(call.mock.calls[0]).toHaveLength(3);
+  });
+
+  it("serves a thumbnail only for a selectable project-owned avatar with an image", async () => {
+    const result = await catalog.thumbnail("operator", id);
+    expect(result).toEqual({ bytes: Buffer.from("thumbnail"), contentType: "image/png" });
+    expect(check).toHaveBeenCalledWith("operator");
+    expect(call).toHaveBeenCalledWith("operator", `/avatar-assets/${id}`, expect.anything());
+    expect(image).toHaveBeenCalledWith("operator", expect.any(String));
+
+    call.mockImplementation(async (_user, _path, schema) => schema.parse(asset({ status: "processing" })));
+    await expect(catalog.thumbnail("operator", id)).rejects.toMatchObject({ status: 404 });
+    expect(image).toHaveBeenCalledTimes(1);
+
+    call.mockImplementation(async (_user, _path, schema) => schema.parse(asset({ imageAssetId: undefined })));
+    await expect(catalog.thumbnail("operator", id)).rejects.toMatchObject({ code: "persona_avatar_thumbnail_not_available", status: 404 });
+    expect(image).toHaveBeenCalledTimes(1);
   });
 
   it("requires assets:read before reading catalog or accepting references", async () => {
