@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
-import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar } from '@shared/avatar/personaAvatar';
+import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar, PersonaVoice } from '@shared/avatar/personaAvatar';
 import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
 import { PersonaAvatarCreationPanel, type PersonaAvatarSource } from '@/components/admin/PersonaAvatarCreationPanel';
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
@@ -33,7 +33,11 @@ type AvatarAsset = {
   };
 };
 
-type AssetResponse = { projectId: string; assets: AvatarAsset[]; stockAvatars: PersonaStockAvatar[]; runtimeAvailable: false };
+type AssetResponse = {
+  projectId: string; assets: AvatarAsset[]; stockAvatars: PersonaStockAvatar[];
+  voiceCatalog: { providers: Array<{ providerId: 'tavus' | 'anam'; status: 'available' | 'unconfigured' | 'unavailable'; errorCode: string | null }>; voices: PersonaVoice[] };
+  runtimeAvailable: false;
+};
 
 type Props = {
   creationSource?: PersonaAvatarSource;
@@ -69,6 +73,9 @@ const provisioningLabels: Record<AvatarAsset['status'], string> = {
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.name === 'ZodError') return '서버의 아바타 목록 응답 형식이 올바르지 않습니다. 관리자에게 연결 상태 확인을 요청하세요.';
   const message = error instanceof Error ? error.message : '';
+  if (/persona_voice_unavailable|VOICE_NOT_AVAILABLE|VOICE_GENDER_CHANGED/.test(message)) {
+    return '선택한 음성이 현재 공급자 목록이나 성별 분류와 일치하지 않습니다. 음성 목록을 새로고침한 뒤 다시 선택해 주세요.';
+  }
   if (/403/.test(message)) return '아바타 목록 조회 권한이 없습니다. assets:read scope가 필요합니다.';
   if (/서버에 연결할 수 없습니다|Failed to fetch|NetworkError|fetch/i.test(message)) {
     return '서버에 연결하지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.';
@@ -80,6 +87,8 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   creationSource, personaId, seedSource = '', seedDraft = null, onSeedDraftChange }: Props) {
   const [assets, setAssets] = useState<AvatarAsset[] | null>(null);
   const [stockAvatars, setStockAvatars] = useState<PersonaStockAvatar[] | null>(null);
+  const [voiceCatalog, setVoiceCatalog] = useState<AssetResponse['voiceCatalog'] | null>(null);
+  const [voiceGenderFilter, setVoiceGenderFilter] = useState<'male' | 'female' | 'neutral'>(liveAvatar?.voiceSelection?.gender ?? 'male');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -96,7 +105,10 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const seedFlow = Boolean(personaId && onSeedDraftChange);
 
   useEffect(() => {
-    if (liveAvatar) setSelectedKind(liveAvatar.kind === 'stock' ? 'stock' : 'custom');
+    if (liveAvatar) {
+      setSelectedKind(liveAvatar.kind === 'stock' ? 'stock' : 'custom');
+      setVoiceGenderFilter(liveAvatar.voiceSelection?.gender ?? 'male');
+    }
   }, [liveAvatar]);
 
   useEffect(() => {
@@ -124,6 +136,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
       if (!mountedRef.current || requestRef.current !== requestId) return;
       setAssets(result.assets);
       setStockAvatars(result.stockAvatars);
+      setVoiceCatalog(result.voiceCatalog);
       setProjectId(result.projectId);
     } catch (cause) {
       if (!mountedRef.current || requestRef.current !== requestId) return;
@@ -137,6 +150,12 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const stockAvatarId = liveAvatar?.kind === 'stock' ? liveAvatar.avatarId : null;
   const selectedAsset = assets?.find(asset => asset.id === customAssetId);
   const selectedStock = stockAvatars?.find(avatar => avatar.id === stockAvatarId && avatar.providerId === liveAvatar?.providerId);
+  const selectedVoice = liveAvatar?.voiceSelection;
+  const selectedVoiceEntry = selectedVoice && voiceCatalog?.voices.find(voice =>
+    voice.providerId === liveAvatar?.providerId && voice.id === selectedVoice.voiceId && voice.gender === selectedVoice.gender);
+  const selectedVoiceProvider = liveAvatar && voiceCatalog?.providers.find(provider => provider.providerId === liveAvatar.providerId);
+  const selectableVoices = voiceCatalog?.voices.filter(voice =>
+    voice.providerId === liveAvatar?.providerId && voice.gender === voiceGenderFilter && voice.available) ?? [];
   const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset && !selectedStock);
   const selectedTavusCustom = Boolean(liveAvatar && liveAvatar.kind !== 'stock' && liveAvatar.providerId === 'tavus');
   const selectedLucy = liveAvatar?.kind === 'stock' && liveAvatar.providerId === 'tavus' && liveAvatar.avatarId === 'tavus-stock-lucy';
@@ -184,6 +203,25 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
       voiceMode: 'roleplayx', validationStatus: 'unverified', activation: 'draft',
       ...(projectId ? { projectId } : {}),
     });
+  };
+
+  const chooseVoice = (voiceId: string) => {
+    if (!liveAvatar) return;
+    const { voiceSelection: _oldSelection, ...withoutVoice } = liveAvatar;
+    if (!voiceId) {
+      onLiveAvatarChange(withoutVoice);
+      return;
+    }
+    const voice = selectableVoices.find(item => item.id === voiceId);
+    if (!voice) return;
+    onLiveAvatarChange({ ...liveAvatar, voiceSelection: { voiceId: voice.id, gender: voice.gender as 'male' | 'female' | 'neutral' } });
+  };
+
+  const changeVoiceGender = (gender: 'male' | 'female' | 'neutral') => {
+    setVoiceGenderFilter(gender);
+    if (!liveAvatar?.voiceSelection || liveAvatar.voiceSelection.gender === gender) return;
+    const { voiceSelection: _oldSelection, ...withoutVoice } = liveAvatar;
+    onLiveAvatarChange(withoutVoice);
   };
 
   const chooseKind = (kind: 'stock' | 'custom') => {
@@ -307,6 +345,71 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 </Button>
               </div>
             </div>
+          )}
+
+          {liveAvatar && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && (
+            <section className="space-y-3 rounded-md border border-indigo-200 bg-indigo-50/50 p-4" aria-label="라이브 대화 음성 모델">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800">라이브 대화 음성</h4>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                  선택한 Tavus·Anam 전체 파이프라인이 대화와 음성을 생성합니다. 이 모드에서는 Gemini Live 음성을 함께 실행하지 않습니다.
+                </p>
+              </div>
+              {!voiceCatalog ? (
+                <p className="text-xs text-slate-600">음성 목록은 아바타 목록 조회 후 표시됩니다.</p>
+              ) : selectedVoiceProvider?.status !== 'available' ? (
+                <p className="text-xs text-amber-900" role="status">
+                  {liveAvatar.providerId === 'anam' ? 'Anam' : 'Tavus'} 음성 목록을 현재 확인할 수 없습니다. provider 설정 또는 카탈로그 상태를 확인하세요.
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-medium text-slate-700">
+                    음성 성별
+                    <select
+                      aria-label="음성 성별"
+                      value={voiceGenderFilter}
+                      disabled={testBusy || creationBusy}
+                      onChange={event => changeVoiceGender(event.target.value as 'male' | 'female' | 'neutral')}
+                      className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      <option value="male">남성</option>
+                      <option value="female">여성</option>
+                      <option value="neutral">중립</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium text-slate-700">
+                    음성 모델
+                    <select
+                      aria-label="음성 모델"
+                      value={selectedVoiceEntry ? selectedVoice!.voiceId : ''}
+                      disabled={testBusy || creationBusy}
+                      onChange={event => chooseVoice(event.target.value)}
+                      className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    >
+                      <option value="">공급자 기본 음성 사용</option>
+                      {selectableVoices.map(voice => (
+                        <option key={`${voice.providerId}:${voice.id}`} value={voice.id}>
+                          {voice.name}{voice.genderSource === 'admin' ? ' · 관리자 분류' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+              {selectedVoice && !selectedVoiceEntry && voiceCatalog && (
+                <p className="text-xs text-amber-900" role="alert">
+                  저장된 음성이 현재 목록에서 확인되지 않습니다. 자동으로 다른 음성을 고르지 않았습니다. 목록을 새로고침한 뒤 다시 선택하세요.
+                </p>
+              )}
+              {selectedVoiceEntry && (
+                <p className="text-xs text-slate-600" role="status">
+                  선택됨: {selectedVoiceEntry.name} · {selectedVoiceEntry.genderSource === 'admin' ? '관리자 지정 성별' : '제공자 성별 정보'}
+                </p>
+              )}
+              {voiceCatalog && selectedVoiceProvider?.status === 'available' && !selectableVoices.length && (
+                <p className="text-xs text-slate-600">이 성별로 분류되어 선택 가능한 음성이 없습니다.</p>
+              )}
+            </section>
           )}
 
           {selectedKind === 'stock' && liveAvatar?.kind === 'stock' && selectedStock && (

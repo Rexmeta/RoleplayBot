@@ -185,6 +185,9 @@ export class TavusSessions {
       throw new TavusError("avatar_persona_mismatch", 409, { creationAttempted: false });
     }
     const auth = await this.deps.connection.check(userId);
+    if (target.voiceSelection && !auth.integration?.features.includes("provider_voice_catalog_v1")) {
+      throw new TavusError("avatar_voice_catalog_unsupported", 409, { creationAttempted: false });
+    }
     const evaluationAvailable = supportsAvatarFinalTranscript(target.providerId ?? "tavus", auth.integration?.features ?? []);
     const binding = await this.deps.resolve(userId, runId);
     if (String(binding.persona.id) !== String(target.personaId)) {
@@ -217,7 +220,9 @@ export class TavusSessions {
     try {
       const latest = await this.deps.target(userId, runId);
       if (latest.personaId !== target.personaId || latest.avatarId !== target.avatarId ||
-          latest.assetId !== target.assetId || latest.providerId !== target.providerId || latest.projectId !== target.projectId) {
+          latest.assetId !== target.assetId || latest.providerId !== target.providerId || latest.projectId !== target.projectId ||
+          latest.voiceSelection?.voiceId !== target.voiceSelection?.voiceId ||
+          latest.voiceSelection?.gender !== target.voiceSelection?.gender) {
         throw new TavusError("avatar_persona_mismatch", 409, { creationAttempted: false });
       }
       // Resolve does free remote reads. Check local actor state again after those
@@ -235,7 +240,12 @@ export class TavusSessions {
         ...(target.assetId ? { avatarAssetId: target.assetId } : {}),
         mode: "live", pipeline: target.providerId === "anam" ? "anam_full" : "tavus_full", costConfirmed: true,
         // API 0.9 translates this same context for either native provider.
-        fullPipeline: { systemPrompt: ROLEPLAY_PAL_PROMPT, context: binding.context, languages: [binding.language] },
+        fullPipeline: {
+          systemPrompt: ROLEPLAY_PAL_PROMPT, context: binding.context, languages: [binding.language],
+          ...(target.voiceSelection ? {
+            voiceId: target.voiceSelection.voiceId, voiceGender: target.voiceSelection.gender,
+          } : {}),
+        },
       });
       // Retain the ID even if a later identity check fails; never create again.
       const bound = await this.deps.store.mutate<TavusSession>(`run:${runId}`, current => current?.token !== token ? current! : ({

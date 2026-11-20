@@ -34,7 +34,16 @@ const row = (patch: any = {}) => ({
   status: "ready", capabilities: { reusable: true, liveRendering: false, validation: "provisioned" },
   liveValidated: false, ...patch,
 });
-const response = (assets = [row()]) => ({ projectId: "project-one", runtimeAvailable: false, assets });
+const voiceCatalog = {
+  providers: [
+    { providerId: "anam", status: "available", errorCode: null },
+    { providerId: "tavus", status: "available", errorCode: null },
+  ],
+  voices: [],
+};
+const response = (assets = [row()], voices = voiceCatalog.voices) => ({
+  projectId: "project-one", runtimeAvailable: false, assets, voiceCatalog: { ...voiceCatalog, voices },
+});
 function Harness({ initial = null }: { initial?: PersonaLiveAvatar | null }) {
   const [mode, setMode] = useState<PersonaAvatarMode>("live");
   const [avatar, setAvatar] = useState(initial);
@@ -63,7 +72,7 @@ describe("persona avatar settings", () => {
       projectId: "project-one", activation: "draft", validationStatus: "unverified",
     });
     expect(screen.getByText("기본 아바타 · 외부 서비스 연결")).toBeTruthy();
-    expect(screen.getByRole("region").textContent).not.toMatch(/anam-persona-default|tavus-stock-/i);
+    expect(screen.getByRole("region", { name: "아바타 표시 방식" }).textContent).not.toMatch(/anam-persona-default|tavus-stock-/i);
     expect(api).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
     expect(screen.getByTestId("anam-avatar-test")).toBeTruthy();
@@ -93,6 +102,26 @@ describe("persona avatar settings", () => {
     expect(screen.getByText(/미리보기 URL은 제공되지 않습니다/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "아바타 연결 해제" }));
     expect(screen.getByTestId("draft").textContent).toBe("null");
+  });
+
+  it("lets a persona select a provider voice by gender without starting Gemini or a live session", async () => {
+    const voices = [{
+      id: "tavus-female-voice", providerId: "tavus", name: "Female voice", description: "Provider voice",
+      gender: "female", genderSource: "provider", languages: ["ko"], available: true,
+    }] as const;
+    api.mockResolvedValue({ json: async () => response([row()], [...voices]) });
+    render(<Harness initial={saved} />);
+    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+    await screen.findByLabelText("음성 모델");
+    fireEvent.change(screen.getByLabelText("음성 성별"), { target: { value: "female" } });
+    fireEvent.change(screen.getByLabelText("음성 모델"), { target: { value: "tavus-female-voice" } });
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toMatchObject({
+      voiceSelection: { voiceId: "tavus-female-voice", gender: "female" },
+    });
+    expect(screen.getByText(/Gemini Live 음성을 함께 실행하지 않습니다/)).toBeTruthy();
+    expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
+    fireEvent.change(screen.getByLabelText("음성 성별"), { target: { value: "male" } });
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).not.toHaveProperty("voiceSelection");
   });
 
   it("disables unready assets, separates live validation and preserves missing selections", async () => {
@@ -163,7 +192,7 @@ describe("persona avatar settings", () => {
       validationStatus: "unverified", activation: "draft", projectId: "project-one",
     });
     expect(screen.getByText("기본 아바타 · 외부 서비스 연결")).toBeTruthy();
-    expect(screen.getByRole("region").textContent).not.toMatch(/tavus-stock-lucy/i);
+    expect(screen.getByRole("region", { name: "아바타 표시 방식" }).textContent).not.toMatch(/tavus-stock-lucy/i);
     expect(screen.queryByLabelText("연결할 커스텀 자산")).toBeNull();
     expect(screen.queryByText(/저장된 Tavus 자산/)).toBeNull();
     expect(api).not.toHaveBeenCalled();

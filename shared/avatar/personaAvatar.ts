@@ -14,6 +14,10 @@ export function supportsAvatarFinalTranscript(providerId: string, features: read
 const liveDraftShape = {
   providerId: z.enum(["tavus", "anam"]),
   voiceMode: z.literal("roleplayx"),
+  voiceSelection: z.object({
+    voiceId: z.string().min(1).max(160),
+    gender: z.enum(["male", "female", "neutral"]),
+  }).strict().optional(),
   validationStatus: z.enum(["unverified", "live_verified"]),
   activation: z.literal("draft"),
   projectId: z.string().min(1).max(256).optional(),
@@ -65,6 +69,26 @@ export const personaStockAvatarSchema = z.object({
 });
 export type PersonaStockAvatar = z.infer<typeof personaStockAvatarSchema>;
 
+export const personaVoiceCatalogSchema = z.object({
+  providers: z.array(z.object({
+    providerId: z.enum(["anam", "tavus"]),
+    status: z.enum(["available", "unconfigured", "unavailable"]),
+    errorCode: z.string().nullable(),
+  }).strict()).max(2),
+  voices: z.array(z.object({
+    id: z.string().min(1).max(160),
+    providerId: z.enum(["anam", "tavus"]),
+    name: z.string().min(1).max(200),
+    description: z.string().max(1000),
+    gender: z.enum(["male", "female", "neutral", "unclassified"]),
+    genderSource: z.enum(["provider", "admin", "unknown"]),
+    languages: z.array(z.string().max(40)).max(20),
+    available: z.boolean(),
+  }).strict()).max(1000),
+}).strict();
+export type PersonaVoiceCatalog = z.infer<typeof personaVoiceCatalogSchema>;
+export type PersonaVoice = PersonaVoiceCatalog["voices"][number];
+
 export function isSelectableStockAvatar(avatar: PersonaStockAvatar): boolean {
   const supported = ((avatar.id === "tavus-stock-lucy" || avatar.stock === true && /^tavus-stock-[a-zA-Z0-9_-]{1,128}$/.test(avatar.id)) && avatar.providerId === "tavus") ||
     (avatar.id === "anam-persona-default" && avatar.providerId === "anam");
@@ -97,6 +121,7 @@ export type PersonaAvatarAsset = z.infer<typeof personaAvatarAssetSchema> & { li
 export const personaAvatarCatalogSchema = z.object({
   projectId: z.string().min(1).max(256),
   runtimeAvailable: z.literal(false),
+  voiceCatalog: personaVoiceCatalogSchema,
   stockAvatars: z.array(personaStockAvatarSchema).max(500).default([]),
   assets: z.array(personaAvatarAssetSchema.extend({
     providerId: z.enum(["tavus", "anam"]),
