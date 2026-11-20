@@ -67,7 +67,9 @@ const navigateSection = (name: string) => fireEvent.click(screen.getAllByRole('b
 const changeField = (testId: string, value: string) => fireEvent.change(screen.getByTestId(testId), { target: { value } });
 
 it('shows the referenced template image and live setting in an actor card without copying media into the actor', async () => {
-  queries.personas = [{ id: 'template-live', mbti: 'ESTJ', avatarMode: 'live', images: { base: 'personas/live-base.png' } }];
+  queries.personas = [{ id: 'template-live', mbti: 'ESTJ', avatarMode: 'live', images: { base: 'personas/live-base.png' },
+    liveAvatar: { kind: 'stock', avatarId: 'tavus-stock-lucy', providerId: 'tavus', voiceMode: 'roleplayx',
+      validationStatus: 'unverified', activation: 'draft' } }];
   queries.scenarios = [{ ...fixture, personas: [{
     id: 'stable-actor', personaRef: 'template-live', name: '협상 상대', gender: 'female',
     mbti: 'ESTJ', department: '구매', position: '팀장', experience: '5년', stance: '', goal: '', tradeoff: '',

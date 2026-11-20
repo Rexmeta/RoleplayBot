@@ -113,6 +113,13 @@ it('does not grant operator video management through the new layout', async () =
   expect(screen.getByTestId('avatar-settings-contract').dataset.videoAllowed).toBe('false');
 });
 
+it('labels a saved live mode without an avatar as unassigned in the persona list', () => {
+  controls.mode = 'live';
+  render(<PersonaManager />);
+  expect(screen.getByText('라이브 아바타 미연결')).toBeTruthy();
+  expect(screen.queryByText('라이브 아바타 지정됨')).toBeNull();
+});
+
 it('creates a persona using the same editor shell and the existing create endpoint', async () => {
   render(<PersonaManager />);
   fireEvent.click(screen.getByTestId('button-create-persona'));

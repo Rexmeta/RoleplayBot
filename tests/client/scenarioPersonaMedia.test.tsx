@@ -7,6 +7,8 @@ import { PersonaMediaPreview, type ScenarioPersonaMedia } from '@/components/adm
 afterEach(cleanup);
 const template: ScenarioPersonaMedia = {
   id: 'live-template', mbti: 'ESTJ', avatarMode: 'live',
+  liveAvatar: { kind: 'stock', avatarId: 'tavus-stock-lucy', providerId: 'tavus',
+    voiceMode: 'roleplayx', validationStatus: 'unverified', activation: 'draft' },
   images: { base: 'personas/base.png', female: { expressions: { 중립: 'personas/female.png' } } },
 };
 
@@ -25,6 +27,12 @@ it('shows compact previews for selection options too', () => {
   render(<PersonaMediaPreview compact persona={template} />);
   expect(screen.getByRole('img').getAttribute('alt')).toBe('ESTJ 기본 이미지');
   expect(screen.getByText('라이브 아바타 설정')).toBeTruthy();
+});
+
+it('warns when live display is selected without an assigned avatar', () => {
+  render(<PersonaMediaPreview persona={{ ...template, liveAvatar: null }} />);
+  expect(screen.getByText('라이브 아바타 미연결').getAttribute('title')).toContain('선택하고 저장');
+  expect(screen.queryByText('라이브 아바타 설정')).toBeNull();
 });
 
 it('distinguishes a missing selection from a missing image', () => {

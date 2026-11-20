@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ImageOff, UserRound } from "lucide-react";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { cn } from "@/lib/utils";
+import { personaLiveAvatarSchema, type PersonaLiveAvatar } from "@shared/avatar/personaAvatar";
 
 export type ScenarioPersonaMedia = {
   id: string;
@@ -12,6 +13,7 @@ export type ScenarioPersonaMedia = {
     female?: { expressions?: Record<string, string> };
   } | null;
   avatarMode?: "image" | "video" | "live" | null;
+  liveAvatar?: PersonaLiveAvatar | null;
   videos?: { enabled?: boolean } | null;
 };
 
@@ -79,13 +81,16 @@ export function PersonaMediaPreview({ persona, gender, compact = false, classNam
 
   const src = toMediaUrl(resolveImageRef(persona, gender));
   const mode = persona.avatarMode ?? (persona.videos?.enabled ? "video" : "image");
+  const hasLiveReference = mode === "live" && personaLiveAvatarSchema.safeParse(persona.liveAvatar).success;
   const alt = `${persona.mbti || persona.id} 기본 이미지`;
 
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-2", className)}>
       <Thumb key={src} src={src} alt={alt} size={size} />
       {mode === "live" ? (
-        <span className="se-chip is-info" title={LIVE_TITLE}>라이브 아바타 설정</span>
+        hasLiveReference
+          ? <span className="se-chip is-info" title={LIVE_TITLE}>라이브 아바타 설정</span>
+          : <span className="se-chip is-warn" title="페르소나의 아바타 표시 탭에서 사용할 아바타를 선택하고 저장하세요.">라이브 아바타 미연결</span>
       ) : mode === "video" ? (
         <span className="se-chip" title="설정된 표시 방식">영상 아바타</span>
       ) : mode === "image" ? (

@@ -20,6 +20,7 @@ import { PersonaTranslationEditor } from './PersonaTranslationEditor';
 import { PersonaAvatarSettings, type PersonaAvatarMode, type PersonaLiveAvatar } from './PersonaAvatarSettings';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { useAuth } from '@/hooks/useAuth';
+import { personaLiveAvatarSchema } from '@shared/avatar/personaAvatar';
 import type { PersonaSeedDraft } from '@shared/avatar/personaSeedLive';
 
 /**
@@ -2026,7 +2027,9 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       {persona.avatarMode === 'live' ? (
                         <>
                           <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-900">
-                            Live 초안
+                            {personaLiveAvatarSchema.safeParse(persona.liveAvatar).success
+                              ? '라이브 아바타 지정됨'
+                              : '라이브 아바타 미연결'}
                           </Badge>
                           <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
                             현재 대화 표시: {persona.videos?.enabled ? '비디오' : '이미지'}

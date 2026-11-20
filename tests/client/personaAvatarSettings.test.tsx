@@ -381,7 +381,8 @@ describe("persona avatar settings", () => {
     render(<PersonaHarness />);
 
     expect(screen.getByRole("radio", { name: "맞춤 아바타" }).getAttribute("aria-checked")).toBe("true");
-    expect(screen.getByText(/Live 아바타 표시가 선택되어 있지만 연결된 아바타는 없습니다/)).toBeTruthy();
+    expect(screen.getByText('라이브 아바타 미연결')).toBeTruthy();
+    expect(screen.getByText(/새 시나리오 대화부터 적용됩니다/)).toBeTruthy();
     expect(await screen.findByText("프로젝트 커스텀 아바타")).toBeTruthy();
     expect(screen.getByText("테스트 인물")).toBeTruthy();
     expect(screen.getByText(`자산 ID · ${id}`)).toBeTruthy();

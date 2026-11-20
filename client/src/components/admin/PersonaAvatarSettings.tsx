@@ -325,6 +325,12 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
 
       {mode === 'live' && (
         <div className="mt-4 space-y-4">
+          {!liveAvatar && (
+            <div role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+              <p className="font-semibold">라이브 아바타 미연결</p>
+              <p className="mt-1">표시 방식만 라이브로 선택하면 대화에서 사용할 수 없습니다. 아래 목록에서 기본 또는 맞춤 아바타를 하나 선택하고 상단 ‘저장’을 누르세요. 새 시나리오 대화부터 적용됩니다.</p>
+            </div>
+          )}
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold text-slate-700">아바타 종류</legend>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="아바타 종류">
@@ -472,11 +478,6 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               <p className="font-semibold text-slate-800">선택한 기본 아바타</p>
                <p className="mt-1 text-slate-600">{displayCatalogName(selectedStock.name)} · {isSelectableStockAvatar(selectedStock) ? '선택 가능' : '현재 선택 불가'}</p>
             </div>
-          )}
-          {!liveAvatar && (
-            <p role="status" className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-              Live 아바타 표시가 선택되어 있지만 연결된 아바타는 없습니다. 목록을 확인한 뒤 원하는 자산을 직접 선택하세요.
-            </p>
           )}
           {selectedKind === 'stock' && liveAvatar?.kind === 'stock' && selectedMissing && (
             <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
