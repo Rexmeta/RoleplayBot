@@ -40,6 +40,7 @@ const descriptions: Record<string, string> = {
   avatar_persona_not_found: "현재 대화에 연결된 페르소나를 찾지 못했습니다.",
   avatar_conversation_ended: "이미 종료된 대화에서는 라이브 아바타를 시작할 수 없습니다.",
   avatar_conversation_scopes_missing: "API 키에 아바타 조회 또는 라이브 세션 사용 권한이 부족합니다.",
+  avatar_voice_catalog_unsupported: "연결된 AvatarRouter가 음성 카탈로그 기능을 제공하지 않아 저장된 음성을 안전하게 사용할 수 없습니다. 라우터 기능을 업데이트한 뒤 다시 시도하세요.",
   persona_avatar_project_mismatch: "저장된 아바타와 현재 API 키의 프로젝트가 다릅니다.",
   persona_stock_avatar_unavailable: "선택한 기본 아바타를 현재 프로젝트에서 사용할 수 없습니다.",
   persona_avatar_playback_validation_required: "페르소나 수정 화면에서 선택한 커스텀 아바타의 실제 재생을 확인하고 보고를 저장하세요.",

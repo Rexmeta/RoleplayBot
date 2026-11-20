@@ -43,7 +43,7 @@ beforeEach(() => {
     selection: vi.fn(async () => ({ blockers: [], configured: true, personaId: "actor" })),
     connection: { check: vi.fn(async () => ({
       projectId: "project", scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
-      integration: { features: ["tavus_full_pipeline", "unified_roleplay_context", "unified_client_connection", "hosted_browser_client"] },
+       integration: { features: ["tavus_full_pipeline", "unified_roleplay_context", "unified_client_connection", "hosted_browser_client", "provider_voice_catalog_v1"] },
     })) },
     target: vi.fn(async () => ({ projectId: "project", avatarId: "selected-face", assetId: null, personaId: "actor" })),
     resolve: vi.fn(async () => ({ persona: { id: "actor" }, context: "snapshot-bound character and situation", language: "ko", immutableContext: true })),
@@ -254,7 +254,8 @@ describe("AvatarRouter Full Pipeline", () => {
       return { ...auth, integration: { features: [...auth.integration.features, `${provider}_full_pipeline`] } };
     });
     deps.selection.mockResolvedValue({ blockers: [], configured: true, personaId: "actor", providerId: provider });
-    deps.target.mockResolvedValue({ projectId: "project", providerId: provider, avatarId: "selected-face", assetId: null, personaId: "actor" });
+    deps.target.mockResolvedValue({ projectId: "project", providerId: provider, avatarId: "selected-face", assetId: null, personaId: "actor",
+      voiceSelection: { voiceId: `${provider}-voice-01`, gender: "female" } });
     Object.assign(remote, { providerId: provider, pipeline: `${provider}_full`, rendererState: "running" });
     try {
       if (provider === "anam") {
@@ -266,13 +267,31 @@ describe("AvatarRouter Full Pipeline", () => {
       }
       expect(await service.start("owner", "run", true)).toMatchObject({ managedClient: true });
       expect(deps.client.call).toHaveBeenCalledWith("owner", "/sessions", expect.anything(), expect.objectContaining({
-        fullPipeline: { systemPrompt: "Stay in assigned role", context: "snapshot-bound character and situation", languages: ["ko"] },
+        fullPipeline: {
+          systemPrompt: "Stay in assigned role", context: "snapshot-bound character and situation", languages: ["ko"],
+          voiceId: `${provider}-voice-01`, voiceGender: "female",
+        },
       }));
       expect(await service.managedConnection("owner", "run")).toMatchObject({ pipeline: `${provider}_full` });
       await expect(service.managedConnection("owner", "run")).rejects.toMatchObject({ code: "avatar_client_connection_already_issued" });
       await expect(service.connection("owner", "run")).rejects.toMatchObject({ status: 405 });
       expect(deps.client.call.mock.calls.filter(call => call[1].endsWith("/client-connection"))).toHaveLength(1);
     } finally { vi.unstubAllEnvs(); }
+  });
+  it("does not start a session when the connected router lacks voice-catalog support", async () => {
+    deps.target.mockResolvedValue({
+      projectId: "project", providerId: "tavus", avatarId: "selected-face", assetId: null, personaId: "actor",
+      voiceSelection: { voiceId: "tavus-voice-01", gender: "female" },
+    });
+    deps.connection.check.mockResolvedValue({
+      projectId: "project", scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
+      integration: { features: ["tavus_full_pipeline", "unified_roleplay_context", "unified_client_connection", "hosted_browser_client"] },
+    });
+    await expect(service.start("owner", "run", true)).rejects.toMatchObject({
+      code: "avatar_voice_catalog_unsupported", details: { creationAttempted: false },
+    });
+    expect(deps.reserve).not.toHaveBeenCalled();
+    expect(deps.client.call).not.toHaveBeenCalled();
   });
   it.each(["pending", "importing", "failed", "completed", "empty"])(
     "never advertises or imports Anam from persisted %s state or speculative feature discovery", async transcriptState => {
@@ -343,9 +362,10 @@ describe("AvatarRouter Full Pipeline", () => {
       deps.selection.mockResolvedValue({ blockers: [], configured: true, personaId: "actor", providerId: "anam" });
       deps.connection.check.mockResolvedValue({
         projectId: "project", scopes: ["live-limits:read", "sessions:create", "sessions:read", "sessions:connect", "sessions:end"],
-        integration: { features: ["anam_full_pipeline", "unified_client_connection", "hosted_browser_client", "unified_roleplay_context", "tavus_final_transcript_v1"] },
+        integration: { features: ["anam_full_pipeline", "unified_client_connection", "hosted_browser_client", "unified_roleplay_context", "tavus_final_transcript_v1", "provider_voice_catalog_v1"] },
       });
-      deps.target.mockResolvedValue({ projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null, personaId: "actor" });
+      deps.target.mockResolvedValue({ projectId: "project", providerId: "anam", avatarId: "anam-persona-default", assetId: null, personaId: "actor",
+        voiceSelection: { voiceId: "anam-voice-01", gender: "male" } });
       Object.assign(remote, { providerId: "anam", avatarId: "anam-persona-default", pipeline: "anam_full", rendererState: "running" });
       deps.client.call.mockImplementation(async (_u, path, schema) => schema.parse(
         path.startsWith("/live-limits") ? limits : path.endsWith("/client-connection") ? {
@@ -357,7 +377,10 @@ describe("AvatarRouter Full Pipeline", () => {
       expect(await service.start("owner", "run", true)).toMatchObject({ state: "active", providerId: "anam", evaluationAvailable: false });
       expect(deps.client.call).toHaveBeenCalledWith("owner", "/sessions", expect.anything(), {
         providerId: "anam", avatarId: "anam-persona-default", pipeline: "anam_full", mode: "live", costConfirmed: true,
-        fullPipeline: { systemPrompt: "Stay in assigned role", context: "snapshot-bound character and situation", languages: ["ko"] },
+         fullPipeline: {
+           systemPrompt: "Stay in assigned role", context: "snapshot-bound character and situation", languages: ["ko"],
+           voiceId: "anam-voice-01", voiceGender: "male",
+         },
       });
       expect(await service.managedConnection("owner", "run")).toMatchObject({ clientScriptUrl: "https://router.example/sdk/avatarrouter-client.js" });
       await expect(service.managedConnection("owner", "run")).rejects.toMatchObject({ code: "avatar_client_connection_already_issued" });

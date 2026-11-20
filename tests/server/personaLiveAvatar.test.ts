@@ -18,11 +18,19 @@ const draft = (patch: any = {}) => ({
   assetId: id, providerId: "tavus", voiceMode: "roleplayx",
   activation: "draft", validationStatus: "live_verified", ...patch,
 });
+const voices = {
+  providers: [
+    { providerId: "anam", status: "available", errorCode: null },
+    { providerId: "tavus", status: "available", errorCode: null },
+  ],
+  voices: [],
+};
 let call: ReturnType<typeof vi.fn>;
 let check: ReturnType<typeof vi.fn>;
 let catalog: PersonaAvatarCatalog;
 beforeEach(() => {
-  call = vi.fn(async (_user, path, schema) => schema.parse(path === "/avatars" ? [stock()] : path === "/avatar-assets" ? [asset()] : asset()));
+  call = vi.fn(async (_user, path, schema) => schema.parse(path === "/avatars" ? [stock()]
+    : path === "/avatar-assets" ? [asset()] : path === "/voices" ? voices : asset()));
   check = vi.fn(async () => ({ projectId: "project-one", scopes: ["assets:read"] }));
   catalog = new PersonaAvatarCatalog({ call } as any, { check } as any);
 });
@@ -45,9 +53,12 @@ describe("persona project catalog and inactive drafts", () => {
     const list = await catalog.list("operator");
     expect(list).toMatchObject({
       projectId: "project-one", runtimeAvailable: false,
+      voiceCatalog: voices,
       assets: [{ id, status: "ready", liveValidated: false }],
     });
-    expect(call.mock.calls[0].slice(0, 2)).toEqual(["operator", "/avatar-assets"]);
+    expect(call.mock.calls.map(args => args.slice(0, 2))).toEqual([
+      ["operator", "/avatar-assets"], ["operator", "/avatars"], ["operator", "/voices"],
+    ]);
     expect(call.mock.calls[0]).toHaveLength(3);
   });
 
@@ -65,6 +76,28 @@ describe("persona project catalog and inactive drafts", () => {
     }) });
     expect(call.mock.calls[0].slice(0, 2)).toEqual(["operator", `/avatar-assets/${id}`]);
     expect(call.mock.calls[0]).toHaveLength(3);
+  });
+
+  it("validates and persists a provider-specific voice selection with its gender", async () => {
+    const catalogResponse = {
+      providers: [
+        { providerId: "anam", status: "available", errorCode: null },
+        { providerId: "tavus", status: "available", errorCode: null },
+      ],
+      voices: [{
+        id: "tavus-female-voice", providerId: "tavus", name: "Female voice", description: "",
+        gender: "female", genderSource: "admin", languages: ["ko"], available: true,
+      }],
+    };
+    call.mockImplementation(async (_user, path, schema) => schema.parse(path === "/voices" ? catalogResponse
+      : path === `/avatar-assets/${id}` ? asset() : [stock()]));
+    const selection = draft({ voiceSelection: { voiceId: "tavus-female-voice", gender: "female" } });
+    const normalized = await catalog.normalize("operator", { liveAvatar: selection });
+    expect(normalized.liveAvatar).toMatchObject({ voiceSelection: selection.voiceSelection, providerId: "tavus" });
+    expect(call.mock.calls.map(args => args[1])).toEqual(["/voices", `/avatar-assets/${id}`]);
+    await expect(catalog.normalize("operator", { liveAvatar: draft({
+      voiceSelection: { voiceId: "tavus-female-voice", gender: "male" },
+    }) })).rejects.toMatchObject({ code: "persona_voice_unavailable", status: 409 });
   });
 
   it("keeps even live-verified assets draft-only", async () => {
@@ -127,7 +160,7 @@ describe("persona project catalog and inactive drafts", () => {
   it("keeps stock and custom catalogs separate and resolves stock using reads only", async () => {
     const list = await catalog.list("operator");
     expect(list.stockAvatars).toEqual([stock()]);
-    expect(call.mock.calls.map(args => args[1])).toEqual(["/avatar-assets", "/avatars"]);
+    expect(call.mock.calls.map(args => args[1])).toEqual(["/avatar-assets", "/avatars", "/voices"]);
     call.mockClear();
     const stockDraft = { kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus",
       voiceMode: "roleplayx", activation: "draft", validationStatus: "live_verified" };
@@ -200,6 +233,18 @@ describe("project client catalog transport boundary", () => {
     for (const path of ["/avatars", "/avatars/tavus-stock-lucy", "/avatars/../sessions"]) {
       await expect(client.call("admin", path, z.unknown(), {})).rejects.toMatchObject({ code: "avatar_test_path_invalid" });
     }
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("permits only read-only voice catalog access with the existing project identity", async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify(voices), { headers: { "content-type": "application/json" } }));
+    const client = new AvatarProjectClient(identity, request as any, () => ({
+      baseUrl: "https://avatar-router.replit.app/api/v1", apiKey: "ar_sk_test_key_not_real_123456",
+    }));
+    await client.call("admin", "/voices", z.object({ voices: z.array(z.unknown()) }));
+    expect(request.mock.calls[0][0]).toBe("https://avatar-router.replit.app/api/v1/voices");
+    expect(request.mock.calls[0][1]).toMatchObject({ method: "GET", headers: { "X-Avatar-User-ID": expect.any(String) } });
+    await expect(client.call("admin", "/voices", z.unknown(), {})).rejects.toMatchObject({ code: "avatar_test_path_invalid" });
     expect(request).toHaveBeenCalledTimes(1);
   });
 });

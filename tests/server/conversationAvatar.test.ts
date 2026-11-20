@@ -111,6 +111,13 @@ describe("selected conversation avatar resolution", () => {
     expect(deps.fileManager.getPersonaAvatarSettings).not.toHaveBeenCalled();
     expect(deps.fileManager.getAllScenarios).not.toHaveBeenCalled();
   });
+  it("carries the persona's selected provider voice without switching to the legacy renderer", async () => {
+    const { deps, profile } = fullPipelineFixture();
+    profile.liveAvatar.voiceSelection = { voiceId: "voice-male-01", gender: "male" };
+    expect(await resolveFullPipelineConversationAvatar("owner", "conversation", deps)).toMatchObject({
+      providerId: "tavus", voiceSelection: { voiceId: "voice-male-01", gender: "male" },
+    });
+  });
   it("leaves runtime readiness to the router instead of requiring renderer playback proof or seed activation", async () => {
     const { deps, asset } = fullPipelineFixture();
     asset.liveValidation.runtimeSupported = false;

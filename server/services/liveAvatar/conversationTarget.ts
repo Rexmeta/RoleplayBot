@@ -110,7 +110,7 @@ export async function resolveConversationAvatar(
       throw new AvatarIdentityError("persona_stock_avatar_unavailable", 409);
     }
     return { projectId: auth.projectId, avatarId: selected.avatarId, assetId: null, providerId: selected.providerId,
-      personaId };
+      personaId, ...(selected.voiceSelection ? { voiceSelection: selected.voiceSelection } : {}) };
   }
   // Resolve the saved identity only. Readiness and playback validation belong
   // to AvatarRouter for both rendering and full-pipeline connections.
@@ -120,7 +120,8 @@ export async function resolveConversationAvatar(
   }
   if (!asset.providerAvatarId) throw new AvatarIdentityError("persona_avatar_provider_reference_missing", 409);
   return { projectId: auth.projectId, avatarId: asset.providerAvatarId, assetId: asset.id,
-    providerId: selected.providerId, personaId };
+    providerId: selected.providerId, personaId,
+    ...(selected.voiceSelection ? { voiceSelection: selected.voiceSelection } : {}) };
 }
 
 /** Full-pipeline starts resolve identity only; legacy PCM validation is unrelated. */
