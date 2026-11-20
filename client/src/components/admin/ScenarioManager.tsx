@@ -25,7 +25,7 @@ import { NpcBehaviorHarnessBuilder } from './NpcBehaviorHarnessBuilder';
 import { DifficultyProfileBuilder } from './DifficultyProfileBuilder';
 import { toMediaUrl } from '@/lib/mediaUrl';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, MoreVertical, ChevronDown, ChevronUp, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info, Plus, Trash2, Film, Video, VideoOff } from 'lucide-react';
+import { Loader2, MoreVertical, ChevronDown, Clock, Users, Target, Languages, Search, Sparkles, Eye, Copy, Download, Upload, ImageOff, UserX, ListX, BarChart2, Star, Folder, AlertTriangle, CheckCircle, XCircle, Info, Plus, Trash2, Film, Video, VideoOff } from 'lucide-react';
 import { validateScenario } from '@shared/scenarioValidator';
 import { FlowGraphBuilder, TerminationRulesBuilder, PersonaSwitchRulesBuilder, EvaluationHarnessBuilder } from './StateMachineBuilders';
 import { AIScenarioGenerator } from './AIScenarioGenerator';
@@ -49,7 +49,7 @@ import type { ActorCulture } from '@shared/cultureMap';
 import { getScenarioPersonaTemplateId, stableActorIdForTemplate } from '@/components/admin/cultureMap/actorIdentity';
 import { EditorGroup, Field, FieldGrid, ToggleRow, AdvancedDisclosure, AiGenerateButton, aiBlockedReason } from './scenarioEditor/EditorPrimitives';
 import { ConversationLengthGroup } from './scenarioEditor/ConversationLengthGroup';
-import { PersonaMediaPreview, type ScenarioPersonaMedia } from './scenarioEditor/PersonaMediaPreview';
+import { PersonaMediaPreview, PersonaPortrait, type ScenarioPersonaMedia } from './scenarioEditor/PersonaMediaPreview';
 import { ScenarioEditor, ScenarioEditorRegion, useScenarioEditorNavigation, revealScenarioEditorTarget } from './scenarioEditor/ScenarioEditor';
 
 interface ScenarioPersona {
@@ -445,7 +445,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const [isUploadingDefaultVideo, setIsUploadingDefaultVideo] = useState(false);
   const defaultVideoInputRef = useRef<HTMLInputElement>(null);
   const videoJobPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [expandedScenarios, setExpandedScenarios] = useState<Set<string | number>>(new Set());
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [translatingScenario, setTranslatingScenario] = useState<ComplexScenario | null>(null);
@@ -590,6 +589,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
   const { data: availablePersonas = [] } = useQuery<(ScenarioPersonaMedia & { personality_traits?: string[]; communication_style?: string })[]>({
     queryKey: ['/api/admin/personas'],
   });
+  const personaMediaById = useMemo(() => new Map(availablePersonas.map(persona => [persona.id.toLowerCase(), persona])), [availablePersonas]);
 
   // 시나리오 완료 통계 조회
   const { data: scenarioStats = [] } = useQuery<{ scenarioId: string; completionCount: number; averageScore: number | null }[]>({
@@ -701,14 +701,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
 
   // Each Actor has an independent id; Persona templates may be reused by any slot.
   const getAvailablePersonasForSlot = () => availablePersonas;
-
-  // 시나리오 로드 시 모두 펼쳐진 상태로 초기화
-  React.useEffect(() => {
-    if (scenarios && scenarios.length > 0) {
-      setExpandedScenarios(new Set(scenarios.map(s => s.id)));
-    }
-  }, [scenarios]);
-
 
   const handleAIGenerated = (result: any) => {
     // AI 생성 결과를 폼에 자동 입력 - 모든 필드 완전 복사
@@ -3601,19 +3593,6 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
       {/* 시나리오 목록 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
         {scenarios?.map((scenario) => {
-          const isExpanded = expandedScenarios.has(scenario.id);
-          const toggleExpand = () => {
-            setExpandedScenarios(prev => {
-              const next = new Set(prev);
-              if (next.has(scenario.id)) {
-                next.delete(scenario.id);
-              } else {
-                next.add(scenario.id);
-              }
-              return next;
-            });
-          };
-          
           const completeness = getCompleteness(scenario);
           const stats = statsMap.get(String(scenario.id));
           const unused = isUnused(String(scenario.id));
@@ -3921,12 +3900,7 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                 </div>
               </CardHeader>
               
-              <div 
-                className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                  isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-                }`}
-              >
-                <CardContent className="pt-0 pl-5 pb-4 space-y-4">
+              <CardContent className="pt-0 pl-5 pb-4 space-y-4">
                   <div className="border-t border-slate-100 pt-4">
                     <p className="text-sm text-slate-600 leading-relaxed line-clamp-3">
                       {scenario.description}
@@ -3950,39 +3924,36 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                   
                   <div>
                     <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">{t('admin.scenarioManager.personas')}</h4>
-                    <div className="space-y-2">
+                    <ul className="space-y-2">
                       {(scenario.personas || []).map((persona, index) => {
-                        if (typeof persona === 'string') {
-                          return (
-                            <Badge 
-                              key={index} 
-                              variant="outline" 
-                              className="text-xs bg-purple-50 text-purple-700 border-purple-200"
-                            >
-                              {persona}
-                            </Badge>
-                          );
-                        }
-                        const p = persona as any;
-                        const department = p.department || '';
-                        const name = p.name || p.id || t('admin.scenarioManager.unknownPersona', 'Unknown persona');
-                        const mbti = p.mbti ? `(${p.mbti})` : '';
-                        const displayText = [department, name, mbti].filter(Boolean).join(' ');
+                        const actor: ComplexScenario['personas'][number] = typeof persona === 'string'
+                          ? { id: persona, name: persona }
+                          : persona;
+                        const templateId = getScenarioPersonaTemplateId(actor).toLowerCase();
+                        const template = personaMediaById.get(templateId);
+                        const name = actor.name || actor.id || t('admin.scenarioManager.unknownPersona', 'Unknown persona');
+                        const mbti = actor.mbti ? `(${actor.mbti})` : '';
                         return (
-                          <div key={index}>
-                            <Badge 
-                              variant="outline" 
-                              className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                          <li key={index} className="flex items-center gap-2">
+                            <PersonaPortrait
+                              persona={template}
+                              image={actor.image}
+                              gender={actor.gender}
+                              alt={name}
+                              size="h-8 w-8"
+                            />
+                            <Badge
+                              variant="outline"
+                              className="min-w-0 break-words text-xs bg-purple-50 text-purple-700 border-purple-200"
                             >
-                              {displayText}
+                              {[actor.department, name, mbti].filter(Boolean).join(' ')}
                             </Badge>
-                          </div>
+                          </li>
                         );
                       })}
-                    </div>
+                    </ul>
                   </div>
-                </CardContent>
-              </div>
+              </CardContent>
             </Card>
           );
         })}

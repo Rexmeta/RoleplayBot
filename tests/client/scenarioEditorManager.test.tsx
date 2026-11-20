@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
@@ -65,6 +65,40 @@ async function openEditor() {
 }
 const navigateSection = (name: string) => fireEvent.click(screen.getAllByRole('button', { name, exact: true })[0]);
 const changeField = (testId: string, value: string) => fireEvent.change(screen.getByTestId(testId), { target: { value } });
+
+it('shows scene-specific and referenced persona portraits next to the original labels in the scenario list', () => {
+  queries.personas = [
+    { id: 'template-purchase', mbti: 'ESTJ', images: { female: { expressions: { 중립: 'personas/purchase.png' } } } },
+    { id: 'template-support', mbti: 'ISFJ', images: { base: 'personas/support.png' } },
+    { id: 'actor-first', mbti: 'ESTJ', images: { base: 'personas/wrong.png' } },
+  ];
+  queries.scenarios = [{ ...fixture, personas: [
+    { id: 'actor-first', personaRef: 'template-purchase.json', name: '김하나', department: '구매팀', mbti: 'ESTJ', gender: 'female' },
+    { id: 'actor-second', personaRef: 'template-support', name: '이기훈', department: '지원팀', image: '/objects?key=uploads%2Fscene-portrait.png' },
+    'template-support.json',
+  ] }] as any;
+  render(<ScenarioManager />);
+  const purchase = screen.getByText('구매팀 김하나 (ESTJ)').closest('li')!;
+  expect(within(purchase).getByRole('img', { name: '김하나' }).getAttribute('src')).toBe('/objects?key=personas%2Fpurchase.png');
+  const support = screen.getByText('지원팀 이기훈').closest('li')!;
+  expect(within(support).getByRole('img', { name: '이기훈' }).getAttribute('src')).toBe('/objects?key=uploads%2Fscene-portrait.png');
+  expect(screen.getByRole('img', { name: 'template-support.json' }).getAttribute('src')).toBe('/objects?key=personas%2Fsupport.png');
+});
+
+it('falls back to the saved persona image and shows a placeholder if no portrait can load', () => {
+  queries.personas = [{ id: 'template', mbti: 'ESTJ', images: { base: 'personas/base.png' } }];
+  queries.scenarios = [{ ...fixture, personas: [
+    { id: 'actor', personaRef: 'template', name: '대화 상대', image: 'personas/unavailable.png' },
+    { id: 'no-image', name: '이미지 없는 상대' },
+  ] }] as any;
+  render(<ScenarioManager />);
+  const actorRow = within(screen.getByText('대화 상대').closest('li')!);
+  fireEvent.error(actorRow.getByRole('img', { name: '대화 상대' }));
+  expect(actorRow.getByRole('img', { name: '대화 상대' }).getAttribute('src')).toBe('/objects?key=personas%2Fbase.png');
+  fireEvent.error(actorRow.getByRole('img', { name: '대화 상대' }));
+  expect(actorRow.getByRole('img', { name: '이미지를 불러오지 못했습니다' })).toBeTruthy();
+  expect(within(screen.getByText('이미지 없는 상대').closest('li')!).getByRole('img', { name: '기본 이미지 없음' })).toBeTruthy();
+});
 
 it('shows the referenced template image and live setting in an actor card without copying media into the actor', async () => {
   queries.personas = [{ id: 'template-live', mbti: 'ESTJ', avatarMode: 'live', images: { base: 'personas/live-base.png' },

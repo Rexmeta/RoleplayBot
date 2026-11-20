@@ -35,14 +35,16 @@ function resolveImageRef(persona: ScenarioPersonaMedia, gender?: "male" | "femal
   return expr?.["중립"] || expr?.neutral || "";
 }
 
-function Thumb({ src, alt, size }: { src: string; alt: string; size: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) {
+function Thumb({ sources, alt, size }: { sources: string[]; alt: string; size: string }) {
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const src = sources[sourceIndex];
+  if (!src) {
+    const label = sources.length ? "이미지를 불러오지 못했습니다" : "기본 이미지 없음";
     return (
       <span
         role="img"
-        aria-label={failed ? "이미지를 불러오지 못했습니다" : "기본 이미지 없음"}
-        title={failed ? "이미지를 불러오지 못했습니다" : "기본 이미지 없음"}
+        aria-label={label}
+        title={label}
         className={cn(size, "inline-flex shrink-0 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-slate-400")}
       >
         <ImageOff className="h-3.5 w-3.5" aria-hidden="true" />
@@ -55,10 +57,24 @@ function Thumb({ src, alt, size }: { src: string; alt: string; size: string }) {
       alt={alt}
       loading="lazy"
       decoding="async"
-      onError={() => setFailed(true)}
+      onError={() => setSourceIndex(sourceIndex + 1)}
       className={cn(size, "shrink-0 rounded-md border border-slate-200 bg-slate-100 object-cover object-top")}
     />
   );
+}
+
+export function PersonaPortrait({ persona, image, gender, alt, size }: {
+  persona?: ScenarioPersonaMedia;
+  image?: string;
+  gender?: "male" | "female";
+  alt: string;
+  size: string;
+}) {
+  const sources = Array.from(new Set([
+    toMediaUrl(image?.trim()),
+    toMediaUrl(persona && resolveImageRef(persona, gender)),
+  ].filter(Boolean)));
+  return <Thumb key={JSON.stringify(sources)} sources={sources} alt={alt} size={size} />;
 }
 
 export function PersonaMediaPreview({ persona, gender, compact = false, className }: PersonaMediaPreviewProps) {
@@ -79,14 +95,13 @@ export function PersonaMediaPreview({ persona, gender, compact = false, classNam
     );
   }
 
-  const src = toMediaUrl(resolveImageRef(persona, gender));
   const mode = persona.avatarMode ?? (persona.videos?.enabled ? "video" : "image");
   const hasLiveReference = mode === "live" && personaLiveAvatarSchema.safeParse(persona.liveAvatar).success;
   const alt = `${persona.mbti || persona.id} 기본 이미지`;
 
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-2", className)}>
-      <Thumb key={src} src={src} alt={alt} size={size} />
+      <PersonaPortrait persona={persona} gender={gender} alt={alt} size={size} />
       {mode === "live" ? (
         hasLiveReference
           ? <span className="se-chip is-info" title={LIVE_TITLE}>라이브 아바타 설정</span>
