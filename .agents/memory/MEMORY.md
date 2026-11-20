@@ -31,6 +31,7 @@
 - [테스트 워커·실행 환경](test-worker-resource-limits.md) — 미디어 timeout은 제한된 동시성으로 비교; Vitest 버전 변경 시 DOM 환경 적용을 확인한다.
 - [운영 변경 승인 경계](production-change-boundary.md) — 운영 환경 변경과 배포는 사용자의 명시적 승인이 있어야 한다.
 - [AvatarRouter 통합 원칙](avatar-router-integration-gate.md) — 제공자 차이는 라우터가 처리하고 앱은 간단한 공통 API로 연동; 동의·소유권·별도 유료 검증 승인 경계 유지.
+- [라이브 음성 성별 진단](avatar-router-voice-classification.md) — 실제 음성 지정과 성별 필터를 구분하고, 카탈로그는 마지막 페이지까지 확인한다.
 - [Vite Zod optimizer cache](vite-zod-optimizer-cache.md) — Zod 메이저 업그레이드 뒤 브라우저가 구버전 최적화 번들을 계속 제공할 수 있어 런타임 API 불일치 확인이 필요하다.
 - [Tavus Full Pipeline 원칙](tavus-full-pipeline-boundaries.md) — 기존 AvatarRouter 경유 필수·직접 Tavus 호출 금지·Gemini 중계 없는 독립 모드·공통 PAL 하나.
 - [라이브 시작 예약 안전성](live-avatar-start-reservation.md) — 대상 검증과 모드 예약은 원자적으로 처리하고, 유료 요청 전 실패가 일반 대화를 잠그지 않게 한다.
