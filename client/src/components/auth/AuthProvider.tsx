@@ -4,6 +4,7 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthContext } from "@/hooks/useAuth";
 import type { User, AuthContextType } from "@/hooks/useAuth";
 import i18n from "@/lib/i18n";
+import { GuestDemoError, guestDemoRequest } from "@/lib/guestDemo";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -132,34 +133,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
-  // 게스트 로그인 mutation (POST 메서드, httpOnly 쿠키만 사용)
+  // The demo cookie is separate from member authentication.
   const guestLoginMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/auth/guest-login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        return { 
-          success: false, 
-          demoCompleted: data.demoCompleted || false,
-          message: data.message 
-        };
-      }
-      
-      return { success: true, user: data.user };
-    },
-    onSuccess: (result) => {
-      if (result.success && result.user) {
-        setUser(result.user);
-        // 토큰은 httpOnly 쿠키로만 저장되므로 localStorage 사용 안 함
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      try {
+        return await guestDemoRequest<{ success: true }>("/api/auth/guest-login", { language: i18n.language });
+      } catch (error) {
+        return { success: false, code: error instanceof GuestDemoError ? error.code : "guest_unavailable" };
       }
     },
   });

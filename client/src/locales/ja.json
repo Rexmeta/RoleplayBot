@@ -21,7 +21,33 @@
     "viewFeedback": "フィードバックを見る",
     "demoLimitReached": "体験制限",
     "demoLimitReachedDesc": "ゲストアカウントは1回のみ体験できます。",
-    "continueAsGuest": "ゲストとして続ける"
+    "continueAsGuest": "ゲストとして続ける",
+    "trial": {
+      "title": "ゲスト体験",
+      "description": "会員登録なしで公開シナリオのAIテキスト会話を体験できます。このブラウザで24時間以内なら再開できます。",
+      "back": "ログインに戻る",
+      "startHint": "このブラウザで新しい体験を始められます。",
+      "choose": "体験シナリオを選ぶ",
+      "empty": "現在公開中の体験シナリオはありません。",
+      "retry": "再試行",
+      "start": "体験を始める",
+      "turns": "{{used}} / {{limit}}ターン",
+      "messages": "体験の会話履歴",
+      "firstMessage": "状況を読んで、会話相手に最初のメッセージを送りましょう。",
+      "you": "あなた",
+      "replying": "会話相手が返信しています。",
+      "message": "メッセージ",
+      "send": "送信",
+      "errors": {
+        "guest_unavailable": "現在体験に接続できません。時間をおいて再試行してください。",
+        "guest_busy": "体験が混み合っています。数分後に再試行してください。",
+        "guest_session_required": "体験セッションの期限が切れました。新しい体験を開始してください。",
+        "guest_scenario_unavailable": "このシナリオは体験できなくなりました。",
+        "guest_turn_pending": "返信を待っています。少し時間をおいて確認してください。",
+        "guest_turn_changed": "会話が更新されました。最新のメッセージを確認してください。",
+        "guest_limit": "この体験で利用できるリクエストをすべて使いました。"
+      }
+    }
   },
   "common": {
     "appName": "RoleplayX",

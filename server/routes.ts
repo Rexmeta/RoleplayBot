@@ -20,6 +20,7 @@ import { avatarRouterIdentityService } from "./services/liveAvatar/identityServi
 import createUserRouter from "./routes/user";
 import createFreeChatRouter from "./routes/freeChat";
 import createConversationsRouter from "./routes/conversations";
+import createGuestDemoRouter from "./routes/guestDemo";
 import createScenarioRunsRouter from "./routes/scenarioRuns";
 import createAnalyticsRouter from "./routes/analytics";
 import createBookmarksRouter from "./routes/bookmarks";
@@ -51,6 +52,7 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 
   const { setupAuth, isAuthenticated } = await import('./auth');
   setupAuth(app);
+  app.use(createGuestDemoRouter());
   // Public verification material only. Never derive issuer/JWKS from Host headers.
   app.get("/.well-known/jwks.json", (_req, res) => {
     try {

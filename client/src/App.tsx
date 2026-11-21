@@ -31,6 +31,7 @@ import PersonaScenesPage from "@/pages/PersonaScenesPage";
 import PersonaSceneCreatePage from "@/pages/PersonaSceneCreatePage";
 import PersonaSceneDetailPage from "@/pages/PersonaSceneDetailPage";
 import HRAnalytics from "@/pages/HRAnalytics";
+import GuestDemoPage from "@/pages/GuestDemoPage";
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { user } = useAuth();
@@ -107,7 +108,10 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
-          <ProtectedRouter />
+          <Switch>
+            <Route path="/guest-demo" component={GuestDemoPage} />
+            <Route component={ProtectedRouter} />
+          </Switch>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

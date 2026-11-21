@@ -20,7 +20,7 @@ export interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (email: string, password: string, name: string, categoryId?: string, companyId?: string, organizationId?: string, preferredLanguage?: string) => Promise<void>;
   logout: () => Promise<void>;
-  guestLogin: () => Promise<{ success: boolean; demoCompleted?: boolean; message?: string }>;
+  guestLogin: () => Promise<{ success: boolean; code?: string }>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -29,7 +29,33 @@
     "viewFeedback": "View Feedback",
     "demoLimitReached": "Trial Limit Reached",
     "demoLimitReachedDesc": "Guest accounts can only try one scenario.",
-    "continueAsGuest": "Continue as Guest"
+    "continueAsGuest": "Continue as Guest",
+    "trial": {
+      "title": "Guest trial",
+      "description": "Try an AI text roleplay in a public scenario without signing up. You can resume in this browser for 24 hours.",
+      "back": "Back to sign in",
+      "startHint": "You can start a new trial in this browser.",
+      "choose": "Choose a trial scenario",
+      "empty": "No trial scenarios are currently available.",
+      "retry": "Try again",
+      "start": "Start trial",
+      "turns": "{{used}} / {{limit}} turns",
+      "messages": "Trial conversation",
+      "firstMessage": "Read the situation and send your conversation partner a first message.",
+      "you": "You",
+      "replying": "Your conversation partner is replying.",
+      "message": "Message",
+      "send": "Send",
+      "errors": {
+        "guest_unavailable": "The trial is temporarily unavailable. Please try again shortly.",
+        "guest_busy": "The trial is busy. Please try again in a few minutes.",
+        "guest_session_required": "Your trial session expired. Start a new trial to continue.",
+        "guest_scenario_unavailable": "This scenario is no longer available for the trial.",
+        "guest_turn_pending": "A reply is still pending. Please check again shortly.",
+        "guest_turn_changed": "The conversation has changed. Check the latest messages.",
+        "guest_limit": "You have used all the requests available for this trial."
+      }
+    }
   },
   "common": {
     "appName": "RoleplayX",

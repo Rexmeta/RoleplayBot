@@ -21,7 +21,33 @@
     "viewFeedback": "查看反馈",
     "demoLimitReached": "体验次数已用完",
     "demoLimitReachedDesc": "访客账户只能体验一次。",
-    "continueAsGuest": "以访客身份继续"
+    "continueAsGuest": "以访客身份继续",
+    "trial": {
+      "title": "访客体验",
+      "description": "无需注册，即可在公开场景中与 AI 进行文字角色扮演。您可以在 24 小时内使用同一浏览器继续。",
+      "back": "返回登录",
+      "startHint": "您可以在此浏览器中开始新的体验。",
+      "choose": "选择体验场景",
+      "empty": "目前没有公开的体验场景。",
+      "retry": "重试",
+      "start": "开始体验",
+      "turns": "{{used}} / {{limit}} 轮",
+      "messages": "体验对话记录",
+      "firstMessage": "阅读场景后，向对话角色发送第一条消息。",
+      "you": "你",
+      "replying": "对话角色正在回复。",
+      "message": "消息",
+      "send": "发送",
+      "errors": {
+        "guest_unavailable": "暂时无法连接到体验，请稍后重试。",
+        "guest_busy": "体验请求较多，请几分钟后重试。",
+        "guest_session_required": "体验会话已过期，请开始新的体验。",
+        "guest_scenario_unavailable": "此场景已不再提供体验。",
+        "guest_turn_pending": "仍在等待回复，请稍后查看。",
+        "guest_turn_changed": "对话已更新，请查看最新消息。",
+        "guest_limit": "您已用完本次体验的请求次数。"
+      }
+    }
   },
   "common": {
     "appName": "RoleplayX",

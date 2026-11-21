@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useTranslation } from "react-i18next";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { RegisterForm } from "@/components/auth/RegisterForm";
@@ -7,7 +7,8 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { useAuth } from "@/hooks/useAuth";
 
 export function AuthPage() {
-  const [isLoginMode, setIsLoginMode] = useState(true);
+  const search = useSearch();
+  const [isLoginMode, setIsLoginMode] = useState(() => new URLSearchParams(search).get("mode") !== "register");
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();

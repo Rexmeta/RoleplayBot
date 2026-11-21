@@ -76,17 +76,11 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       const result = await guestLogin();
       
       if (result.success) {
-        setLocation('/');
-      } else if (result.demoCompleted) {
-        toast({
-          title: t('guest.demoCompleted'),
-          description: t('guest.demoCompletedDesc'),
-          variant: "destructive",
-        });
+        setLocation('/guest-demo');
       } else {
         toast({
-          title: t('auth.loginError'),
-          description: result.message || t('auth.loginErrorMessage'),
+          title: t('guest.trial.title'),
+          description: t(`guest.trial.errors.${result.code}`, { defaultValue: t('guest.trial.errors.guest_unavailable') }),
           variant: "destructive",
         });
       }
