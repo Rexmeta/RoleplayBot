@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, LoaderCircle, RotateCw } from "lucide-react";
+import { AlertTriangle, RotateCw } from "lucide-react";
 import Daily from "@daily-co/daily-js";
 import { createBrowserCaptionReader, type BrowserCaption } from "./tavusBrowserCaptions";
+import { onFirstVideoFrame } from "@/lib/avatar/firstVideoFrame";
+import { LiveAvatarMediaLoading } from "./LiveAvatarMediaLoading";
+import { UserSpeechEffect } from "./UserSpeechEffect";
+import { useLiveAvatarUserSpeech } from "./useLiveAvatarUserSpeech";
 
 type Connection = { transport: "daily"; pipeline: "tavus_full"; url: string; token: string; expiresAt?: string };
-type Props = { connection: Connection; onError?: (message: string) => void; onCaption?: (caption: BrowserCaption) => void };
+type Props = { connection: Connection; onError?: (message: string) => void; onCaption?: (caption: BrowserCaption) => void; poster?: string | null };
 type MediaParticipant = { session_id: string; local?: boolean; tracks?: { video?: { state?: string; persistentTrack?: MediaStreamTrack }; audio?: { state?: string; persistentTrack?: MediaStreamTrack } } };
 
-export default function DailyAvatarRoom({ connection, onError, onCaption }: Props) {
+export default function DailyAvatarRoom({ connection, onError, onCaption, poster }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const callRef = useRef<ReturnType<typeof Daily.createCallObject> | null>(null);
@@ -16,8 +20,10 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
   const [status, setStatus] = useState<"joining" | "joined" | "error">("joining");
   const [playbackFailed, setPlaybackFailed] = useState(false);
   const [remoteVideo, setRemoteVideo] = useState<MediaStreamTrack | null>(null);
+  const [presentedTrack, setPresentedTrack] = useState<MediaStreamTrack | null>(null);
   const [remoteAudio, setRemoteAudio] = useState<MediaStreamTrack | null>(null);
   const [roomError, setRoomError] = useState("");
+  const { speech, onActivity, reset: resetSpeech } = useLiveAvatarUserSpeech();
 
   const syncParticipants = useCallback((participants: Record<string, MediaParticipant>) => {
     const remote = Object.values(participants).find(participant => !participant.local);
@@ -26,7 +32,10 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
   }, []);
 
   useEffect(() => {
+    resetSpeech();
     let disposed = false;
+    let audioObserverStarted = false;
+    let acceptsSpeech = false;
     let call: ReturnType<typeof Daily.createCallObject> | null = null;
     let leavePromise: Promise<unknown> | null = null;
     let destroyPromise: Promise<unknown> | null = null;
@@ -39,6 +48,8 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
       if (disposed) return;
       // Provider errors can include room URLs or credentials; never surface them.
       const message = "The private room connection failed. Check the session status or end the session.";
+      acceptsSpeech = false;
+      resetSpeech();
       setRoomError(message);
       setStatus("error");
       onError?.(message);
@@ -67,7 +78,20 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
         if (!disposed) {
           setStatus("joined");
           updateParticipants();
+          acceptsSpeech = true;
+          const joinedCall = call;
+          if (joinedCall && !audioObserverStarted && typeof joinedCall.startLocalAudioLevelObserver === "function") {
+            audioObserverStarted = true;
+            void Promise.resolve().then(() => {
+              if (!disposed && acceptsSpeech) return joinedCall.startLocalAudioLevelObserver(100);
+            })
+              .then(() => { if (disposed) joinedCall.stopLocalAudioLevelObserver(); })
+              .catch(() => {}); // A local indicator must not interrupt the call.
+          }
         }
+      });
+      call.on("local-audio-level", ({ audioLevel }) => {
+        if (!disposed && acceptsSpeech) onActivity({ level: audioLevel });
       });
       call.on("participant-joined", updateParticipants);
       call.on("participant-updated", updateParticipants);
@@ -109,6 +133,9 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
     return () => {
       disposed = true;
       if (call) {
+        if (audioObserverStarted) {
+          try { call.stopLocalAudioLevelObserver(); } catch { /* always leave and destroy */ }
+        }
         void (async () => {
           await shutdown();
           if (callRef.current === call) callRef.current = null;
@@ -117,11 +144,17 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
     };
     // Each connection is a distinct, short-lived room credential; never keep it after teardown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connection.url, connection.token]);
+  }, [connection.url, connection.token, onActivity, resetSpeech]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (video) video.srcObject = remoteVideo ? new MediaStream([remoteVideo]) : null;
+    setPresentedTrack(null);
+    if (!video) return;
+    video.srcObject = remoteVideo ? new MediaStream([remoteVideo]) : null;
+    if (remoteVideo) return onFirstVideoFrame(video, () => setPresentedTrack(remoteVideo));
+  }, [remoteVideo]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
       audio.srcObject = remoteAudio ? new MediaStream([remoteAudio]) : null;
@@ -130,7 +163,7 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
         void audio.play().then(() => setPlaybackFailed(false)).catch(() => setPlaybackFailed(true));
       }
     }
-  }, [remoteAudio, remoteVideo]);
+  }, [remoteAudio]);
 
   const retryPlayback = async () => {
     if (!audioRef.current) return;
@@ -142,12 +175,10 @@ export default function DailyAvatarRoom({ connection, onError, onCaption }: Prop
     <div className="absolute inset-0 overflow-hidden bg-[#24383b]" data-testid="daily-avatar-room">
       <video ref={videoRef} autoPlay playsInline className="h-full w-full object-cover" aria-label="Live avatar video" data-testid="daily-remote-video" />
       <audio ref={audioRef} autoPlay playsInline data-testid="daily-remote-audio" />
-      {status === "joining" && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#24383b]/90 text-center text-sm text-[#e0ebe8]" role="status" data-testid="daily-joining">
-        <LoaderCircle className="h-6 w-6 animate-spin" />Joining the private room…
-      </div>}
-      {status === "joined" && !remoteVideo && <div className="absolute inset-x-0 bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] flex justify-center" role="status" data-testid="daily-waiting-media">
-        <span className="rounded-full border border-white/15 bg-[#24383b]/80 px-3 py-1.5 text-xs text-[#e0ebe8]">Waiting for avatar video…</span>
-      </div>}
+      {status !== "error" && (!remoteVideo || presentedTrack !== remoteVideo) && (
+        <LiveAvatarMediaLoading image={poster} joining={status === "joining"} testId={status === "joining" ? "daily-joining" : "daily-waiting-media"} />
+      )}
+      {speech.active && <UserSpeechEffect {...speech} />}
       {status === "error" && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#24383b]/95 px-6 text-center text-sm text-[#f4e4df]" role="alert" data-testid="daily-room-error">
         <AlertTriangle className="h-6 w-6" /><span>{roomError}</span>
       </div>}

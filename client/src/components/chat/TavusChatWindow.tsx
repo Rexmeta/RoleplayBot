@@ -7,6 +7,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import DailyAvatarRoom from "./DailyAvatarRoom";
 import ManagedAvatarRoom from "./ManagedAvatarRoom";
+import { LiveAvatarMediaLoading } from "./LiveAvatarMediaLoading";
 import TavusConversationLayout from "./TavusConversationLayout";
 import { useTavusTranscript, type TranscriptState } from "./useTavusTranscript";
 import { useBrowserCaptions } from "./tavusBrowserCaptions";
@@ -434,6 +435,7 @@ function TavusChatWindowSession({
     : null;
   const roomStage = session.state === "active" && usesManagedClient ? (
     <ManagedAvatarRoom endpoint={sessionUrl(conversationId)}
+      poster={persona.image} showUserSpeech
       reportTiming onTimingReport={result => setTimingReportFailed(result === "failed")}
       statusEndpoint={`${sessionUrl(conversationId)}/session`}
       onCaption={browserCaptions.onCaption}
@@ -441,9 +443,17 @@ function TavusChatWindowSession({
   ) : session.state === "active" && connection ? (
     <DailyAvatarRoom
       connection={connection}
+      poster={persona.image}
       onCaption={browserCaptions.onCaption}
       onError={(message) => setConnectionError({ code: "DAILY_ROOM_ERROR", message })}
     />
+  ) : starting || session.state === "creating" || (session.state === "active" && !connectionError) ? (
+    <LiveAvatarMediaLoading image={persona.image} joining />
+  ) : session.state === "active" && connectionError ? (
+    <div className="absolute inset-0 flex items-center justify-center gap-2 bg-[#24383b] px-6 text-center text-sm text-white" role="alert">
+      <CircleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
+      {text("connectionDetailsFailed", "Could not load the live avatar. Check the connection in conversation settings.", "라이브 아바타를 불러오지 못했습니다. 대화 설정에서 연결 상태를 확인해 주세요.")}
+    </div>
   ) : (
     <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-slate-900 px-6 py-8 text-center">
       {persona.image && <img src={toMediaUrl(persona.image)} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />}
@@ -599,6 +609,7 @@ function TavusChatWindowSession({
           {started && <AvatarSessionTiming timing={session.timing} reportFailed={timingReportFailed} />}
           {!started && <div className="rounded-xl border border-[#d8e2e1] bg-[#f2f6f4] p-4 text-sm leading-6 text-[#53696d]">
             <p>{text("unifiedContext", "The live avatar service receives this session's persona, scenario and applicable organization instructions. Confirmed history is saved after the session ends when supported.", "라이브 아바타 서비스에 이 실행의 페르소나·시나리오·적용된 조직 지침을 전달합니다. 지원되는 경우 확정 기록은 세션 종료 후 저장합니다.")}</p>
+            <p className="mt-2">{text("profileNameDisclosure", "Your profile name is shared with the live avatar service so it can address you.", "라이브 아바타가 프로필 이름으로 부를 수 있도록 이름을 전달합니다.")}</p>
             <p className="mt-2">{text("noticeTranscript", "Confirmed history, when supported, becomes available after the session ends.", "지원되는 경우 확인된 대화 기록은 세션 종료 후 제공됩니다.")}</p>
           </div>}
           {loading && <div className="space-y-2" aria-label={text("loading", "Loading", "불러오는 중")}><div className="h-3 animate-pulse rounded bg-[#e3ebea]" /><div className="h-3 w-4/5 animate-pulse rounded bg-[#e3ebea]" /></div>}

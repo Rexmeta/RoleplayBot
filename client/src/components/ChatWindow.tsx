@@ -16,7 +16,7 @@ import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 import type { Conversation } from "@shared/schema";
 import { useRealtimeVoice } from "@/hooks/useRealtimeVoice";
 import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
-import { UserSpeechParticleLayer } from "@/components/UserSpeechParticleLayer";
+import { UserSpeechEffect } from "@/components/chat/UserSpeechEffect";
 import { getProgressInfo } from "@/lib/conversationProgress";
 import { useSimulationState } from "@/hooks/useSimulationState";
 import SimulationPanel from "@/components/SimulationPanel";
@@ -1238,17 +1238,13 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     <div className="absolute top-0 left-0 right-0 pointer-events-none z-[12]"
                       style={{ height: '45%', background: 'linear-gradient(to bottom, rgba(139, 92, 246, 0.22) 0%, rgba(99, 102, 241, 0.10) 40%, transparent 100%)', animation: 'beamPulse 2.5s ease-in-out infinite' }} />
                   )}
-                  {realtimeVoice.isRecording && !realtimeVoice.isAISpeaking && (
-                    <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-[12]"
-                      style={{ height: '40%', background: 'linear-gradient(to top, rgba(34, 197, 94, 0.20) 0%, rgba(16, 185, 129, 0.08) 40%, transparent 100%)', animation: 'beamPulse 2s ease-in-out infinite' }} />
-                  )}
                   {realtimeVoice.externalPlaybackUnverified && (
                     <span role="status" data-testid="external-playback-unverified" className="absolute top-12 left-0 right-0 text-center text-xs text-muted-foreground pointer-events-none">
                       외부 음성의 실제 재생 상태는 확인할 수 없습니다
                     </span>
                   )}
                   <AISpeechParticleLayer amplitude={realtimeVoice.audioAmplitude} isActive={realtimeVoice.isAISpeaking && !realtimeVoice.isReconnecting} />
-                  <UserSpeechParticleLayer amplitude={realtimeVoice.userAudioAmplitude} isActive={realtimeVoice.isRecording && !realtimeVoice.isAISpeaking} />
+                  <UserSpeechEffect amplitude={realtimeVoice.userAudioAmplitude} active={realtimeVoice.isRecording && !realtimeVoice.isAISpeaking} />
 
                   {hasNoPersonaImages && (
                     <div className="absolute inset-0 flex items-center justify-center z-5">

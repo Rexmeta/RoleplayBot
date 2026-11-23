@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import React, { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ManagedAvatarRoom from "../../client/src/components/chat/ManagedAvatarRoom";
 const api = vi.hoisted(() => vi.fn());
 vi.mock("../../client/src/lib/queryClient", () => ({ apiRequest: api }));
@@ -33,6 +33,42 @@ async function loadScript() {
   fireEvent.load(document.querySelector('script[src*="/sdk/avatarrouter-client.js"]')!);
 }
 describe("managed native browser handoff", () => {
+  it("keeps the persona loading image until the browser presents a frame, not just an SDK state", async () => {
+    const { container } = render(<ManagedAvatarRoom endpoint="/owned" poster="/persona.png" />);
+    const video = container.querySelector("video")!;
+    expect(screen.getByTestId("live-avatar-video-loading").querySelector("img")?.getAttribute("src")).toContain("/persona.png");
+    await loadScript();
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("live-avatar-video-loading")).toBeTruthy();
+    Object.defineProperties(video, {
+      paused: { value: false }, videoWidth: { value: 640 }, videoHeight: { value: 480 },
+      currentTime: { value: 0.2, configurable: true },
+    });
+    // Older browsers must observe real progress; DOM "playing" alone is not enough.
+    fireEvent.playing(video);
+    expect(screen.getByTestId("live-avatar-video-loading")).toBeTruthy();
+    fireEvent.timeUpdate(video);
+    expect(screen.queryByTestId("live-avatar-video-loading")).toBeNull();
+  });
+  it("reacts only to local activity and clears it on silence or termination", async () => {
+    render(<ManagedAvatarRoom endpoint="/owned" showUserSpeech />);
+    await loadScript();
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    act(() => options.onMessages([{ id: "ai", role: "assistant", text: "Hello" }]));
+    act(() => options.onUserAudioActivity({ level: 0.005 }));
+    expect(screen.queryByTestId("user-speech-glow")).toBeNull();
+    act(() => options.onUserAudioActivity({ speaking: true }));
+    expect(screen.getByTestId("user-speech-glow")).toBeTruthy();
+    act(() => options.onUserAudioActivity({ speaking: false }));
+    expect(screen.queryByTestId("user-speech-glow")).toBeNull();
+    act(() => options.onUserAudioActivity({ level: 0.2 }));
+    expect(screen.getByTestId("user-speech-glow")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByTestId("user-speech-glow")).toBeNull());
+    act(() => { options.onUserAudioActivity({ speaking: true }); options.onState("ended"); });
+    expect(screen.queryByTestId("user-speech-glow")).toBeNull();
+    act(() => options.onUserAudioActivity({ speaking: true }));
+    expect(screen.queryByTestId("user-speech-glow")).toBeNull();
+  });
   it("does not report connected/playing state alone, reports a hosted first-frame observation once, and rejects foreign/late calls", async () => {
     const onTimingReport = vi.fn();
     const { unmount } = render(<ManagedAvatarRoom endpoint="/owned" reportTiming onTimingReport={onTimingReport} />);
@@ -100,7 +136,8 @@ describe("managed native browser handoff", () => {
     await loadScript();
     await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
     expect(api.mock.calls.filter(c => c[1].endsWith("/client-connection"))).toEqual([["POST", "/owned/client-connection", {}]]);
-    expect(screen.getByRole("status").textContent).toContain("영상 재생 중");
+    expect(screen.getByTestId("live-avatar-video-loading")).toBeTruthy();
+    expect(options.onUserAudioActivity).toBeUndefined();
     expect(JSON.stringify(localStorage)).not.toContain("do-not-store");
     expect(JSON.stringify(sessionStorage)).not.toContain("do-not-store");
     await expect(options.onAudioOwner("application")).rejects.toThrow("native_audio_owner_required");
@@ -116,6 +153,8 @@ describe("managed native browser handoff", () => {
     await waitFor(() => expect(document.querySelector('script[src*="/sdk/avatarrouter-client.js"]')).toBeTruthy());
     fireEvent.error(document.querySelector('script[src*="/sdk/avatarrouter-client.js"]')!);
     await waitFor(() => expect(onError).toHaveBeenCalled());
+    expect(screen.queryByTestId("live-avatar-video-loading")).toBeNull();
+    expect(screen.getByRole("alert")).toBeTruthy();
     expect(api).toHaveBeenCalledWith("POST", "/owned/end", {});
     expect(api.mock.calls.filter(c => c[1].endsWith("/client-connection"))).toHaveLength(1);
     expect(start).not.toHaveBeenCalled();

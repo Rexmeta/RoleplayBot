@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../../server/storage", () => ({ storage: {} }));
 vi.mock("../../server/services/fileManager", () => ({ fileManager: {} }));
 vi.mock("../../server/services/conversationLedger/transcript", () => ({ ledgerRuntimeBinding: vi.fn() }));
-import { buildTavusContext, resolveTavusContext } from "../../server/services/tavus/context";
+import { buildTavusContext, resolveTavusContext, ROLEPLAY_PAL_PROMPT } from "../../server/services/tavus/context";
 import { adaptTavusTranscript, transcriptIdentity } from "../../server/services/tavus/transcriptAdapter";
 import { ledgerPayloadSchema } from "../../shared/conversationLedger";
 
@@ -18,7 +18,7 @@ describe("Tavus dynamic context", () => {
             { id: "live", name: "Live role", goal: "Chosen goal" },
             { id: "third", name: "Third role" },
           ] } })),
-        getUser: vi.fn(async () => ({ preferredLanguage: "ko" })),
+        getUser: vi.fn(async () => ({ preferredLanguage: "ko", name: "  이\n하늘  ", email: "private@example.com" })),
         getScenario: vi.fn(), getMbtiPersona: vi.fn(),
       },
       ledgerRuntimeBinding: vi.fn(async () => null), fileManager: { getAllScenarios: vi.fn() },
@@ -26,6 +26,8 @@ describe("Tavus dynamic context", () => {
     const result = await resolveTavusContext("owner", "conversation", deps);
     expect(result.persona.id).toBe("live");
     expect(result.context).toContain("Chosen goal");
+    expect(JSON.parse(result.context.split("\n")[1]).learner).toEqual({ displayName: "이하늘" });
+    expect(result.context).not.toContain("private@example.com");
     expect(result.context).toContain("Frozen organization instructions");
     expect(result.context).not.toContain("Wrong role");
     expect(deps.storage.getScenario).not.toHaveBeenCalled();
@@ -33,6 +35,16 @@ describe("Tavus dynamic context", () => {
     const recovered = await resolveTavusContext("owner", "conversation", deps, "first");
     expect(recovered.persona.id).toBe("first");
     expect(recovered.context).toContain("Wrong role");
+  });
+  it("separates the learner profile from names authored in the scenario", () => {
+    const scenario = { title: "Test", context: { playerRole: { name: "Example Name", position: "Observer" } } };
+    const context = buildTavusContext(scenario, { name: "Actor" }, "en", 3, ' 민지 "J" ');
+    const data = JSON.parse(context.split("\n")[1]);
+    expect(data.learner).toEqual({ displayName: '민지 "J"' });
+    expect(data.scenario.context.playerRole.name).toBe("Example Name");
+    expect(ROLEPLAY_PAL_PROMPT).toContain("The only authoritative name for the learner is learner.displayName");
+    expect(ROLEPLAY_PAL_PROMPT).toContain("without using or guessing a name");
+    expect(JSON.parse(buildTavusContext(scenario, { name: "Actor" }, "en", 3, "  \n  ").split("\n")[1]).learner.displayName).toBeNull();
   });
   it.each(["ko", "en", "ja", "zh"])("keeps %s in the avatar context after profile changes", async language => {
     const deps: any = {

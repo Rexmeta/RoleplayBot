@@ -10,6 +10,8 @@ const { createCallObjectMock, callMock } = vi.hoisted(() => {
     join: vi.fn(() => Promise.resolve()),
     leave: vi.fn(() => Promise.resolve()),
     destroy: vi.fn(() => Promise.resolve()),
+    startLocalAudioLevelObserver: vi.fn(async () => {}),
+    stopLocalAudioLevelObserver: vi.fn(),
     participants: vi.fn(() => ({ local: { session_id: "local", local: true }, remote: { session_id: "remote", local: false, tracks: {} } })),
   };
   return { createCallObjectMock: vi.fn(() => call), callMock: call };
@@ -21,15 +23,53 @@ import DailyAvatarRoom from "../DailyAvatarRoom";
 const connection = { transport: "daily" as const, pipeline: "tavus_full" as const, url: "https://daily.example/room", token: "temporary" };
 const originalPlay = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "play");
 const originalSrcObject = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "srcObject");
+const defaultParticipants = callMock.participants.getMockImplementation()!;
 afterEach(async () => {
   cleanup();
   await act(async () => { await Promise.resolve(); });
   vi.clearAllMocks();
+  callMock.participants.mockReset().mockImplementation(defaultParticipants);
   if (originalPlay) Object.defineProperty(HTMLMediaElement.prototype, "play", originalPlay);
   if (originalSrcObject) Object.defineProperty(HTMLMediaElement.prototype, "srcObject", originalSrcObject);
 });
 
 describe("DailyAvatarRoom", () => {
+  it("starts only a local audio level observer and clears the effect when the call ends", async () => {
+    const handler = (name: string) => callMock.on.mock.calls.find(([event]) => event === name)?.[1];
+    const view = render(<DailyAvatarRoom connection={connection} />);
+    act(() => handler("joined-meeting")?.({}));
+    await waitFor(() => expect(callMock.startLocalAudioLevelObserver).toHaveBeenCalledExactlyOnceWith(100));
+    expect(handler("remote-participants-audio-level")).toBeUndefined();
+    act(() => handler("local-audio-level")?.({ audioLevel: 0.005 }));
+    expect(screen.queryByTestId("user-speech-glow")).toBeNull();
+    act(() => handler("local-audio-level")?.({ audioLevel: 0.25 }));
+    expect(screen.getByTestId("user-speech-glow")).toBeTruthy();
+    act(() => handler("left-meeting")?.({}));
+    expect(screen.queryByTestId("user-speech-glow")).toBeNull();
+    view.unmount();
+    expect(callMock.stopLocalAudioLevelObserver).toHaveBeenCalledTimes(1);
+  });
+  it("keeps the waiting screen after a playable track arrives until its first frame", async () => {
+    const track = { kind: "video" };
+    callMock.participants.mockReturnValue({
+      local: { local: true },
+      remote: { session_id: "remote", local: false, tracks: { video: { state: "playable", persistentTrack: track } } },
+    } as any);
+    render(<DailyAvatarRoom connection={connection} poster="/persona.png" />);
+    act(() => callMock.on.mock.calls.find(([event]) => event === "joined-meeting")?.[1]({}));
+    expect(screen.getByTestId("daily-waiting-media")).toBeTruthy();
+    const video = screen.getByTestId("daily-remote-video");
+    await act(async () => {
+      Object.defineProperties(video, {
+        paused: { value: false }, videoWidth: { value: 640 }, videoHeight: { value: 480 },
+        currentTime: { value: 0.2, configurable: true },
+      });
+      fireEvent.playing(video);
+      expect(screen.getByTestId("daily-waiting-media")).toBeTruthy();
+      fireEvent.timeUpdate(video);
+    });
+    expect(screen.queryByTestId("daily-waiting-media")).toBeNull();
+  });
   it("receives delayed/streaming browser captions from the remote room and stops after teardown", async () => {
     const onCaption = vi.fn();
     const view = render(<DailyAvatarRoom connection={connection} onCaption={onCaption} />);

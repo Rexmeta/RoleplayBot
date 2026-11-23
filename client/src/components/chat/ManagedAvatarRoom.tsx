@@ -1,5 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { onFirstVideoFrame } from "@/lib/avatar/firstVideoFrame";
+import { LiveAvatarMediaLoading } from "./LiveAvatarMediaLoading";
+import { UserSpeechEffect } from "./UserSpeechEffect";
+import { useLiveAvatarUserSpeech, type UserAudioActivity } from "./useLiveAvatarUserSpeech";
 import type { BrowserCaption } from "./tavusBrowserCaptions";
 
 type ManagedClient = { start(): Promise<void>; stop(): Promise<void>; interrupt(): Promise<void> };
@@ -16,6 +20,7 @@ type ManagedSDK = {
     reportVideoPlaying?(sessionId: string, observation: { event: "video_frame_presented" }): Promise<unknown>;
     onTimingReport?(state: "saved" | "failed"): void;
     onMessages(messages: unknown): void;
+    onUserAudioActivity?(activity: UserAudioActivity): void;
     onState(state: string, code?: string): void;
   }): ManagedClient;
 };
@@ -46,10 +51,11 @@ function loadClient(url: string) {
 }
 
 /** Native pipeline only: no Gemini generation, PCM, LiveKit or local TTS. */
-export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint, onError, onCaption, reportTiming = false, onTimingReport }: {
+export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint, onError, onCaption, reportTiming = false, onTimingReport, poster, showUserSpeech = false }: {
   endpoint: string; statusEndpoint?: string;
   onError?: (message: string) => void; onCaption?: (caption: BrowserCaption) => void;
   reportTiming?: boolean; onTimingReport?: (state: "saved" | "failed") => void;
+  poster?: string | null; showUserSpeech?: boolean;
 }) {
   const id = useId();
   const video = useRef<HTMLVideoElement>(null);
@@ -61,10 +67,17 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
   const timingRef = useRef(onTimingReport);
   timingRef.current = onTimingReport;
   const [state, setState] = useState("connecting");
+  const [hasFrame, setHasFrame] = useState(false);
+  const { speech, onActivity, reset: resetSpeech } = useLiveAvatarUserSpeech();
   useEffect(() => {
+    setState("connecting");
+    setHasFrame(false);
+    resetSpeech();
     let cancelled = false, started = false, endSent = false;
+    let acceptsSpeech = true;
     let client: ManagedClient | undefined;
     let timingReport: Promise<unknown> | undefined;
+    const disposeFrame = video.current && onFirstVideoFrame(video.current, () => setHasFrame(true));
     const end = async () => {
       if (endSent) return;
       endSent = true;
@@ -128,9 +141,18 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
             }
           },
           interruptSession: () => apiRequest("POST", `${endpoint}/interrupt`, {}),
+          ...(showUserSpeech ? {
+            onUserAudioActivity: (activity: UserAudioActivity) => {
+              if (!cancelled && acceptsSpeech) onActivity(activity);
+            },
+          } : {}),
           onState: next => {
             if (cancelled) return;
             setState(next);
+            if (next === "error" || next === "failed" || next === "ended") {
+              acceptsSpeech = false;
+              resetSpeech();
+            }
             if (next === "error" || next === "failed") {
               errorRef.current?.("라이브 아바타 연결에 실패했습니다. 자동 재연결하지 않고 종료를 요청합니다.");
               stop();
@@ -142,6 +164,8 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
         await client.start();
       })().catch(() => {
         if (!cancelled) {
+          acceptsSpeech = false;
+          resetSpeech();
           setState("failed");
           errorRef.current?.("라이브 아바타를 시작하지 못했습니다. 마이크·재생 권한과 연결 상태를 확인하세요. 새 세션을 자동 생성하지 않습니다.");
         }
@@ -151,17 +175,22 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      disposeFrame?.();
       clientRef.current = undefined;
       if (started) stop();
     };
-  }, [endpoint, statusEndpoint, reportTiming]);
+  }, [endpoint, statusEndpoint, reportTiming, showUserSpeech, onActivity, resetSpeech]);
 
-  return <div className="relative h-full min-h-64 bg-slate-950" data-testid="managed-avatar-room">
+  const failed = state === "error" || state === "failed";
+  const ended = state === "ended";
+  return <div className="relative h-full min-h-64 overflow-hidden bg-[#24383b]" data-testid="managed-avatar-room">
     <video id={`managed-avatar-${id}`} ref={video} autoPlay playsInline className="h-full w-full object-cover" />
-    <span role="status" className="absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-xs text-white">
-      {state === "playing" ? "영상 재생 중" : state === "connected" ? "연결됨 · 재생 대기" : state === "ended" ? "로컬 재생 종료" : state === "failed" ? "연결 실패" : "연결 준비 중"}
-    </span>
-    <button type="button" className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] right-3 rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur-sm"
+    {!hasFrame && !failed && !ended && <LiveAvatarMediaLoading image={poster} joining={state !== "connected" && state !== "playing"} />}
+    {(failed || ended) && <div role={failed ? "alert" : "status"} className="absolute inset-0 flex items-center justify-center bg-[#24383b] px-6 text-center text-sm text-white">
+      {failed ? "라이브 아바타 연결에 실패했습니다." : "라이브 아바타 재생이 종료되었습니다."}
+    </div>}
+    {showUserSpeech && speech.active && <UserSpeechEffect {...speech} />}
+    <button type="button" className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] right-3 z-[13] rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur-sm"
       onClick={() => void clientRef.current?.interrupt().catch(() => errorRef.current?.("끼어들기 요청에 실패했습니다."))}>
       응답 중단
     </button>
