@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizeAvatarRouterBaseUrl } from "./connectionConfig";
 import { AvatarIdentityError, resolveAvatarIdentity, type AvatarIdentityStore } from "./delegatedIdentity";
+import { personaVoiceCatalogSchema } from "../../../shared/avatar/personaAvatar";
 
 async function readBoundedBody(response: Response, maxBytes: number): Promise<Buffer> {
   if (Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error("invalid_body");
@@ -61,6 +62,23 @@ export class AvatarProjectClient {
   }
 
   async call<T>(userId: string, path: string, schema: z.ZodType<T>, body?: object, signal?: AbortSignal): Promise<T> {
+    return (await this.requestJson(userId, path, schema, body, signal)).data;
+  }
+
+  async voiceCatalogPage(userId: string, offset: number) {
+    if (!Number.isInteger(offset) || offset < 0 || offset > 5000) {
+      throw new AvatarIdentityError("avatar_test_path_invalid", 400);
+    }
+    const { data, headers } = await this.requestJson(userId, `/voices?offset=${offset}&limit=100`, personaVoiceCatalogSchema);
+    const next = headers.get("X-Voice-Catalog-Next-Offset");
+    const nextOffset = next === null ? null : Number(next);
+    if (nextOffset !== null && (!Number.isInteger(nextOffset) || nextOffset <= offset || nextOffset > 5000)) {
+      throw new AvatarIdentityError("avatar_voice_catalog_invalid", 502);
+    }
+    return { ...data, nextOffset };
+  }
+
+  private async requestJson<T>(userId: string, path: string, schema: z.ZodType<T>, body?: object, signal?: AbortSignal) {
     const input = this.input();
     const base = normalizeAvatarRouterBaseUrl(input.baseUrl);
     const key = input.apiKey;
@@ -71,7 +89,7 @@ export class AvatarProjectClient {
     const imageRead = body === undefined && (path === "/assets/images" ||
       /^\/assets\/images\/[a-fA-F0-9-]{36}\/live-options$/.test(path));
     const stockRead = body === undefined && path === "/avatars";
-    const voiceRead = body === undefined && path === "/voices";
+    const voiceRead = body === undefined && /^\/voices(?:\?offset=\d{1,4}&limit=100)?$/.test(path);
     // Owned lifecycle evidence is read-only; never widen this to operator APIs.
     const eventRead = body === undefined && /^\/sessions\/[a-zA-Z0-9_-]{1,160}\/events$/.test(path);
     if (!catalogRead && !assetWrite && !imageRead && !stockRead && !voiceRead && !eventRead && !/^\/(?:live-limits(?:\?providerId=anam)?|sessions(?:\/[a-zA-Z0-9_-]{1,160}(?:\/(?:video-playing|client-connection|connection|full-connection|transcript|audio|interrupt|end))?)?)$/.test(path)) {
@@ -111,7 +129,7 @@ export class AvatarProjectClient {
           Number(response.headers.get("content-length")) > maxBytes || !response.body) throw new Error();
       const raw = (await readBoundedBody(response, maxBytes)).toString("utf8");
       if (raw.includes(key)) throw new Error();
-      return schema.parse(JSON.parse(raw));
+      return { data: schema.parse(JSON.parse(raw)), headers: response.headers };
     } catch (error) {
       if (error instanceof AvatarIdentityError) throw error;
       // POST may already have been accepted. Never retry or claim no charge occurred.

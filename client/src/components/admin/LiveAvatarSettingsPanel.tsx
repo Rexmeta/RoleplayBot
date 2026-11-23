@@ -11,6 +11,7 @@ import { liveAvatarBlockerText } from "@/lib/liveAvatarBlockers";
 import { LiveAvatarConnectionPanel } from "@/components/admin/LiveAvatarConnectionPanel";
 import { LiveAvatarIdentityPanel } from "@/components/admin/LiveAvatarIdentityPanel";
 import { LiveAvatarTestPanel } from "@/components/admin/LiveAvatarTestPanel";
+import { AvatarVoiceTestPanel } from "@/components/admin/avatarTest/AvatarVoiceTestPanel";
 
 type LiveAvatarConfig = {
   enabled: boolean;
@@ -43,6 +44,8 @@ export function LiveAvatarSettingsPanel() {
   const queryClient = useQueryClient();
   const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
   const [showAdvancedIdentity, setShowAdvancedIdentity] = useState(false);
+  const [voiceTestTarget, setVoiceTestTarget] = useState<"" | "tavus-stock-lucy" | "anam-persona-default">("");
+  const [testActive, setTestActive] = useState(false);
   const configQuery = useQuery<LiveAvatarConfig>({
     queryKey: configKey,
     staleTime: 0,
@@ -255,7 +258,22 @@ export function LiveAvatarSettingsPanel() {
         <div className="border-t pt-5">
           <LiveAvatarConnectionPanel />
         </div>
-        <LiveAvatarTestPanel />
+        <div className="space-y-3 border-t pt-5">
+          <label className="block text-sm font-medium">
+            라이브 아바타 연결 테스트 방식
+            <select className="mt-1 block h-10 w-full rounded-md border bg-background px-2 text-sm sm:max-w-md"
+              value={voiceTestTarget} disabled={testActive} onChange={event => {
+                const target = event.target.value;
+                if (target === "" || target === "tavus-stock-lucy" || target === "anam-persona-default") setVoiceTestTarget(target);
+              }}>
+              <option value="">기존 연결 테스트</option>
+              <option value="tavus-stock-lucy">Tavus · 음성 선택 테스트</option>
+              <option value="anam-persona-default">Anam · 음성 선택 테스트</option>
+            </select>
+          </label>
+          {voiceTestTarget ? <AvatarVoiceTestPanel key={voiceTestTarget} target={voiceTestTarget} onActivityChange={setTestActive} />
+            : <LiveAvatarTestPanel onActivityChange={setTestActive} />}
+        </div>
         <details
           className="group border-t pt-5"
           onToggle={(event) => setShowAdvancedIdentity(event.currentTarget.open)}

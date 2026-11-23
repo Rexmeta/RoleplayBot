@@ -14,6 +14,7 @@ export type AvatarTestSession = {
   timing?: SessionTiming;
   avatarAssetId?: string | null;
   purpose?: "validation" | "conversation";
+  pipeline?: "external_audio" | "tavus_full" | "anam_full";
 };
 export type AvatarTestLimits = {
   userRemainingSeconds: number;

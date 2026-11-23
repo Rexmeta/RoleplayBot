@@ -16,6 +16,7 @@ export const testSessionSchema = z.object({
   timing: sessionTimingSchema.optional(),
   avatarAssetId: z.string().uuid().nullable().optional(),
   purpose: z.enum(["validation", "conversation"]).optional(),
+  pipeline: z.enum(["external_audio", "tavus_full", "anam_full"]).optional(),
 });
 export const testLimitsSchema = z.object({
   userRemainingSeconds: z.number().int().nonnegative(),

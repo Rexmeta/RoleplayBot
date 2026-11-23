@@ -11,6 +11,7 @@ import { AvatarIdentityError } from "../services/liveAvatar/delegatedIdentity";
 import { avatarRouterProjectConnection, type AvatarRouterProjectConnection } from "../services/liveAvatar/projectConnection";
 import { normalizeAvatarRouterBaseUrl } from "../services/liveAvatar/connectionConfig";
 import { createLiveAvatarTestRouter } from "./liveAvatarTest";
+import { createAvatarVoiceTestRouter } from "./avatarVoiceTest";
 import { anamAvatarTestService } from "../services/liveAvatar/adminTestService";
 import { avatarRuntimePreflight, type AvatarRuntimePreflight } from "../services/liveAvatar/runtimePreflight";
 import { conversationAvatarSessions, type ConversationAvatarSessions } from "../services/liveAvatar/conversationSessions";
@@ -34,6 +35,7 @@ export default function createLiveAvatarRouter(
   router.use(isAuthenticated);
   router.use((_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   router.use("/test", createLiveAvatarTestRouter());
+  router.use("/voice-test", createAvatarVoiceTestRouter());
   router.use("/stock/anam-persona-default/test", createLiveAvatarTestRouter(anamAvatarTestService));
   const getEnabled = async () =>
     (await deps.storage.getSystemSetting(LIVE_AVATAR_SETTINGS_CATEGORY, "enabled"))?.value === "true";

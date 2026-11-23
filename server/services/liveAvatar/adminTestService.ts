@@ -58,6 +58,7 @@ export class AdminAvatarTestService {
     }) : testSessionSchema;
   }
   private belongs(session: AvatarTestSession & { avatarAssetId?: string | null; purpose?: string }) {
+    if (!this.anam && session.pipeline && session.pipeline !== "external_audio") return false;
     return this.custom ? session.avatarAssetId === this.custom.assetId && session.purpose === "validation" :
       session.providerId === (this.anam ? "anam" : "tavus") &&
       session.avatarId === (this.anam ? "anam-persona-default" : "tavus-stock-lucy") && !session.avatarAssetId;

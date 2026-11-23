@@ -8,6 +8,7 @@ import { PersonaAvatarCreationPanel, type PersonaAvatarSource } from '@/componen
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 import { LiveAvatarTestPanel } from '@/components/admin/LiveAvatarTestPanel';
 import { AnamAvatarTestPanel } from '@/components/admin/AnamAvatarTestPanel';
+import { AvatarVoiceTestPanel } from '@/components/admin/avatarTest/AvatarVoiceTestPanel';
 import { PersonaSeedLivePanel } from './PersonaSeedLivePanel';
 import { StockAvatarGallery } from './StockAvatarGallery';
 import type { PersonaSeedDraft } from '@shared/avatar/personaSeedLive';
@@ -147,7 +148,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [testEntryOpen, setTestEntryOpen] = useState(false);
+  const [testEntry, setTestEntry] = useState<'basic' | 'voice' | null>(null);
   const [selectedKind, setSelectedKind] = useState<'stock' | 'custom'>(
     liveAvatar ? (liveAvatar.kind === 'stock' ? 'stock' : 'custom') : seedDraft ? 'custom' : 'stock',
   );
@@ -225,7 +226,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
 
   const chooseAsset = (assetId: string) => {
     if (testBusy) return;
-    setTestEntryOpen(false);
+    setTestEntry(null);
     if (!assetId) {
       onLiveAvatarChange(null);
       return;
@@ -249,7 +250,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
 
   const chooseStock = (avatarId: string) => {
     if (testBusy) return;
-    setTestEntryOpen(false);
+    setTestEntry(null);
     if (!avatarId) return onLiveAvatarChange(null);
     const avatar = stockAvatars?.find(candidate => candidate.id === avatarId && isSelectableStockAvatar(candidate));
     if (!avatar) return;
@@ -282,12 +283,12 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const chooseKind = (kind: 'stock' | 'custom') => {
     if (testBusy || creationBusy) return;
     setSelectedKind(kind);
-    setTestEntryOpen(false);
+    setTestEntry(null);
     if (liveAvatar && (kind === 'stock') !== (liveAvatar.kind === 'stock')) onLiveAvatarChange(null);
   };
   const changeMode = (nextMode: PersonaAvatarMode) => {
     if (testBusy || creationBusy) return;
-    if (nextMode !== 'live') setTestEntryOpen(false);
+    if (nextMode !== 'live') setTestEntry(null);
     onModeChange(nextMode);
   };
 
@@ -401,7 +402,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                     {liveAvatar.kind === 'stock' ? '기본 아바타' : '맞춤 아바타'} · 외부 서비스 연결
                   </p>
                 </div>
-                 <Button type="button" variant="link" className="h-auto p-0" disabled={testBusy} onClick={() => { setTestEntryOpen(false); onLiveAvatarChange(null); }}>
+                 <Button type="button" variant="link" className="h-auto p-0" disabled={testBusy} onClick={() => { setTestEntry(null); onLiveAvatarChange(null); }}>
                    아바타 연결 해제
                 </Button>
               </div>
@@ -592,7 +593,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                     <p className="mt-1 text-xs leading-relaxed text-slate-600">선택한 프로젝트 자산은 시드 초안과 별도로 연결되어 있습니다. 필요할 때만 시드 준비 상태를 열어 확인할 수 있습니다.</p>
                     <Button type="button" size="sm" variant="outline" className="mt-3" disabled={testBusy} onClick={() => setSeedPanelOpen(true)}>시드 준비 열기</Button>
                   </div>
-                ) : !testBusy && !testEntryOpen ? (
+                ) : !testBusy && !testEntry ? (
                   <PersonaSeedLivePanel
                     personaId={personaId} source={seedSource} draft={seedDraft}
                     onDraftChange={onSeedDraftChange} onSelect={onLiveAvatarChange} onActivityChange={setCreationBusy}
@@ -621,9 +622,16 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               선택한 아바타를 라우터에 연결합니다. 실행과 세션 관리는 라우터가 처리하며, 페르소나 변경 사항은 별도로 저장해야 반영됩니다.
             </p>
             {hasSelectedTest ? (
-              <Button type="button" variant="outline" disabled={testBusy || creationBusy} onClick={() => setTestEntryOpen(open => !open)}>
-                {testEntryOpen ? '선택 아바타 테스트 닫기' : '선택 아바타 테스트'}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" disabled={testBusy || creationBusy}
+                  aria-expanded={testEntry === 'voice'} onClick={() => setTestEntry(open => open === 'voice' ? null : 'voice')}>
+                  {testEntry === 'voice' ? '음성 선택 테스트 닫기' : '음성 선택 테스트'}
+                </Button>
+                <Button type="button" variant="outline" disabled={testBusy || creationBusy}
+                  aria-expanded={testEntry === 'basic'} onClick={() => setTestEntry(open => open === 'basic' ? null : 'basic')}>
+                  {testEntry === 'basic' ? '선택 아바타 테스트 닫기' : '선택 아바타 테스트'}
+                </Button>
+              </div>
             ) : (
               <p role="note" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 {liveAvatar.kind !== 'stock'
@@ -631,11 +639,16 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                   : '선택한 기본 아바타는 이 관리자 테스트에서 지원되지 않습니다. 현재 일부 기본 아바타만 테스트할 수 있습니다.'}
               </p>
             )}
-            {testEntryOpen && liveAvatar.kind !== 'stock' && selectedTavusCustom && (
+            {testEntry === 'voice' && hasSelectedTest && (
+              <AvatarVoiceTestPanel key={liveAvatar.kind === 'stock' ? liveAvatar.avatarId : liveAvatar.assetId}
+                target={liveAvatar.kind === 'stock' ? liveAvatar.avatarId : liveAvatar.assetId}
+                initialVoice={selectedVoice} initialVoiceName={selectedVoiceEntry?.name} onActivityChange={setTestBusy} />
+            )}
+            {testEntry === 'basic' && liveAvatar.kind !== 'stock' && selectedTavusCustom && (
                 <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={displayCatalogName(selectedAsset?.name ?? '저장된 커스텀 자산')} onReported={() => void loadAssets()} onActivityChange={setTestBusy} />
             )}
-            {testEntryOpen && selectedLucy && <LiveAvatarTestPanel onActivityChange={setTestBusy} />}
-            {testEntryOpen && selectedAnam && <AnamAvatarTestPanel onActivityChange={setTestBusy} />}
+            {testEntry === 'basic' && selectedLucy && <LiveAvatarTestPanel onActivityChange={setTestBusy} />}
+            {testEntry === 'basic' && selectedAnam && <AnamAvatarTestPanel onActivityChange={setTestBusy} />}
           </div>}
         </div>
       )}
