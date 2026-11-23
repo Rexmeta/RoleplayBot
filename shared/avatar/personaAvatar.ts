@@ -88,6 +88,9 @@ export const personaVoiceCatalogSchema = z.object({
 }).strict();
 export type PersonaVoiceCatalog = z.infer<typeof personaVoiceCatalogSchema>;
 export type PersonaVoice = PersonaVoiceCatalog["voices"][number];
+export const personaVoiceCatalogPageSchema = personaVoiceCatalogSchema.extend({
+  nextOffset: z.number().int().min(1).max(5000).nullable(),
+});
 
 export function isSelectableStockAvatar(avatar: PersonaStockAvatar): boolean {
   const supported = ((avatar.id === "tavus-stock-lucy" || avatar.stock === true && /^tavus-stock-[a-zA-Z0-9_-]{1,128}$/.test(avatar.id)) && avatar.providerId === "tavus") ||
@@ -122,6 +125,8 @@ export const personaAvatarCatalogSchema = z.object({
   projectId: z.string().min(1).max(256),
   runtimeAvailable: z.literal(false),
   voiceCatalog: personaVoiceCatalogSchema,
+  voiceCatalogNextOffset: z.number().int().min(1).max(5000).nullable().default(null),
+  customLiveProviders: z.array(z.enum(["tavus", "anam"])).max(2).default(["tavus"]),
   stockAvatars: z.array(personaStockAvatarSchema).max(500).default([]),
   assets: z.array(personaAvatarAssetSchema.extend({
     providerId: z.enum(["tavus", "anam"]),

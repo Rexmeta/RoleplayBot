@@ -30,12 +30,14 @@ let call: ReturnType<typeof vi.fn>;
 let check: ReturnType<typeof vi.fn>;
 let catalog: PersonaAvatarCatalog;
 let image: ReturnType<typeof vi.fn>;
+let voiceCatalogPage: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   call = vi.fn(async (_user, path, schema) => schema.parse(path === "/avatars" ? [stock()]
-    : path === "/avatar-assets" ? [asset()] : path === "/voices" ? voices : asset()));
+    : path === "/avatar-assets" ? [asset()] : asset()));
+  voiceCatalogPage = vi.fn(async () => ({ ...voices, nextOffset: null }));
   image = vi.fn(async () => ({ bytes: Buffer.from("thumbnail"), contentType: "image/png" }));
   check = vi.fn(async () => ({ projectId: "project-one", scopes: ["assets:read"] }));
-  catalog = new PersonaAvatarCatalog({ call, image } as any, { check } as any);
+  catalog = new PersonaAvatarCatalog({ call, image, voiceCatalogPage } as any, { check } as any);
 });
 
 describe("persona project catalog and inactive drafts", () => {
@@ -60,8 +62,9 @@ describe("persona project catalog and inactive drafts", () => {
       assets: [{ id, status: "ready", liveValidated: false }],
     });
     expect(call.mock.calls.map(args => args.slice(0, 2))).toEqual([
-      ["operator", "/avatar-assets"], ["operator", "/avatars"], ["operator", "/voices"],
+      ["operator", "/avatar-assets"], ["operator", "/avatars"],
     ]);
+    expect(voiceCatalogPage).toHaveBeenCalledExactlyOnceWith("operator", 0);
     expect(call.mock.calls[0]).toHaveLength(3);
   });
 
@@ -108,15 +111,42 @@ describe("persona project catalog and inactive drafts", () => {
         gender: "female", genderSource: "admin", languages: ["ko"], available: true,
       }],
     };
-    call.mockImplementation(async (_user, path, schema) => schema.parse(path === "/voices" ? catalogResponse
-      : path === `/avatar-assets/${id}` ? asset() : [stock()]));
+    voiceCatalogPage.mockResolvedValue({ ...catalogResponse, nextOffset: null });
     const selection = draft({ voiceSelection: { voiceId: "tavus-female-voice", gender: "female" } });
     const normalized = await catalog.normalize("operator", { liveAvatar: selection });
     expect(normalized.liveAvatar).toMatchObject({ voiceSelection: selection.voiceSelection, providerId: "tavus" });
-    expect(call.mock.calls.map(args => args[1])).toEqual(["/voices", `/avatar-assets/${id}`]);
+    expect(call.mock.calls.map(args => args[1])).toEqual([`/avatar-assets/${id}`]);
+    expect(voiceCatalogPage).toHaveBeenCalledExactlyOnceWith("operator", 0);
     await expect(catalog.normalize("operator", { liveAvatar: draft({
       voiceSelection: { voiceId: "tavus-female-voice", gender: "male" },
     }) })).rejects.toMatchObject({ code: "persona_voice_unavailable", status: 409 });
+  });
+
+  it("persists a later-page Anam voice for its stock avatar and rejects a different provider's ID", async () => {
+    const anam = stock({ id: "anam-persona-default", providerId: "anam" });
+    call.mockResolvedValue([anam]);
+    voiceCatalogPage.mockImplementation(async (_user, offset) => offset === 0
+      ? { ...voices, nextOffset: 100 }
+      : { ...voices, nextOffset: null, voices: [
+        { id: "later-anam-voice", providerId: "anam", name: "Later voice", gender: "female", available: true },
+        { id: "tavus-only", providerId: "tavus", name: "Tavus", gender: "female", available: true },
+      ] });
+    const liveAvatar = {
+      kind: "stock", avatarId: anam.id, providerId: "anam", voiceMode: "roleplayx", activation: "draft",
+      validationStatus: "unverified", voiceSelection: { voiceId: "later-anam-voice", gender: "female" },
+    };
+    const normalized = await catalog.normalize("operator", { liveAvatar });
+    expect(normalized.liveAvatar).toEqual({ ...liveAvatar, projectId: "project-one" });
+    expect(voiceCatalogPage.mock.calls).toEqual([["operator", 0], ["operator", 100]]);
+    await expect(catalog.normalize("operator", { liveAvatar: { ...liveAvatar, voiceSelection: { voiceId: "tavus-only", gender: "female" } } }))
+      .rejects.toMatchObject({ code: "persona_voice_unavailable" });
+  });
+
+  it("binds downstream voice pages to the same router project", async () => {
+    await expect(catalog.voicePage("operator", "other-project", 100)).rejects.toMatchObject({ status: 409 });
+    expect(voiceCatalogPage).not.toHaveBeenCalled();
+    await expect(catalog.voicePage("operator", "project-one", 100)).resolves.toMatchObject({ nextOffset: null });
+    expect(voiceCatalogPage).toHaveBeenCalledExactlyOnceWith("operator", 100);
   });
 
   it("keeps even live-verified assets draft-only", async () => {
@@ -138,6 +168,8 @@ describe("persona project catalog and inactive drafts", () => {
   });
 
   it("rejects provider/ID/project mismatches, non-reusable assets and invalid reference fields", async () => {
+    check.mockResolvedValueOnce({ projectId: "project-one", scopes: ["assets:read"],
+      integration: { customLiveProviders: ["tavus", "anam"] } });
     await expect(catalog.normalize("operator", { liveAvatar: draft({ providerId: "anam" }) }))
       .rejects.toMatchObject({ code: "persona_avatar_asset_mismatch" });
     await expect(catalog.normalize("operator", { liveAvatar: draft({ projectId: "another-project" }) }))
@@ -148,6 +180,15 @@ describe("persona project catalog and inactive drafts", () => {
     await expect(catalog.normalize("operator", { liveAvatar: draft() })).rejects.toMatchObject({ code: "persona_avatar_asset_not_ready" });
     await expect(catalog.normalize("operator", { liveAvatar: draft({ assetId: "../sessions" }) })).rejects.toMatchObject({ status: 400 });
     await expect(catalog.normalize("operator", { liveAvatar: draft({ url: "https://evil.test" }) })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("does not expose Anam custom assets as usable when the router does not advertise custom live support", async () => {
+    const list = await catalog.list("operator");
+    expect(list.customLiveProviders).toEqual(["tavus"]);
+    call.mockClear();
+    await expect(catalog.normalize("operator", { liveAvatar: draft({ providerId: "anam" }) }))
+      .rejects.toMatchObject({ code: "persona_custom_live_provider_unavailable" });
+    expect(call).not.toHaveBeenCalled();
   });
 
   it("leaves live fallback media untouched and synchronizes explicit image/video modes without dropping clips", async () => {
@@ -179,7 +220,8 @@ describe("persona project catalog and inactive drafts", () => {
   it("keeps stock and custom catalogs separate and resolves stock using reads only", async () => {
     const list = await catalog.list("operator");
     expect(list.stockAvatars).toEqual([stock()]);
-    expect(call.mock.calls.map(args => args[1])).toEqual(["/avatar-assets", "/avatars", "/voices"]);
+    expect(call.mock.calls.map(args => args[1])).toEqual(["/avatar-assets", "/avatars"]);
+    expect(voiceCatalogPage).toHaveBeenCalledExactlyOnceWith("operator", 0);
     call.mockClear();
     const stockDraft = { kind: "stock", avatarId: "tavus-stock-lucy", providerId: "tavus",
       voiceMode: "roleplayx", activation: "draft", validationStatus: "live_verified" };

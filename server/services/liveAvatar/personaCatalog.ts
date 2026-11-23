@@ -3,7 +3,7 @@ import { storage } from "../../storage";
 import {
   personaAvatarAssetSchema, personaAvatarModeSchema, personaLiveAvatarSchema,
   isSelectablePersonaAvatar, isLiveValidatedPersonaAvatar,
-  personaStockAvatarSchema, isSelectableStockAvatar, personaVoiceCatalogSchema,
+  personaStockAvatarSchema, isSelectableStockAvatar,
 } from "../../../shared/avatar/personaAvatar";
 import { AvatarProjectClient } from "./projectClient";
 import { avatarRouterProjectConnection } from "./projectConnection";
@@ -12,7 +12,7 @@ import { AvatarIdentityError } from "./delegatedIdentity";
 /** Read-only project catalog. No provisioning, image transfer or paid session calls. */
 export class PersonaAvatarCatalog {
   constructor(
-    private readonly client: Pick<AvatarProjectClient, "call" | "image"> = new AvatarProjectClient(storage),
+    private readonly client: Pick<AvatarProjectClient, "call" | "image" | "voiceCatalogPage"> = new AvatarProjectClient(storage),
     private readonly connection: Pick<typeof avatarRouterProjectConnection, "check"> = avatarRouterProjectConnection,
   ) {}
 
@@ -24,16 +24,44 @@ export class PersonaAvatarCatalog {
 
   async list(userId: string) {
     const auth = await this.authorize(userId);
-    const assets = await this.client.call(userId, "/avatar-assets", z.array(personaAvatarAssetSchema).max(500));
-    const stockAvatars = await this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000));
-    const voiceCatalog = await this.client.call(userId, "/voices", personaVoiceCatalogSchema);
+    const [assets, stockAvatars, voicePage] = await Promise.all([
+      this.client.call(userId, "/avatar-assets", z.array(personaAvatarAssetSchema).max(500)),
+      this.client.call(userId, "/avatars", z.array(personaStockAvatarSchema).max(1000)),
+      this.client.voiceCatalogPage(userId, 0),
+    ]);
+    const { nextOffset, ...voiceCatalog } = voicePage;
     return {
       projectId: auth.projectId, runtimeAvailable: false as const,
-      voiceCatalog,
+      voiceCatalog, voiceCatalogNextOffset: nextOffset,
+      customLiveProviders: this.customProviders(auth),
       stockAvatars,
       assets: assets.filter(a => a.providerId === "tavus" || a.providerId === "anam")
         .map(a => ({ ...a, liveValidated: isLiveValidatedPersonaAvatar(a) })),
     };
+  }
+
+  private customProviders(auth: Awaited<ReturnType<typeof this.authorize>>) {
+    return Array.from(new Set(auth.integration?.customLiveProviders ?? ["tavus"])).filter(
+      (provider): provider is "tavus" | "anam" => provider === "tavus" || provider === "anam",
+    );
+  }
+
+  async voicePage(userId: string, projectId: string, offset: number) {
+    const auth = await this.authorize(userId);
+    if (auth.projectId !== projectId) throw new AvatarIdentityError("persona_avatar_project_mismatch", 409);
+    return this.client.voiceCatalogPage(userId, offset);
+  }
+
+  private async resolveVoice(userId: string, providerId: "tavus" | "anam", voiceId: string) {
+    let offset: number | null = 0;
+    while (offset !== null) {
+      const page = await this.client.voiceCatalogPage(userId, offset);
+      if (page.providers.find(provider => provider.providerId === providerId)?.status !== "available") return null;
+      const voice = page.voices.find(item => item.providerId === providerId && item.id === voiceId);
+      if (voice) return voice;
+      offset = page.nextOffset;
+    }
+    return null;
   }
 
   async thumbnail(userId: string, assetId: string) {
@@ -83,14 +111,14 @@ export class PersonaAvatarCatalog {
     if (parsed.data.projectId && parsed.data.projectId !== auth.projectId) {
       throw new AvatarIdentityError("persona_avatar_project_mismatch", 409);
     }
+    if (parsed.data.kind !== "stock" && !this.customProviders(auth).includes(parsed.data.providerId)) {
+      throw new AvatarIdentityError("persona_custom_live_provider_unavailable", 409);
+    }
     let voiceSelection = parsed.data.voiceSelection;
     if (voiceSelection && (parsed.data.providerId !== existing?.liveAvatar?.providerId ||
         JSON.stringify(voiceSelection) !== JSON.stringify(existing?.liveAvatar?.voiceSelection))) {
-      const catalog = await this.client.call(userId, "/voices", personaVoiceCatalogSchema);
-      const providerStatus = catalog.providers.find(provider => provider.providerId === parsed.data.providerId)?.status;
-      const voice = catalog.voices.find(item =>
-        item.providerId === parsed.data.providerId && item.id === voiceSelection!.voiceId);
-      if (providerStatus !== "available" || !voice || !voice.available || voice.gender !== voiceSelection.gender) {
+      const voice = await this.resolveVoice(userId, parsed.data.providerId, voiceSelection.voiceId);
+      if (!voice || !voice.available || voice.gender !== voiceSelection.gender) {
         throw new AvatarIdentityError("persona_voice_unavailable", 409);
       }
       voiceSelection = { voiceId: voice.id, gender: voice.gender };

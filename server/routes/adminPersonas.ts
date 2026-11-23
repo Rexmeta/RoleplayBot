@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import multer from "multer";
+import { z } from "zod";
 import { storage } from "../storage";
 import { fileManager } from "../services/fileManager";
 import { mediaStorage } from "../services/mediaStorage";
@@ -33,6 +34,10 @@ const videoUpload = multer({
     }
   },
 });
+const personaVoicePageQuery = z.object({
+  projectId: z.string().min(1).max(256),
+  offset: z.string().regex(/^\d{1,4}$/).transform(Number).pipe(z.number().int().min(1).max(5000)),
+}).strict();
 
 export default function createAdminPersonasRouter(isAuthenticated: any) {
   const router = Router();
@@ -48,6 +53,14 @@ export default function createAdminPersonasRouter(isAuthenticated: any) {
   router.get("/api/admin/personas/live-avatar/assets", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     try { res.json(await personaAvatarCatalog.list(req.user.id)); }
+    catch (error) { catalogError(error, res); }
+  }));
+
+  router.get("/api/admin/personas/live-avatar/voices", isAuthenticated, isOperatorOrAdmin, asyncHandler(async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    const query = personaVoicePageQuery.safeParse(req.query);
+    if (!query.success) { res.status(400).json({ code: "persona_voice_page_invalid" }); return; }
+    try { res.json(await personaAvatarCatalog.voicePage(req.user.id, query.data.projectId, query.data.offset)); }
     catch (error) { catalogError(error, res); }
   }));
 

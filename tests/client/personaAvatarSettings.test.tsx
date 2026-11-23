@@ -19,6 +19,9 @@ vi.mock("../../client/src/components/admin/LiveAvatarTestPanel", () => ({
 vi.mock("../../client/src/components/admin/AnamAvatarTestPanel", () => ({
   AnamAvatarTestPanel: () => <div data-testid="anam-avatar-test">Default avatar test</div>,
 }));
+vi.mock("../../client/src/components/admin/avatarTest/AvatarVoiceTestPanel", () => ({
+  AvatarVoiceTestPanel: ({ target, initialVoice }: any) => <output data-testid="voice-test">{`${target}:${initialVoice?.voiceId ?? "default"}`}</output>,
+}));
 vi.mock("../../client/src/components/admin/PersonaSeedLivePanel", () => ({
   PersonaSeedLivePanel: ({ onDraftChange }: { onDraftChange: (draft: unknown) => void }) => <div data-testid="seed-panel">
     Seed preparation <button onClick={() => onDraftChange(null)}>Mock clear seed draft</button>
@@ -121,7 +124,46 @@ describe("persona avatar settings", () => {
     expect(screen.getByText(/Gemini Live 음성을 함께 실행하지 않습니다/)).toBeTruthy();
     expect(api.mock.calls).toEqual([["GET", "/api/admin/personas/live-avatar/assets"]]);
     fireEvent.change(screen.getByLabelText("음성 성별"), { target: { value: "male" } });
-    expect(JSON.parse(screen.getByTestId("draft").textContent!)).not.toHaveProperty("voiceSelection");
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toHaveProperty("voiceSelection.voiceId", "tavus-female-voice");
+  });
+
+  it("filters to Anam and passes its selected later-page voice to the normal avatar test", async () => {
+    const anam = { id: "anam-persona-default", providerId: "anam", name: "Default persona", description: "",
+      kind: "configured", configured: true, languages: [] };
+    const tavus = { ...anam, id: "tavus-stock-lucy", providerId: "tavus", name: "Lucy" };
+    const voice = { id: "later-anam-voice", providerId: "anam", name: "Anam voice two", description: "",
+      gender: "female", genderSource: "provider", languages: ["ko"], available: true };
+    api.mockResolvedValueOnce({ json: async () => ({
+      ...response(), stockAvatars: [anam, tavus], voiceCatalogNextOffset: 100, customLiveProviders: ["tavus"],
+    }) });
+    api.mockResolvedValueOnce({ json: async () => ({ ...voiceCatalog, nextOffset: 200 }) });
+    api.mockResolvedValueOnce({ json: async () => ({
+      ...voiceCatalog, voices: [voice, { ...voice, id: "another-provider", providerId: "tavus", name: "Other voice" }], nextOffset: null,
+    }) });
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "아바타 목록 조회" }));
+    fireEvent.change(await screen.findByLabelText("아바타 공급자"), { target: { value: "anam" } });
+    expect(screen.queryByRole("radio", { name: /Lucy/ })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /Default persona/ }));
+    fireEvent.click(screen.getByRole("button", { name: "나머지 음성 불러오기" }));
+    await screen.findByRole("option", { name: "Anam voice two" });
+    expect(screen.queryByRole("option", { name: "Other voice" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("음성 이름 검색"), { target: { value: "two" } });
+    fireEvent.change(screen.getByLabelText("음성 모델"), { target: { value: voice.id } });
+    expect(JSON.parse(screen.getByTestId("draft").textContent!)).toMatchObject({
+      providerId: "anam", voiceSelection: { voiceId: voice.id, gender: "female" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "선택 아바타 테스트" }));
+    expect(screen.getByTestId("voice-test").textContent).toBe(`${anam.id}:${voice.id}`);
+    expect(screen.queryByTestId("anam-avatar-test")).toBeNull();
+    expect(api.mock.calls).toEqual([
+      ["GET", "/api/admin/personas/live-avatar/assets"],
+      ["GET", "/api/admin/personas/live-avatar/voices?projectId=project-one&offset=100"],
+      ["GET", "/api/admin/personas/live-avatar/voices?projectId=project-one&offset=200"],
+    ]);
+    fireEvent.click(screen.getByRole("radio", { name: "맞춤 아바타" }));
+    expect(screen.getByText(/현재 라우터에서 Anam 맞춤 아바타를 지원하지 않습니다/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "생성 양식 열기" })).toBeNull();
   });
 
   it("disables unready assets, separates live validation and preserves missing selections", async () => {

@@ -3,7 +3,7 @@ import { Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
 import type { PersonaAvatarMode, PersonaLiveAvatar, PersonaStockAvatar, PersonaVoice } from '@shared/avatar/personaAvatar';
-import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCatalogSchema } from '@shared/avatar/personaAvatar';
+import { isLiveValidatedPersonaAvatar, isSelectableStockAvatar, personaAvatarCatalogSchema, personaVoiceCatalogPageSchema } from '@shared/avatar/personaAvatar';
 import { PersonaAvatarCreationPanel, type PersonaAvatarSource } from '@/components/admin/PersonaAvatarCreationPanel';
 import { PersonaAvatarValidationPanel } from '@/components/admin/PersonaAvatarValidationPanel';
 import { LiveAvatarTestPanel } from '@/components/admin/LiveAvatarTestPanel';
@@ -39,6 +39,8 @@ type AvatarAsset = {
 type AssetResponse = {
   projectId: string; assets: AvatarAsset[]; stockAvatars: PersonaStockAvatar[];
   voiceCatalog: { providers: Array<{ providerId: 'tavus' | 'anam'; status: 'available' | 'unconfigured' | 'unavailable'; errorCode: string | null }>; voices: PersonaVoice[] };
+  voiceCatalogNextOffset: number | null;
+  customLiveProviders: Array<'tavus' | 'anam'>;
   runtimeAvailable: false;
 };
 
@@ -144,7 +146,13 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const [assets, setAssets] = useState<AvatarAsset[] | null>(null);
   const [stockAvatars, setStockAvatars] = useState<PersonaStockAvatar[] | null>(null);
   const [voiceCatalog, setVoiceCatalog] = useState<AssetResponse['voiceCatalog'] | null>(null);
-  const [voiceGenderFilter, setVoiceGenderFilter] = useState<'male' | 'female' | 'neutral'>(liveAvatar?.voiceSelection?.gender ?? 'male');
+  const [voiceNextOffset, setVoiceNextOffset] = useState<number | null>(null);
+  const [loadingVoices, setLoadingVoices] = useState(false);
+  const [voiceLoadError, setVoiceLoadError] = useState(false);
+  const [voiceGenderFilter, setVoiceGenderFilter] = useState<'all' | 'male' | 'female' | 'neutral'>('all');
+  const [voiceSearch, setVoiceSearch] = useState('');
+  const [browseProvider, setBrowseProvider] = useState<'all' | 'tavus' | 'anam'>('all');
+  const [customLiveProviders, setCustomLiveProviders] = useState<AssetResponse['customLiveProviders']>(['tavus']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -163,9 +171,13 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   useEffect(() => {
     if (liveAvatar) {
       setSelectedKind(liveAvatar.kind === 'stock' ? 'stock' : 'custom');
-      setVoiceGenderFilter(liveAvatar.voiceSelection?.gender ?? 'male');
     }
   }, [liveAvatar]);
+
+  useEffect(() => {
+    setVoiceSearch('');
+    setVoiceGenderFilter('all');
+  }, [liveAvatar?.providerId]);
 
   useEffect(() => {
     if (mode === 'live' && selectedKind === 'custom' && seedFlow && assets === null && !loading && !error) {
@@ -185,6 +197,8 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
     const requestId = ++catalogRequestSequence;
     requestRef.current = requestId;
     setLoading(true);
+    setLoadingVoices(false);
+    setVoiceLoadError(false);
     setError(null);
     try {
       const response = await apiRequest('GET', '/api/admin/personas/live-avatar/assets');
@@ -193,12 +207,43 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
       setAssets(result.assets);
       setStockAvatars(result.stockAvatars);
       setVoiceCatalog(result.voiceCatalog);
+      setVoiceNextOffset(result.voiceCatalogNextOffset);
+      setCustomLiveProviders(result.customLiveProviders);
       setProjectId(result.projectId);
     } catch (cause) {
       if (!mountedRef.current || requestRef.current !== requestId) return;
       setError(errorMessage(cause));
     } finally {
       if (mountedRef.current && requestRef.current === requestId) setLoading(false);
+    }
+  };
+
+  const loadRemainingVoices = async () => {
+    if (loadingVoices || loading || !projectId || voiceNextOffset === null) return;
+    const requestId = requestRef.current;
+    const isCurrent = () => mountedRef.current && requestRef.current === requestId;
+    setLoadingVoices(true);
+    setVoiceLoadError(false);
+    let offset: number | null = voiceNextOffset;
+    try {
+      while (offset !== null && isCurrent()) {
+        const query = new URLSearchParams({ projectId, offset: String(offset) });
+        const response = await apiRequest('GET', `/api/admin/personas/live-avatar/voices?${query}`);
+        const page = personaVoiceCatalogPageSchema.parse(await response.json());
+        if (!isCurrent()) return;
+        if (page.nextOffset !== null && page.nextOffset <= offset) throw new Error('invalid_voice_catalog_offset');
+        setVoiceCatalog(previous => {
+          const unique = new Map<string, PersonaVoice>();
+          for (const voice of [...(previous?.voices ?? []), ...page.voices]) unique.set(`${voice.providerId}:${voice.id}`, voice);
+          return { providers: page.providers, voices: Array.from(unique.values()) };
+        });
+        offset = page.nextOffset;
+        setVoiceNextOffset(offset);
+      }
+    } catch {
+      if (isCurrent()) setVoiceLoadError(true);
+    } finally {
+      if (isCurrent()) setLoadingVoices(false);
     }
   };
 
@@ -210,8 +255,11 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
   const selectedVoiceEntry = selectedVoice && voiceCatalog?.voices.find(voice =>
     voice.providerId === liveAvatar?.providerId && voice.id === selectedVoice.voiceId && voice.gender === selectedVoice.gender);
   const selectedVoiceProvider = liveAvatar && voiceCatalog?.providers.find(provider => provider.providerId === liveAvatar.providerId);
-  const selectableVoices = voiceCatalog?.voices.filter(voice =>
-    voice.providerId === liveAvatar?.providerId && voice.gender === voiceGenderFilter && voice.available) ?? [];
+  const providerVoices = voiceCatalog?.voices.filter(voice =>
+    voice.providerId === liveAvatar?.providerId && voice.gender !== 'unclassified' && voice.available) ?? [];
+  const selectableVoices = providerVoices.filter(voice =>
+    (voiceGenderFilter === 'all' || voice.gender === voiceGenderFilter) &&
+    voice.name.toLocaleLowerCase().includes(voiceSearch.trim().toLocaleLowerCase()));
   const selectedMissing = Boolean(liveAvatar && assets && !selectedAsset && !selectedStock);
   const selectedTavusCustom = Boolean(liveAvatar && liveAvatar.kind !== 'stock' && liveAvatar.providerId === 'tavus');
   const selectedLucy = liveAvatar?.kind === 'stock' && liveAvatar.providerId === 'tavus' && liveAvatar.avatarId === 'tavus-stock-lucy';
@@ -221,8 +269,10 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
     asset.status === 'ready' &&
     asset.capabilities.reusable &&
     Boolean(asset.providerAvatarId) &&
-    (asset.providerId === 'tavus' || asset.providerId === 'anam')
+    customLiveProviders.includes(asset.providerId)
   );
+  const browsedAssets = selectableAssets.filter(asset => browseProvider === 'all' || asset.providerId === browseProvider);
+  const customProviderUnavailable = browseProvider !== 'all' && !customLiveProviders.includes(browseProvider);
 
   const chooseAsset = (assetId: string) => {
     if (testBusy) return;
@@ -271,13 +321,6 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
     const voice = selectableVoices.find(item => item.id === voiceId);
     if (!voice) return;
     onLiveAvatarChange({ ...liveAvatar, voiceSelection: { voiceId: voice.id, gender: voice.gender as 'male' | 'female' | 'neutral' } });
-  };
-
-  const changeVoiceGender = (gender: 'male' | 'female' | 'neutral') => {
-    setVoiceGenderFilter(gender);
-    if (!liveAvatar?.voiceSelection || liveAvatar.voiceSelection.gender === gender) return;
-    const { voiceSelection: _oldSelection, ...withoutVoice } = liveAvatar;
-    onLiveAvatarChange(withoutVoice);
   };
 
   const chooseKind = (kind: 'stock' | 'custom') => {
@@ -393,6 +436,19 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             </div>
           )}
 
+          {!loading && !error && stockAvatars !== null && (
+            <label className="block max-w-xs text-sm font-medium text-slate-700">
+              아바타 공급자
+              <select value={browseProvider} disabled={testBusy || creationBusy}
+                onChange={event => setBrowseProvider(event.target.value as typeof browseProvider)}
+                className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
+                <option value="all">전체 공급자</option>
+                <option value="tavus">Tavus</option>
+                <option value="anam">Anam</option>
+              </select>
+            </label>
+          )}
+
           {liveAvatar && selectedKind === (liveAvatar.kind === 'stock' ? 'stock' : 'custom') && (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -425,15 +481,21 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 </p>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-medium text-slate-700 sm:col-span-2">
+                    음성 이름 검색
+                    <input type="search" value={voiceSearch} onChange={event => setVoiceSearch(event.target.value)}
+                      className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" />
+                  </label>
                   <label className="text-xs font-medium text-slate-700">
                     음성 성별
                     <select
                       aria-label="음성 성별"
                       value={voiceGenderFilter}
                       disabled={testBusy || creationBusy}
-                      onChange={event => changeVoiceGender(event.target.value as 'male' | 'female' | 'neutral')}
+                      onChange={event => setVoiceGenderFilter(event.target.value as typeof voiceGenderFilter)}
                       className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
                     >
+                      <option value="all">전체 성별</option>
                       <option value="male">남성</option>
                       <option value="female">여성</option>
                       <option value="neutral">중립</option>
@@ -443,12 +505,15 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                     음성 모델
                     <select
                       aria-label="음성 모델"
-                      value={selectedVoiceEntry ? selectedVoice!.voiceId : ''}
+                      value={selectedVoice?.voiceId ?? ''}
                       disabled={testBusy || creationBusy}
                       onChange={event => chooseVoice(event.target.value)}
                       className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
                     >
                       <option value="">공급자 기본 음성 사용</option>
+                      {selectedVoice && !selectableVoices.some(voice => voice.id === selectedVoice.voiceId) && (
+                        <option value={selectedVoice.voiceId}>{selectedVoiceEntry?.name ?? '저장한 음성'} · 현재 선택</option>
+                      )}
                       {selectableVoices.map(voice => (
                         <option key={`${voice.providerId}:${voice.id}`} value={voice.id}>
                           {voice.name}{voice.genderSource === 'admin' ? ' · 관리자 분류' : ''}
@@ -458,7 +523,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                   </label>
                 </div>
               )}
-              {selectedVoice && !selectedVoiceEntry && voiceCatalog && (
+              {selectedVoice && !selectedVoiceEntry && voiceCatalog && voiceNextOffset === null && (
                 <p className="text-xs text-amber-900" role="alert">
                   저장된 음성이 현재 목록에서 확인되지 않습니다. 자동으로 다른 음성을 고르지 않았습니다. 목록을 새로고침한 뒤 다시 선택하세요.
                 </p>
@@ -468,9 +533,16 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                   선택됨: {selectedVoiceEntry.name} · {selectedVoiceEntry.genderSource === 'admin' ? '관리자 지정 성별' : '제공자 성별 정보'}
                 </p>
               )}
-              {voiceCatalog && selectedVoiceProvider?.status === 'available' && !selectableVoices.length && (
-                <p className="text-xs text-slate-600">이 성별로 분류되어 선택 가능한 음성이 없습니다.</p>
+              {selectedVoiceProvider?.status === 'available' && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                  <span role="status">{voiceSearch ? `검색 결과 ${selectableVoices.length}개` : `불러온 선택 가능 음성 ${providerVoices.length}개`}</span>
+                  {voiceNextOffset !== null && <Button type="button" size="sm" variant="outline"
+                    disabled={loading || loadingVoices || testBusy || creationBusy} onClick={() => void loadRemainingVoices()}>
+                    {loadingVoices ? '나머지 음성 불러오는 중…' : '나머지 음성 불러오기'}
+                  </Button>}
+                </div>
               )}
+              {voiceLoadError && <p className="text-xs text-amber-900" role="alert">음성 목록 일부를 불러오지 못했습니다. 이미 불러온 음성은 계속 선택할 수 있습니다.</p>}
             </section>
           )}
 
@@ -493,7 +565,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
               </div>
               <p className="text-sm font-semibold text-slate-700">기본 아바타</p>
               <StockAvatarGallery
-                avatars={stockAvatars}
+                avatars={browseProvider === 'all' ? stockAvatars : stockAvatars.filter(avatar => avatar.providerId === browseProvider)}
                 selectedId={selectedStock ? stockAvatarId : null}
                 selectedProviderId={selectedStock ? liveAvatar?.providerId ?? null : null}
                 disabled={testBusy}
@@ -521,8 +593,17 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             </p>
           )}
 
+          {selectedKind === 'custom' && assets !== null && browseProvider === 'all' && !customLiveProviders.includes('anam') && (
+            <p role="note" className="text-xs text-slate-600">
+              현재 이 라우터는 Anam 기본 아바타만 라이브로 연결할 수 있습니다.
+            </p>
+          )}
           {selectedKind === 'custom' && assets !== null && !loading && !error && (
-            selectableAssets.length === 0 ? (
+            customProviderUnavailable ? (
+              <p role="note" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                현재 라우터에서 {browseProvider === 'anam' ? 'Anam' : 'Tavus'} 맞춤 아바타를 지원하지 않습니다. 기본 아바타를 선택하거나 다른 공급자를 확인하세요.
+              </p>
+            ) : browsedAssets.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-300 p-4 text-sm text-slate-600">
                 선택할 수 있는 프로젝트 커스텀 아바타가 없습니다. 준비 완료·재사용 가능 자산만 표시합니다.
                 Studio 개인 자산과 프로젝트 API 키 자산은 자동 공유되지 않습니다.
@@ -536,7 +617,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                     <p className="text-xs leading-relaxed text-slate-600">
                       완성된 자산은 시드 준비와 별개로 페르소나 편집 초안에 연결됩니다. 페르소나를 저장해야 변경이 반영되며, 목록 조회는 읽기 전용이라 생성·재생 요청을 보내지 않습니다.
                     </p>
-                    {selectableAssets.map(asset => {
+                    {browsedAssets.map(asset => {
                       const selected = customAssetId === asset.id;
                       return (
                         <div key={asset.id} className={`flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between ${selected ? 'border-indigo-400 bg-indigo-50/60' : 'border-slate-200 bg-white'}`}>
@@ -568,7 +649,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                       className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="">자산 선택</option>
-                      {selectableAssets.map(asset => (
+                      {browsedAssets.map(asset => (
                           <option key={asset.id} value={asset.id}>
                             {displayCatalogName(asset.name)} · 외부 서비스 · {provisioningLabels[asset.status]}
                           </option>
@@ -584,7 +665,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
             )
           )}
 
-          {selectedKind === 'custom' && (
+          {selectedKind === 'custom' && !customProviderUnavailable && customLiveProviders.includes('tavus') && browseProvider !== 'anam' && (
             personaId && onSeedDraftChange ? (
               <>
                 {liveAvatar && liveAvatar.kind !== 'stock' && !liveAvatar.seedImageAssetId && !seedPanelOpen ? (
@@ -639,7 +720,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                   : '선택한 기본 아바타는 이 관리자 테스트에서 지원되지 않습니다. 현재 일부 기본 아바타만 테스트할 수 있습니다.'}
               </p>
             )}
-            {testEntry === 'voice' && hasSelectedTest && (
+            {(testEntry === 'voice' || (testEntry === 'basic' && selectedAnam && Boolean(selectedVoice))) && hasSelectedTest && (
               <AvatarVoiceTestPanel key={liveAvatar.kind === 'stock' ? liveAvatar.avatarId : liveAvatar.assetId}
                 target={liveAvatar.kind === 'stock' ? liveAvatar.avatarId : liveAvatar.assetId}
                 initialVoice={selectedVoice} initialVoiceName={selectedVoiceEntry?.name} onActivityChange={setTestBusy} />
@@ -648,7 +729,7 @@ export function PersonaAvatarSettings({ mode, liveAvatar, onModeChange, onLiveAv
                 <PersonaAvatarValidationPanel key={liveAvatar.assetId} assetId={liveAvatar.assetId} assetName={displayCatalogName(selectedAsset?.name ?? '저장된 커스텀 자산')} onReported={() => void loadAssets()} onActivityChange={setTestBusy} />
             )}
             {testEntry === 'basic' && selectedLucy && <LiveAvatarTestPanel onActivityChange={setTestBusy} />}
-            {testEntry === 'basic' && selectedAnam && <AnamAvatarTestPanel onActivityChange={setTestBusy} />}
+            {testEntry === 'basic' && selectedAnam && !selectedVoice && <AnamAvatarTestPanel onActivityChange={setTestBusy} />}
           </div>}
         </div>
       )}

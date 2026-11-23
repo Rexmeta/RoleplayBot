@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 const fakes = vi.hoisted(() => ({
-  list: vi.fn(), thumbnail: vi.fn(), normalize: vi.fn(), create: vi.fn(), update: vi.fn(), get: vi.fn(),
+  list: vi.fn(), voicePage: vi.fn(), thumbnail: vi.fn(), normalize: vi.fn(), create: vi.fn(), update: vi.fn(), get: vi.fn(),
 }));
 vi.mock("../../server/storage", () => ({ storage: {
   getMbtiPersona: fakes.get,
@@ -12,7 +12,7 @@ vi.mock("../../server/services/fileManager", () => ({ fileManager: {
   createMBTIPersona: fakes.create, updateMBTIPersona: fakes.update,
 } }));
 vi.mock("../../server/services/liveAvatar/personaCatalog", () => ({
-  personaAvatarCatalog: { list: fakes.list, thumbnail: fakes.thumbnail, normalize: fakes.normalize },
+  personaAvatarCatalog: { list: fakes.list, voicePage: fakes.voicePage, thumbnail: fakes.thumbnail, normalize: fakes.normalize },
 }));
 vi.mock("../../server/services/gcsStorage", () => ({
   transformPersonasMedia: vi.fn(async p => p), transformPersonaMedia: vi.fn(async p => p),
@@ -57,6 +57,16 @@ describe("persona catalog authenticated bridge", () => {
     expect(response.status).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(fakes.list).toHaveBeenCalledExactlyOnceWith("owner");
+  });
+  it("only reads voice pages for authorized staff with a valid project and offset", async () => {
+    const url = "/api/admin/personas/live-avatar/voices";
+    fakes.voicePage.mockResolvedValue({ providers: [], voices: [], nextOffset: null });
+    expect((await request(app()).get(`${url}?projectId=project-one&offset=100`)).status).toBe(401);
+    expect((await request(app("user")).get(`${url}?projectId=project-one&offset=100`)).status).toBe(403);
+    expect((await request(app("operator")).get(`${url}?projectId=project-one&offset=5001`)).status).toBe(400);
+    expect(fakes.voicePage).not.toHaveBeenCalled();
+    expect((await request(app("operator")).get(`${url}?projectId=project-one&offset=100`)).headers["cache-control"]).toBe("no-store");
+    expect(fakes.voicePage).toHaveBeenCalledExactlyOnceWith("owner", "project-one", 100);
   });
   it("serves image thumbnails through the authenticated catalog bridge", async () => {
     const response = await request(app("admin")).get(`${path}/12345678-1234-4234-8234-123456789abc/thumbnail`);
