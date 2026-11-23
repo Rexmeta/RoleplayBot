@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Local UI only. No audio tracks, samples, or speech signals leave this component.
-export type UserAudioActivity = { speaking: boolean } | { level: number };
+export type UserAudioActivity = { level: number };
 
 const silent = { active: false, amplitude: 0 };
 const hangoverMs = 380;
@@ -16,13 +16,7 @@ export function useLiveAvatarUserSpeech() {
   useEffect(() => () => clearTimeout(stopTimer.current), []);
 
   const onActivity = useCallback((activity: UserAudioActivity) => {
-    if (!activity || typeof activity !== "object") return;
-    if ("speaking" in activity) {
-      if (activity.speaking === true) {
-        clearTimeout(stopTimer.current);
-        setSpeech({ active: true, amplitude: 0.45 });
-      } else if (activity.speaking === false) reset();
-    } else if (Number.isFinite(activity.level) && activity.level >= 0.03 && activity.level <= 1) {
+    if (Number.isFinite(activity?.level) && activity.level >= 0.03 && activity.level <= 1) {
       clearTimeout(stopTimer.current);
       setSpeech({ active: true, amplitude: Math.min(1, activity.level * 2.5) });
       stopTimer.current = setTimeout(reset, hangoverMs);

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { onFirstVideoFrame } from "@/lib/avatar/firstVideoFrame";
+import { beginIOSMicrophonePermissionSession } from "@/lib/iosAudioSession";
 import { LiveAvatarMediaLoading } from "./LiveAvatarMediaLoading";
 import { UserSpeechEffect } from "./UserSpeechEffect";
 import { useLiveAvatarUserSpeech, type UserAudioActivity } from "./useLiveAvatarUserSpeech";
@@ -75,6 +76,8 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
     resetSpeech();
     let cancelled = false, started = false, endSent = false;
     let acceptsSpeech = true;
+    // Preserve the iOS call profile while the browser SDK observes the existing mic.
+    const releaseIOSAudio = showUserSpeech ? beginIOSMicrophonePermissionSession() : undefined;
     let client: ManagedClient | undefined;
     let timingReport: Promise<unknown> | undefined;
     const disposeFrame = video.current && onFirstVideoFrame(video.current, () => setHasFrame(true));
@@ -152,6 +155,7 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
             if (next === "error" || next === "failed" || next === "ended") {
               acceptsSpeech = false;
               resetSpeech();
+              releaseIOSAudio?.();
             }
             if (next === "error" || next === "failed") {
               errorRef.current?.("라이브 아바타 연결에 실패했습니다. 자동 재연결하지 않고 종료를 요청합니다.");
@@ -166,6 +170,7 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
         if (!cancelled) {
           acceptsSpeech = false;
           resetSpeech();
+          releaseIOSAudio?.();
           setState("failed");
           errorRef.current?.("라이브 아바타를 시작하지 못했습니다. 마이크·재생 권한과 연결 상태를 확인하세요. 새 세션을 자동 생성하지 않습니다.");
         }
@@ -175,6 +180,7 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      releaseIOSAudio?.();
       disposeFrame?.();
       clientRef.current = undefined;
       if (started) stop();

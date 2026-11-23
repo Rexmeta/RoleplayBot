@@ -57,16 +57,16 @@ describe("managed native browser handoff", () => {
     act(() => options.onMessages([{ id: "ai", role: "assistant", text: "Hello" }]));
     act(() => options.onUserAudioActivity({ level: 0.005 }));
     expect(screen.queryByTestId("user-speech-glow")).toBeNull();
+    // Provider speech notifications are not input for the local microphone effect.
     act(() => options.onUserAudioActivity({ speaking: true }));
-    expect(screen.getByTestId("user-speech-glow")).toBeTruthy();
-    act(() => options.onUserAudioActivity({ speaking: false }));
     expect(screen.queryByTestId("user-speech-glow")).toBeNull();
     act(() => options.onUserAudioActivity({ level: 0.2 }));
     expect(screen.getByTestId("user-speech-glow")).toBeTruthy();
+    act(() => options.onUserAudioActivity({ level: 0 }));
     await waitFor(() => expect(screen.queryByTestId("user-speech-glow")).toBeNull());
-    act(() => { options.onUserAudioActivity({ speaking: true }); options.onState("ended"); });
+    act(() => { options.onUserAudioActivity({ level: 0.2 }); options.onState("ended"); });
     expect(screen.queryByTestId("user-speech-glow")).toBeNull();
-    act(() => options.onUserAudioActivity({ speaking: true }));
+    act(() => options.onUserAudioActivity({ level: 0.2 }));
     expect(screen.queryByTestId("user-speech-glow")).toBeNull();
   });
   it("does not report connected/playing state alone, reports a hosted first-frame observation once, and rejects foreign/late calls", async () => {
