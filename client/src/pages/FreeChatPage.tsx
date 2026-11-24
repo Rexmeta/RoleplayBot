@@ -492,33 +492,10 @@ export default function FreeChatPage() {
     }
 
     if (chatWindow) {
-      // Character mini-banner data
-      const chatAvatarUrl = selectedUserPersona?.avatarUrl
-        ? toMediaUrl(selectedUserPersona.avatarUrl)
-        : null;
-      const chatPersonaName = selectedUserPersona?.name || "";
-      const chatPersonaDesc = selectedUserPersona?.description || "";
-
       return (
         <div className="relative h-[100dvh] overflow-hidden">
           {/* Full-screen chat */}
           {chatWindow}
-
-          {/* ── Character mini identity banner ────────── */}
-          <div className="fixed top-12 sm:top-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full shadow-lg border backdrop-blur-sm bg-slate-900/80 border-slate-700/50">
-              <div className="w-5 h-5 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/30">
-                {chatAvatarUrl
-                  ? <img src={chatAvatarUrl} alt={chatPersonaName} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white bg-emerald-600">{chatPersonaName.slice(0, 2)}</div>
-                }
-              </div>
-              <span className="text-white text-xs font-semibold">{chatPersonaName}</span>
-              {chatPersonaDesc && (
-                <span className="text-white/50 text-[10px] max-w-[120px] truncate hidden sm:block">{chatPersonaDesc}</span>
-              )}
-            </div>
-          </div>
 
           {/* Scene context and the top menu handle live in ChatWindow's top context bar. */}
 

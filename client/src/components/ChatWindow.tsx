@@ -36,6 +36,7 @@ import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
 import { VoiceControlSurface, VoiceOverlayHeader } from "@/components/chat/VoiceConversationChrome";
+import { PersonaSessionStrip } from "@/components/chat/PersonaSessionStrip";
 import { LiveAvatarEntry, useLiveAvatarSelection } from "@/components/chat/LiveAvatarEntry";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
 import { VideoAvatarPortrait } from "@/components/chat/VideoAvatarPortrait";
@@ -990,7 +991,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
         )}
 
         <div className={inputMode === 'realtime-voice' ? '' : 'bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden'}>
-          {inputMode !== 'realtime-voice' && (
+          {inputMode !== 'realtime-voice' && !isPersonaX && (
             /* Chat Header */
             <div className="bg-gradient-to-r from-corporate-600 to-corporate-700 px-4 sm:px-6 py-3 sm:py-4 text-white">
             <div className="flex items-center justify-between gap-3">
@@ -1095,6 +1096,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
                 <div className="relative flex-1 overflow-hidden">
                   {/* Mobile overlay header – unified bar: avatar + name/role + progress + elapsed + NPC toggle + end button */}
+                  {!isPersonaX && (
                   <VoiceOverlayHeader className="lg:hidden absolute top-0 left-0 right-0 z-20 px-3 pt-2 pb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {/* Persona avatar thumbnail */}
@@ -1178,6 +1180,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       />
                     </div>
                   </VoiceOverlayHeader>
+                  )}
 
                   {(renderer as VideoAvatarRenderer).containerEl ? (
                     <VideoAvatarPortrait
@@ -1287,6 +1290,37 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     style={inputMode === 'realtime-voice' ? { bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' } : undefined}
                   >
                     <ConversationSurface className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
+                      {isPersonaX && (
+                        <PersonaSessionStrip
+                          name={activePersonaHeaderLabel}
+                          imageUrl={displayImageUrl || (activePersona.image ? toMediaUrl(activePersona.image) : null)}
+                          description={personaSwitchAnnounced ? '연결 대기 중…' : ((activePersona as { description?: string }).description || activePersonaSubLabel || null)}
+                          pending={personaSwitchAnnounced}
+                          progressPercentage={progressPercentage}
+                          progressBarClass={progressInfo.progressBarClass}
+                          toneClass={progressInfo.isAmber ? 'text-amber-600' : progressInfo.isGreen ? 'text-emerald-600' : 'text-slate-600'}
+                          statusLabel={progressInfo.stage === 'complete' ? t('chat.conversationCompleted') : `${Math.round(progressPercentage)}% · ${t('chat.turnsRemaining', { count: turnsLeft })}`}
+                          elapsedLabel={formatElapsedTime(elapsedTime)}
+                          extraAction={isSimulationEnabled && simulationState ? (
+                            <button onClick={() => setIsMobileSimOpen(v => !v)} aria-label={activePersonaIdentityLabel}
+                              className="relative shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-white/70 border border-slate-200 text-slate-600 hover:bg-white transition-colors">
+                              <Brain className="h-3.5 w-3.5" />
+                              {hasActiveIncident && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-400 rounded-full animate-pulse" />}
+                            </button>
+                          ) : undefined}
+                          endAction={
+                            <Button size="sm" variant="outline"
+                              onClick={() => { if (progressInfo.stage === 'complete') { handleFeedbackRequest(); } else { handleEndRealtimeConversation(); } }}
+                              data-testid="button-end-conversation-persona-strip"
+                              className={`text-xs h-8 px-3 border transition-all duration-300 ${progressInfo.endButtonClass}${isButtonAnimating ? ' animate-btn-pop' : ''}`}>
+                              {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
+                              {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
+                              {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
+                              {t(progressInfo.endButtonLabelKey)}
+                            </Button>
+                          }
+                        />
+                      )}
                       {inputMode === 'realtime-voice' ? (
                         <>
                           {isInlineTextOpen && (
