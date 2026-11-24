@@ -29,4 +29,10 @@ describe("PersonaX bottom session strip", () => {
     expect(chat).toContain("inputMode !== 'realtime-voice' && !isPersonaX");
     expect(chat.indexOf("<PersonaSessionStrip")).toBeGreaterThan(chat.indexOf("<ConversationSurface"));
   });
+
+  it("hides the duplicate footer for PersonaX even outside the free-chat entry", () => {
+    const chat = readFileSync("client/src/components/ChatWindow.tsx", "utf8");
+    expect(chat).toContain("!isPersonaX && !isPersonaMode && conversation.turnCount < MAX_TURNS");
+    expect(chat).toContain('data-testid="button-end-conversation-persona-strip"');
+  });
 });

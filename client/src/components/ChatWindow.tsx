@@ -1517,7 +1517,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                         </div>
                       )}
                       {/* Mobile stage-aware end button */}
-                      {!isPersonaMode && conversation.turnCount < MAX_TURNS && (
+                      {!isPersonaX && !isPersonaMode && conversation.turnCount < MAX_TURNS && (
                         <div className="border-t border-slate-200/30 px-4 py-2 flex items-center justify-between gap-2">
                           <div className={`text-xs font-medium transition-colors duration-300 ${progressInfo.isAmber ? 'text-amber-600' : progressInfo.isGreen ? 'text-green-600' : 'text-slate-400'}`}>
                             {progressInfo.stage === 'complete'
