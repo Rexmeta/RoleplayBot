@@ -273,6 +273,44 @@ describe('useRealtimeVoice — VAD sensitivity localStorage persistence', () => 
     expect(result.current.isRecording).toBe(false);
   });
 
+  it('queues connection until initial scenario dismissal, then opens only one socket', async () => {
+    localStorage.setItem('authToken', 'synthetic-test-token');
+    const hook = renderHook(({ blocked }) => useRealtimeVoice(buildProps({ startBlocked: blocked })), {
+      initialProps: { blocked: true },
+    });
+    await act(async () => { await hook.result.current.connect(); });
+    expect(MockWebSocket.instances).toHaveLength(0);
+    expect(hook.result.current.status).toBe('disconnected');
+    await act(async () => {
+      hook.result.current.releaseStartGate();
+      await hook.result.current.connect();
+    });
+    expect(MockWebSocket.instances).toHaveLength(1);
+    hook.rerender({ blocked: false });
+    await act(async () => { hook.result.current.releaseStartGate(); });
+    expect(MockWebSocket.instances).toHaveLength(1);
+    hook.unmount();
+  });
+
+  it('cancels a queued connection when leaving before scenario dismissal', async () => {
+    localStorage.setItem('authToken', 'synthetic-test-token');
+    const hook = renderHook(() => useRealtimeVoice(buildProps({ startBlocked: true })));
+    await act(async () => { await hook.result.current.connect(); });
+    act(() => hook.result.current.disconnect());
+    await act(async () => hook.result.current.releaseStartGate());
+    expect(MockWebSocket.instances).toHaveLength(0);
+    hook.unmount();
+  });
+
+  it('does not request microphone capture while the initial scenario gate is blocked', async () => {
+    mockRequestPermission.mockClear();
+    const hook = renderHook(() => useRealtimeVoice(buildProps({ startBlocked: true })));
+    await act(async () => { hook.result.current.startRecording(); });
+    expect(mockRequestPermission).not.toHaveBeenCalled();
+    expect(MockWebSocket.instances).toHaveLength(0);
+    hook.unmount();
+  });
+
   it('diagnostic: retries after recoverable:false plus a normal server close once conversation started', async () => {
     vi.useFakeTimers();
     localStorage.setItem('authToken', 'synthetic-not-a-token');

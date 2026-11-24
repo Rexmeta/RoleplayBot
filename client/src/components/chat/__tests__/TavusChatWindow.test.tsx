@@ -14,6 +14,7 @@ const { apiRequestMock, roomMock, locale } = vi.hoisted(() => ({
 vi.mock("@/lib/queryClient", () => ({ apiRequest: apiRequestMock }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "test-user" } }) }));
 vi.mock("../DailyAvatarRoom", () => ({ default: roomMock }));
+vi.mock("../TopMenuPanel", () => ({ TopMenuPanel: ({ isOpen, onClose, children }: any) => isOpen ? <div data-testid="top-menu">{children}<button type="button" onClick={onClose}>close-context</button></div> : null }));
 vi.mock("../ManagedAvatarRoom", () => ({ default: (props: any) => (
   <div data-testid="mock-managed-room" data-report-timing={String(props.reportTiming)}>
     <button data-testid="fail-timing-report" onClick={() => props.onTimingReport?.("failed")}>Fail timing report</button>
@@ -941,5 +942,15 @@ describe("TavusChatWindow Daily pipeline", () => {
     expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/conversations/caption-final");
     await waitFor(() => expect(screen.queryByText("Unverified live draft")).toBeNull());
     expect(screen.queryByText(/Browser captions · unverified/)).toBeNull();
+  });
+});
+
+describe('TavusChatWindow scenario context bar source contract', () => {
+  it('uses explicit close notice and no org override summary', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(require('node:path').resolve(__dirname, '../TavusChatWindow.tsx'), 'utf8');
+    expect(src).toContain('closeNotice="explicit"');
+    expect(src).not.toContain('ScenarioOverrideSummary');
+    expect(src).toMatch(/onClose=\{\(\) => setContextOpen\(false\)\}/);
   });
 });

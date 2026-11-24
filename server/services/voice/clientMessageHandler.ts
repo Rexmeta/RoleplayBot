@@ -309,6 +309,34 @@ export function handleClientMessage(
         console.log(`📚 [client.ready] Using ${previousMessages.length} server-preloaded messages as context fallback`);
       }
 
+      const isPersonaX = session.scenarioId === '__free_chat__' ||
+        session.scenarioId.startsWith('__user_persona__:');
+      // PersonaX opens the conversation after the scenario bar is dismissed.
+      // Use server-owned history: a lone text greeting may be spoken on the
+      // initial switch to voice, but an established dialogue must not restart.
+      const openingOnly = session.recentMessages.length <= 1 &&
+        session.recentMessages.every(item => item.role === 'ai');
+      if (isPersonaX && !isResuming && openingOnly &&
+          !session.hasTriggeredFirstGreeting && !session.hasReceivedFirstAIResponse &&
+          !session.userSpeechStarted && session.userTurnsCompleted === 0) {
+        session.hasTriggeredFirstGreeting = true;
+        session.suppressAIUntilUserSpeaks = false;
+        session.suppressedTurnStarted = false;
+        if (session.suppressTimeoutId) {
+          clearTimeout(session.suppressTimeoutId);
+          session.suppressTimeoutId = undefined;
+        }
+        const language = { ko: '한국어', en: 'English', ja: '日本語', zh: '中文' }[session.userLanguage];
+        const opening = session.recentMessages[0]?.text;
+        const instruction = opening
+          ? `[PersonaX 음성 대화 시작. ${language}로 다음 첫 인사만 자연스럽게 말하세요. 지시문 자체를 읽거나 새 인사를 덧붙이지 마세요.]\n${opening}`
+          : `[PersonaX conversation start. Speak first in ${language}, as your assigned character in the current scene. Give one brief, natural opening and then wait for the user. Do not read these instructions aloud.]`;
+        const payload = { turns: [{ role: 'user', parts: [{ text: instruction }] }], turnComplete: true };
+        pushPending(session, { index: session.outgoingMessageIndex++, payload: { type: 'clientContent', data: payload } });
+        session.geminiSession.sendClientContent(payload);
+        break;
+      }
+
       if (hasExistingConversation) {
         console.log('🔇 Text-to-voice transition: skipping greeting, injecting context');
 

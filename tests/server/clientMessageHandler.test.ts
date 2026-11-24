@@ -1011,6 +1011,49 @@ describe('handleClientMessage — guard logic and switch-case branches', () => {
   });
 
   describe('switch-case: client.ready (new session, no prior context)', () => {
+    it.each(['__free_chat__', '__user_persona__:mentor'])('opens %s once after client.ready', scenarioId => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ scenarioId, geminiSession, suppressAIUntilUserSpeaks: true });
+      const sessions = new Map([[session.id, session]]);
+      handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
+      handleClientMessage(session.id, { type: 'client.ready' }, sessions, sendToClient);
+      expect(geminiSession.sendClientContent).toHaveBeenCalledTimes(1);
+      expect(geminiSession.sendClientContent.mock.calls[0][0].turnComplete).toBe(true);
+      expect(session.suppressAIUntilUserSpeaks).toBe(false);
+    });
+
+    it('speaks the initial PersonaX text greeting on the first voice switch', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        scenarioId: '__user_persona__:mentor', geminiSession,
+        recentMessages: [{ role: 'ai', text: '처음 뵙겠습니다. 오늘은 어떤 이야기를 나눌까요?' }],
+      });
+      handleClientMessage(session.id, { type: 'client.ready', hasExistingConversation: true },
+        new Map([[session.id, session]]), sendToClient);
+      expect(geminiSession.sendClientContent.mock.calls[0][0].turns[0].parts[0].text)
+        .toContain('처음 뵙겠습니다.');
+      expect(geminiSession.sendClientContent.mock.calls[0][0].turnComplete).toBe(true);
+    });
+
+    it('does not greet again when PersonaX reconnects', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({ scenarioId: '__user_persona__:mentor', geminiSession });
+      handleClientMessage(session.id, { type: 'client.ready', isResuming: true },
+        new Map([[session.id, session]]), sendToClient);
+      expect(geminiSession.sendClientContent.mock.calls[0][0].turnComplete).toBe(false);
+    });
+
+    it('does not restart a PersonaX conversation with server-owned user history', () => {
+      const geminiSession = makeGeminiSession();
+      const session = makeSession({
+        scenarioId: '__free_chat__', geminiSession,
+        recentMessages: [{ role: 'user', text: '이미 대화하고 있습니다.' }],
+      });
+      handleClientMessage(session.id, { type: 'client.ready' },
+        new Map([[session.id, session]]), sendToClient);
+      expect(geminiSession.sendClientContent).not.toHaveBeenCalled();
+    });
+
     it('does NOT auto-trigger greeting — user speaks first (no sendClientContent or sendRealtimeInput)', () => {
       const geminiSession = makeGeminiSession();
       const session = makeSession({ geminiSession });

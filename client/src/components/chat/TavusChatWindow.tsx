@@ -11,7 +11,8 @@ import { LiveAvatarMediaLoading } from "./LiveAvatarMediaLoading";
 import TavusConversationLayout from "./TavusConversationLayout";
 import { useTavusTranscript, type TranscriptState } from "./useTavusTranscript";
 import { useBrowserCaptions } from "./tavusBrowserCaptions";
-import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "../ScenarioOverrideSummary";
+import { ScenarioContextBar } from "./ScenarioContextBar";
+import { TopMenuPanel } from "./TopMenuPanel";
 import { AvatarSessionTiming } from "./AvatarSessionTiming";
 import type { SessionTiming } from "@shared/avatar/sessionTiming";
 import { liveAvatarDurationSeconds } from "@shared/avatar/conversationDuration";
@@ -109,6 +110,7 @@ function TavusChatWindowSession({
   const displayError = (details: { code: string; message: string; routerError?: boolean }) =>
     details.routerError ? `${details.message} (${details.code})` : reasonText(details.code);
   const [session, setSession] = useState<Session>({ state: "idle" });
+  const [contextOpen, setContextOpen] = useState(true);
   const [config, setConfig] = useState<Config | null>(null);
   const [starting, setStarting] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -586,6 +588,11 @@ function TavusChatWindowSession({
   if (finishingForFeedback) return <FeedbackTransitionOverlay />;
 
   return (
+    <>
+    {/* Context only: closing never starts a paid session; the mic remains the sole consent. */}
+    <TopMenuPanel isOpen={contextOpen} onToggle={() => setContextOpen(v => !v)} onClose={() => setContextOpen(false)}>
+      <ScenarioContextBar scenario={scenario} closeNotice="explicit" />
+    </TopMenuPanel>
     <TavusConversationLayout
       scenario={scenario}
       persona={persona}
@@ -670,27 +677,9 @@ function TavusChatWindowSession({
           </div>}
         </div>
       }
-      history={<><TavusOverrideSummary conversationId={conversationId} />{historyContent}</>}
+      history={historyContent}
     />
+    </>
   );
 
-}
-
-function TavusOverrideSummary({ conversationId }: { conversationId: string }) {
-  const [state, setState] = useState<{ loading: boolean; error: boolean; metadata: OrganizationOverrideMetadata }>({ loading: true, error: false, metadata: null });
-  const [retry, setRetry] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    setState({ loading: true, error: false, metadata: null });
-    apiRequest("GET", `/api/conversations/${encodeURIComponent(conversationId)}/organization-override`)
-      .then(response => response.json())
-      .then(data => { if (!cancelled) setState({ loading: false, error: false, metadata: data.organizationOverride ?? null }); })
-      .catch(() => { if (!cancelled) setState({ loading: false, error: true, metadata: null }); });
-    return () => { cancelled = true; };
-  }, [conversationId, retry]);
-  return <div className="p-4">
-    {state.loading ? <p className="text-sm">조직 설정 적용 기록을 불러오는 중...</p>
-      : state.error ? <p className="text-sm text-red-700">조직 설정 적용 기록 조회 실패. <button onClick={() => setRetry(value => value + 1)} className="underline">다시 시도</button></p>
-      : <ScenarioOverrideSummary metadata={state.metadata} />}
-  </div>;
 }

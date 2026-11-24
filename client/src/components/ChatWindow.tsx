@@ -47,7 +47,8 @@ import { GoalsSidebar } from "@/components/chat/GoalsSidebar";
 import { isIOSWebKitAudioPlatform } from "@/lib/iosAudioSession";
 import TavusChatWindow from "@/components/chat/TavusChatWindow";
 import { apiRequest } from "@/lib/queryClient";
-import { ScenarioOverrideSummary, type OrganizationOverrideMetadata } from "@/components/ScenarioOverrideSummary";
+import { ScenarioContextBar } from "@/components/chat/ScenarioContextBar";
+import { useScenarioContextGate } from "@/components/chat/useScenarioContextGate";
 
 const MAX_TURNS = 999;
 const SOFT_CLOSE_THRESHOLD = 0.8;
@@ -121,7 +122,12 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const [isBargeInFlash, setIsBargeInFlash] = useState(false);
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
-  const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
+  // Scenario context bar opens on entry; the first dismissal releases voice start.
+  // Reopening/closing later never re-runs it (no restart / re-greet).
+  const releaseVoiceStartRef = useRef<(() => void) | null>(null);
+  const setConversationStartTimeRef = useRef<(() => void) | null>(null);
+  const contextGate = useScenarioContextGate(() => releaseVoiceStartRef.current?.());
+  const { isOpen: isTopMenuOpen, hasDismissed: hasDismissedContext, close: closeTopMenu, toggle: toggleTopMenu } = contextGate;
   const [isSilenceIdle, setIsSilenceIdle] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState<number>(0);
@@ -268,7 +274,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   }, [avatarState, playState]); // currentEmotion intentionally excluded — emotion changes go via setEmotion
 
   const realtimeVoice = useRealtimeVoice({
-    conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false, delayGreeting,
+    conversationId, scenarioId: scenario.id, personaId: persona.id, enabled: false, delayGreeting, startBlocked: !hasDismissedContext,
     onSimulationUpdate: isSimulationEnabled ? handleSimulationUpdate : undefined,
     onPersonaSwitched: handlePersonaSwitched,
     onPersonaSwitchAnnounced: handlePersonaSwitchAnnounced,
@@ -382,6 +388,18 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
   const pendingAiMessage = rawPendingAiMessage && !realtimeVoice.isReconnecting;
 
+  // First context-bar dismissal: drain any queued connect, else start voice
+  // explicitly (connect() ignores duplicates while connecting/connected).
+  releaseVoiceStartRef.current = () => {
+    realtimeVoice.releaseStartGate();
+    if (inputMode !== 'realtime-voice') return;
+    const prior = localMessagesRef.current
+      .filter(m => m.sender === 'user' || m.sender === 'ai')
+      .map(m => ({ role: m.sender as 'user' | 'ai', content: m.message }));
+    setConversationStartTimeRef.current?.();
+    realtimeVoice.connect(prior.length ? prior : undefined);
+  };
+
   // ── Avatar State Machine event wiring (state-change–driven) ───────────────
   // Dispatch TTSEnd when AI stops speaking (response.done / response.interrupted)
   const prevIsAISpeakingRef = useRef(false);
@@ -445,18 +463,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     enabled: !!conversationId,
     refetchOnWindowFocus: realtimeVoice.conversationPhase !== 'active',
   });
-  const scenarioRunId = (conversation as any)?.scenarioRunId as string | undefined;
-  const scenarioRunQuery = useQuery<any>({
-    queryKey: ["/api/scenario-runs", scenarioRunId],
-    enabled: !!scenarioRunId,
-    queryFn: async () => {
-      const response = await apiRequest("GET", `/api/scenario-runs/${encodeURIComponent(scenarioRunId!)}`);
-      return response.json();
-    },
-  });
-  const runData = scenarioRunQuery.data?.scenarioRun ?? scenarioRunQuery.data;
-  const overrideMetadata = (runData?.scenarioSnapshot?._organizationOverride ??
-    runData?.scenarioSnapshot?.scenarioSnapshot?._organizationOverride ?? null) as OrganizationOverrideMetadata;
 
   const switchToLiveAvatar = async () => {
     if (!onSelectLiveAvatar || isSwitchingMode || !liveAvatarSelectable) return;
@@ -481,6 +487,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     setConversationStartTime(previous => previous ?? new Date());
     setElapsedTime(0);
   }, [setConversationStartTime, setElapsedTime]);
+  setConversationStartTimeRef.current = startConversationTimer;
 
   const { isRecording, speechSupported, startRecording, stopRecording, removeInterimText, cleanup: cleanupVoiceRecording } = useVoiceRecording({
     language: conversation?.language,
@@ -923,10 +930,12 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
     sessionWarning: realtimeVoice.sessionWarning, error: realtimeVoice.error,
     showMicPrompt,
     onConnect: (msgs?: PreviousMessage[]) => {
+      if (!hasDismissedContext) closeTopMenu();
       startConversationTimer();
       realtimeVoice.connect(msgs);
     },
     onStartRecording: () => {
+      if (!hasDismissedContext) closeTopMenu();
       startConversationTimer();
       hasUserSpokenRef.current = true;
       setShowMicPrompt(false);
@@ -968,21 +977,12 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
   return (
     <>
-      <TopMenuPanel isOpen={isTopMenuOpen} onToggle={() => setIsTopMenuOpen(v => !v)} onClose={() => setIsTopMenuOpen(false)}>
-        {inputMode === "realtime-voice" && scenarioRunQuery.isSuccess && <ScenarioOverrideSummary metadata={overrideMetadata} />}
+      <TopMenuPanel isOpen={isTopMenuOpen} onToggle={toggleTopMenu} onClose={closeTopMenu}>
+        <ScenarioContextBar scenario={scenario} />
       </TopMenuPanel>
 
       <div className="chat-window relative">
         <ConversationLanguageNotice language={conversation?.language} />
-        {scenarioRunId && (
-          <div className="mx-auto mb-3 max-w-5xl px-3 sm:px-4">
-            {scenarioRunQuery.isLoading
-              ? <div className="h-14 animate-pulse rounded-md bg-slate-100" aria-label="조직 설정 적용 기록 로딩 중" />
-              : scenarioRunQuery.isError
-              ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"><span>실행의 조직 설정 적용 기록을 불러오지 못했습니다. 과거 실행으로 오인하지 않도록 기록 상태를 별도로 표시합니다.</span><Button size="sm" variant="outline" onClick={() => scenarioRunQuery.refetch()}>다시 시도</Button></div>
-              : <ScenarioOverrideSummary metadata={overrideMetadata} />}
-          </div>
-        )}
         {isInitialLoading && (
           <div className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${isOverlayFading ? 'opacity-0' : 'opacity-100'}`} data-testid="chat-loading-overlay">
             <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin" />
@@ -1256,11 +1256,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     </div>
                   )}
 
-                  {!isPersonaX && (
-                    <GoalsSidebar scenario={scenario} personaName={persona.name} personaDept={persona.department} personaRole={persona.role}
-                      elapsedTime={elapsedTime}
-                      isGoalsExpanded={isGoalsExpanded} onToggleGoals={() => setIsGoalsExpanded(v => !v)} variant="overlay" />
-                  )}
+                  {/* Mobile role/goals now live in the top scenario context bar so the character stays unobscured. */}
 
 
                   {inputMode === 'realtime-voice' && (

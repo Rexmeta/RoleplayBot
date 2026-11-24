@@ -122,6 +122,8 @@ interface UseRealtimeVoiceProps {
   personaId: string;
   enabled: boolean;
   delayGreeting?: boolean;
+  /** Initial scenario acknowledgement; not the bar's later open/closed state. */
+  startBlocked?: boolean;
   onMessage?: (message: string) => void;
   onMessageComplete?: (message: string, emotion?: string, emotionReason?: string, userAffect?: Record<string, unknown>, interrupted?: boolean) => void;
   onReconnectGreetingComplete?: () => void;
@@ -179,6 +181,7 @@ interface UseRealtimeVoiceReturn {
   requestInputDevicePermission: () => Promise<boolean>;
   retryAudioPlayback: () => Promise<boolean>;
   connect: (previousMessages?: PreviousMessage[]) => Promise<void>;
+  releaseStartGate: () => void;
   disconnect: () => void;
   startRecording: () => void;
   stopRecording: () => void;
@@ -193,6 +196,7 @@ export function useRealtimeVoice({
   personaId,
   enabled,
   delayGreeting,
+  startBlocked = false,
   onMessage,
   onMessageComplete,
   onReconnectGreetingComplete,
@@ -237,6 +241,11 @@ export function useRealtimeVoice({
     return VAD_SENSITIVITY_DEFAULT;
   });
   const vadSensitivityRef = useRef<number>(vadSensitivity);
+  const startBlockedRef = useRef(startBlocked);
+  startBlockedRef.current = startBlocked;
+  const queuedConnectRef = useRef<{ messages?: PreviousMessage[]; prepareMicrophone: boolean } | null>(null);
+  const initialStartGateRef = useRef(startBlocked);
+  const captureAfterStartGateRef = useRef(false);
   useEffect(() => { vadSensitivityRef.current = vadSensitivity; }, [vadSensitivity]);
 
   // ① When delayGreeting turns false (video intro ends), send any held client.ready
@@ -565,6 +574,8 @@ export function useRealtimeVoice({
   }, []);
 
   const disconnect = useCallback(() => {
+    queuedConnectRef.current = null;
+    captureAfterStartGateRef.current = false;
     outputTraceRef.current?.record('disconnect', { reason: 6 });
     outputTraceRef.current?.stop();
     // Invalidate token requests and socket callbacks from any earlier attempt
@@ -652,6 +663,10 @@ export function useRealtimeVoice({
   const previousMessagesRef = useRef<PreviousMessage[] | undefined>(undefined);
 
   const connect = useCallback(async (previousMessages?: PreviousMessage[], prepareMicrophone = true) => {
+    if (startBlockedRef.current) {
+      queuedConnectRef.current = { messages: previousMessages, prepareMicrophone };
+      return;
+    }
     if (statusRef.current === 'connecting' || statusRef.current === 'connected') {
       console.log(`⚠️ connect() called while status is already '${statusRef.current}' — ignoring duplicate`);
       return;
@@ -1507,6 +1522,7 @@ export function useRealtimeVoice({
   }, [updateThresholds]);
 
   const startRecording = useCallback(async () => {
+    if (startBlockedRef.current) return;
     if (captureSetupRef.current !== null || isRecordingRef.current) return;
     if (status !== 'connected' || !wsRef.current) {
       console.warn('Cannot start recording: not connected');
@@ -1951,6 +1967,28 @@ export function useRealtimeVoice({
     startRecordingRef.current = startRecording;
   }, [startRecording]);
 
+  // The close-button gesture can release the queue synchronously, preserving
+  // Safari's user activation for microphone permission and audio playback.
+  const releaseStartGate = useCallback(() => {
+    startBlockedRef.current = false;
+    if (initialStartGateRef.current) {
+      initialStartGateRef.current = false;
+      captureAfterStartGateRef.current = true;
+    }
+    const queued = queuedConnectRef.current;
+    queuedConnectRef.current = null;
+    if (queued) void connectRef.current?.(queued.messages, queued.prepareMicrophone);
+  }, []);
+  useEffect(() => {
+    if (!startBlocked) releaseStartGate();
+  }, [startBlocked, releaseStartGate]);
+  useEffect(() => {
+    if (status === 'connected' && captureAfterStartGateRef.current) {
+      captureAfterStartGateRef.current = false;
+      startRecordingRef.current?.();
+    }
+  }, [status]);
+
   useEffect(() => {
     if (enabled && !isIOSWebKitAudioPlatform()) connect();
     return () => { disconnect(); };
@@ -2009,6 +2047,7 @@ export function useRealtimeVoice({
     requestInputDevicePermission,
     retryAudioPlayback: resumePlayback,
     connect,
+    releaseStartGate,
     disconnect,
     startRecording,
     stopRecording,

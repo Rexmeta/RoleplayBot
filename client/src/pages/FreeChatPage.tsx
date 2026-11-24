@@ -16,8 +16,7 @@ import {
   Search, Plus, MessageSquare, Compass, User, Heart,
   MoreVertical, Pencil, Trash2, Globe, Lock, X, Check,
   MessageCircle, Mic, Volume2, ChevronRight, Sparkles,
-  ChevronUp, Flame, Star, Play, Clock, ArrowRight,
-  MapPin, Wind, ChevronDown
+  Flame, Star, Play, Clock, ArrowRight
 } from "lucide-react";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
 
@@ -281,12 +280,10 @@ export default function FreeChatPage() {
 
   // 채팅 화면에서 슬라이드 사이드바 / 상단 헤더
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
-  const [chatHeaderOpen, setChatHeaderOpen] = useState(false);
 
   // 장면 설정
   const [sceneModalOpen, setSceneModalOpen] = useState(false);
   const [activeScene, setActiveScene] = useState<PersonaScene | null>(null);
-  const [sceneCardOpen, setSceneCardOpen] = useState(true);
 
   // Data queries
   const { data: discoverPersonas = [] } = useQuery<UserPersona[]>({
@@ -342,7 +339,6 @@ export default function FreeChatPage() {
       localStorage.setItem(`persona_conv:${personaIdFromUrl}`, data.id);
       setConversationId(data.id);
       setActiveScene(scene);
-      setSceneCardOpen(true);
       setMainView("chat");
     }).catch(err => {
       toast({ title: "대화 시작 실패", description: err.message, variant: "destructive" });
@@ -382,7 +378,6 @@ export default function FreeChatPage() {
       saveConvId(variables.personaId, data.id);
       setConversationId(data.id);
       setActiveScene(variables.scene || null);
-      setSceneCardOpen(true);
       setMainView("chat");
     },
     onError: (err: any) => toast({ title: "대화 시작 실패", description: err.message, variant: "destructive" }),
@@ -430,7 +425,6 @@ export default function FreeChatPage() {
     if (savedId) {
       setConversationId(savedId);
       setActiveScene(null);
-      setSceneCardOpen(true);
       setMainView("chat");
       try {
         const data = await apiRequest("GET", `/api/conversations/${savedId}`).then(r => r.json());
@@ -483,7 +477,7 @@ export default function FreeChatPage() {
   if (mainView === "chat" && conversationId) {
     let chatWindow: React.ReactNode = null;
     if (selectedUserPersona) {
-      const scenario = buildUserPersonaScenario(selectedUserPersona, chatDifficulty);
+      const scenario = { ...buildUserPersonaScenario(selectedUserPersona, chatDifficulty), _personaScene: activeScene } as ComplexScenario;
       const persona = buildUserPersonaForChat(selectedUserPersona);
       chatWindow = (
         <ChatWindow
@@ -526,67 +520,7 @@ export default function FreeChatPage() {
             </div>
           </div>
 
-          {/* ── Scene Card ─────────────────────────────── */}
-          {activeScene && (
-            <div className="fixed top-20 sm:top-12 left-1/2 -translate-x-1/2 z-30 w-[min(92vw,400px)]">
-              <div className="bg-slate-900/85 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-xl overflow-hidden">
-                <button
-                  className="w-full flex items-center justify-between px-3 py-2 text-left"
-                  onClick={() => setSceneCardOpen(v => !v)}
-                >
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-                    <span className="text-white text-xs font-semibold">{activeScene.title}</span>
-                    <span className="text-emerald-400/80 text-[10px] hidden sm:block">{activeScene.mood}</span>
-                  </div>
-                  {sceneCardOpen
-                    ? <ChevronUp className="w-3 h-3 text-slate-400" />
-                    : <ChevronDown className="w-3 h-3 text-slate-400" />}
-                </button>
-                {sceneCardOpen && (
-                  <div className="px-3 pb-3 space-y-1.5 border-t border-slate-700/40">
-                    <div className="flex items-start gap-1.5 mt-2">
-                      <Wind className="w-3 h-3 text-slate-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-300 text-[11px] leading-relaxed">{activeScene.setting}</p>
-                    </div>
-                    {activeScene.openingLine && (
-                      <p className="text-emerald-400 text-[11px] italic pl-4.5">"{activeScene.openingLine}"</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── Top header overlay ─────────────────────── */}
-          {/* Backdrop for header */}
-          {chatHeaderOpen && (
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setChatHeaderOpen(false)}
-            />
-          )}
-          {/* Sliding AppHeader */}
-          <div
-            className={`fixed left-0 right-0 top-0 z-50 shadow-lg transition-transform duration-300 ease-in-out ${chatHeaderOpen ? "translate-y-0" : "-translate-y-full"}`}
-          >
-            <AppHeader />
-          </div>
-          {/* Top trigger handle — z-50 so it stays on top of backdrops */}
-          <button
-            onClick={() => setChatHeaderOpen(v => !v)}
-            className="fixed top-0 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center gap-1.5 px-4 h-5 bg-white/90 backdrop-blur border border-t-0 border-slate-200 rounded-b-xl shadow-md hover:h-6 hover:bg-white transition-all group"
-            title="상단 메뉴 열기"
-          >
-            {chatHeaderOpen
-              ? <ChevronUp className="w-3 h-3 text-emerald-500" />
-              : <>
-                  <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
-                  <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
-                  <span className="w-3 h-0.5 bg-slate-400 group-hover:bg-emerald-500 rounded-full transition-colors" />
-                </>
-            }
-          </button>
+          {/* Scene context and the top menu handle live in ChatWindow's top context bar. */}
 
           {/* ── Left sidebar trigger handle ─────────────── */}
           <button

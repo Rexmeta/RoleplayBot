@@ -233,29 +233,8 @@ export class RealtimeVoiceService {
       session.greetingTimeoutId = null;
     }
 
-    session.greetingTimeoutId = setTimeout(() => {
-      session.greetingTimeoutId = null;
-      const currentSession = this.sessions.get(session.id);
-      const pendingHasExisting = currentSession?.pendingClientReady?.hasExistingConversation === true;
-      const pendingIsResuming = currentSession?.pendingClientReady?.isResuming === true;
-      if (
-        currentSession &&
-        !currentSession.hasTriggeredFirstGreeting &&
-        !currentSession.hasReceivedFirstAIResponse &&
-        !pendingHasExisting &&
-        !pendingIsResuming &&
-        currentSession.geminiSession
-      ) {
-        console.log('⏰ [OpenAI] client.ready timeout (3s) — auto-triggering first greeting...');
-        currentSession.hasTriggeredFirstGreeting = true;
-        const greetingPayload = {
-          turns: [{ role: 'user', parts: [{ text: '안녕하세요' }] }],
-          turnComplete: true,
-        };
-        currentSession.pendingMessages.push({ index: currentSession.outgoingMessageIndex++, payload: { type: 'clientContent', data: greetingPayload } });
-        currentSession.geminiSession.sendClientContent(greetingPayload);
-      }
-    }, 3000);
+    // Only client.ready may release a PersonaX opening. A timer must never
+    // bypass the initial scenario acknowledgement or make roleplay speak first.
   }
 
   async createSession(
