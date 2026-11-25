@@ -25,7 +25,9 @@ describe("PersonaX bottom session strip", () => {
     const page = readFileSync("client/src/pages/FreeChatPage.tsx", "utf8");
     const chat = readFileSync("client/src/components/ChatWindow.tsx", "utf8");
     expect(page).not.toContain("Character mini identity banner");
-    expect(chat).toContain('{!isPersonaX && (\n                  <VoiceOverlayHeader');
+    expect(chat).not.toContain("<VoiceOverlayHeader");
+    expect(chat).not.toContain("mobile-overlay-turn-counter");
+    expect(chat).toContain("isPersonaX ? undefined : 'lg:hidden'");
     expect(chat).toContain("inputMode !== 'realtime-voice' && !isPersonaX");
     expect(chat.indexOf("<PersonaSessionStrip")).toBeGreaterThan(chat.indexOf("<ConversationSurface"));
   });
@@ -34,5 +36,6 @@ describe("PersonaX bottom session strip", () => {
     const chat = readFileSync("client/src/components/ChatWindow.tsx", "utf8");
     expect(chat).toContain("!isPersonaX && !isPersonaMode && conversation.turnCount < MAX_TURNS");
     expect(chat).toContain('data-testid="button-end-conversation-persona-strip"');
+    expect(chat).toContain("max-lg:hidden border-t border-slate-200/30");
   });
 });

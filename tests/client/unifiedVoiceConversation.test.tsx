@@ -60,7 +60,7 @@ describe("shared voice and live-avatar conversation experience", () => {
   it("uses the same header/control primitives as the existing voice screen", () => {
     const standard = readFileSync("client/src/components/ChatWindow.tsx", "utf8");
     const live = readFileSync("client/src/components/chat/TavusConversationLayout.tsx", "utf8");
-    expect(standard).toContain("<VoiceOverlayHeader");
+    expect(standard).toContain("<PersonaSessionStrip");
     expect(standard).toContain('? VoiceControlSurface : Card');
     expect(live).toContain("<VoiceOverlayHeader");
     expect(live).toContain("<VoiceControlSurface");

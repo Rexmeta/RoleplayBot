@@ -35,7 +35,7 @@ import { resolvePersonaAfterSwitch } from "@/components/chat/resolvePersonaAfter
 import { PersonaSwitchCard } from "@/components/chat/PersonaSwitchCard";
 import { TranscriptPanel } from "@/components/chat/TranscriptPanel";
 import { TopMenuPanel } from "@/components/chat/TopMenuPanel";
-import { VoiceControlSurface, VoiceOverlayHeader } from "@/components/chat/VoiceConversationChrome";
+import { VoiceControlSurface } from "@/components/chat/VoiceConversationChrome";
 import { PersonaSessionStrip } from "@/components/chat/PersonaSessionStrip";
 import { LiveAvatarEntry, useLiveAvatarSelection } from "@/components/chat/LiveAvatarEntry";
 import { CharacterPortrait } from "@/components/chat/CharacterPortrait";
@@ -1095,92 +1095,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                 )}
 
                 <div className="relative flex-1 overflow-hidden">
-                  {/* Mobile overlay header – unified bar: avatar + name/role + progress + elapsed + NPC toggle + end button */}
-                  {!isPersonaX && (
-                  <VoiceOverlayHeader className="lg:hidden absolute top-0 left-0 right-0 z-20 px-3 pt-2 pb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {/* Persona avatar thumbnail */}
-                      <div className="relative shrink-0">
-                        <img
-                          src={displayImageUrl || toMediaUrl(activePersona.image || '') || `https://ui-avatars.com/api/?name=${encodeURIComponent(activePersona.name)}&background=6366f1&color=fff&size=64`}
-                          alt={activePersona.name}
-                          className="w-8 h-8 rounded-full object-cover object-top border border-white/20"
-                        />
-                        {personaSwitchAnnounced && (
-                          <span className="absolute -bottom-1 -right-1 flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
-                          </span>
-                        )}
-                      </div>
-                      {/* Name + role/department */}
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-white text-xs font-semibold truncate leading-tight">{activePersonaHeaderLabel}</span>
-                        {personaSwitchAnnounced && (
-                          <span className="text-amber-300 text-[10px] truncate leading-tight animate-pulse">연결 대기 중…</span>
-                        )}
-                        {!personaSwitchAnnounced && activePersonaSubLabel && (
-                          <span className="text-white/60 text-[10px] truncate leading-tight">
-                            {activePersonaSubLabel}
-                          </span>
-                        )}
-                      </div>
-                      {/* Progress % + turns remaining + elapsed time */}
-                      <div
-                        className={`text-[10px] font-medium shrink-0 text-right transition-colors duration-300 ${progressInfo.isAmber ? 'text-amber-300' : progressInfo.isGreen ? 'text-green-300' : 'text-white/70'}`}
-                        data-testid="mobile-overlay-turn-counter"
-                      >
-                        {progressInfo.stage === 'complete' ? (
-                          <span>{t('chat.conversationCompleted')}</span>
-                        ) : (
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span>{Math.round(progressPercentage)}% · {t('chat.turnsRemaining', { count: turnsLeft })}</span>
-                            <span className="text-white/50 font-normal">{formatElapsedTime(elapsedTime)}</span>
-                          </div>
-                        )}
-                      </div>
-                      {/* Persona simulation toggle (integrated into header, only when simulation active) */}
-                      {isSimulationEnabled && simulationState && (
-                        <button
-                          onClick={() => setIsMobileSimOpen(v => !v)}
-                          aria-label={activePersonaIdentityLabel}
-                          className="relative shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-colors"
-                        >
-                          <Brain className="h-3.5 w-3.5" />
-                          {hasActiveIncident && (
-                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
-                          )}
-                        </button>
-                      )}
-                      {/* End / feedback button */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (progressInfo.stage === 'complete') {
-                            handleFeedbackRequest();
-                          } else {
-                            handleEndRealtimeConversation();
-                          }
-                        }}
-                        data-testid="button-end-conversation-mobile-overlay"
-                        className={`shrink-0 text-xs h-7 px-2 border transition-all duration-300 ${progressInfo.endButtonClass}`}
-                      >
-                        {progressInfo.showWarningIcon && <i className="fas fa-exclamation-triangle mr-1 text-xs"></i>}
-                        {progressInfo.isGreen && <i className="fas fa-chart-bar mr-1 text-xs"></i>}
-                        {progressInfo.isAmber && !progressInfo.isGreen && <i className="fas fa-star mr-1 text-xs"></i>}
-                        {t(progressInfo.endButtonLabelKey)}
-                      </Button>
-                    </div>
-                    {/* Progress bar */}
-                    <div className="bg-white/20 rounded-full h-1 overflow-hidden mt-1.5">
-                      <div
-                        className={`h-1 rounded-full transition-all duration-500 ${progressInfo.progressBarClass}`}
-                        style={{ width: `${progressPercentage}%` }}
-                      />
-                    </div>
-                  </VoiceOverlayHeader>
-                  )}
 
                   {(renderer as VideoAvatarRenderer).containerEl ? (
                     <VideoAvatarPortrait
@@ -1290,7 +1204,8 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                     style={inputMode === 'realtime-voice' ? { bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' } : undefined}
                   >
                     <ConversationSurface className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
-                      {isPersonaX && (
+                      {(
+                        <div className={isPersonaX ? undefined : 'lg:hidden'}>
                         <PersonaSessionStrip
                           name={activePersonaHeaderLabel}
                           imageUrl={displayImageUrl || (activePersona.image ? toMediaUrl(activePersona.image) : null)}
@@ -1320,6 +1235,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                             </Button>
                           }
                         />
+                        </div>
                       )}
                       {inputMode === 'realtime-voice' ? (
                         <>
@@ -1518,7 +1434,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                       )}
                       {/* Mobile stage-aware end button */}
                       {!isPersonaX && !isPersonaMode && conversation.turnCount < MAX_TURNS && (
-                        <div className="border-t border-slate-200/30 px-4 py-2 flex items-center justify-between gap-2">
+                        <div className="max-lg:hidden border-t border-slate-200/30 px-4 py-2 flex items-center justify-between gap-2">
                           <div className={`text-xs font-medium transition-colors duration-300 ${progressInfo.isAmber ? 'text-amber-600' : progressInfo.isGreen ? 'text-green-600' : 'text-slate-400'}`}>
                             {progressInfo.stage === 'complete'
                               ? t('chat.conversationCompleted')
