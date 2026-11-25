@@ -2024,22 +2024,32 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                       <Badge variant="outline" className="bg-green-100 text-green-800">
                         {t('admin.personaManager.usedInScenarios', { count: scenarioUsage.length })}
                       </Badge>
-                      {persona.avatarMode === 'live' ? (
-                        <>
-                          <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-900">
-                            {personaLiveAvatarSchema.safeParse(persona.liveAvatar).success
-                              ? '라이브 아바타 지정됨'
-                              : '라이브 아바타 미연결'}
+                      {(() => {
+                        const configured = personaLiveAvatarSchema.safeParse(persona.liveAvatar).success;
+                        const isLiveMode = persona.avatarMode === 'live';
+                        return (
+                          <Badge
+                            variant="outline"
+                            data-testid={`badge-live-avatar-${persona.id}`}
+                            className={configured
+                              ? 'border-emerald-300 bg-emerald-100 text-emerald-900'
+                              : isLiveMode
+                              ? 'border-amber-300 bg-amber-100 text-amber-900'
+                              : 'border-slate-300 bg-slate-100 text-slate-600'}
+                          >
+                            {configured
+                              ? '라이브 아바타 설정됨'
+                              : isLiveMode
+                              ? '라이브 아바타 미연결'
+                              : '라이브 아바타 미설정'}
                           </Badge>
-                          <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
-                            현재 대화 표시: {persona.videos?.enabled ? '비디오' : '이미지'}
-                          </Badge>
-                        </>
-                      ) : (
-                        <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
-                          {(persona.avatarMode ?? (persona.videos?.enabled ? 'video' : 'image')) === 'video' ? '비디오 표시' : '이미지 표시'}
-                        </Badge>
-                      )}
+                        );
+                      })()}
+                      <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
+                        {persona.avatarMode === 'live'
+                          ? `현재 대화 표시: ${persona.videos?.enabled ? '비디오' : '이미지'}`
+                          : (persona.avatarMode ?? (persona.videos?.enabled ? 'video' : 'image')) === 'video' ? '비디오 표시' : '이미지 표시'}
+                      </Badge>
                       {(() => {
                         const videoBadge = getVideoModelBadge(persona);
                         if (!videoBadge) return null;
