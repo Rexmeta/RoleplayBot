@@ -45,6 +45,7 @@ import { createDefaultSimulationState } from "../services/simulation/simulationT
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
 import { requireAuthoring, authoringIdempotency, getAuthoringContext } from "../services/agentAuthoring";
 import authoringContentRouter from "./agentAuthoringContent";
+import authoringRubricsRouter from "./agentAuthoringRubrics";
 import { AGENT_AUTHORING_SCOPES } from "@shared/schema";
 import { handleIdempotency, saveIdempotency, hashRequestBody } from "../services/agentIdempotency";
 import { enqueueFeedbackJob, getFeedbackJobStatus } from "../services/feedbackGenerationService";
@@ -355,6 +356,7 @@ router.use(agentRateLimiter);
 // ─────────────────────────────────────────────────────────────────────────────
 router.use("/authoring", authoringIdempotency);
 router.use("/authoring", authoringContentRouter);
+router.use("/authoring", authoringRubricsRouter);
 router.get("/authoring/context", ...requireAuthoring(), (req: any, res) => {
   const ctx = getAuthoringContext(req);
   res.json({

@@ -41,7 +41,7 @@ function classifyTranslationError(error: unknown): { isFatal: boolean; userMessa
   return { isFatal: false, userMessage: (error instanceof Error ? error.message : String(error)) };
 }
 
-async function createForkOfApprovedSet(
+export async function createForkOfApprovedSet(
   existingId: string,
   userId: string | null,
   ownerOperatorId?: string | null,

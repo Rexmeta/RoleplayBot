@@ -792,6 +792,187 @@ When the session was **already ended**, the current durable \`feedbackStatus\` i
         "type": "object",
         "description": "Any subset of AuthoringPersonaInput (at least one field)."
       },
+      "AuthoringRubricDimension": {
+        "type": "object",
+        "required": [
+          "key",
+          "name"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "reportStructure"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "minScore": {
+            "type": "integer",
+            "example": 1
+          },
+          "maxScore": {
+            "type": "integer",
+            "example": 10
+          },
+          "scoringRubric": {
+            "type": "array",
+            "description": "At least 5 steps.",
+            "items": {
+              "type": "object",
+              "required": [
+                "score",
+                "label",
+                "description",
+                "behaviorAnchor"
+              ],
+              "properties": {
+                "score": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "behaviorAnchor": {
+                  "type": "string",
+                  "description": "Concrete observable behavior (required)."
+                }
+              }
+            }
+          },
+          "evaluationPrompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "dimensionType": {
+            "type": "string",
+            "enum": [
+              "core",
+              "standard",
+              "bonus"
+            ]
+          }
+        }
+      },
+      "AuthoringRubricInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "categoryId"
+        ],
+        "description": "Provide `templateId` or `dimensions` (1-12).",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string",
+            "example": "report"
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthoringRubricDimension"
+            }
+          }
+        }
+      },
+      "AuthoringRubricPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthoringRubricDryRunInput": {
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 40,
+            "items": {
+              "type": "object",
+              "required": [
+                "sender",
+                "message"
+              ],
+              "properties": {
+                "sender": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "ai"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "scenarioContext": {
+            "type": "object"
+          },
+          "personaContext": {
+            "type": "object"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "ko",
+              "en",
+              "ja",
+              "zh"
+            ],
+            "default": "ko"
+          }
+        }
+      },
+      "AuthoringScenarioRubricLink": {
+        "type": "object",
+        "required": [
+          "rubricId"
+        ],
+        "properties": {
+          "rubricId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      }
     },
     responses: {
       Unauthorized: {
@@ -2521,6 +2702,1080 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/authoring/rubrics/templates": {
+      "get": {
+        "operationId": "listAuthoringRubricTemplates",
+        "summary": "List rubric templates",
+        "description": "Templates to start from. Requires `rubrics:write`.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/rubrics": {
+      "get": {
+        "operationId": "listAuthoringRubrics",
+        "summary": "List rubrics in the owner scope",
+        "description": "Each item has `status` (draft/review/approved/archived) and `authoredBy`.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAuthoringRubric",
+        "summary": "Create a rubric draft",
+        "description": "Start from `templateId` or supply `dimensions`. Always a draft, never default. Dimensions are validated with the admin rules; the 100% weight total is enforced when requesting review.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringRubricInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/rubrics/{id}": {
+      "get": {
+        "operationId": "getAuthoringRubric",
+        "summary": "Get a rubric with its dimensions",
+        "description": "",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateAuthoringRubric",
+        "summary": "Update rubric name, description or category",
+        "description": "Only `name`, `description`, `categoryId` are editable. Approved versions are never edited in place: the change is stored in a new draft version (status 201, `autoForked: true`).",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringRubricPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated rubric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/rubrics/{id}/dimensions": {
+      "post": {
+        "operationId": "addAuthoringRubricDimension",
+        "summary": "Add an evaluation dimension",
+        "description": "Name, description, weight, score range and per-step behavior anchors. Approved versions are never edited in place: the change is stored in a new draft version (status 201, `autoForked: true`).",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringRubricDimension"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added dimension.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/rubrics/{id}/dimensions/{dimId}": {
+      "patch": {
+        "operationId": "updateAuthoringRubricDimension",
+        "summary": "Update an evaluation dimension",
+        "description": "Partial update. Approved versions are never edited in place: the change is stored in a new draft version (status 201, `autoForked: true`).",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringRubricDimension"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated dimension.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAuthoringRubricDimension",
+        "summary": "Delete an evaluation dimension",
+        "description": "The rubric must keep at least one dimension; 3 are required for review. Approved versions are never edited in place: the change is stored in a new draft version (status 201, `autoForked: true`).",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/rubrics/{id}/quality-score": {
+      "get": {
+        "operationId": "getAuthoringRubricQualityScore",
+        "summary": "Rubric quality score",
+        "description": "Same 0-100 score people see. Approval needs 80 or more.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/rubrics/{id}/dry-run": {
+      "post": {
+        "operationId": "dryRunAuthoringRubric",
+        "summary": "Trial evaluation of a sample conversation",
+        "description": "Calls the AI provider, so each key has a daily limit (default 10 per UTC day, `authoring_dry_run_limit_exceeded` after that). Failed attempts count too.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringRubricDryRunInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Feedback produced with the rubric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/rubrics/{id}/request-review": {
+      "post": {
+        "operationId": "requestAuthoringRubricReview",
+        "summary": "Request human review",
+        "description": "Moves a draft to `review` after the full validation (weights total 100). Approval, rejection, default and archive are done by a system administrator in the admin UI and are not available to agents.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/scenarios/{id}/rubric": {
+      "put": {
+        "operationId": "linkAuthoringScenarioRubric",
+        "summary": "Link a rubric to a scenario",
+        "description": "Needs `rubrics:write` and `scenarios:write`. Unapproved rubrics are stored on the scenario but ignored by live conversations until approved. Published scenarios receive a new draft version. Send `rubricId: null` to unlink.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringScenarioRubricLink"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Linked (draft) or 201 with a draft version (published).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - body or rubric rules failed (`details.fields` or `details.errors`; weights must total 100 before review, 3-12 dimensions, 5+ scoring steps each with a behavior anchor).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` or `authoring_draft_only` (approve/default/publish attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`rubric_not_found` / `dimension_not_found` / `scenario_not_found` - missing or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` (write limit) or `authoring_dry_run_limit_exceeded` (daily trial-evaluation cap).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       }

@@ -39,7 +39,12 @@ export type AgentApiErrorCode =
   | "authoring_out_of_scope"
   | "authoring_validation_failed"
   | "authoring_draft_only"
-  | "authoring_rate_limit_exceeded";
+  | "authoring_rate_limit_exceeded"
+  | "authoring_dry_run_limit_exceeded"
+  | "rubric_archived"
+  | "rubric_already_approved"
+  | "dimension_not_found"
+  | "dry_run_failed";
 
 export function agentError(
   res: Response,
