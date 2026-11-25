@@ -135,6 +135,7 @@ const emotionKeyMap: Record<string, string> = {
 interface MBTIPersona {
   id: string;
   mbti: string;
+  authoredByAgent?: { agentKeyId: string; agentKeyName: string; ownerUserId: string } | null;
   /** Display name; optional because older persona records were stored without one. */
   name?: string;
   gender: 'male' | 'female'; // 성별 필드 추가
@@ -2018,6 +2019,11 @@ export function PersonaManager({ openCreateTrigger = 0 }: PersonaManagerProps = 
                         {persona.mbti}
                       </span>
                       <span className="text-slate-700">{persona.id}</span>
+                      {persona.authoredByAgent && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-700 bg-amber-50" title={persona.authoredByAgent.agentKeyName}>
+                          에이전트 작성
+                        </Badge>
+                      )}
                     </CardTitle>
                     <p className="text-sm text-slate-600 mb-2">{persona.communication_style}</p>
                     <div className="flex items-center gap-2 flex-wrap">

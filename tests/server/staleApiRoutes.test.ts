@@ -87,6 +87,7 @@ const SERVER_FILES_RELATIVE: Array<{ file: string; prefix: string }> = [
   { file: "server/routes/subscriptions.ts",    prefix: "/api/subscriptions" },
   { file: "server/routes/store.ts",            prefix: "/api/store" },
   { file: "server/routes/agentApi.ts",         prefix: "/api/v1/agent" },
+  { file: "server/routes/agentAuthoringContent.ts", prefix: "/api/v1/agent/authoring" },
   { file: "server/routes/adminAgentKeys.ts",   prefix: "/api/admin/agent-keys" },
   { file: "server/routes/imageGeneration.ts",  prefix: "/api/image" },
   { file: "server/routes/userPersonaImage.ts", prefix: "/api/user-personas" },

@@ -245,3 +245,4 @@ External integrations can interact with the system via API key authentication (n
 - **Webhook system**: Outbound webhooks configured in `agent_webhooks`; delivery log in `agent_webhook_deliveries`
 - **Idempotency**: `agent_idempotency_keys` table prevents duplicate operations
 - **Audit log**: All agent API actions recorded in `audit_logs`
+- **Authoring (drafts only)**: Keys with `scenarios:write` / `personas:write` / `rubrics:write` (admin-issued, expiry required, bounded by the owner operator's categories) use `/api/v1/agent/authoring/*`. Scenario/persona routes live in `server/routes/agentAuthoringContent.ts`; shared guard/draft/audit helpers in `server/services/agentAuthoring.ts`. Published scenarios are edited only as new draft versions; persona avatar/media fields are never writable; no media generation is exposed.

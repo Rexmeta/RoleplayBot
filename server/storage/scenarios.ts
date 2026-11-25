@@ -18,6 +18,7 @@ export interface IScenariosStorage {
   deleteMbtiPersona(id: string): Promise<void>;
 
   publishScenarioVersion(scenarioId: string, publishedBy: string): Promise<ScenarioVersion>;
+  saveScenarioDraftVersion(scenarioId: string, contentSnapshot: Record<string, unknown>, createdBy: string): Promise<ScenarioVersion>;
   getScenarioVersions(scenarioId: string): Promise<ScenarioVersion[]>;
   getScenarioVersion(versionId: string): Promise<ScenarioVersion | undefined>;
   getLatestPublishedVersion(scenarioId: string): Promise<ScenarioVersion | undefined>;
@@ -111,6 +112,33 @@ export function ScenariosMixin<TBase extends Constructor>(Base: TBase) {
       return version;
     }
 
+    /** Stores edits to an already-published scenario as a draft version; the live scenario is untouched. */
+    async saveScenarioDraftVersion(scenarioId: string, contentSnapshot: Record<string, unknown>, createdBy: string): Promise<ScenarioVersion> {
+      const [latest] = await db
+        .select()
+        .from(scenarioVersions)
+        .where(eq(scenarioVersions.scenarioId, scenarioId))
+        .orderBy(desc(scenarioVersions.version))
+        .limit(1);
+      const harness = (contentSnapshot as any).evaluationHarness ?? null;
+      if (latest && latest.status === 'draft') {
+        const [updated] = await db.update(scenarioVersions)
+          .set({ contentSnapshot, evaluationHarnessSnapshot: harness, publishedBy: createdBy })
+          .where(eq(scenarioVersions.id, latest.id))
+          .returning();
+        return updated;
+      }
+      const [created] = await db.insert(scenarioVersions).values({
+        scenarioId,
+        version: (latest?.version ?? 0) + 1,
+        status: 'draft',
+        contentSnapshot,
+        evaluationHarnessSnapshot: harness,
+        publishedBy: createdBy,
+      } as any).returning();
+      return created;
+    }
+
     async getScenarioVersions(scenarioId: string): Promise<ScenarioVersion[]> {
       return await db
         .select()
@@ -191,6 +219,7 @@ export class MemScenariosStorage implements IScenariosStorage {
   async updateMbtiPersona(_: string, __: Partial<InsertMbtiPersona>): Promise<MbtiPersona> { throw new Error("Not implemented"); }
   async deleteMbtiPersona(_: string): Promise<void> {}
   async publishScenarioVersion(_: string, __: string): Promise<ScenarioVersion> { throw new Error("Not implemented"); }
+  async saveScenarioDraftVersion(_: string, __: Record<string, unknown>, ___: string): Promise<ScenarioVersion> { throw new Error("Not implemented"); }
   async getScenarioVersions(_: string): Promise<ScenarioVersion[]> { return []; }
   async getScenarioVersion(_: string): Promise<ScenarioVersion | undefined> { return undefined; }
   async getLatestPublishedVersion(_: string): Promise<ScenarioVersion | undefined> { return undefined; }

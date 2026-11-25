@@ -588,6 +588,210 @@ When the session was **already ended**, the current durable \`feedbackStatus\` i
           requestId: { type: "string", example: "req_a1b2c3d4e5f6" },
         },
       },
+      "AuthoringScenarioInput": {
+        "type": "object",
+        "required": [
+          "title",
+          "description",
+          "categoryId",
+          "personas"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "difficulty": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "estimatedTime": {
+            "type": "string"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "objectiveType": {
+            "type": "string"
+          },
+          "context": {
+            "type": "object",
+            "description": "situation, timeline, stakes and playerRole {position, department, experience, responsibility}."
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "successCriteria": {
+            "type": "object",
+            "description": "optimal, good, acceptable, failure."
+          },
+          "personas": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "personaRef"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "personaRef": {
+                  "type": "string",
+                  "example": "intp"
+                },
+                "position": {
+                  "type": "string"
+                },
+                "department": {
+                  "type": "string"
+                },
+                "experience": {
+                  "type": "string"
+                },
+                "stance": {
+                  "type": "string"
+                },
+                "goal": {
+                  "type": "string"
+                },
+                "tradeoff": {
+                  "type": "string"
+                },
+                "gender": {
+                  "type": "string",
+                  "enum": [
+                    "male",
+                    "female"
+                  ]
+                },
+                "isPrimary": {
+                  "type": "boolean"
+                },
+                "triggerHints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "entryLine": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "recommendedFlow": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "targetDurationMinutes": {
+            "type": "integer"
+          },
+          "targetTurns": {
+            "type": "integer"
+          },
+          "minValidTurns": {
+            "type": "integer"
+          },
+          "personaSwitchMode": {
+            "type": "string",
+            "enum": [
+              "replace",
+              "join",
+              "none"
+            ],
+            "nullable": true
+          },
+          "sourceLocale": {
+            "type": "string",
+            "example": "ko"
+          }
+        }
+      },
+      "AuthoringScenarioPatch": {
+        "type": "object",
+        "description": "Any subset of AuthoringScenarioInput (at least one field). Same property shapes as AuthoringScenarioInput."
+      },
+      "AuthoringFillFieldsInput": {
+        "type": "object",
+        "required": [
+          "idea"
+        ],
+        "properties": {
+          "idea": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "AuthoringPersonaInput": {
+        "type": "object",
+        "required": [
+          "mbti"
+        ],
+        "properties": {
+          "mbti": {
+            "type": "string",
+            "example": "ENTJ"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female"
+            ],
+            "nullable": true
+          },
+          "personality_traits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "communication_style": {
+            "type": "string"
+          },
+          "motivation": {
+            "type": "string"
+          },
+          "fears": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "background": {
+            "type": "object"
+          },
+          "communication_patterns": {
+            "type": "object"
+          },
+          "voice": {
+            "type": "object",
+            "description": "Tone/pace text descriptors only."
+          }
+        }
+      },
+      "AuthoringPersonaPatch": {
+        "type": "object",
+        "description": "Any subset of AuthoringPersonaInput (at least one field)."
+      },
     },
     responses: {
       Unauthorized: {
@@ -1616,6 +1820,711 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
         },
       },
     },
+    "/authoring/context": {
+      "get": {
+        "operationId": "getAuthoringContext",
+        "summary": "Authoring context",
+        "description": "Returns the authoring scopes, key owner and categories this key may write to. Authoring requires a key with an expiry date.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/scenarios": {
+      "get": {
+        "operationId": "listAuthoringScenarios",
+        "summary": "List scenarios in the owner scope (drafts included)",
+        "description": "Each item shows `status` (`draft`/`published`) and `authoredBy` (`agent`/`human`). Requires `scenarios:write`.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAuthoringScenario",
+        "summary": "Create a scenario draft",
+        "description": "Creates a private draft in a category the key owner can reach. Uses the same validation, source-language translation and persona rules as the admin editor. Media, image and avatar fields are ignored (listed in `ignoredFields`); setting `isPublic`, `isDemo` or `storeListed` to true is rejected with `authoring_draft_only`. Link existing persona records through `personas[].personaRef`.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries (same rules as session creation)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringScenarioInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/scenarios/{id}": {
+      "get": {
+        "operationId": "getAuthoringScenario",
+        "summary": "Get a scenario in the owner scope",
+        "description": "Includes `status` and `authoredBy`.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scenario.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "404": {
+            "description": "`scenario_not_found` - not found, or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateAuthoringScenario",
+        "summary": "Partially update a scenario",
+        "description": "Unpublished scenarios are updated in place. Published scenarios are never edited directly: the change is stored as a new **draft version** (response status 201 with `draftVersion`) that a person reviews and publishes.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries (same rules as session creation)."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringScenarioPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated draft, or new draft version for published scenarios.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "404": {
+            "description": "`scenario_not_found` - not found, or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "A new draft version was created for a published scenario.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/authoring/scenarios/fill-fields": {
+      "post": {
+        "operationId": "fillAuthoringScenarioFields",
+        "summary": "Draft scenario text fields from an idea",
+        "description": "Text-only AI assist (same helper as the admin editor). Image, video and live avatar generation are not available to agents.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries (same rules as session creation)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringFillFieldsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Suggested fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/personas": {
+      "get": {
+        "operationId": "listAuthoringPersonas",
+        "summary": "List persona records you can link",
+        "description": "Existing MBTI persona records plus persona drafts created by this key owner's agents. Requires `personas:write`.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAuthoringPersona",
+        "summary": "Create a persona record draft",
+        "description": "Text fields only (personality, communication style, motivation, fears, background, communication patterns, voice tone). Avatar, video and image fields are ignored.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries (same rules as session creation)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringPersonaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created persona draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/authoring/personas/{id}": {
+      "patch": {
+        "operationId": "updateAuthoringPersona",
+        "summary": "Partially update a persona draft",
+        "description": "Only persona drafts created by agents of the same key owner can be edited; avatar/media values are preserved.",
+        "tags": [
+          "Authoring"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional key for safe retries (same rules as session creation)."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringPersonaPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated persona.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`authoring_validation_failed` - the body failed validation (see `details.fields` or `details.errors`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`missing_scope`, `authoring_out_of_scope` (category outside the key owner scope, or key without expiry) or `authoring_draft_only` (publish/approve attempt).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`authoring_rate_limit_exceeded` - separate write rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "404": {
+            "description": "`persona_not_found` - not found, or outside the key owner scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
   },
   tags: [
     {
@@ -1629,6 +2538,10 @@ curl -X POST https://your-host/api/v1/agent/sessions/ags_xxx/end \\
     {
       name: "Sessions",
       description: "Create and manage training sessions, send messages, and retrieve feedback.",
+    },
+    {
+      name: "Authoring",
+      description: "Create and edit scenario and persona drafts for the key owner. Requires `scenarios:write` / `personas:write`; content is always a private draft that a person reviews and publishes.",
     },
     {
       name: "Webhooks",

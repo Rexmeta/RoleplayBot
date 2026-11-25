@@ -84,6 +84,7 @@ export const mbtiPersonas = pgTable("mbti_personas", {
   freeChatAvailable: boolean("free_chat_available").notNull().default(false),
   freeChatDescription: text("free_chat_description"),
   storeListed: boolean("store_listed").notNull().default(false),
+  authoredByAgent: jsonb("authored_by_agent").$type<{ agentKeyId: string; agentKeyName: string; ownerUserId: string }>(),
   storePriceUsd: doublePrecision("store_price_usd"),
   storePackId: varchar("store_pack_id"),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
