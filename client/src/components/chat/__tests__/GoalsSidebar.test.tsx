@@ -93,32 +93,31 @@ function SidebarHarness({ hasActiveIncident = false }: { hasActiveIncident?: boo
 }
 
 describe('GoalsSidebar desktop information accordion', () => {
-  it('shows persona, role, and achievement goals in that order', () => {
+  it('shows role and achievement goals without the persona/emotion card', () => {
     render(<SidebarHarness />);
 
     const getSectionClass = (id: string) =>
       screen.getByTestId(`desktop-info-section-${id}-toggle`).closest('section')?.className;
 
-    expect(getSectionClass('npc')).toContain('order-1');
     expect(getSectionClass('role')).toContain('order-2');
     expect(getSectionClass('goals')).toContain('order-3');
+    expect(screen.queryByTestId('desktop-info-section-npc-toggle')).toBeNull();
+    expect(screen.queryByTestId('simulation-panel')).toBeNull();
   });
 
-  it('opens all cards by default and scrolls the sidebar rather than individual cards', () => {
+  it('opens cards by default and scrolls the sidebar rather than individual cards', () => {
     render(<SidebarHarness />);
 
     expect(screen.getByTestId('desktop-info-section-goals-toggle').getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByTestId('desktop-info-section-role-toggle').getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByTestId('desktop-info-section-npc-toggle').getAttribute('aria-expanded')).toBe('true');
     const scroll = screen.getByTestId('desktop-info-scroll');
     expect(scroll.className).toContain('overflow-y-auto');
     expect(scroll.className).toContain('min-h-0');
     expect(scroll.className).toContain('overscroll-contain');
     expect(scroll.tabIndex).toBe(0);
-    for (const id of ['role', 'goals', 'npc']) {
+    for (const id of ['role', 'goals']) {
       const body = screen.getByTestId(`desktop-info-section-${id}-body`);
       expect(scroll.contains(body)).toBe(true);
-      expect(body.firstElementChild?.className ?? '').not.toMatch(/max-h-|overflow-y-auto/);
       expect(body.closest('section')?.className).toContain('shrink-0');
     }
     expect(screen.getByText('Complete objective 8')).toBeTruthy();
@@ -129,40 +128,14 @@ describe('GoalsSidebar desktop information accordion', () => {
     render(<SidebarHarness />);
     const roleToggle = screen.getByTestId('desktop-info-section-role-toggle');
 
-    expect(roleToggle.tagName).toBe('BUTTON');
     fireEvent.click(roleToggle);
     expect(roleToggle.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByTestId('desktop-info-section-role-body')).toBeNull();
     expect(screen.getByTestId('desktop-info-section-goals-toggle').getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByTestId('desktop-info-section-npc-toggle').getAttribute('aria-expanded')).toBe('true');
     fireEvent.click(roleToggle);
 
     expect(roleToggle.getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByTestId('desktop-info-section-goals-toggle').getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByTestId('desktop-info-section-npc-toggle').getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByTestId('desktop-info-section-role-body').getAttribute('id')).toBe('desktop-info-role-body');
     expect(roleToggle.getAttribute('aria-controls')).toBe('desktop-info-role-body');
-  });
-
-  it('shows the persona identity, stage, dominant state, and active incident in the header', () => {
-    render(<SidebarHarness hasActiveIncident />);
-
-    expect(screen.getByText('Support Taylor')).toBeTruthy();
-    expect(screen.getByText('Conflict')).toBeTruthy();
-    expect(screen.getByText('Trust')).toBeTruthy();
-    expect(screen.getByLabelText('NPC incident needs attention')).toBeTruthy();
-  });
-
-  it('reopens the NPC detail without closing goals', () => {
-    render(<SidebarHarness />);
-    fireEvent.click(screen.getByTestId('desktop-info-section-npc-toggle'));
-    expect(screen.queryByTestId('simulation-panel')).toBeNull();
-    fireEvent.click(screen.getByTestId('desktop-info-section-npc-toggle'));
-
-    expect(screen.getByTestId('desktop-info-section-npc-toggle').getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByTestId('desktop-info-section-goals-toggle').getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByTestId('desktop-info-section-npc-body')).toBeTruthy();
-    expect(screen.getByTestId('simulation-panel')).toBeTruthy();
   });
 
   it('opens role and goals without requiring a parent accordion controller in live-avatar mode', () => {

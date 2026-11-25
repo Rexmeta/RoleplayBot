@@ -252,53 +252,6 @@ export function GoalsSidebar({
             </DesktopAccordionSection>
           )}
 
-          {isSimulationEnabled && (
-            <DesktopAccordionSection
-              id="npc"
-              className="order-1"
-              title={personaIdentityLabel}
-              titleTrailing={
-                <span className="flex items-center gap-1 text-xs font-normal text-slate-500 whitespace-nowrap" data-testid="text-elapsed-time-sidebar">
-                  <i className="fas fa-clock" aria-hidden="true"></i>
-                  {formatElapsedTime(elapsedTime)}
-                </span>
-              }
-              summary={
-                <span className="flex items-center min-w-0">
-                  {hasActiveIncident && (
-                    <span
-                      className="w-2 h-2 bg-orange-400 rounded-full animate-pulse shrink-0 mr-1.5"
-                      title={t('chat.activeIncident')}
-                      aria-label={t('chat.activeIncident')}
-                    />
-                  )}
-                  {npcSummary}
-                </span>
-              }
-              icon={<Brain className="h-4 w-4" />}
-              isOpen={expandedSections.npc}
-              onToggle={() => toggleDesktopSection('npc')}
-              bodyClassName="pb-2"
-            >
-              <div>
-                {simulationState ? (
-                  <SimulationPanel
-                    state={simulationState}
-                    newIncident={newIncident}
-                    latestTurnScore={latestTurnScore}
-                    evaluationSkipped={evaluationSkipped}
-                    hasActiveIncident={hasActiveIncident}
-                    isVisible={expandedSections.npc}
-                    className="border-0 rounded-none bg-transparent"
-                  />
-                ) : (
-                  <div className="px-4 py-3 text-xs text-slate-400 text-center">
-                    {t('simulation.waitingForData', { defaultValue: 'Waiting for NPC data...' })}
-                  </div>
-                )}
-              </div>
-            </DesktopAccordionSection>
-          )}
         </div>
       </div>
     );

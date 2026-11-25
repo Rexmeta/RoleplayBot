@@ -96,10 +96,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
   const [isMobileSimOpen, setIsMobileSimOpenRaw] = useState(
     () => localStorage.getItem('npc-panel-open') === 'true'
   );
-  const [simSheetDragY, setSimSheetDragY] = useState(0);
-  const [simSheetDragging, setSimSheetDragging] = useState(false);
-  const simSheetTouchStartY = useRef<number>(0);
-  const simSheetDragActive = useRef<boolean>(false);
   const [mobileIncidentAlert, setMobileIncidentAlert] = useState<import('@/hooks/useSimulationState').Incident | null>(null);
   const mobileIncidentDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1175,6 +1171,24 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
                   {/* Mobile role/goals now live in the top scenario context bar so the character stays unobscured. */}
 
+                  {isSimulationEnabled && simulationState && isMobileSimOpen && (
+                    <div
+                      className="absolute left-2 top-1/2 -translate-y-1/2 z-[16] w-[260px] max-w-[72%] max-h-[55%] overflow-y-auto rounded-xl opacity-80 hover:opacity-95 transition-opacity shadow-lg"
+                      data-testid="emotion-graph-overlay"
+                    >
+                      <SimulationPanel
+                        state={simulationState}
+                        newIncident={newIncident}
+                        latestTurnScore={latestTurnScore}
+                        evaluationSkipped={lastScoreSkipped}
+                        hasActiveIncident={hasActiveIncident}
+                        isVisible
+                        isCompact
+                        className="bg-card/70"
+                      />
+                    </div>
+                  )}
+
 
                   {inputMode === 'realtime-voice' && (
                     <TranscriptPanel isOpen={isTranscriptPanelOpen} onToggle={() => setIsTranscriptPanelOpen(v => !v)}
@@ -1205,7 +1219,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                   >
                     <ConversationSurface className={`overflow-hidden text-card-foreground backdrop-blur-sm shadow-xl border border-white/10 bg-[#ffffff9c] ${inputMode !== 'realtime-voice' ? 'h-full flex flex-col rounded-none' : 'rounded-2xl'}`}>
                       {(
-                        <div className={isPersonaX ? undefined : 'lg:hidden'}>
+                        <div>
                         <PersonaSessionStrip
                           name={activePersonaHeaderLabel}
                           imageUrl={displayImageUrl || (activePersona.image ? toMediaUrl(activePersona.image) : null)}
@@ -1218,7 +1232,8 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
                           elapsedLabel={formatElapsedTime(elapsedTime)}
                           extraAction={isSimulationEnabled && simulationState ? (
                             <button onClick={() => setIsMobileSimOpen(v => !v)} aria-label={activePersonaIdentityLabel}
-                              className="relative shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-white/70 border border-slate-200 text-slate-600 hover:bg-white transition-colors">
+                              aria-pressed={isMobileSimOpen} data-testid="button-toggle-emotion-graph"
+                              className={`relative shrink-0 flex items-center justify-center w-8 h-8 rounded-full border transition-colors ${isMobileSimOpen ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white/70 border-slate-200 text-slate-600 hover:bg-white'}`}>
                               <Brain className="h-3.5 w-3.5" />
                               {hasActiveIncident && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-400 rounded-full animate-pulse" />}
                             </button>
@@ -1476,7 +1491,7 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
         {/* Mobile floating incident alert (shown when panel is closed) */}
         {mobileIncidentAlert && !isMobileSimOpen && (
-          <div className="lg:hidden fixed top-4 left-4 right-4 z-[100] animate-in slide-in-from-top-3 duration-300">
+          <div className="fixed top-4 left-4 right-4 z-[100] animate-in slide-in-from-top-3 duration-300">
             <div
               className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm shadow-xl backdrop-blur-sm ${
                 mobileIncidentAlert.severity === 'high'
@@ -1514,99 +1529,6 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
               </div>
             </div>
           </div>
-        )}
-
-        {/* Mobile simulation bottom sheet */}
-        {isSimulationEnabled && simulationState && (
-          <>
-            {isMobileSimOpen && (
-              <div
-                className="lg:hidden fixed inset-0 z-[98] bg-black/25"
-                onClick={() => setIsMobileSimOpen(false)}
-              />
-            )}
-            <div
-              className={`lg:hidden fixed bottom-0 left-0 right-0 z-[99] ${simSheetDragging ? '' : 'transition-transform duration-300 ease-in-out'} ${isMobileSimOpen ? 'translate-y-0' : 'translate-y-full'}`}
-              style={isMobileSimOpen && simSheetDragY > 0 ? { transform: `translateY(${simSheetDragY}px)` } : undefined}
-              onTouchMove={(e) => {
-                if (!simSheetDragActive.current) return;
-                const delta = e.touches[0].clientY - simSheetTouchStartY.current;
-                if (delta > 0) setSimSheetDragY(delta);
-              }}
-              onTouchEnd={() => {
-                if (!simSheetDragActive.current) return;
-                simSheetDragActive.current = false;
-                setSimSheetDragging(false);
-                if (simSheetDragY > 100) {
-                  setIsMobileSimOpen(false);
-                }
-                setSimSheetDragY(0);
-              }}
-            >
-              <div className="bg-background rounded-t-2xl shadow-2xl border-t border-border overflow-y-auto max-h-[38vh]">
-                {/* Drag handle — touch here to swipe down and dismiss */}
-                <div
-                  className="flex justify-center pt-2 pb-1 touch-none"
-                  onTouchStart={(e) => {
-                    simSheetTouchStartY.current = e.touches[0].clientY;
-                    simSheetDragActive.current = true;
-                    setSimSheetDragging(true);
-                  }}
-                >
-                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
-                </div>
-                <div
-                  className="flex items-center justify-between px-3 pt-1 pb-1.5 border-b border-border/50 sticky top-0 bg-background z-10"
-                  onTouchStart={(e) => {
-                    simSheetTouchStartY.current = e.touches[0].clientY;
-                    simSheetDragActive.current = true;
-                    setSimSheetDragging(true);
-                  }}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {activePersona.image ? (
-                      <img
-                        src={toMediaUrl(activePersona.image)}
-                        alt={activePersona.name}
-                        className="h-8 w-8 rounded-full object-cover border border-border flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 border border-border">
-                        <span className="text-xs font-semibold text-muted-foreground">
-                          {activePersona.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-semibold leading-tight truncate">{activePersona.name}</span>
-                      <div className="flex items-center gap-1">
-                        <Brain className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                        <span className="text-xs text-muted-foreground">{activePersonaIdentityLabel}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setIsMobileSimOpen(false)}
-                    aria-label={t('common.close')}
-                    className="p-1.5 rounded-full hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground flex-shrink-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="px-2 py-2">
-                  <SimulationPanel
-                    state={simulationState}
-                    newIncident={newIncident}
-                    latestTurnScore={latestTurnScore}
-                    evaluationSkipped={lastScoreSkipped}
-                    hasActiveIncident={hasActiveIncident}
-                    isVisible={isMobileSimOpen}
-                    isCompact
-                  />
-                </div>
-              </div>
-            </div>
-          </>
         )}
 
         <AlertDialog open={showVoiceModeConfirmDialog} onOpenChange={(open) => { if (!open) { setShowVoiceModeConfirmDialog(false); pendingVoiceModeSwitch.current = false; } }}>
