@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Users, MessageCircle, Target, Clock, Lightbulb, AlertCircle, TrendingUp, ArrowLeft, Loader2, Play, BookOpen, Award, Briefcase, FileText } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { CheckCircle2, Users, Target, Clock, AlertCircle, ArrowLeft, Loader2, Play, BookOpen, Award } from "lucide-react";
 import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-system";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
@@ -96,450 +97,366 @@ export function SimplePersonaSelector({
 
   const heroImage = toMediaUrl((scenario as any)?.thumbnail || (scenario as any)?.image);
 
-  return (
-    <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-white">
-      {/* 히어로 헤더 */}
-      <div className="relative overflow-hidden">
-        {/* 배경 이미지 */}
-        {heroImage && (
-          <img src={heroImage} alt="" aria-hidden decoding="async" className="absolute inset-0 h-full w-full object-cover object-center" />
+  const difficultyLocked = completedPersonaIds.length > 0;
+  const sections = [
+    { value: "overview", label: t('scenario.tabOverview') },
+    { value: "situation", label: t('scenario.tabSituation') },
+    { value: "objectives", label: t('scenario.tabObjectives') },
+    { value: "criteria", label: t('scenario.tabCriteria') },
+  ];
+  const sectionCard = "rounded-2xl border border-slate-200/80 bg-white p-[clamp(1.25rem,3vw,2rem)] shadow-[0_1px_2px_rgba(15,23,42,0.04)]";
+  const sectionTitle = "text-[0.95rem] font-semibold tracking-tight text-slate-900";
+  const bodyText = "text-sm leading-7 text-slate-600 whitespace-pre-wrap";
+  const eyebrow = "text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400";
+
+  const meta = [
+    { icon: Clock, label: scenario?.estimatedTime || t('scenario.defaultTime') },
+    { icon: Users, label: t('scenario.conversationPartners', { count: totalCount }) },
+    { icon: Target, label: t('scenario.competenciesCount', { count: scenario?.skills?.length || 0 }) },
+  ];
+
+  const difficultyPicker = (
+    <section aria-labelledby="difficulty-heading" data-testid="difficulty-panel">
+      <h2 id="difficulty-heading" className={cn(eyebrow, "mb-3 flex items-center gap-1.5")}>
+        <Award className="h-3.5 w-3.5" aria-hidden />
+        {t('scenario.selectDifficulty')}
+      </h2>
+      <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-slate-100/80 p-1" role="radiogroup" aria-labelledby="difficulty-heading">
+        {[1, 2, 3, 4].map((level) => {
+          const active = selectedDifficulty === level;
+          return (
+            <button
+              key={level}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              title={difficultyLabels[level].name}
+              onClick={() => completedPersonaIds.length === 0 && onDifficultyChange(level)}
+              disabled={difficultyLocked}
+              className={cn(
+                "min-h-11 rounded-lg px-1 py-1.5 text-center transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1",
+                active ? "bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800",
+                difficultyLocked && !active && "cursor-not-allowed opacity-50",
+              )}
+              data-testid={`difficulty-${level}`}
+            >
+              <span className="block text-base font-semibold tabular-nums">{level}</span>
+              <span className="block truncate text-[10px] font-medium leading-tight">{difficultyLabels[level].name}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2.5 text-xs leading-5 text-slate-500">
+        {difficultyLocked ? t('scenario.difficultyLocked') : difficultyLabels[selectedDifficulty].description}
+      </p>
+    </section>
+  );
+
+  const personaGrid = (
+    <section aria-labelledby="partner-heading" className="space-y-5" data-testid="persona-picker">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className={eyebrow}>{t('scenario.conversationPartners', { count: totalCount })}</p>
+          <h2 id="partner-heading" className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
+            {completedCount === 0 ? t('scenario.selectPartner') : t('scenario.nextPartner')}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">{t('scenario.selectPartnerHint')}</p>
+        </div>
+        {completedCount > 0 && (
+          <div className="min-w-[10rem] text-right">
+            <p className="text-xs font-medium text-slate-600">{t('scenario.completed', { completed: completedCount, total: totalCount })}</p>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuenow={progressPercentage} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full origin-left rounded-full bg-indigo-600 transition-transform duration-500 motion-reduce:transition-none" style={{ transform: `scaleX(${progressPercentage / 100})` }} />
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">{t('scenario.remaining', { count: availablePersonas.length })}</p>
+          </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-900/85 to-slate-900/65" />
-        
-        {/* 히어로 콘텐츠 */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-[clamp(2rem,5vw,3.5rem)]">
-          {/* 네비게이션 */}
+      </div>
+
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,13.5rem),1fr))]">
+        {personas.map((persona) => {
+          const isCompleted = normalizedCompletedIds.includes(persona.id.toLowerCase());
+          const isCurrentlyLoading = loadingPersonaId === persona.id;
+          const isAvailable = !isCompleted && !isLoading;
+
+          return (
+            <Card
+              key={persona.id}
+              className={cn(
+                "group relative flex flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-[transform,box-shadow,border-color,opacity] duration-200 motion-reduce:transition-none cursor-pointer",
+                isCompleted
+                  ? "border-slate-200 opacity-75"
+                  : isCurrentlyLoading
+                  ? "border-indigo-400 ring-2 ring-indigo-500/30"
+                  : "border-slate-200/80 hover:border-indigo-300 hover:shadow-md motion-safe:hover:-translate-y-0.5 focus-within:ring-2 focus-within:ring-indigo-500/50",
+                isLoading && !isCurrentlyLoading && "opacity-50 pointer-events-none",
+              )}
+              onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona, selectedDifficulty)}
+              data-testid={`persona-card-${persona.id}`}
+            >
+              <CardContent className="flex flex-1 flex-col p-0">
+                <PersonaPortrait
+                  src={personaImages[persona.id]}
+                  name={persona.name}
+                  alt={t('scenario.personaPortraitAlt', { defaultValue: '{{name}}, {{role}}', name: persona.name, role: persona.role || '' })}
+                  aspect="4 / 5"
+                  imgClassName="motion-safe:group-hover:scale-[1.02] transition-transform duration-500"
+                >
+                  {isCompleted && (
+                    <div className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 shadow-sm" aria-label={t('scenario.completedLabel')}>
+                      <CheckCircle2 className="h-4 w-4 text-white" aria-hidden />
+                    </div>
+                  )}
+                  {persona.mbti && (
+                    <Badge className="absolute top-3 left-3 border-0 bg-white/90 font-mono text-[10px] tracking-wider text-slate-700 shadow-sm backdrop-blur hover:bg-white">
+                      {persona.mbti}
+                    </Badge>
+                  )}
+                </PersonaPortrait>
+
+                <div className="flex flex-1 flex-col gap-3 p-4">
+                  <div>
+                    <h3 className="text-[0.95rem] font-semibold tracking-tight text-slate-900">{persona.name}</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {persona.role}
+                      {persona.department && <span className="text-slate-400"> · {persona.department}</span>}
+                    </p>
+                  </div>
+                  {persona.stance && (
+                    <p className="line-clamp-3 text-xs leading-5 text-slate-600">{persona.stance}</p>
+                  )}
+                  <div className="mt-auto pt-1">
+                    {isCompleted ? (
+                      <div className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-50 text-xs font-medium text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                        {t('scenario.completedLabel')}
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="min-h-11 w-full rounded-lg bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 active:bg-indigo-800 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                        disabled={isLoading}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isAvailable && !isCurrentlyLoading) {
+                            onPersonaSelect(persona, selectedDifficulty);
+                          }
+                        }}
+                        data-testid={`select-persona-${persona.id}`}
+                      >
+                        {isCurrentlyLoading ? (
+                          <>
+                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+                            {t('scenario.preparing')}
+                          </>
+                        ) : (
+                          <>
+                            <Play className="mr-1.5 h-4 w-4" aria-hidden />
+                            {t('scenario.startConversation')}
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  const criteria = scenario ? [
+    { label: t('scenario.optimal'), text: scenario.successCriteria?.optimal, bar: "bg-emerald-500" },
+    { label: t('scenario.good'), text: scenario.successCriteria?.good, bar: "bg-indigo-500" },
+    { label: t('scenario.acceptable'), text: scenario.successCriteria?.acceptable, bar: "bg-amber-500" },
+  ] : [];
+
+  return (
+    <div className="min-h-[100dvh] bg-slate-50">
+      {/* Compact hero */}
+      <header className="relative overflow-hidden border-b border-slate-200 bg-slate-900">
+        {heroImage && (
+          <img src={heroImage} alt="" aria-hidden decoding="async" className="absolute inset-0 h-full w-full object-cover object-center opacity-30" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/80 to-indigo-950/60" />
+        <div className="relative mx-auto max-w-7xl px-4 py-[clamp(1.25rem,3vw,2.25rem)] sm:px-6">
           {onBack && (
             <Button
               variant="ghost"
+              size="sm"
               onClick={onBack}
-              className="mb-6 text-white/80 hover:text-white active:text-white hover:bg-white/10 active:bg-white/20 gap-2 min-h-[44px] px-4"
+              className="-ml-2 mb-3 min-h-11 gap-1.5 px-2.5 text-white/75 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70"
               data-testid="back-to-scenarios"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="h-4 w-4" aria-hidden />
               {t('scenario.scenarioList')}
             </Button>
           )}
-          
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-            <div className="flex-1">
-              {/* 카테고리 배지 */}
-              {(scenario as any)?.categoryName && (
-                <Badge className="mb-4 bg-blue-500/20 text-blue-300 border-blue-400/30 backdrop-blur-sm">
-                  <BookOpen className="w-3 h-3 mr-1" />
-                  {(scenario as any).categoryName}
-                </Badge>
-              )}
-              
-              <h1 className="text-[clamp(1.5rem,1.1rem+1.8vw,2.375rem)] font-semibold tracking-tight text-white mb-4 leading-tight break-words max-w-[38ch]">
-                {scenarioTitle}
-              </h1>
-              
-              {/* 핵심 지표 */}
-              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-white/80">
-                <div className="flex items-center gap-1.5 sm:gap-2 bg-white/10 backdrop-blur-sm rounded-full px-3 sm:px-4 py-1.5 sm:py-2">
-                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="text-xs sm:text-sm font-medium">{scenario?.estimatedTime || t('scenario.defaultTime')}</span>
-                </div>
-                <div className="flex items-center gap-1.5 sm:gap-2 bg-white/10 backdrop-blur-sm rounded-full px-3 sm:px-4 py-1.5 sm:py-2">
-                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="text-xs sm:text-sm font-medium">{t('scenario.conversationPartners', { count: totalCount })}</span>
-                </div>
-                <div className="flex items-center gap-1.5 sm:gap-2 bg-white/10 backdrop-blur-sm rounded-full px-3 sm:px-4 py-1.5 sm:py-2">
-                  <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="text-xs sm:text-sm font-medium">{t('scenario.competenciesCount', { count: scenario?.skills?.length || 0 })}</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* 진행률 표시 */}
-            {completedCount > 0 && (
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
-                    <span className="text-xl font-bold text-white">{progressPercentage}%</span>
-                  </div>
-                  <div>
-                    <p className="text-white font-semibold">{t('scenario.completed', { completed: completedCount, total: totalCount })}</p>
-                    <p className="text-white/70 text-sm">{t('scenario.remaining', { count: availablePersonas.length })}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {(scenario as any)?.categoryName && (
+            <Badge className="mb-2.5 border-white/15 bg-white/10 text-[11px] font-medium text-indigo-100 hover:bg-white/15">
+              <BookOpen className="mr-1 h-3 w-3" aria-hidden />
+              {(scenario as any).categoryName}
+            </Badge>
+          )}
+          <h1 className="max-w-[40ch] break-words text-[clamp(1.375rem,1rem+1.5vw,2.125rem)] font-semibold leading-tight tracking-tight text-white">
+            {scenarioTitle}
+          </h1>
+          {/* Meta (mobile/tablet only; desktop shows it in the rail) */}
+          <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-white/70 lg:hidden">
+            {meta.map(({ icon: Icon, label }, i) => (
+              <li key={i} className="flex items-center gap-1.5"><Icon className="h-3.5 w-3.5" aria-hidden />{label}</li>
+            ))}
+          </ul>
         </div>
-      </div>
+      </header>
 
-      {/* 메인 콘텐츠 */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
-          {/* 왼쪽: 탭 콘텐츠 */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* 난이도 선택 */}
-            <Card className="border-0 shadow-lg overflow-hidden">
-              <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 sm:px-6 py-3 sm:py-4">
-                <h3 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
-                  <Award className="w-5 h-5" />
-                  {t('scenario.selectDifficulty')}
-                </h3>
-              </div>
-              <CardContent className="p-3 sm:p-6">
-                {completedPersonaIds.length > 0 ? (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                    <p className="text-xs sm:text-sm text-blue-800 font-medium">
-                      {t('scenario.difficultyLocked')}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-xs sm:text-sm text-slate-600 mb-3">{difficultyLabels[selectedDifficulty].description}</p>
-                )}
-                <div className="grid grid-cols-4 gap-2 sm:gap-3">
-                  {[1, 2, 3, 4].map((level) => (
-                    <button
-                      key={level}
-                      onClick={() => completedPersonaIds.length === 0 && onDifficultyChange(level)}
-                      disabled={completedPersonaIds.length > 0}
-                      className={`relative p-2 sm:p-4 min-h-[56px] rounded-xl border-2 transition-all duration-300 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-                        selectedDifficulty === level
-                          ? `${difficultyLabels[level].bgColor} border-transparent text-white shadow-md`
-                          : completedPersonaIds.length > 0
-                          ? "bg-slate-100 border-slate-200 cursor-not-allowed opacity-60"
-                          : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md cursor-pointer"
-                      }`}
-                      data-testid={`difficulty-${level}`}
-                    >
-                      <div className="text-center">
-                        <div className={`text-xl sm:text-2xl font-bold mb-0.5 sm:mb-1 ${selectedDifficulty === level ? 'text-white' : 'text-slate-700'}`}>
-                          {level}
-                        </div>
-                        <div className={`text-[10px] sm:text-xs font-medium leading-tight ${selectedDifficulty === level ? 'text-white/90' : 'text-slate-600'}`}>
-                          {difficultyLabels[level].name}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 탭 콘텐츠 */}
-            {scenario && (
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="w-full grid grid-cols-4 bg-slate-100 p-1 rounded-xl">
-                  <TabsTrigger value="overview" className="rounded-lg text-[11px] sm:text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm min-h-[40px]">
-                    {t('scenario.tabOverview')}
-                  </TabsTrigger>
-                  <TabsTrigger value="situation" className="rounded-lg text-[11px] sm:text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm min-h-[40px]">
-                    {t('scenario.tabSituation')}
-                  </TabsTrigger>
-                  <TabsTrigger value="objectives" className="rounded-lg text-[11px] sm:text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm min-h-[40px]">
-                    {t('scenario.tabObjectives')}
-                  </TabsTrigger>
-                  <TabsTrigger value="criteria" className="rounded-lg text-[11px] sm:text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm min-h-[40px]">
-                    {t('scenario.tabCriteria')}
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="overview" className="mt-4 sm:mt-6">
-                  <Card className="border-0 shadow-md">
-                    <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                      {/* 시나리오 개요 */}
-                      {scenario.description && (
-                        <div className="flex items-start gap-3 sm:gap-4">
-                          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-slate-900 mb-1.5 sm:mb-2 text-sm sm:text-base">{t('scenario.scenarioOverview')}</h4>
-                            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap text-xs sm:text-sm">
-                              {scenario.description}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 나의 역할 */}
-                      <div className="flex items-start gap-3 sm:gap-4 pt-3 sm:pt-4 border-t border-slate-100">
-                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                          <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-slate-900 mb-1.5 sm:mb-2 text-sm sm:text-base">{t('scenario.yourRole')}</h4>
-                          {scenario.context?.playerRoleText ? (
-                            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                              {scenario.context.playerRoleText}
-                            </p>
-                          ) : (
-                            <>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
-                                <div>
-                                  <span className="text-slate-500">{t('scenario.position')}:</span>
-                                  <span className="ml-2 font-medium text-slate-900">{scenario.context?.playerRole?.position}</span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-500">{t('scenario.department')}:</span>
-                                  <span className="ml-2 font-medium text-slate-900">{scenario.context?.playerRole?.department}</span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-500">{t('scenario.experience')}:</span>
-                                  <span className="ml-2 font-medium text-slate-900">{scenario.context?.playerRole?.experience}</span>
-                                </div>
-                              </div>
-                              <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                                {scenario.context?.playerRole?.responsibility}
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 주요 역량 */}
-                      {scenario.skills && scenario.skills.length > 0 && (
-                        <div className="pt-3 sm:pt-4 border-t border-slate-100">
-                          <h4 className="font-semibold text-slate-900 mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base">
-                            <Lightbulb className="w-4 h-4 text-amber-500" />
-                            {t('scenario.keyCompetencies')}
-                          </h4>
-                          <div className="flex flex-wrap gap-2">
-                            {getTranslatedSkills(scenario.skills).map((skill, index) => (
-                              <Badge 
-                                key={index} 
-                                variant="secondary"
-                                className={`${index < 2 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}
-                              >
-                                {skill}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="situation" className="mt-4 sm:mt-6">
-                  <Card className="border-0 shadow-md">
-                    <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                      <div className="flex items-start gap-3 sm:gap-4">
-                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-                          <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-slate-900 mb-1.5 sm:mb-2 text-sm sm:text-base">{t('scenario.currentSituation')}</h4>
-                          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                            {scenario.context.situation}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4 border-t border-slate-100">
-                        <div className="bg-slate-50 rounded-xl p-3 sm:p-4">
-                          <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                            <Clock className="w-4 h-4 text-slate-500" />
-                            <span className="font-medium text-slate-700 text-sm">{t('scenario.timeline')}</span>
-                          </div>
-                          <p className="text-xs sm:text-sm text-slate-600">{scenario.context.timeline}</p>
-                        </div>
-                        <div className="bg-slate-50 rounded-xl p-3 sm:p-4">
-                          <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                            <TrendingUp className="w-4 h-4 text-slate-500" />
-                            <span className="font-medium text-slate-700 text-sm">{t('scenario.coreIssues')}</span>
-                          </div>
-                          <p className="text-xs sm:text-sm text-slate-600">{scenario.context.stakes}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="objectives" className="mt-4 sm:mt-6">
-                  <Card className="border-0 shadow-md">
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex items-start gap-3 sm:gap-4">
-                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                          <Target className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-slate-900 mb-3 sm:mb-4 text-sm sm:text-base">{t('scenario.objectivesToAchieve')}</h4>
-                          <ul className="space-y-3">
-                            {scenario.objectives.map((obj, index) => (
-                              <li key={index} className="flex items-start gap-3 bg-green-50 rounded-lg p-3">
-                                <span className="w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium flex-shrink-0">
-                                  {index + 1}
-                                </span>
-                                <span className="text-slate-700">{obj}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="criteria" className="mt-4 sm:mt-6">
-                  <Card className="border-0 shadow-md">
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex items-start gap-3 sm:gap-4">
-                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                          <Award className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-slate-900 mb-3 sm:mb-4 text-sm sm:text-base">{t('scenario.successCriteria')}</h4>
-                          <div className="space-y-2 sm:space-y-3">
-                            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 sm:p-4 border border-green-200">
-                              <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                                <Award className="h-4 w-4 shrink-0" aria-hidden />
-                                <span className="font-semibold text-green-800 text-sm">{t('scenario.optimal')}</span>
-                              </div>
-                              <p className="text-xs sm:text-sm text-green-700">{scenario.successCriteria.optimal}</p>
-                            </div>
-                            <div className="bg-gradient-to-r from-blue-50 to-sky-50 rounded-xl p-3 sm:p-4 border border-blue-200">
-                              <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-                                <span className="font-semibold text-blue-800 text-sm">{t('scenario.good')}</span>
-                              </div>
-                              <p className="text-xs sm:text-sm text-blue-700">{scenario.successCriteria.good}</p>
-                            </div>
-                            <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-3 sm:p-4 border border-amber-200">
-                              <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                                <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-                                <span className="font-semibold text-amber-800 text-sm">{t('scenario.acceptable')}</span>
-                              </div>
-                              <p className="text-xs sm:text-sm text-amber-700">{scenario.successCriteria.acceptable}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            )}
-          </div>
-
-          {/* 오른쪽: 페르소나 선택 */}
-          <div className="space-y-4 sm:space-y-6">
-            {/* 안내 메시지 */}
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-600 to-blue-700">
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-start gap-3 text-white">
-                  <MessageCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="font-semibold mb-1 text-sm sm:text-base">
-                      {completedCount === 0 ? t('scenario.selectPartner') : t('scenario.nextPartner')}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-blue-100">
-                      {t('scenario.selectPartnerHint')}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 페르소나 목록 - 소형화면(sm미만) 1열, 그 이상 2열 */}
-            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,13rem),1fr))]">
-              {personas.map((persona) => {
-                const isCompleted = normalizedCompletedIds.includes(persona.id.toLowerCase());
-                const isCurrentlyLoading = loadingPersonaId === persona.id;
-                const isAvailable = !isCompleted && !isLoading;
-
-                return (
-                  <Card 
-                    key={persona.id}
-                    className={`relative transition-[transform,box-shadow,border-color,opacity] duration-200 cursor-pointer overflow-hidden ${
-                      isCompleted 
-                        ? 'border-green-300 bg-green-50/50 opacity-70' 
-                        : isCurrentlyLoading
-                        ? 'border-blue-400 bg-blue-50 shadow-xl ring-2 ring-blue-400/50'
-                        : 'border-slate-200 hover:border-blue-400 hover:shadow-lg motion-safe:hover:-translate-y-0.5 focus-within:ring-2 focus-within:ring-blue-500/60'
-                    } ${isLoading && !isCurrentlyLoading ? 'opacity-50 pointer-events-none' : ''}`}
-                    onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona, selectedDifficulty)}
-                    data-testid={`persona-card-${persona.id}`}
+      <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="mx-auto max-w-7xl px-4 py-[clamp(1.25rem,3vw,2.5rem)] sm:px-6">
+        <div className="grid gap-[clamp(1.25rem,3vw,2.5rem)] lg:grid-cols-[minmax(14rem,17rem)_minmax(0,1fr)]">
+          {/* Left rail */}
+          <aside className="lg:sticky lg:top-6 lg:self-start" data-testid="scenario-detail-rail" aria-label={t('scenario.overview')}>
+            <div className="space-y-6 lg:rounded-2xl lg:border lg:border-slate-200/80 lg:bg-white lg:p-5 lg:shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              {scenario && (
+                <nav aria-label={t('scenario.overview')}>
+                  <p className={cn(eyebrow, "mb-2 hidden lg:block")}>{t('scenario.overview')}</p>
+                  <TabsList
+                    className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl bg-white p-1 ring-1 ring-slate-200/80 [scrollbar-width:none] lg:flex-col lg:items-stretch lg:overflow-visible lg:bg-transparent lg:p-0 lg:ring-0"
+                    data-testid="scenario-section-nav"
                   >
-                    <CardContent className="p-0">
-                      <PersonaPortrait
-                        src={personaImages[persona.id]}
-                        name={persona.name}
-                        alt={t('scenario.personaPortraitAlt', { defaultValue: '{{name}}, {{role}}', name: persona.name, role: persona.role || '' })}
-                        aspect="4 / 5"
-                        className="border-b border-slate-200/70"
+                    {sections.map((s) => (
+                      <TabsTrigger
+                        key={s.value}
+                        value={s.value}
+                        data-testid={`section-nav-${s.value}`}
+                        className="relative min-h-10 shrink-0 justify-start rounded-lg px-3.5 text-sm font-medium text-slate-500 transition-colors motion-reduce:transition-none hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-indigo-500 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 data-[state=active]:shadow-none lg:w-full lg:before:absolute lg:before:left-0 lg:before:top-2 lg:before:bottom-2 lg:before:w-0.5 lg:before:rounded-full lg:data-[state=active]:before:bg-indigo-600"
                       >
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-slate-900/25 to-transparent" />
-                        {isCompleted && (
-                          <div className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 shadow-md" aria-label={t('scenario.completedLabel')}>
-                            <CheckCircle2 className="h-5 w-5 text-white" aria-hidden />
-                          </div>
-                        )}
-                        {persona.mbti && (
-                          <Badge className="absolute top-3 left-3 bg-white/95 font-mono text-[11px] tracking-wider text-slate-700 shadow-sm hover:bg-white">
-                            {persona.mbti}
-                          </Badge>
-                        )}
-                      </PersonaPortrait>
+                        {s.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </nav>
+              )}
 
-                      {/* 페르소나 정보 - 이름, 직급, 소속을 가로 배열 */}
-                      <div className="p-4">
-                        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mb-2">
-                          <h3 className="font-bold text-sm text-slate-900">{persona.name}</h3>
-                          <span className="text-slate-400 text-xs">·</span>
-                          <span className="text-xs text-slate-600">{persona.role}</span>
-                          {persona.department && (
-                            <>
-                              <span className="text-slate-400 text-xs">·</span>
-                              <span className="text-xs text-slate-500">{persona.department}</span>
-                            </>
-                          )}
-                        </div>
+              <ul className="hidden space-y-2.5 border-t border-slate-100 pt-5 text-sm text-slate-600 lg:block" data-testid="scenario-detail-meta">
+                {meta.map(({ icon: Icon, label }, i) => (
+                  <li key={i} className="flex items-center gap-2.5"><Icon className="h-4 w-4 text-slate-400" aria-hidden />{label}</li>
+                ))}
+              </ul>
 
-                        {/* 입장/목표 미리보기 - 확장된 텍스트 영역 */}
-                        {persona.stance && (
-                          <p className="text-xs text-slate-500 line-clamp-4 mb-3 leading-relaxed">
-                            {persona.stance}
-                          </p>
-                        )}
-
-                        {/* 액션 버튼 */}
-                        {isCompleted ? (
-                          <div className="flex items-center justify-center gap-1.5 py-1.5 bg-green-100 rounded-lg text-green-700 text-xs font-medium">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            {t('scenario.completedLabel')}
-                          </div>
-                        ) : (
-                          <Button 
-                            size="sm"
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 active:from-blue-800 active:to-blue-900 shadow-md text-xs min-h-[44px]"
-                            disabled={isLoading}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isAvailable && !isCurrentlyLoading) {
-                                onPersonaSelect(persona, selectedDifficulty);
-                              }
-                            }}
-                            data-testid={`select-persona-${persona.id}`}
-                          >
-                            {isCurrentlyLoading ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                {t('scenario.preparing')}
-                              </>
-                            ) : (
-                              <>
-                                <Play className="w-3.5 h-3.5 mr-1.5" />
-                                {t('scenario.startConversation')}
-                              </>
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 lg:rounded-none lg:border-0 lg:border-t lg:border-slate-100 lg:p-0 lg:pt-5">
+                {difficultyPicker}
+              </div>
             </div>
-          </div>
+          </aside>
+
+          {/* Main */}
+          <main className="min-w-0 space-y-[clamp(2rem,4vw,3rem)]">
+            {scenario && (
+              <div>
+                <TabsContent value="overview" className="mt-0 focus-visible:outline-none">
+                  <div className={cn(sectionCard, "space-y-6")}>
+                    {scenario.description && (
+                      <div>
+                        <h3 className={sectionTitle}>{t('scenario.scenarioOverview')}</h3>
+                        <p className={cn(bodyText, "mt-2")}>{scenario.description}</p>
+                      </div>
+                    )}
+                    <div className="border-t border-slate-100 pt-6">
+                      <h3 className={sectionTitle}>{t('scenario.yourRole')}</h3>
+                      {scenario.context?.playerRoleText ? (
+                        <p className={cn(bodyText, "mt-2")}>{scenario.context.playerRoleText}</p>
+                      ) : (
+                        <>
+                          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+                            {[
+                              [t('scenario.position'), scenario.context?.playerRole?.position],
+                              [t('scenario.department'), scenario.context?.playerRole?.department],
+                              [t('scenario.experience'), scenario.context?.playerRole?.experience],
+                            ].map(([k, v], i) => (
+                              <div key={i} className="rounded-xl bg-slate-50 px-3.5 py-2.5">
+                                <dt className="text-[11px] text-slate-500">{k}</dt>
+                                <dd className="mt-0.5 font-medium text-slate-900">{v}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                          {scenario.context?.playerRole?.responsibility && (
+                            <p className={cn(bodyText, "mt-3")}>{scenario.context.playerRole.responsibility}</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {scenario.skills && scenario.skills.length > 0 && (
+                      <div className="border-t border-slate-100 pt-6">
+                        <h3 className={sectionTitle}>{t('scenario.keyCompetencies')}</h3>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {getTranslatedSkills(scenario.skills).map((skill, index) => (
+                            <Badge key={index} variant="secondary" className={cn("rounded-md border font-medium", index < 2 ? "border-indigo-100 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600")}>
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="situation" className="mt-0 focus-visible:outline-none">
+                  <div className={cn(sectionCard, "space-y-6")}>
+                    <div>
+                      <h3 className={sectionTitle}>{t('scenario.currentSituation')}</h3>
+                      <p className={cn(bodyText, "mt-2")}>{scenario.context.situation}</p>
+                    </div>
+                    <div className="grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-2">
+                      <div>
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-slate-500"><Clock className="h-3.5 w-3.5" aria-hidden />{t('scenario.timeline')}</p>
+                        <p className="mt-1.5 text-sm leading-6 text-slate-700">{scenario.context.timeline}</p>
+                      </div>
+                      <div>
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-slate-500"><AlertCircle className="h-3.5 w-3.5" aria-hidden />{t('scenario.coreIssues')}</p>
+                        <p className="mt-1.5 text-sm leading-6 text-slate-700">{scenario.context.stakes}</p>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="objectives" className="mt-0 focus-visible:outline-none">
+                  <div className={sectionCard}>
+                    <h3 className={sectionTitle}>{t('scenario.objectivesToAchieve')}</h3>
+                    <ol className="mt-4 divide-y divide-slate-100">
+                      {scenario.objectives.map((obj, index) => (
+                        <li key={index} className="flex items-start gap-3.5 py-3 first:pt-0 last:pb-0">
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold tabular-nums text-indigo-700">{index + 1}</span>
+                          <span className="text-sm leading-6 text-slate-700">{obj}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="criteria" className="mt-0 focus-visible:outline-none">
+                  <div className={sectionCard}>
+                    <h3 className={sectionTitle}>{t('scenario.successCriteria')}</h3>
+                    <div className="mt-4 space-y-4">
+                      {criteria.map((c, i) => (
+                        <div key={i} className="flex gap-3.5">
+                          <span className={cn("w-1 shrink-0 rounded-full", c.bar)} aria-hidden />
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">{c.label}</p>
+                            <p className="mt-0.5 text-sm leading-6 text-slate-600">{c.text}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+              </div>
+            )}
+
+            {personaGrid}
+          </main>
         </div>
-      </div>
+      </Tabs>
     </div>
   );
 }
