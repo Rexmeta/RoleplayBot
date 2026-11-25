@@ -118,6 +118,7 @@ export interface ComplexScenario {
   evaluationCriteriaSetId?: string;
   isDemo?: boolean;
   isPublic?: boolean;
+  authoredByAgent?: { agentKeyId: string; agentKeyName: string; ownerUserId: string } | null; // 에이전트 API로 작성됨
   isDeleted?: boolean;
   targetDurationMinutes?: number;
   targetTurns?: number;

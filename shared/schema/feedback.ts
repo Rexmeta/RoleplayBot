@@ -42,6 +42,7 @@ export const evaluationCriteriaSets = pgTable("evaluation_criteria_sets", {
   approvedAt: timestamp("approved_at"),
   version: integer("version").notNull().default(1),
   parentSetId: varchar("parent_set_id"),
+  authoredByAgent: jsonb("authored_by_agent").$type<{ agentKeyId: string; agentKeyName: string; ownerUserId: string }>(),
   createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [

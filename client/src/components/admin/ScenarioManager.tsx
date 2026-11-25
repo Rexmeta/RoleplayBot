@@ -95,6 +95,7 @@ interface ScenarioFormData {
   minValidTurns?: number; // 최소 유효 턴 수
   isDemo?: boolean; // 게스트 데모용 시나리오 여부
   isPublic?: boolean; // 공개 여부
+  authoredByAgent?: { agentKeyId: string; agentKeyName: string; ownerUserId: string } | null; // 에이전트 작성 표시
   useVideoAvatar?: boolean; // 비디오 아바타 사용 여부
   autoTranslate?: boolean; // AI 자동 번역 여부
   storeListed?: boolean;
@@ -3612,6 +3613,11 @@ export function ScenarioManager({ onGoToPersonas }: ScenarioManagerProps = {}) {
                       <CardTitle className="text-base font-semibold text-slate-800 line-clamp-2 leading-tight flex-1">
                         {scenario.title}
                       </CardTitle>
+                      {scenario.authoredByAgent && (
+                        <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-700 bg-amber-50" title={scenario.authoredByAgent.agentKeyName}>
+                          에이전트 작성
+                        </Badge>
+                      )}
                       {validation && (
                         <TooltipProvider>
                           <Tooltip>

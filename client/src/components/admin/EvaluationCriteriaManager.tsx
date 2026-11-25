@@ -46,6 +46,7 @@ interface EvaluationCriteriaSet {
   isActive: boolean;
   categoryId?: string | null;
   ownerOperatorId?: string | null;
+  authoredByAgent?: { agentKeyId: string; agentKeyName: string; ownerUserId: string } | null;
   status?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
@@ -704,6 +705,9 @@ export function EvaluationCriteriaManager() {
                         if (s === 'archived') return <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] px-1.5 py-0 h-4"><Archive className="h-2.5 w-2.5 mr-0.5" />보관됨</Badge>;
                         return <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">초안</Badge>;
                       })()}
+                      {set.authoredByAgent && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-300 text-amber-700 bg-amber-50" title={set.authoredByAgent.agentKeyName}>에이전트 작성</Badge>
+                      )}
                       {set.isDefault && (
                         <Badge variant="default" className="bg-blue-600 text-[10px] px-1.5 py-0 h-4">
                           <Star className="h-2.5 w-2.5 mr-0.5" />

@@ -16,6 +16,7 @@ import {
   agentWebhookDeliveries,
   auditLogs,
   AGENT_API_SCOPES,
+  hasAuthoringScope,
 } from "@shared/schema";
 import { eq, and, desc, sql, or, gte, lt, lte, isNull, ne } from "drizzle-orm";
 import { isSystemAdmin, isOperatorOrAdmin } from "../middleware/authMiddleware";
@@ -34,6 +35,8 @@ const createKeySchema = z.object({
   environment: z.enum(["live", "test"]).default("live"),
   organizationId: z.string().min(1),
   scopes: z.array(z.enum(AGENT_API_SCOPES)).min(1),
+  // Operator/admin whose category scope bounds an authoring key. Defaults to the creating admin.
+  ownerUserId: z.string().min(1).optional(),
   allowedIps: z.array(z.string()).default([]),
   allowedScenarioIds: z.array(z.string()).default([]),
   expiresInDays: z.number().int().min(1).max(365).default(90),
@@ -97,6 +100,7 @@ router.get(
         keyPrefix: k.keyPrefix,
         environment: k.environment,
         organizationId: k.organizationId,
+        ownerUserId: k.ownerUserId,
         scopes: k.scopes,
         allowedIps: k.allowedIps,
         rateLimitPerMinute: k.rateLimitPerMinute,
@@ -141,6 +145,20 @@ router.post(
       rateLimitPerMinute,
     } = parsed.data;
 
+    // Authoring scopes: admin-only (this route is admin-only) and the owner must be an active operator/admin.
+    let ownerUserId: string = req.user.id;
+    if (hasAuthoringScope(scopes)) {
+      if (parsed.data.ownerUserId && parsed.data.ownerUserId !== req.user.id) {
+        const owner = await storage.getUser(parsed.data.ownerUserId);
+        if (!owner || owner.isActive === false || (owner.role !== "operator" && owner.role !== "admin")) {
+          throw createHttpError(400, "Authoring keys must be owned by an active operator or admin.");
+        }
+        ownerUserId = owner.id;
+      }
+    } else if (parsed.data.ownerUserId) {
+      throw createHttpError(400, "ownerUserId is only used for keys with an authoring scope.");
+    }
+
     const { fullKey, keyHash, keyPrefix } = generateAgentApiKey(environment);
     const expiresAt = computeExpiryDate(expiresInDays);
 
@@ -151,7 +169,7 @@ router.post(
         keyHash,
         keyPrefix,
         environment,
-        ownerUserId: req.user.id,
+        ownerUserId,
         organizationId,
         scopes,
         allowedIps,
@@ -179,7 +197,7 @@ router.post(
       action: "agent_api_key.created",
       targetType: "agent_api_key",
       targetId: newKey.id,
-      metadata: { name, environment, scopes, allowedScenarioIds },
+      metadata: { name, environment, scopes, allowedScenarioIds, ownerUserId },
       ip: req.ip ?? null,
       userAgent: req.headers["user-agent"] ?? null,
     });

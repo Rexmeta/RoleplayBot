@@ -8,7 +8,6 @@
 
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { createHash } from "crypto";
 import rateLimit from "express-rate-limit";
 import { db } from "../storage";
 import {
@@ -44,6 +43,9 @@ import {
 } from "../services/simulation/simulationEngine";
 import { createDefaultSimulationState } from "../services/simulation/simulationTypes";
 import { evaluateUserResponse } from "../services/simulation/evaluateUserResponse";
+import { requireAuthoring, authoringIdempotency, getAuthoringContext } from "../services/agentAuthoring";
+import { AGENT_AUTHORING_SCOPES } from "@shared/schema";
+import { handleIdempotency, saveIdempotency, hashRequestBody } from "../services/agentIdempotency";
 import { enqueueFeedbackJob, getFeedbackJobStatus } from "../services/feedbackGenerationService";
 
 const router = Router();
@@ -55,7 +57,6 @@ const router = Router();
 const SUPPORTED_LANGUAGES = ["ko", "en", "ja", "zh"] as const;
 const AGENT_SESSION_INACTIVE_MINUTES = 30;
 const AGENT_SESSION_MAX_HOURS = 24;
-const IDEMPOTENCY_TTL_HOURS = 24;
 
 function nowPlusHours(h: number): Date {
   const d = new Date();
@@ -69,10 +70,6 @@ function generateSessionId(): string {
 
 function generateTurnId(sessionId: string, turn: number): string {
   return `${sessionId}-${turn}`;
-}
-
-function hashRequestBody(body: any): string {
-  return createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 
 // Best-effort async: aggregate usage for dashboard
@@ -265,56 +262,6 @@ async function getUsageTodayForKey(agentKeyId: string): Promise<{
   }
 }
 
-// Check if an idempotency key exists and handle it
-async function handleIdempotency(
-  res: any,
-  key: string,
-  agentKeyId: string,
-  bodyHash: string
-): Promise<{ handled: boolean }> {
-  const existing = await db
-    .select()
-    .from(agentIdempotencyKeys)
-    .where(and(eq(agentIdempotencyKeys.key, key), eq(agentIdempotencyKeys.agentKeyId, agentKeyId)))
-    .limit(1);
-
-  if (existing.length > 0) {
-    const record = existing[0];
-    if (record.requestHash !== bodyHash) {
-      agentError(res, 409, "idempotency_key_conflict", "Idempotency-Key was already used with a different request body.");
-      return { handled: true };
-    }
-    // Replay stored response
-    res.status(record.statusCode).json(record.responseBody);
-    return { handled: true };
-  }
-  return { handled: false };
-}
-
-async function saveIdempotency(
-  key: string,
-  agentKeyId: string,
-  bodyHash: string,
-  statusCode: number,
-  responseBody: any
-): Promise<void> {
-  try {
-    await db
-      .insert(agentIdempotencyKeys)
-      .values({
-        key,
-        agentKeyId,
-        requestHash: bodyHash,
-        responseBody,
-        statusCode,
-        expiresAt: nowPlusHours(IDEMPOTENCY_TTL_HOURS),
-      })
-      .onConflictDoNothing();
-  } catch (err) {
-    console.warn("[agentApi] Failed to save idempotency key:", err);
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Rate Limiter (per key ID)
 // Uses Redis store when REDIS_URL is set; falls back to in-memory store.
@@ -400,6 +347,22 @@ const agentRateLimiter: import("express").RequestHandler = async (req, res, next
 router.use(attachAgentRequestId);
 router.use(isAgentApiKey);
 router.use(agentRateLimiter);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Authoring foundation: write endpoints use requireAuthoring(<scope>) + authoringIdempotency.
+// GET /api/v1/agent/authoring/context tells an agent what it may author.
+// ─────────────────────────────────────────────────────────────────────────────
+router.use("/authoring", authoringIdempotency);
+router.get("/authoring/context", ...requireAuthoring(), (req: any, res) => {
+  const ctx = getAuthoringContext(req);
+  res.json({
+    scopes: (ctx.key.scopes ?? []).filter((s: string) => (AGENT_AUTHORING_SCOPES as readonly string[]).includes(s)),
+    owner: ctx.owner,
+    accessibleCategoryIds: ctx.accessibleCategoryIds,
+    draftOnly: true,
+    requestId: req.agentRequestId,
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/v1/agent/scenarios

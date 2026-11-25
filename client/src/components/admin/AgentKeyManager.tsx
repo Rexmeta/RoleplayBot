@@ -63,7 +63,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
-import { AGENT_API_SCOPES } from "@shared/schema";
+import { AGENT_API_SCOPES, AGENT_AUTHORING_SCOPES, hasAuthoringScope } from "@shared/schema";
 import { AgentKeyUsageDashboard } from "./AgentKeyUsageDashboard";
 
 interface AgentApiKey {
@@ -72,6 +72,7 @@ interface AgentApiKey {
   keyPrefix: string;
   environment: "live" | "test";
   organizationId: string;
+  ownerUserId?: string;
   scopes: string[];
   allowedIps: string[];
   rateLimitPerMinute: number;
@@ -161,6 +162,7 @@ const EMPTY_FORM = {
   rateLimitPerMinute: 60,
   scopes: DEFAULT_SCOPES as string[],
   allowedScenarioIds: [] as string[],
+  ownerUserId: "" as string,
 };
 
 export function AgentKeyManager() {
@@ -381,6 +383,12 @@ export function AgentKeyManager() {
     },
   });
 
+  const authoringSelected = hasAuthoringScope(formData.scopes);
+  const { data: operators = [] } = useQuery<{ id: string; name?: string | null; email?: string | null }[]>({
+    queryKey: ["/api/admin/operators"],
+    enabled: createOpen && authoringSelected,
+  });
+
   const { data: scenarios = [] } = useQuery<Scenario[]>({
     queryKey: ["/api/scenarios"],
     queryFn: async () => {
@@ -415,7 +423,9 @@ export function AgentKeyManager() {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const res = await apiRequest("POST", "/api/admin/agent-keys", data);
+      const { ownerUserId, ...rest } = data;
+      const payload = hasAuthoringScope(data.scopes) && ownerUserId ? { ...rest, ownerUserId } : rest;
+      const res = await apiRequest("POST", "/api/admin/agent-keys", payload);
       return res.json();
     },
     onSuccess: (data) => {
@@ -1294,7 +1304,7 @@ export function AgentKeyManager() {
             <div className="space-y-2">
               <Label>{t("agentKeys.dialog.create.scopes", "권한 (Scope)")}</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {AGENT_API_SCOPES.map((scope) => (
+                {AGENT_API_SCOPES.filter((scope) => !(AGENT_AUTHORING_SCOPES as readonly string[]).includes(scope)).map((scope) => (
                   <div key={scope} className="flex items-center gap-2">
                     <Checkbox
                       id={`scope-${scope}`}
@@ -1307,6 +1317,44 @@ export function AgentKeyManager() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3" data-testid="agent-authoring-scopes">
+              <Label>{t("agentKeys.dialog.create.authoringScopes", "제작 권한 (관리자만 부여)")}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t("agentKeys.dialog.create.authoringHint", "에이전트는 키 소유자의 카테고리 범위 안에서 비공개 초안만 만들 수 있습니다. 공개·승인은 사람이 합니다.")}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {AGENT_AUTHORING_SCOPES.map((scope) => (
+                  <div key={scope} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`scope-${scope}`}
+                      checked={formData.scopes.includes(scope)}
+                      onCheckedChange={() => handleScopeToggle(scope)}
+                    />
+                    <label htmlFor={`scope-${scope}`} className="text-xs font-mono cursor-pointer">
+                      {scope}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              {authoringSelected && (
+                <div className="space-y-1 pt-1">
+                  <Label className="text-xs">{t("agentKeys.dialog.create.authoringOwner", "키 소유 운영자 (범위 기준)")}</Label>
+                  <Select
+                    value={formData.ownerUserId || "__self__"}
+                    onValueChange={(v) => setFormData((p) => ({ ...p, ownerUserId: v === "__self__" ? "" : v }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__self__">{t("agentKeys.dialog.create.authoringOwnerSelf", "나 (관리자, 전체 카테고리)")}</SelectItem>
+                      {operators.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>{o.name || o.email || o.id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {scenarios.length > 0 && (

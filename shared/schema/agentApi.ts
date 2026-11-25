@@ -342,6 +342,27 @@ export const AGENT_API_SCOPES = [
   "sessions:end",
   "usage:read",
   "webhooks:manage",
+  "scenarios:write",
+  "personas:write",
+  "rubrics:write",
 ] as const;
 
 export type AgentApiScope = typeof AGENT_API_SCOPES[number];
+
+// Authoring (write) scopes: only an admin may grant them, and only on keys that expire.
+export const AGENT_AUTHORING_SCOPES = [
+  "scenarios:write",
+  "personas:write",
+  "rubrics:write",
+] as const satisfies readonly AgentApiScope[];
+
+export function hasAuthoringScope(scopes: readonly string[] | null | undefined): boolean {
+  return (scopes ?? []).some((s) => (AGENT_AUTHORING_SCOPES as readonly string[]).includes(s));
+}
+
+// Marker stored on content created through the Agent API.
+export interface AgentAuthorship {
+  agentKeyId: string;
+  agentKeyName: string;
+  ownerUserId: string;
+}

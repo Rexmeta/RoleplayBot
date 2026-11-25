@@ -255,6 +255,7 @@ export class FileManagerService {
       evaluationCriteriaSetId: dbScenario.evaluationCriteriaSetId || undefined,
       isDemo: dbScenario.isDemo || false,
       isPublic: dbScenario.isPublic || false,
+      authoredByAgent: dbScenario.authoredByAgent ?? undefined,
       isDeleted: dbScenario.isDeleted || false,
       storeListed: dbScenario.storeListed || false,
       storePriceUsd: dbScenario.storePriceUsd ?? undefined,

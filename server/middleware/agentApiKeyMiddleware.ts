@@ -34,7 +34,12 @@ export type AgentApiErrorCode =
   | "internal_error"
   | "provider_timeout"
   | "feedback_not_available"
-  | "date_range_too_large";
+  | "date_range_too_large"
+  | "rubric_not_found"
+  | "authoring_out_of_scope"
+  | "authoring_validation_failed"
+  | "authoring_draft_only"
+  | "authoring_rate_limit_exceeded";
 
 export function agentError(
   res: Response,

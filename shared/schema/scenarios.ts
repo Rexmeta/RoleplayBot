@@ -374,6 +374,7 @@ export const scenarios = pgTable("scenarios", {
   storePackId: varchar("store_pack_id"),
   isDemo: boolean("is_demo").notNull().default(false),
   isPublic: boolean("is_public").notNull().default(false),
+  authoredByAgent: jsonb("authored_by_agent").$type<{ agentKeyId: string; agentKeyName: string; ownerUserId: string }>(),
   useVideoAvatar: boolean("use_video_avatar").notNull().default(false),
   isDeleted: boolean("is_deleted").notNull().default(false),
   deletedAt: timestamp("deleted_at"),

@@ -48,3 +48,4 @@
 - [Nested workspace publishing](nested-workspace-publishing.md) — Root-scoped pnpm filters can select generated diagnostic copies; scope commands to the canonical nested workspace.
 - [Picomatch security boundary](picomatch-security-boundary.md) — No upstream fix was published when checked; local mitigation does not clear version-based audit findings.
 - [대화 시작 안내와 선발화](conversation-start-context.md) — PersonaX는 캐릭터 선발화, 롤플레이는 사용자 선발화; 최초 시나리오 안내 바 닫기로 음성 시작.
+- [Agent authoring boundaries](agent-authoring-boundaries.md) — 에이전트 키 쓰기 권한은 초안만, 소유 운영자 범위 안, 공개·승인은 사람이 한다.
