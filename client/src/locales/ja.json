@@ -1095,6 +1095,7 @@
     "teamwork": "チームワーク",
     "personaCount": "相手役の人数",
     "personaCountN": "{{count}}人",
+    "hasLiveAvatar": "ライブアバター対応を含む",
     "personaCount6Plus": "6人以上",
     "department": "部署",
     "devTeam": "開発チーム",

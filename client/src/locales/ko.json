@@ -1143,6 +1143,7 @@
     "teamwork": "팀워크",
     "personaCount": "상대역 수",
     "personaCountN": "{{count}}명",
+    "hasLiveAvatar": "라이브 아바타 포함",
     "personaCount6Plus": "6명 이상",
     "department": "부서",
     "devTeam": "개발팀",

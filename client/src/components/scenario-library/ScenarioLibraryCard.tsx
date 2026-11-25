@@ -34,6 +34,8 @@ export function ScenarioLibraryCard({
   const { t } = useTranslation();
   const image = toMediaUrl((scenario as any).thumbnail || scenario.image);
   const personaCount = (scenario.personas || []).length;
+  const hasLiveAvatar = (scenario.personas || []).some((p: any) => p?.liveAvatarConfigured === true);
+  const liveAvatarLabel = t("scenario.hasLiveAvatar", "라이브 아바타 포함");
 
   return (
     <article
@@ -100,9 +102,14 @@ export function ScenarioLibraryCard({
         )}
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" aria-hidden />
+          <span
+            className={`inline-flex items-center gap-1 ${hasLiveAvatar ? "text-emerald-700" : ""}`}
+            title={hasLiveAvatar ? liveAvatarLabel : undefined}
+            data-testid={hasLiveAvatar ? `scenario-live-avatar-${scenario.id}` : undefined}
+          >
+            <Users className={`h-3.5 w-3.5 ${hasLiveAvatar ? "text-emerald-600" : ""}`} aria-hidden />
             {t("scenario.personaCountN", { count: personaCount })}
+            {hasLiveAvatar && <span className="sr-only">{liveAvatarLabel}</span>}
           </span>
           {scenario.estimatedTime && (
             <span className="inline-flex items-center gap-1">

@@ -1095,6 +1095,7 @@
     "teamwork": "团队合作",
     "personaCount": "对手数量",
     "personaCountN": "{{count}}人",
+    "hasLiveAvatar": "包含实时头像",
     "personaCount6Plus": "6人以上",
     "department": "部门",
     "devTeam": "开发团队",

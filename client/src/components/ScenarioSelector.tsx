@@ -473,10 +473,20 @@ export default function ScenarioSelector({
 
                 <div className="p-5 space-y-5">
                   <div className="flex flex-wrap gap-2 text-sm">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-900">
-                      <Users className="h-3.5 w-3.5" aria-hidden />
-                      {t('scenario.personaCountN', { count: (detailScenario.personas || []).length })}
-                    </span>
+                    {(() => {
+                      const hasLiveAvatar = (detailScenario.personas || []).some((p: any) => p?.liveAvatarConfigured === true);
+                      const label = t('scenario.hasLiveAvatar', '라이브 아바타 포함');
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-900"
+                          title={hasLiveAvatar ? label : undefined}
+                        >
+                          <Users className={`h-3.5 w-3.5 ${hasLiveAvatar ? "text-emerald-600" : ""}`} aria-hidden />
+                          {t('scenario.personaCountN', { count: (detailScenario.personas || []).length })}
+                          {hasLiveAvatar && <span className="sr-only">{label}</span>}
+                        </span>
+                      );
+                    })()}
                     {detailScenario.estimatedTime && (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-900">
                         <Clock className="h-3.5 w-3.5" aria-hidden />
