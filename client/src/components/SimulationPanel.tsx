@@ -14,6 +14,7 @@ interface SimulationPanelProps {
   hasActiveIncident?: boolean;
   isVisible?: boolean;
   isCompact?: boolean;
+  affectiveHistory?: AffectiveSnapshot[];
   className?: string;
 }
 
@@ -39,19 +40,83 @@ export const EMOTION_COLORS: Record<string, string> = {
   cooperativeness: 'bg-teal-400',
 };
 
-function EmotionBar({ label, value, icon, colorClass }: { label: string; value: number; icon: React.ReactNode; colorClass: string }) {
+export type AffectiveSnapshot = Record<string, number>;
+
+export function flattenAffective(a: NpcAffectiveState): AffectiveSnapshot {
+  return {
+    intensity: a.affective.intensity,
+    valence: a.affective.valence,
+    confusion: a.cognitive.confusion,
+    load: a.cognitive.load,
+    trust: a.relational.trust,
+    rapport: a.relational.rapport,
+    interest: a.motivational.interest,
+    cooperativeness: a.motivational.cooperativeness,
+  };
+}
+
+const MAX_AFFECTIVE_HISTORY = 30;
+
+/** Keeps one snapshot per change of the NPC affective state so the trend survives the panel being closed. */
+export function useAffectiveHistory(state: SimulationState | null | undefined): AffectiveSnapshot[] {
+  const [history, setHistory] = useState<AffectiveSnapshot[]>([]);
+  const affective = state?.npcAffectiveState;
+  const signature = affective ? JSON.stringify(flattenAffective(affective)) : null;
+  useEffect(() => {
+    if (!affective || !signature) return;
+    setHistory(prev => {
+      const last = prev[prev.length - 1];
+      if (last && JSON.stringify(last) === signature) return prev;
+      return [...prev, flattenAffective(affective)].slice(-MAX_AFFECTIVE_HISTORY);
+    });
+  }, [signature]);
+  return history;
+}
+
+const STROKE_COLORS: Record<string, string> = {
+  intensity: '#f87171', valence: '#f472b6', confusion: '#facc15', load: '#fbbf24',
+  trust: '#60a5fa', rapport: '#818cf8', interest: '#4ade80', cooperativeness: '#2dd4bf',
+};
+
+function TrendLine({ values, color }: { values: number[]; color: string }) {
+  const W = 56;
+  const H = 18;
+  if (values.length < 2) {
+    return <div className="h-[18px] w-14 shrink-0 border-b border-dashed border-muted-foreground/30" aria-hidden="true" />;
+  }
+  const pts = values.map((v, i) => [
+    (i / (values.length - 1)) * W,
+    H - 1 - (Math.max(0, Math.min(100, v)) / 100) * (H - 2),
+  ]);
+  const last = pts[pts.length - 1];
   return (
-    <div className="flex min-w-0 items-center gap-1.5 text-xs">
-      <span className="text-muted-foreground w-3 shrink-0">{icon}</span>
-      <span className="text-muted-foreground w-[4.25rem] shrink-0 truncate">{label}</span>
-      <div className="flex-1 relative">
-        <Progress value={value} className="h-1.5" />
-        <div
-          className={`absolute top-0 left-0 h-1.5 rounded-full transition-all duration-700 ${colorClass}`}
-          style={{ width: `${value}%` }}
-        />
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-[18px] w-14 shrink-0 overflow-visible" aria-hidden="true">
+      <polyline points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={last[0]} cy={last[1]} r="2.4" fill={color} />
+    </svg>
+  );
+}
+
+function EmotionRow({ metricKey, label, value, icon, colorClass, history }: {
+  metricKey: string; label: string; value: number; icon: React.ReactNode; colorClass: string; history: number[];
+}) {
+  const prev = history.length >= 2 ? history[history.length - 2] : null;
+  const delta = prev === null ? null : Math.round(value - prev);
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-xs" data-testid={`emotion-row-${metricKey}`}>
+      <span className="w-3 shrink-0 text-muted-foreground">{icon}</span>
+      <span className="w-[4.5rem] shrink-0 truncate text-muted-foreground">{label}</span>
+      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted-foreground/15">
+        <div className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ${colorClass}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
       </div>
-      <span className="w-8 text-right font-mono text-xs">{value}</span>
+      <TrendLine values={history} color={STROKE_COLORS[metricKey] ?? '#94a3b8'} />
+      <span className="w-7 shrink-0 text-right font-mono text-xs font-semibold">{Math.round(value)}</span>
+      <span
+        className={`w-8 shrink-0 text-right font-mono text-[10px] ${delta === null || delta === 0 ? 'text-muted-foreground' : delta > 0 ? 'text-green-500' : 'text-red-500'}`}
+        data-testid={`emotion-delta-${metricKey}`}
+      >
+        {delta === null ? '–' : delta === 0 ? '0' : `${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}`}
+      </span>
     </div>
   );
 }
@@ -360,57 +425,65 @@ function SimulationTimer({ timer }: { timer: SimulationState['timer'] }) {
 export function AffectiveStatePanel({
   affectiveState,
   isCompact = false,
+  history = [],
 }: {
   affectiveState: NpcAffectiveState;
   isCompact?: boolean;
+  history?: AffectiveSnapshot[];
 }) {
   const { t } = useTranslation();
-  const summaryMetrics = [
+  const allMetrics = [
     {
+      key: 'intensity',
       label: t('simulation.affectiveState.intensity', { defaultValue: 'Intensity' }),
       value: affectiveState.affective.intensity,
       icon: <Zap className="h-3 w-3 text-red-400" />,
       colorClass: EMOTION_COLORS.intensity,
     },
     {
+      key: 'trust',
       label: t('simulation.affectiveState.trust', { defaultValue: 'Trust' }),
       value: affectiveState.relational.trust,
       icon: <Heart className="h-3 w-3 text-blue-400" />,
       colorClass: EMOTION_COLORS.trust,
     },
     {
+      key: 'interest',
       label: t('simulation.affectiveState.interest', { defaultValue: 'Interest' }),
       value: affectiveState.motivational.interest,
       icon: <Eye className="h-3 w-3 text-green-400" />,
       colorClass: EMOTION_COLORS.interest,
     },
     {
+      key: 'cooperativeness',
       label: t('simulation.affectiveState.cooperativeness', { defaultValue: 'Cooperativeness' }),
       value: affectiveState.motivational.cooperativeness,
       icon: <Eye className="h-3 w-3 text-teal-400" />,
       colorClass: EMOTION_COLORS.cooperativeness,
     },
-  ];
-  const detailMetrics = [
     {
+      key: 'confusion',
       label: t('simulation.affectiveState.confusion', { defaultValue: 'Confusion' }),
       value: affectiveState.cognitive.confusion,
       icon: <Brain className="h-3 w-3 text-yellow-400" />,
       colorClass: EMOTION_COLORS.confusion,
     },
     {
+      key: 'load',
       label: t('simulation.affectiveState.load', { defaultValue: 'Load' }),
       value: affectiveState.cognitive.load,
       icon: <Brain className="h-3 w-3 text-amber-400" />,
       colorClass: EMOTION_COLORS.load,
     },
     {
+      key: 'rapport',
       label: t('simulation.affectiveState.rapport', { defaultValue: 'Rapport' }),
       value: affectiveState.relational.rapport,
       icon: <Heart className="h-3 w-3 text-indigo-400" />,
       colorClass: EMOTION_COLORS.rapport,
     },
     {
+      key: 'valence',
       label: t('simulation.affectiveState.valence', { defaultValue: 'Valence' }),
       value: affectiveState.affective.valence,
       icon: <Heart className="h-3 w-3 text-pink-400" />,
@@ -420,14 +493,9 @@ export function AffectiveStatePanel({
 
   return (
     <div className={`${isCompact ? 'border-t-0 pt-0' : 'border-t border-border/40 pt-1.5'}`}>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-        {summaryMetrics.map(metric => (
-          <EmotionBar key={metric.label} {...metric} />
-        ))}
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-        {detailMetrics.map(metric => (
-          <EmotionBar key={metric.label} {...metric} />
+      <div className="flex flex-col gap-1.5">
+        {allMetrics.map(({ key, ...metric }) => (
+          <EmotionRow key={key} metricKey={key} {...metric} history={history.map(h => h[key] ?? 0)} />
         ))}
       </div>
     </div>
@@ -442,6 +510,7 @@ const SimulationPanel = memo(function SimulationPanel({
   hasActiveIncident = false,
   isVisible = true,
   isCompact = false,
+  affectiveHistory,
   className = '',
 }: SimulationPanelProps) {
   const { t } = useTranslation();
@@ -487,7 +556,7 @@ const SimulationPanel = memo(function SimulationPanel({
           {/* Affective Layers panel — primary NPC state display.
               Guard against legacy sessions loaded before npcAffectiveState was introduced. */}
           {state.npcAffectiveState && (
-            <AffectiveStatePanel affectiveState={state.npcAffectiveState} isCompact={isCompact} />
+            <AffectiveStatePanel affectiveState={state.npcAffectiveState} isCompact={isCompact} history={affectiveHistory} />
           )}
 
           <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2">
