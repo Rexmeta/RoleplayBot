@@ -3,6 +3,7 @@
  * - admin: full create / revoke / list
  * - operator: list only
  */
+import { sanitizeOrigins } from "../services/agentPlayLink";
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { db } from "../storage";
@@ -38,6 +39,7 @@ const createKeySchema = z.object({
   // Operator/admin whose category scope bounds an authoring key. Defaults to the creating admin.
   ownerUserId: z.string().min(1).optional(),
   allowedIps: z.array(z.string()).default([]),
+  allowedOrigins: z.array(z.string().url()).max(20).default([]),
   allowedScenarioIds: z.array(z.string()).default([]),
   expiresInDays: z.number().int().min(1).max(365).default(90),
   rateLimitPerMinute: z.number().int().min(1).max(1000).default(60),
@@ -103,6 +105,7 @@ router.get(
         ownerUserId: k.ownerUserId,
         scopes: k.scopes,
         allowedIps: k.allowedIps,
+        allowedOrigins: k.allowedOrigins ?? [],
         rateLimitPerMinute: k.rateLimitPerMinute,
         isActive: k.isActive,
         expiresAt: k.expiresAt,
@@ -140,6 +143,7 @@ router.post(
       organizationId,
       scopes,
       allowedIps,
+      allowedOrigins,
       allowedScenarioIds,
       expiresInDays,
       rateLimitPerMinute,
@@ -173,7 +177,7 @@ router.post(
         organizationId,
         scopes,
         allowedIps,
-        allowedOrigins: [],
+        allowedOrigins: sanitizeOrigins(allowedOrigins),
         rateLimitPerMinute,
         expiresAt,
         isActive: true,
@@ -257,6 +261,20 @@ router.patch(
     }
 
     res.json({ scenarioIds });
+  })
+);
+
+// PATCH /api/admin/agent-keys/:id/origins — origins allowed to embed the hosted play screen (admin)
+router.patch(
+  "/:id/origins",
+  isSystemAdmin,
+  asyncHandler(async (req: any, res) => {
+    const { origins } = z
+      .object({ origins: z.array(z.string().url()).max(20) })
+      .parse(req.body);
+    const allowedOrigins = sanitizeOrigins(origins);
+    await db.update(agentApiKeys).set({ allowedOrigins }).where(eq(agentApiKeys.id, req.params.id));
+    res.json({ allowedOrigins });
   })
 );
 

@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { gameContextPromptSection } from "../agentGameContext";
 import { buildScenarioCultureLayer } from "../cultureMap/prompt";
 import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@shared/schema";
 import { normalizeRubricBand } from "@shared/schema/types";
@@ -477,7 +478,7 @@ ${speechStyleGuide}
 ${reactionGuide}
 
 ${difficultyGuidelines}
-${(scenario as any)._overridePromptBlock ? `\n${(scenario as any)._overridePromptBlock}\n` : ''}
+${(scenario as any)._overridePromptBlock ? `\n${(scenario as any)._overridePromptBlock}\n` : ''}${gameContextPromptSection(scenario)}
 **역할 수행 필수 사항**:
 1. 위에 명시된 성격 특성, 심리적 동기, 의사소통 스타일을 반드시 대화에 반영하세요
 2. 당신의 "두려움"과 관련된 상황이 발생하면 방어적/저항적으로 반응하세요
@@ -1017,7 +1018,7 @@ sequenceAnalysis 필드에 다음 형식으로 포함:
     return `${sameScoreWarning}**중요**: 아래 평가는 오직 피평가자의 발화만을 대상으로 수행합니다. AI(${persona.name})의 응답은 평가 대상이 아닙니다.
 ${voiceMode ? '\n⚠️ **음성 대화 전사본 안내**: 이 대화는 실시간 음성 인식(STT)으로 전사된 결과입니다. 배경 소음, 다른 사람의 발화, 전사 오류, 짧은 소리 조각(예: "음", "어", 이상한 외국어 등)이 섞여 있을 수 있습니다. 이러한 노이즈성 텍스트는 피평가자의 실제 발화로 간주하지 말고 평가에서 완전히 무시하세요. 의미있는 발화만을 대상으로 평가하세요.\n' : ''}
 **📋 시나리오 컨텍스트 (피평가자가 상대한 AI 페르소나 정보)**:
-${scenarioContextSection || '(별도 설정 없음)'}
+${scenarioContextSection || '(별도 설정 없음)'}${gameContextPromptSection(scenario)}
 ${emotionSection ? `\n**🎭 AI 페르소나 감정 변화 기록**:\n${emotionSection}\n→ 이 감정 변화를 통해 피평가자의 대화가 상대방에게 어떤 영향을 미쳤는지 평가하세요. 긍정적 마무리라면 설득·공감 능력을, 부정적 마무리라면 갈등 심화 요인을 분석하세요.` : ''}
 
 **전체 대화 맥락** (참고용, AI 발화에 [감정] 태그 포함):

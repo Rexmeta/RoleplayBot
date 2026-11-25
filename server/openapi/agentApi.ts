@@ -437,6 +437,62 @@ All errors follow a consistent envelope:
           requestId: { type: "string", example: "req_a1b2c3d4e5f6" },
         },
       },
+      GameContext: {
+        type: "object",
+        additionalProperties: false,
+        description: "Structured game situation supplied by an external game. It is sanitised (control characters, newlines and `<`, `>`, backtick removed), limited to 4 KB after sanitisation (`game_context_too_large`), and injected into both the persona conversation and the feedback evaluation as **reference data, not instructions**. Unknown fields are rejected.",
+        properties: {
+          contextId: { type: "string", maxLength: 100, example: "scene-42", description: "Your own identifier. Echoed back as `gameContextId` in `GET /sessions/{id}/result` and in the `feedback.completed` webhook." },
+          sceneSummary: { type: "string", maxLength: 1000, example: "The player asks the guild master for a loan after losing the caravan." },
+          objective: { type: "string", maxLength: 300, example: "Persuade the guild master to extend the deadline." },
+          playerState: {
+            type: "object",
+            description: "Up to 20 flat entries. Keys ≤ 40 chars; string values ≤ 200 chars.",
+            additionalProperties: { oneOf: [{ type: "string" }, { type: "number" }, { type: "boolean" }] },
+            example: { reputation: 12, gold: 40, hasLetterOfRecommendation: true },
+          },
+          recentEvents: { type: "array", maxItems: 10, items: { type: "string", maxLength: 200 }, example: ["The caravan was robbed", "The guild master heard rumours"] },
+        },
+      },
+      GameResult: {
+        type: "object",
+        required: ["sessionId", "status", "result"],
+        description: "Game-friendly session result. Identical in `GET /sessions/{sessionId}/result` and in the `data.result` field of the `feedback.completed` webhook.",
+        properties: {
+          sessionId: { type: "string", example: "ags_a1b2c3d4e5f6g7h8i9j0" },
+          externalSessionId: { type: "string", nullable: true },
+          gameContextId: { type: "string", nullable: true, description: "`gameContext.contextId` passed at session creation." },
+          sessionStatus: { type: "string", enum: ["active", "ended", "expired"] },
+          scenarioId: { type: "string" },
+          personaId: { type: "string" },
+          status: { type: "string", enum: ["in_progress", "completed", "failed"], description: "`in_progress`: session still active or feedback queued/generating (`result` is null). `failed`: feedback errored or timed out (`error` is set; ending the session again retries)." },
+          result: {
+            type: "object",
+            nullable: true,
+            properties: {
+              passed: { type: "boolean", nullable: true, description: "Result of the scenario's passing rule. `null` when the scenario has no passing rule." },
+              overallScore: { type: "integer", nullable: true, minimum: 0, maximum: 100, description: "`null` when the conversation was too short to evaluate." },
+              scenarioSuccessLevel: { type: "string", nullable: true, enum: ["excellent", "success", "partial", "failure"], description: "Derived from `overallScore`: ≥85 excellent, ≥70 success, ≥50 partial, otherwise failure. A failed passing rule caps the level at `partial`." },
+              dimensionScores: { type: "array", items: { type: "object", properties: { key: { type: "string" }, name: { type: "string" }, score: { type: "number" }, maxScore: { type: "number" } } } },
+              strengths: { type: "array", items: { type: "string" } },
+              improvements: { type: "array", items: { type: "string" } },
+              emotionFlow: {
+                type: "object",
+                nullable: true,
+                properties: {
+                  start: { type: "string" }, end: { type: "string" }, dominant: { type: "string" }, turns: { type: "integer" },
+                  sequence: { type: "array", items: { type: "string" }, description: "The persona's emotion label per turn (last 20)." },
+                },
+              },
+              narrativeHook: { type: "string", description: "A one-to-three sentence summary you can inject into your game narrative. Written in Korean for `ko` sessions, English otherwise." },
+              reportStatus: { type: "string", nullable: true },
+              confidence: { type: "number", nullable: true },
+            },
+          },
+          error: { type: "object", nullable: true, properties: { code: { type: "string", example: "feedback_failed" }, message: { type: "string" } } },
+          requestId: { type: "string" },
+        },
+      },
       WebhookObject: {
         type: "object",
         required: ["id", "url", "events", "isActive", "createdAt"],
@@ -519,6 +575,9 @@ All errors follow a consistent envelope:
                 nullable: true,
                 description: "Present for `feedback.completed` events. Mirrors the standard feedback object.",
               },
+              externalSessionId: { type: "string", nullable: true, description: "Present for `feedback.completed`. Your `externalSessionId`." },
+              gameContextId: { type: "string", nullable: true, description: "Present for `feedback.completed`. Your `gameContext.contextId`." },
+              result: { allOf: [{ $ref: "#/components/schemas/GameResult" }], description: "Present for `feedback.completed`. Same shape as `GET /sessions/{sessionId}/result`." },
             },
           },
         },
@@ -1281,6 +1340,7 @@ When the session was **already ended**, the current durable \`feedbackStatus\` i
                     description: "Language for the conversation.",
                     example: "en",
                   },
+                  gameContext: { $ref: "#/components/schemas/GameContext" },
                   metadata: {
                     type: "object",
                     additionalProperties: true,
@@ -1639,6 +1699,84 @@ data: {"emotion":"frustrated","emotionReason":"The apology felt generic.","turnI
         },
       },
     },
+    "/sessions/{sessionId}/result": {
+      get: {
+        operationId: "getSessionResult",
+        summary: "Get a game-friendly session result",
+        description: `Returns pass/fail, overall and per-dimension scores, strengths and improvements, an emotion-flow summary, a short narrative hook and a scenario success level — in the same format as the \`result\` field of the \`feedback.completed\` webhook.
+
+While the session is active or feedback is being generated, \`status\` is \`in_progress\` and \`result\` is \`null\`; poll again. \`status: "failed"\` means feedback generation failed.
+
+**Scopes required:** \`sessions:read\``,
+        tags: ["Sessions"],
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: "sessionId", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Current result.", content: { "application/json": { schema: { $ref: "#/components/schemas/GameResult" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "429": { $ref: "#/components/responses/RateLimitExceeded" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
+    "/sessions/{sessionId}/play-link": {
+      post: {
+        operationId: "createPlayLink",
+        summary: "Issue a single-use hosted play link",
+        description: `Issues a short-lived link to a hosted, embeddable role-play screen so your end users can talk to the persona **without ever seeing your API key**. Call this from your server.
+
+- The link is **single use**: the first page load redeems it; reloading or sharing it afterwards fails.
+- It expires after \`ttlSeconds\` (30–900, default 300) and is valid for **this session only**.
+- The page may be embedded in an iframe only on origins listed in the key's **allowed origins** (set by an admin: \`PATCH /api/admin/agent-keys/:id/origins\`). With no allowed origins the page cannot be framed.
+- Messages and ending the session from the hosted screen use the same handlers, scopes (\`sessions:message\`, \`sessions:end\`), rate limit and usage metering as the key-authenticated endpoints. The key's IP allow-list is not applied to end users.
+- When the user ends the conversation, the page posts to the parent window (only to an allowed origin):
+
+\`\`\`js
+window.addEventListener('message', (e) => {
+  if (e.origin !== 'https://play.example-hosted.app') return; // the AvatarRouter origin
+  if (e.data?.source === 'avatar-router' && e.data.type === 'session.completed') {
+    // e.data = { source, type, sessionId, externalSessionId, feedbackStatus, endedAt }
+    // fetch the result from YOUR server: GET /sessions/{sessionId}/result
+  }
+});
+\`\`\`
+
+A \`session.ready\` event is posted once the link is redeemed. This endpoint does not support \`Idempotency-Key\` because every call mints a new secret.
+
+**Scopes required:** \`sessions:create\``,
+        tags: ["Sessions"],
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: "sessionId", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: { "application/json": { schema: { type: "object", additionalProperties: false, properties: { ttlSeconds: { type: "integer", minimum: 30, maximum: 900, default: 300 } } } } },
+        },
+        responses: {
+          "201": {
+            description: "Link issued.",
+            content: { "application/json": { schema: {
+              type: "object",
+              required: ["sessionId", "playUrl", "expiresAt", "singleUse"],
+              properties: {
+                sessionId: { type: "string" },
+                playUrl: { type: "string", format: "uri", example: "https://your-host/play/pll_xxxxxxxx" },
+                expiresAt: { type: "string", format: "date-time" },
+                singleUse: { type: "boolean", example: true },
+                requestId: { type: "string" },
+              },
+            } } },
+          },
+          "400": { description: "Invalid `ttlSeconds`, or the session is no longer active (`session_ended`).", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorEnvelope" } } } },
+          "401": { $ref: "#/components/responses/Unauthorized" },
+          "403": { $ref: "#/components/responses/Forbidden" },
+          "404": { $ref: "#/components/responses/NotFound" },
+          "429": { $ref: "#/components/responses/RateLimitExceeded" },
+          "500": { $ref: "#/components/responses/InternalError" },
+        },
+      },
+    },
     "/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -1657,6 +1795,7 @@ data: {"emotion":"frustrated","emotionReason":"The apology felt generic.","turnI
 ### Signature verification
 Each delivery includes a \`X-Webhook-Signature\` header in the format \`sha256=<hex>\`.  
 Verify it by computing \`HMAC-SHA256(key=<your stored secret>, data=rawBody)\` and comparing in constant time.
+Compute the HMAC over the **raw request body bytes** (before JSON parsing). Other headers: \`X-Webhook-Event\` (event name) and \`X-Webhook-Delivery-Id\` (use it to deduplicate retries; \`feedback.completed\` keeps the same delivery id across retries). The \`feedback.completed\` \`data.result\` is identical to \`GET /sessions/{sessionId}/result\`.
 
 \`\`\`js
 const crypto = require('crypto');

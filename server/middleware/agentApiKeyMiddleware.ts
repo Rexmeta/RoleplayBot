@@ -26,6 +26,8 @@ export type AgentApiErrorCode =
   | "idempotency_key_conflict"
   | "external_session_conflict"
   | "metadata_too_large"
+  | "game_context_too_large"
+  | "invalid_play_token"
   | "message_too_long"
   | "unsupported_language"
   | "invalid_difficulty"

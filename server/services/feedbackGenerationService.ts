@@ -4,6 +4,7 @@ import { and, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { generateAndSaveFeedback, performStrategicAnalysis } from "../routes/routerHelpers";
 import { randomUUID } from "crypto";
 import { dispatchWebhook } from "./webhookDelivery";
+import { buildGameResult } from "./agentGameResult";
 import { listRecognitionEvidence, prepareRecognitionConversation } from './voice/recognitionEvidence';
 import { recognitionResolved, recognitionRevision, RecognitionPendingError } from './voice/recognitionPolicy';
 import { readLedgerFeedbackInput } from "./conversationLedger/feedbackBinding";
@@ -329,7 +330,14 @@ async function runStrategicPostProcessing(
       if (reportEvidence.length && report.evaluationPromptSnapshot?.recognitionRevision !== prepared.revision) {
         throw new RecognitionPendingError();
       }
-      const [session] = await db.select({ metadata: agentSessions.metadata })
+      const [session] = await db.select({
+        metadata: agentSessions.metadata,
+        status: agentSessions.status,
+        externalSessionId: agentSessions.externalSessionId,
+        scenarioId: agentSessions.scenarioId,
+        personaId: agentSessions.personaId,
+        language: agentSessions.language,
+      })
         .from(agentSessions)
         .where(eq(agentSessions.id, input.completionContext.sessionId))
         .limit(1);
@@ -355,10 +363,33 @@ async function runStrategicPostProcessing(
         },
         }).where(eq(agentSessions.id, (input.completionContext as any).sessionId));
       });
+      // `result` is the same game-friendly shape served by GET /sessions/:id/result.
+      const gameResult = buildGameResult({
+        session: {
+          id: input.completionContext.sessionId,
+          status: session?.status ?? "ended",
+          externalSessionId: session?.externalSessionId ?? null,
+          scenarioId: session?.scenarioId ?? "",
+          personaId: session?.personaId ?? "",
+          language: session?.language ?? input.language ?? "ko",
+          metadata,
+        },
+        feedbackStatus: "completed",
+        feedback: report,
+        messages: input.conversation?.messages ?? [],
+        personaName: input.persona?.name ?? null,
+      });
+      const webhookData = {
+        sessionId: input.completionContext.sessionId,
+        externalSessionId: gameResult.externalSessionId,
+        gameContextId: gameResult.gameContextId,
+        feedbackReport: report,
+        result: gameResult,
+      };
       const delivered = await dispatchWebhook(
         input.completionContext.agentKeyId,
         "feedback.completed",
-        { sessionId: input.completionContext.sessionId, feedbackReport: report },
+        webhookData,
         { deliveryId: `feedback_${token}` },
       );
       if (!delivered) throw new Error("agent_feedback_webhook_delivery_failed");

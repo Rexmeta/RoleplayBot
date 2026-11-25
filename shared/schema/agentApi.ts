@@ -95,6 +95,29 @@ export type InsertAgentSession = z.infer<typeof insertAgentSessionSchema>;
 export type AgentSession = typeof agentSessions.$inferSelect;
 
 // ─────────────────────────────────────────────────────────────
+// agent_play_links  (single-use hosted play links for end users)
+// The link token is exchanged exactly once for a short-lived access token
+// that is bound to one session. Only SHA-256 hashes are stored.
+// ─────────────────────────────────────────────────────────────
+export const agentPlayLinks = pgTable("agent_play_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  agentKeyId: varchar("agent_key_id").notNull().references(() => agentApiKeys.id, { onDelete: "cascade" }),
+  linkTokenHash: varchar("link_token_hash").notNull(),
+  linkExpiresAt: timestamp("link_expires_at").notNull(),
+  redeemedAt: timestamp("redeemed_at"),
+  accessTokenHash: varchar("access_token_hash"),
+  accessExpiresAt: timestamp("access_expires_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("idx_agent_play_links_link_hash").on(table.linkTokenHash),
+  index("idx_agent_play_links_access_hash").on(table.accessTokenHash),
+  index("idx_agent_play_links_session").on(table.sessionId),
+]);
+
+export type AgentPlayLink = typeof agentPlayLinks.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────
 // agent_idempotency_keys
 // ─────────────────────────────────────────────────────────────
 export const agentIdempotencyKeys = pgTable("agent_idempotency_keys", {

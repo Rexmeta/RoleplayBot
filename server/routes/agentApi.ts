@@ -49,6 +49,22 @@ import authoringRubricsRouter from "./agentAuthoringRubrics";
 import { AGENT_AUTHORING_SCOPES } from "@shared/schema";
 import { handleIdempotency, saveIdempotency, hashRequestBody } from "../services/agentIdempotency";
 import { enqueueFeedbackJob, getFeedbackJobStatus } from "../services/feedbackGenerationService";
+import {
+  GAME_CONTEXT_METADATA_KEY,
+  GAME_CONTEXT_MAX_BYTES,
+  gameContextSchema,
+  gameContextByteSize,
+  sanitizeGameContext,
+  readStoredGameContext,
+  withGameContext,
+} from "../services/agentGameContext";
+import { buildGameResult } from "../services/agentGameResult";
+import {
+  issuePlayLink,
+  PLAY_LINK_MIN_TTL_SECONDS,
+  PLAY_LINK_MAX_TTL_SECONDS,
+  PLAY_LINK_DEFAULT_TTL_SECONDS,
+} from "../services/agentPlayLink";
 
 const router = Router();
 
@@ -335,7 +351,7 @@ function buildRateLimiter(store: any) {
 
 // Middleware wrapper: resolves the store promise once, then delegates to the real limiter
 let _rateLimiter: ReturnType<typeof rateLimit> | null = null;
-const agentRateLimiter: import("express").RequestHandler = async (req, res, next) => {
+export const agentRateLimiter: import("express").RequestHandler = async (req, res, next) => {
   if (!_rateLimiter) {
     const store = await rateLimitStorePromise;
     _rateLimiter = buildRateLimiter(store);
@@ -477,6 +493,7 @@ const createSessionSchema = z.object({
   difficulty: z.number().int().min(1).max(5).default(4),
   language: z.enum(SUPPORTED_LANGUAGES).default("ko"),
   metadata: z.record(z.string(), z.any()).optional(),
+  gameContext: gameContextSchema.optional(),
 });
 
 router.post("/sessions", requireScope("sessions:create"), async (req: any, res) => {
@@ -502,6 +519,16 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
     }
 
     const { scenarioId, personaId, externalUserId, externalSessionId, difficulty, language, metadata } = parsed.data;
+
+    if (metadata && GAME_CONTEXT_METADATA_KEY in metadata) {
+      agentError(res, 400, "validation_error", `metadata key "${GAME_CONTEXT_METADATA_KEY}" is reserved. Use the gameContext field.`);
+      return;
+    }
+    const gameContext = parsed.data.gameContext ? sanitizeGameContext(parsed.data.gameContext) : null;
+    if (gameContext && gameContextByteSize(gameContext) > GAME_CONTEXT_MAX_BYTES) {
+      agentError(res, 400, "game_context_too_large", `gameContext must be ${GAME_CONTEXT_MAX_BYTES} bytes or less after sanitisation.`);
+      return;
+    }
 
     // Metadata size limit: 8KB
     const metaStr = metadata ? JSON.stringify(metadata) : "";
@@ -614,7 +641,9 @@ router.post("/sessions", requireScope("sessions:create"), async (req: any, res) 
       language,
       difficulty,
       status: "active",
-      metadata: metadata ?? null,
+      metadata: (metadata || gameContext)
+        ? { ...(metadata ?? {}), ...(gameContext ? { [GAME_CONTEXT_METADATA_KEY]: gameContext } : {}) }
+        : null,
       lastActivityAt: new Date(),
       expiresAt,
     });
@@ -704,7 +733,7 @@ const sendMessageSchema = z.object({
   message: z.string().min(1).max(4000),
 });
 
-router.post("/sessions/:id/messages", requireScope("sessions:message"), async (req: any, res) => {
+export const handleSendMessage = async (req: any, res: any) => {
   const startTime = Date.now();
   try {
     const agentKey = req.agentKey;
@@ -769,7 +798,7 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
     };
 
     const scenarioWithDifficulty = {
-      ...scenario,
+      ...withGameContext(scenario, readStoredGameContext(session.metadata), session.language),
       difficulty: session.difficulty,
     };
 
@@ -1228,12 +1257,13 @@ router.post("/sessions/:id/messages", requireScope("sessions:message"), async (r
     console.error("[agentApi] POST /sessions/:id/messages error:", err);
     agentError(res, 500, "internal_error", "Failed to process message.");
   }
-});
+};
+router.post("/sessions/:id/messages", requireScope("sessions:message"), handleSendMessage);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/v1/agent/sessions/:id/end
 // ─────────────────────────────────────────────────────────────────────────────
-router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, res) => {
+export const handleEndSession = async (req: any, res: any) => {
   try {
     const agentKey = req.agentKey;
     const orgId = req.agentOrgId;
@@ -1334,7 +1364,7 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
              const job = await enqueueFeedbackJob({
                conversationId: personaRunId,
                conversation: { messages: conversationMessages },
-               scenario,
+               scenario: withGameContext(scenario, readStoredGameContext(session.metadata), language),
                persona: personaContext,
                language,
                completionContext: {
@@ -1381,7 +1411,8 @@ router.post("/sessions/:id/end", requireScope("sessions:end"), async (req: any, 
       agentError(res, 500, "internal_error", "Failed to end session.");
     }
   }
-});
+};
+router.post("/sessions/:id/end", requireScope("sessions:end"), handleEndSession);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/v1/agent/sessions/:id/feedback
@@ -1430,6 +1461,104 @@ router.get("/sessions/:id/feedback", requireScope("sessions:read"), async (req: 
   } catch (err) {
     console.error("[agentApi] GET /sessions/:id/feedback error:", err);
     agentError(res, 500, "internal_error", "Failed to fetch feedback.");
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/agent/sessions/:id/result
+// Game-friendly result. Same format as the feedback.completed webhook `result`.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/sessions/:id/result", requireScope("sessions:read"), async (req: any, res) => {
+  try {
+    const session = await getSessionForKey(req.params.id, req.agentKey.id);
+    if (!session) {
+      agentError(res, 404, "session_not_found", "Session not found.");
+      return;
+    }
+    await autoExpireSession(session);
+
+    let feedbackStatus: string | null = null;
+    let feedbackError: string | null = null;
+    let feedback: any = null;
+    let messages: any[] = [];
+    if (session.personaRunId) {
+      const job = await getFeedbackJobStatus(session.personaRunId);
+      feedbackStatus = job.status;
+      feedbackError = job.error ?? null;
+      if (feedbackStatus === "completed") {
+        feedback = await storage.getFeedbackByConversationId(session.personaRunId).catch(() => null);
+      }
+      messages = await storage.getChatMessagesByPersonaRun(session.personaRunId).catch(() => []);
+    }
+
+    const scenarios = await fileManager.getAllScenarios();
+    const personaName = scenarios
+      .find((s: any) => s.id === session.scenarioId)?.personas?.find((p: any) => p.id === session.personaId)?.name ?? null;
+
+    res.json({
+      ...buildGameResult({ session, feedbackStatus, feedbackError, feedback, messages, personaName }),
+      requestId: req.agentRequestId,
+    });
+  } catch (err) {
+    console.error("[agentApi] GET /sessions/:id/result error:", err);
+    agentError(res, 500, "internal_error", "Failed to fetch result.");
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/agent/sessions/:id/play-link
+// Issues a single-use, short-lived link to the hosted (embeddable) play screen.
+// ─────────────────────────────────────────────────────────────────────────────
+const playLinkSchema = z.object({
+  ttlSeconds: z.number().int().min(PLAY_LINK_MIN_TTL_SECONDS).max(PLAY_LINK_MAX_TTL_SECONDS)
+    .default(PLAY_LINK_DEFAULT_TTL_SECONDS),
+}).strict();
+
+function publicBaseUrl(req: any): string {
+  const configured = process.env.AGENT_API_PUBLIC_URL;
+  if (configured) return configured.replace(/\/+$/, "").replace(/\/api\/v1\/agent$/, "");
+  const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() || req.protocol;
+  const host = (req.headers["x-forwarded-host"] as string | undefined)?.split(",")[0]?.trim() || req.get("host");
+  return `${proto}://${host}`;
+}
+
+router.post("/sessions/:id/play-link", requireScope("sessions:create"), async (req: any, res) => {
+  try {
+    const agentKey = req.agentKey;
+    // No Idempotency-Key support on purpose: each call mints a fresh single-use secret,
+    // and replaying one from a stored response would keep a bearer token at rest.
+    const parsed = playLinkSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      agentError(res, 400, "validation_error", "Invalid request body.", parsed.error.flatten());
+      return;
+    }
+    const session = await getSessionForKey(req.params.id, agentKey.id);
+    if (!session) {
+      agentError(res, 404, "session_not_found", "Session not found.");
+      return;
+    }
+    await autoExpireSession(session);
+    if (session.status !== "active") {
+      agentError(res, 400, "session_ended", "Session is no longer active.");
+      return;
+    }
+
+    const { token, expiresAt } = await issuePlayLink({
+      sessionId: session.id,
+      agentKeyId: agentKey.id,
+      ttlSeconds: parsed.data.ttlSeconds,
+    });
+    const responseBody = {
+      sessionId: session.id,
+      playUrl: `${publicBaseUrl(req)}/play/${token}`,
+      expiresAt: expiresAt.toISOString(),
+      singleUse: true,
+      requestId: req.agentRequestId,
+    };
+    res.status(201).json(responseBody);
+  } catch (err) {
+    console.error("[agentApi] POST /sessions/:id/play-link error:", err);
+    agentError(res, 500, "internal_error", "Failed to issue play link.");
   }
 });
 
@@ -1539,6 +1668,7 @@ function buildSessionResponse(
     personaId: session.personaId,
     externalUserId: session.externalUserId,
     externalSessionId: session.externalSessionId ?? null,
+    gameContextId: readStoredGameContext(session.metadata)?.contextId ?? null,
     language: session.language,
     difficulty: session.difficulty,
     createdAt: session.createdAt?.toISOString?.() ?? session.createdAt,

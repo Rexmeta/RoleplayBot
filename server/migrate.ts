@@ -2252,6 +2252,29 @@ export async function runMigrations(): Promise<void> {
         console.warn('⚠️ Failed to create agent_sessions table:', err);
       }
 
+      // agent_play_links – single-use hosted play links (hashed tokens only)
+      try {
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "agent_play_links" (
+            "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+            "session_id" varchar NOT NULL,
+            "agent_key_id" varchar NOT NULL REFERENCES "agent_api_keys"("id") ON DELETE CASCADE,
+            "link_token_hash" varchar NOT NULL,
+            "link_expires_at" timestamp NOT NULL,
+            "redeemed_at" timestamp,
+            "access_token_hash" varchar,
+            "access_expires_at" timestamp,
+            "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS "idx_agent_play_links_link_hash" ON "agent_play_links"("link_token_hash");
+          CREATE INDEX IF NOT EXISTS "idx_agent_play_links_access_hash" ON "agent_play_links"("access_token_hash");
+          CREATE INDEX IF NOT EXISTS "idx_agent_play_links_session" ON "agent_play_links"("session_id");
+        `);
+        console.log('✅ agent_play_links table created/verified');
+      } catch (err) {
+        console.warn('⚠️ Failed to create agent_play_links table:', err);
+      }
+
       // agent_idempotency_keys – dedup store for agent API requests
       try {
         await client.query(`

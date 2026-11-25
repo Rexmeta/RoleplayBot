@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { gameContextPromptSection } from "../agentGameContext";
 import { buildScenarioCultureLayer } from "../cultureMap/prompt";
 import type { ConversationMessage, DetailedFeedback, EvaluationScore } from "@shared/schema";
 import type { AIServiceInterface, ScenarioPersona, EvaluationCriteriaWithDimensions, SupportedLanguage, RoleplayScenario } from "../aiService";
@@ -115,7 +116,7 @@ ${userNameSection}
 ${hierarchySpeechGuide}
 ${modeTransitionSection}
 ${difficultyGuidelines}
-${overridePromptBlock ? `\n${overridePromptBlock}\n` : ''}
+${overridePromptBlock ? `\n${overridePromptBlock}\n` : ''}${gameContextPromptSection(scenarioObj)}
 대화 규칙:
 1. 주어진 페르소나를 정확히 구현하세요
 2. 자연스럽고 현실적인 대화를 유지하세요
@@ -234,7 +235,7 @@ ${difficultyGuidelines}
 5. 상황에 맞는 감정을 표현하세요
 6. **절대로 ${userLabel}의 역할을 수행하거나 ${userLabel} 입장에서 발언하지 마세요**
 
-${(scenarioObj as any)._overridePromptBlock || ''}
+${(scenarioObj as any)._overridePromptBlock || ''}${gameContextPromptSection(scenarioObj)}
 ${metaInstruction}`;
 
     const userMessageContent = userMessage || '앞서 이야기를 자연스럽게 이어가거나 새로운 주제를 제시해주세요.';
@@ -417,7 +418,7 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
           ? `${bargeInAnalysis.count}회 발생 (적극적 참여: ${bargeInAnalysis.positiveCount}회 / 경청 부족: ${bargeInAnalysis.negativeCount}회 / 중립: ${bargeInAnalysis.neutralCount}회, AI 발화 대비 비율: ${Math.round(bargeInAnalysis.rate * 100)}%)\n${bargeInAnalysis.events.slice(0, 3).map((e, i) => `  [${i + 1}] [${e.assessment === 'positive' ? '✅ 적극적 참여' : e.assessment === 'negative' ? '❌ 경청 부족' : '➖ 중립'}] AI: "${e.aiMessage}" → 사용자: "${e.userMessage}" — ${e.reason}`).join('\n')}\n→ 시스템 요약: ${bargeInAnalysis.summary}\n→ 순 점수 조정: ${bargeInAnalysis.netScoreAdjustment >= 0 ? '+' : ''}${bargeInAnalysis.netScoreAdjustment}점 (시스템이 별도 적용)`
           : undefined;
 
-        const feedbackPrompt = this.buildFeedbackPrompt(conversationText, messages, persona, evaluationCriteria, language, bargeInSummaryText);
+        const feedbackPrompt = this.buildFeedbackPrompt(conversationText, messages, persona, evaluationCriteria, language, bargeInSummaryText, scenarioObj);
 
         // Feedback quality retries are owned by this outer loop. Keeping
         // transport retries out of it prevents multiplicative provider calls.
@@ -467,7 +468,7 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
     return lastFeedback || this.getFallbackFeedback(evaluationCriteria);
   }
 
-  private buildFeedbackPrompt(conversationText: string, messages: ConversationMessage[], persona: ScenarioPersona, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko', bargeInSummary?: string): string {
+  private buildFeedbackPrompt(conversationText: string, messages: ConversationMessage[], persona: ScenarioPersona, evaluationCriteria?: EvaluationCriteriaWithDimensions, language: SupportedLanguage = 'ko', bargeInSummary?: string, scenarioObj?: unknown): string {
     const dimensions = evaluationCriteria?.dimensions || DEFAULT_DIMENSIONS;
     const criteriaName = evaluationCriteria?.name || '기본 평가 기준';
     const languageInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.ko;
@@ -525,7 +526,7 @@ JSON 형식으로 응답하세요: {"emotion": "감정", "reason": "감정을 �
 ## 평가 기준 세트: ${criteriaName}
 
 ## 📋 시나리오 컨텍스트 (피평가자가 상대한 AI 페르소나 정보):
-${scenarioContextLines || '(별도 설정 없음)'}
+${scenarioContextLines || '(별도 설정 없음)'}${gameContextPromptSection(scenarioObj)}
 ${emotionSection ? `\n## 🎭 AI 페르소나 감정 변화 기록:\n${emotionSection}\n→ 이 감정 변화를 바탕으로 피평가자의 대화가 상대방에게 어떤 영향을 미쳤는지 평가하세요.` : ''}
 ${bargeInSummary ? `\n## 🎤 말 끊기(Barge-in) 분석:\n${bargeInSummary}\n→ 이 말 끊기 패턴이 경청·공감 역량 평가에 미치는 영향을 반영하세요.` : ''}
 

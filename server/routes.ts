@@ -37,6 +37,7 @@ import createPersonaScenesRouter from "./routes/personaScenes";
 import createPersonaUserScenesRouter from "./routes/personaUserScenes";
 import createSimulationRouter from "./routes/simulation";
 import agentApiRouter from "./routes/agentApi";
+import { agentPlayPageRouter, agentPlayApiRouter } from "./routes/agentPlay";
 import adminAgentKeysRouter from "./routes/adminAgentKeys";
 import createSubscriptionsRouter from "./routes/subscriptions";
 import createHrAnalyticsRouter from "./routes/hrAnalytics";
@@ -342,6 +343,9 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
 `,
   }));
   // Agent API key-authenticated routes (no JWT required — uses Bearer api_key)
+  // Hosted play screen + token-authenticated play API (no API key; mounted before the key-authenticated router)
+  app.use('/play', agentPlayPageRouter);
+  app.use('/api/v1/agent/play', agentPlayApiRouter);
   app.use('/api/v1/agent', agentApiRouter);
   // Admin routes for API key management (JWT + admin/operator required)
   app.use('/api/admin/agent-keys', isAuthenticated, adminAgentKeysRouter);
