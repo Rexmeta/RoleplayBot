@@ -35,6 +35,9 @@ it("renders left rail with section nav tabs and keeps testids", () => {
   expect(screen.getByTestId("difficulty-1")).toBeTruthy();
   expect(screen.getByTestId("back-to-scenarios")).toBeTruthy();
   expect(screen.getByTestId("persona-card-p1")).toBeTruthy();
+  fireEvent.click(screen.getByTestId("view-persona-p1"));
+  expect(onPersonaSelect).not.toHaveBeenCalled();
+  expect(screen.getByTestId("persona-detail-dialog")).toBeTruthy();
   fireEvent.click(screen.getByTestId("select-persona-p1"));
   expect(onPersonaSelect).toHaveBeenCalledWith(personas[0], 2);
 });
@@ -42,4 +45,10 @@ it("renders left rail with section nav tabs and keeps testids", () => {
 it("locks difficulty when personas are completed", () => {
   setup({ completedPersonaIds: ["p1"] });
   expect((screen.getByTestId("difficulty-1") as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("shows live avatar availability on each partner card", () => {
+  setup({ personas: [{ ...personas[0], liveAvatarConfigured: true }, { id: "p2", name: "Lee", role: "Dev" }] });
+  expect(screen.getAllByTestId("live-avatar-badge-on")).toHaveLength(1);
+  expect(screen.getAllByTestId("live-avatar-badge-off")).toHaveLength(1);
 });

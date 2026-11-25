@@ -352,11 +352,13 @@ export class FileManagerService {
             : undefined;
           const correctedPersona = correctedImage ? { ...withMbti, image: correctedImage } : withMbti;
 
-          if (mbtiId && (needsVideos || needsImage)) {
+          if (mbtiId) {
             try {
               const dbMbti = await storage.getMbtiPersona(mbtiId);
               if (dbMbti) {
-                const patch: Record<string, unknown> = {};
+                // Read-time flag only (no avatar config is exposed): lets the
+                // partner picker show whether a live avatar is set up.
+                const patch: Record<string, unknown> = { liveAvatarConfigured: !!dbMbti.liveAvatar };
                 if (needsVideos && dbMbti.videos) {
                   patch.videos = dbMbti.videos;
                 }

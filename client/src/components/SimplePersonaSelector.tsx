@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { PersonaPortrait } from "@/components/PersonaPortrait";
+import { LiveAvatarBadge } from "@/components/LiveAvatarBadge";
+import { PersonaDetailDialog } from "@/components/PersonaDetailDialog";
 
 interface SimplePersonaSelectorProps {
   personas: ScenarioPersona[];
@@ -42,6 +44,7 @@ export function SimplePersonaSelector({
   const { t } = useTranslation();
   const currentLang = i18n.language || 'ko';
   const [activeTab, setActiveTab] = useState("overview");
+  const [detailPersona, setDetailPersona] = useState<ScenarioPersona | null>(null);
   const normalizedCompletedIds = completedPersonaIds.map(id => id.toLowerCase());
   const availablePersonas = personas.filter(p => !normalizedCompletedIds.includes(p.id.toLowerCase()));
   const completedCount = completedPersonaIds.length;
@@ -191,7 +194,7 @@ export function SimplePersonaSelector({
                   : "border-slate-200/80 hover:border-indigo-300 hover:shadow-md motion-safe:hover:-translate-y-0.5 focus-within:ring-2 focus-within:ring-indigo-500/50",
                 isLoading && !isCurrentlyLoading && "opacity-50 pointer-events-none",
               )}
-              onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona, selectedDifficulty)}
+              onClick={() => !isLoading && setDetailPersona(persona)}
               data-testid={`persona-card-${persona.id}`}
             >
               <CardContent className="flex flex-1 flex-col p-0">
@@ -207,6 +210,7 @@ export function SimplePersonaSelector({
                       <CheckCircle2 className="h-4 w-4 text-white" aria-hidden />
                     </div>
                   )}
+                  <LiveAvatarBadge configured={!!persona.liveAvatarConfigured} className="absolute bottom-3 left-3" />
                   {persona.mbti && (
                     <Badge className="absolute top-3 left-3 border-0 bg-white/90 font-mono text-[10px] tracking-wider text-slate-700 shadow-sm backdrop-blur hover:bg-white">
                       {persona.mbti}
@@ -226,37 +230,31 @@ export function SimplePersonaSelector({
                     <p className="line-clamp-3 text-xs leading-5 text-slate-600">{persona.stance}</p>
                   )}
                   <div className="mt-auto pt-1">
-                    {isCompleted ? (
-                      <div className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-50 text-xs font-medium text-emerald-700">
-                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                        {t('scenario.completedLabel')}
-                      </div>
-                    ) : (
-                      <Button
-                        size="sm"
-                        className="min-h-11 w-full rounded-lg bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 active:bg-indigo-800 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-                        disabled={isLoading}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isAvailable && !isCurrentlyLoading) {
-                            onPersonaSelect(persona, selectedDifficulty);
-                          }
-                        }}
-                        data-testid={`select-persona-${persona.id}`}
-                      >
-                        {isCurrentlyLoading ? (
-                          <>
-                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
-                            {t('scenario.preparing')}
-                          </>
-                        ) : (
-                          <>
-                            <Play className="mr-1.5 h-4 w-4" aria-hidden />
-                            {t('scenario.startConversation')}
-                          </>
-                        )}
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant={isCompleted ? "outline" : "default"}
+                      className={cn("min-h-11 w-full rounded-lg text-sm font-medium focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2", !isCompleted && "bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800")}
+                      disabled={isLoading}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDetailPersona(persona);
+                      }}
+                      data-testid={`view-persona-${persona.id}`}
+                    >
+                      {isCurrentlyLoading ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+                          {t('scenario.preparing')}
+                        </>
+                      ) : isCompleted ? (
+                        <>
+                          <CheckCircle2 className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
+                          {t('scenario.completedLabel')}
+                        </>
+                      ) : (
+                        t('scenario.viewPersonaDetail', { defaultValue: '상세 보기' })
+                      )}
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -264,6 +262,15 @@ export function SimplePersonaSelector({
           );
         })}
       </div>
+      <PersonaDetailDialog
+        persona={detailPersona}
+        imageSrc={detailPersona ? personaImages[detailPersona.id] : undefined}
+        isCompleted={!!detailPersona && normalizedCompletedIds.includes(detailPersona.id.toLowerCase())}
+        isLoading={isLoading}
+        isStarting={!!detailPersona && loadingPersonaId === detailPersona.id}
+        onClose={() => setDetailPersona(null)}
+        onStart={(persona) => onPersonaSelect(persona, selectedDifficulty)}
+      />
     </section>
   );
 

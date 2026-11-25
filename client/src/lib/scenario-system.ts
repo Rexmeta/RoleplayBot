@@ -66,6 +66,8 @@ export interface ScenarioPersona {
       female?: Partial<Record<string, string>>;
     } | Partial<Record<string, string>>;
   };
+  /** Read-time flag from the MBTI persona record: a live avatar is configured. */
+  liveAvatarConfigured?: boolean;
   // Multi-persona switching fields
   isPrimary?: boolean;
   triggerHints?: string[];
