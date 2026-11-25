@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { type ScenarioPersona, type ComplexScenario } from "@/lib/scenario-syste
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { toMediaUrl } from "@/lib/mediaUrl";
+import { PersonaPortrait } from "@/components/PersonaPortrait";
 
 interface SimplePersonaSelectorProps {
   personas: ScenarioPersona[];
@@ -82,27 +83,31 @@ export function SimplePersonaSelector({
     4: { name: t('scenario.difficulty4'), color: "text-red-700", bgColor: "bg-red-500", description: t('scenario.difficulty4Desc') },
   };
 
-  const getPersonaImage = (persona: ScenarioPersona) => {
-    const genderFolder = persona.gender || 'male';
-    const mbtiId = persona.mbti?.toLowerCase() || 'default';
-    return toMediaUrl(`personas/${mbtiId}/${genderFolder}/neutral.webp`);
-  };
+  // Resolve each portrait URL once per persona list, not on every render
+  const personaImages = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const persona of personas) {
+      const genderFolder = persona.gender || 'male';
+      const mbtiId = persona.mbti?.toLowerCase() || 'default';
+      map[persona.id] = toMediaUrl(`personas/${mbtiId}/${genderFolder}/neutral.webp`);
+    }
+    return map;
+  }, [personas]);
+
+  const heroImage = toMediaUrl((scenario as any)?.thumbnail || (scenario as any)?.image);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-white">
       {/* 히어로 헤더 */}
       <div className="relative overflow-hidden">
         {/* 배경 이미지 */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${toMediaUrl((scenario as any)?.thumbnail || (scenario as any)?.image) || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1200&h=400&fit=crop&auto=format'})`,
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/85 to-slate-900/70" />
+        {heroImage && (
+          <img src={heroImage} alt="" aria-hidden decoding="async" className="absolute inset-0 h-full w-full object-cover object-center" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-900/85 to-slate-900/65" />
         
         {/* 히어로 콘텐츠 */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-[clamp(2rem,5vw,3.5rem)]">
           {/* 네비게이션 */}
           {onBack && (
             <Button
@@ -126,7 +131,7 @@ export function SimplePersonaSelector({
                 </Badge>
               )}
               
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4 leading-tight break-words">
+              <h1 className="text-[clamp(1.5rem,1.1rem+1.8vw,2.375rem)] font-semibold tracking-tight text-white mb-4 leading-tight break-words max-w-[38ch]">
                 {scenarioTitle}
               </h1>
               
@@ -182,7 +187,7 @@ export function SimplePersonaSelector({
                 {completedPersonaIds.length > 0 ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
                     <p className="text-xs sm:text-sm text-blue-800 font-medium">
-                      🔒 {t('scenario.difficultyLocked')}
+                      {t('scenario.difficultyLocked')}
                     </p>
                   </div>
                 ) : (
@@ -194,9 +199,9 @@ export function SimplePersonaSelector({
                       key={level}
                       onClick={() => completedPersonaIds.length === 0 && onDifficultyChange(level)}
                       disabled={completedPersonaIds.length > 0}
-                      className={`relative p-2 sm:p-4 min-h-[56px] rounded-xl border-2 transition-all duration-300 active:scale-95 ${
+                      className={`relative p-2 sm:p-4 min-h-[56px] rounded-xl border-2 transition-all duration-300 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                         selectedDifficulty === level
-                          ? `${difficultyLabels[level].bgColor} border-transparent text-white shadow-lg scale-105`
+                          ? `${difficultyLabels[level].bgColor} border-transparent text-white shadow-md`
                           : completedPersonaIds.length > 0
                           ? "bg-slate-100 border-slate-200 cursor-not-allowed opacity-60"
                           : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md cursor-pointer"
@@ -384,21 +389,21 @@ export function SimplePersonaSelector({
                           <div className="space-y-2 sm:space-y-3">
                             <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 sm:p-4 border border-green-200">
                               <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                                <span className="text-base sm:text-lg">🏆</span>
+                                <Award className="h-4 w-4 shrink-0" aria-hidden />
                                 <span className="font-semibold text-green-800 text-sm">{t('scenario.optimal')}</span>
                               </div>
                               <p className="text-xs sm:text-sm text-green-700">{scenario.successCriteria.optimal}</p>
                             </div>
                             <div className="bg-gradient-to-r from-blue-50 to-sky-50 rounded-xl p-3 sm:p-4 border border-blue-200">
                               <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                                <span className="text-base sm:text-lg">👍</span>
+                                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                                 <span className="font-semibold text-blue-800 text-sm">{t('scenario.good')}</span>
                               </div>
                               <p className="text-xs sm:text-sm text-blue-700">{scenario.successCriteria.good}</p>
                             </div>
                             <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-3 sm:p-4 border border-amber-200">
                               <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                                <span className="text-base sm:text-lg">⚠️</span>
+                                <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
                                 <span className="font-semibold text-amber-800 text-sm">{t('scenario.acceptable')}</span>
                               </div>
                               <p className="text-xs sm:text-sm text-amber-700">{scenario.successCriteria.acceptable}</p>
@@ -433,7 +438,7 @@ export function SimplePersonaSelector({
             </Card>
 
             {/* 페르소나 목록 - 소형화면(sm미만) 1열, 그 이상 2열 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,13rem),1fr))]">
               {personas.map((persona) => {
                 const isCompleted = normalizedCompletedIds.includes(persona.id.toLowerCase());
                 const isCurrentlyLoading = loadingPersonaId === persona.id;
@@ -442,42 +447,36 @@ export function SimplePersonaSelector({
                 return (
                   <Card 
                     key={persona.id}
-                    className={`relative transition-all duration-300 cursor-pointer overflow-hidden ${
+                    className={`relative transition-[transform,box-shadow,border-color,opacity] duration-200 cursor-pointer overflow-hidden ${
                       isCompleted 
                         ? 'border-green-300 bg-green-50/50 opacity-70' 
                         : isCurrentlyLoading
                         ? 'border-blue-400 bg-blue-50 shadow-xl ring-2 ring-blue-400/50'
-                        : 'border-slate-200 hover:border-blue-400 hover:shadow-xl hover:-translate-y-1'
+                        : 'border-slate-200 hover:border-blue-400 hover:shadow-lg motion-safe:hover:-translate-y-0.5 focus-within:ring-2 focus-within:ring-blue-500/60'
                     } ${isLoading && !isCurrentlyLoading ? 'opacity-50 pointer-events-none' : ''}`}
                     onClick={() => isAvailable && !isCurrentlyLoading && onPersonaSelect(persona, selectedDifficulty)}
                     data-testid={`persona-card-${persona.id}`}
                   >
                     <CardContent className="p-0">
-                      {/* 페르소나 이미지 배경 - 얼굴이 보이도록 세로 영역 확장 */}
-                      <div className="relative h-[270px] sm:h-40 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
-                        <img 
-                          src={getPersonaImage(persona)}
-                          alt={persona.name}
-                          className="absolute inset-0 w-full h-full object-cover object-top opacity-90"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
-                        
+                      <PersonaPortrait
+                        src={personaImages[persona.id]}
+                        name={persona.name}
+                        alt={t('scenario.personaPortraitAlt', { defaultValue: '{{name}}, {{role}}', name: persona.name, role: persona.role || '' })}
+                        aspect="4 / 5"
+                        className="border-b border-slate-200/70"
+                      >
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-slate-900/25 to-transparent" />
                         {isCompleted && (
-                          <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
-                            <CheckCircle2 className="w-5 h-5 text-white" />
+                          <div className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 shadow-md" aria-label={t('scenario.completedLabel')}>
+                            <CheckCircle2 className="h-5 w-5 text-white" aria-hidden />
                           </div>
                         )}
-
-                        {/* MBTI 배지 - 이미지 위에 표시 */}
                         {persona.mbti && (
-                          <Badge className="absolute top-3 left-3 bg-white/90 text-slate-700 text-xs shadow-sm">
+                          <Badge className="absolute top-3 left-3 bg-white/95 font-mono text-[11px] tracking-wider text-slate-700 shadow-sm hover:bg-white">
                             {persona.mbti}
                           </Badge>
                         )}
-                      </div>
+                      </PersonaPortrait>
 
                       {/* 페르소나 정보 - 이름, 직급, 소속을 가로 배열 */}
                       <div className="p-4">

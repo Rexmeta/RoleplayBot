@@ -452,8 +452,8 @@ export default function ScenarioSelector({
             const categoryName = getCategoryName((detailScenario as any).categoryId);
             return (
               <>
-                <div className="relative h-44 w-full flex-shrink-0 bg-gradient-to-br from-indigo-200 via-blue-100 to-slate-100">
-                  {image && <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+                <div className="relative aspect-[16/9] max-h-[40dvh] w-full flex-shrink-0 overflow-hidden bg-gradient-to-br from-indigo-200 via-blue-100 to-slate-100">
+                  {image && <img src={image} alt="" decoding="async" sizes="(min-width: 640px) 32rem, 100vw" className="absolute inset-0 h-full w-full object-cover object-center" />}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-900/30 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-5">
                     <SheetHeader>
