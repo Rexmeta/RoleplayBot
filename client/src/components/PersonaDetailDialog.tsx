@@ -80,9 +80,9 @@ export function PersonaDetailDialog({ persona, imageSrc, isCompleted, isLoading,
                   <Chips items={p.personality?.traits} />
                 </Field>
                 <Field label={t("scenario.personaCommunication", { defaultValue: "소통 방식" })}>
-                  {p.personality?.communicationStyle}
+                  {p.personality?.communicationStyle !== p.stance ? p.personality?.communicationStyle : undefined}
                 </Field>
-                <Field label={t("scenario.personaMotivation", { defaultValue: "동기" })}>{p.personality?.motivation}</Field>
+                <Field label={t("scenario.personaMotivation", { defaultValue: "동기" })}>{p.personality?.motivation !== p.goal ? p.personality?.motivation : undefined}</Field>
                 <Field label={t("scenario.personaConcerns", { defaultValue: "우려 사항" })}>
                   <Chips items={p.currentSituation?.concerns} />
                 </Field>

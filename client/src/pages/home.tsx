@@ -824,6 +824,7 @@ export default function Home() {
                 tradeoff: translated.tradeoff,
                 mbti: p.mbti || p.id?.toUpperCase(),
                 videos: p.videos,
+                liveAvatarConfigured: p.liveAvatarConfigured,
               };
             })}
             completedPersonaIds={completedPersonaIds}
