@@ -19,7 +19,7 @@ import { AISpeechParticleLayer } from "@/components/AISpeechParticleLayer";
 import { UserSpeechEffect } from "@/components/chat/UserSpeechEffect";
 import { getProgressInfo } from "@/lib/conversationProgress";
 import { useSimulationState } from "@/hooks/useSimulationState";
-import SimulationPanel, { useAffectiveHistory } from "@/components/SimulationPanel";
+import { useAffectiveHistory, EmotionOverlay } from "@/components/SimulationPanel";
 
 import { useConversationTimer, formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import { useVoiceRecording } from "@/hooks/chat/useVoiceRecording";
@@ -1089,20 +1089,10 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
 
                   {isSimulationEnabled && simulationState && isMobileSimOpen && (
                     <div
-                      className="absolute left-2 top-1/2 -translate-y-1/2 z-[16] w-[340px] max-w-[88%] max-h-[55%] overflow-y-auto rounded-xl opacity-80 hover:opacity-95 transition-opacity shadow-lg"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 z-[16] w-[160px] max-w-[45%] max-h-[55%] overflow-y-auto pointer-events-none"
                       data-testid="emotion-graph-overlay"
                     >
-                      <SimulationPanel
-                        state={simulationState}
-                        newIncident={newIncident}
-                        latestTurnScore={latestTurnScore}
-                        evaluationSkipped={lastScoreSkipped}
-                        hasActiveIncident={hasActiveIncident}
-                        isVisible
-                        isCompact
-                        affectiveHistory={affectiveHistory}
-                        className="bg-card/70"
-                      />
+                      <EmotionOverlay state={simulationState} history={affectiveHistory} />
                     </div>
                   )}
 

@@ -502,6 +502,50 @@ export function AffectiveStatePanel({
   );
 }
 
+
+const OVERLAY_ORDER = ['intensity', 'trust', 'interest', 'cooperativeness', 'confusion', 'load', 'rapport', 'valence'];
+
+/** Borderless, compact emotion bars meant to float over the persona image: label sits on top of the bar. */
+export function EmotionOverlay({ state, history = [] }: { state: SimulationState | null; history?: AffectiveSnapshot[] }) {
+  const { t } = useTranslation();
+  if (!state?.npcAffectiveState) return null;
+  const snap = flattenAffective(state.npcAffectiveState);
+  return (
+    <div className="flex w-full flex-col gap-1" data-testid="emotion-overlay-bars">
+      {OVERLAY_ORDER.map(key => {
+        const value = Math.max(0, Math.min(100, snap[key] ?? 0));
+        const series = history.map(h => h[key] ?? 0);
+        const prev = series.length >= 2 ? series[series.length - 2] : null;
+        const delta = prev === null ? null : Math.round(value - prev);
+        const label = t(`simulation.affectiveState.${key}`, { defaultValue: key });
+        const W = 100, H = 20;
+        const pts = series.length >= 2
+          ? series.map((v, i) => `${(i / (series.length - 1)) * W},${H - 1 - (Math.max(0, Math.min(100, v)) / 100) * (H - 2)}`).join(' ')
+          : null;
+        return (
+          <div key={key} className="relative h-5 overflow-hidden rounded-full bg-black/35 backdrop-blur-[2px]" data-testid={`emotion-row-${key}`}>
+            <div className={`absolute inset-y-0 left-0 rounded-full opacity-80 transition-all duration-700 ${EMOTION_COLORS[key]}`} style={{ width: `${value}%` }} />
+            {pts && (
+              <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
+                <polyline points={pts} fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="1.2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+              </svg>
+            )}
+            <div className="relative flex h-full items-center justify-between px-2 text-[10px] leading-none text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
+              <span className="truncate font-medium">{label}</span>
+              <span className="ml-1 flex shrink-0 items-center gap-1 font-mono font-semibold">
+                {delta !== null && delta !== 0 && (
+                  <span data-testid={`emotion-delta-${key}`} className={`text-[9px] ${delta > 0 ? 'text-green-300' : 'text-red-300'}`}>{delta > 0 ? '▲' : '▼'}{Math.abs(delta)}</span>
+                )}
+                {Math.round(value)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const SimulationPanel = memo(function SimulationPanel({
   state,
   newIncident,
