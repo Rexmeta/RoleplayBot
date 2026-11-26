@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Clock3, LoaderCircle, Mic, MicOff, Settings2 } from "lucide-react";
+import { LoaderCircle, Mic, MicOff, Settings2 } from "lucide-react";
 import { toMediaUrl } from "@/lib/mediaUrl";
 import { formatElapsedTime } from "@/hooks/chat/useConversationTimer";
 import type { ComplexScenario, ScenarioPersona } from "@/lib/scenario-system";
@@ -9,7 +9,10 @@ import { GoalsSidebar } from "./GoalsSidebar";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { ConversationModeMenu } from "./ConversationModeMenu";
 import { LiveAvatarOptionsDialog } from "./LiveAvatarOptionsDialog";
-import { VoiceControlSurface, VoiceOverlayHeader } from "./VoiceConversationChrome";
+import { VoiceControlSurface } from "./VoiceConversationChrome";
+import { PersonaSessionStrip } from "./PersonaSessionStrip";
+import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ConversationLanguageNotice } from "./ConversationLanguageNotice";
 
 export interface TavusConversationLayoutProps {
@@ -30,6 +33,11 @@ export interface TavusConversationLayoutProps {
   transcriptMessages: ConversationMessage[];
   captionsAreProvisional: boolean;
   hasCaptionEvents: boolean;
+  /** Confirmed early end: closes the session and generates feedback when available. */
+  onEarlyEnd?: () => void;
+  /** Ends the session without feedback and returns to the scenario detail. */
+  onReturnToScenario?: () => void;
+  earlyEndDisabled?: boolean;
   onExitMode?: (mode: "text" | "realtime-voice") => void;
   requiresAttention?: boolean;
 }
@@ -58,6 +66,9 @@ export default function TavusConversationLayout({
   captionsAreProvisional,
   hasCaptionEvents,
   onExitMode,
+  onEarlyEnd,
+  onReturnToScenario,
+  earlyEndDisabled = false,
   requiresAttention = false,
 }: TavusConversationLayoutProps) {
   const { t, i18n } = useTranslation();
@@ -66,6 +77,7 @@ export default function TavusConversationLayout({
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
   const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
+  const [isEarlyEndOpen, setIsEarlyEndOpen] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
   const personaSubtitle = [persona.role, persona.department, scenario.title].filter(Boolean).join(" · ");
@@ -128,35 +140,6 @@ export default function TavusConversationLayout({
         <section className="relative isolate min-w-0 flex-1 overflow-hidden bg-[#182426]" data-testid="tavus-room">
           <div className="absolute inset-0">{stage}</div>
 
-          <VoiceOverlayHeader className="absolute inset-x-0 top-0 z-20 px-3 pb-2 pt-[calc(.5rem+env(safe-area-inset-top,0px))] sm:px-5 sm:pb-3">
-            <header className="flex min-w-0 items-center gap-2.5">
-              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/25 bg-white/15 sm:h-9 sm:w-9">
-                {persona.image ? (
-                    <img src={toMediaUrl(persona.image)} alt="" className="h-full w-full object-cover object-top" />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-xs font-semibold">{initials}</span>
-                )}
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <h1 className="truncate text-xs font-semibold leading-4 sm:text-sm">{persona.name}</h1>
-                {personaSubtitle && <p className="max-w-[min(45vw,32rem)] truncate text-[10px] leading-3 text-white/65 sm:text-[11px]">{personaSubtitle}</p>}
-                <div className="mt-0.5 flex items-center gap-1.5 text-[10px] leading-3 text-white/75">
-                  <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-[#87d8b8]" : "bg-white/55"}`} />
-                  <span role="status" data-testid="tavus-session-status" className="truncate">{statusLabel}</span>
-                </div>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-white/80 sm:gap-2 sm:text-xs">
-                <Clock3 className="h-3 w-3 text-white/60 sm:h-3.5 sm:w-3.5" />
-                <time className="font-mono tabular-nums" data-testid="elapsed-time">{formatElapsedTime(elapsedSeconds)}</time>
-                {remainingSeconds !== null && (
-                  <time className="border-l border-white/25 pl-1.5 font-mono tabular-nums text-white/65 sm:pl-2" data-testid="remaining-time">
-                    {formatRemainingTime(remainingSeconds)}
-                  </time>
-                )}
-              </div>
-            </header>
-          </VoiceOverlayHeader>
 
           <div className="contents [&>div]:top-[calc(6.5rem+env(safe-area-inset-top,0px))]">
           <GoalsSidebar
@@ -176,6 +159,33 @@ export default function TavusConversationLayout({
               data-testid="tavus-control-surface"
               className="mx-auto flex w-full max-w-4xl flex-col items-center gap-1 px-3 py-2 lg:max-w-6xl xl:max-w-[90%]"
             >
+              <div className="sr-only">
+                <span role="status" data-testid="tavus-session-status">{statusLabel}</span>
+                <time data-testid="elapsed-time">{formatElapsedTime(elapsedSeconds)}</time>
+                {remainingSeconds !== null && <time data-testid="remaining-time">{formatRemainingTime(remainingSeconds)}</time>}
+              </div>
+              <div className="-mx-3 -mt-2 w-[calc(100%+1.5rem)] overflow-hidden rounded-t-2xl">
+                <PersonaSessionStrip
+                  name={persona.name}
+                  imageUrl={persona.image ? toMediaUrl(persona.image) : null}
+                  description={personaSubtitle || null}
+                  progressPercentage={remainingSeconds === null ? 0 : (elapsedSeconds / Math.max(1, elapsedSeconds + remainingSeconds)) * 100}
+                  progressBarClass="bg-blue-400"
+                  toneClass="text-slate-600"
+                  statusLabel={<span className="block max-w-[16rem] truncate">{statusLabel}</span>}
+                  elapsedLabel={<>
+                    <time>{formatElapsedTime(elapsedSeconds)}</time>
+                    {remainingSeconds !== null && <time className="ml-1.5 border-l border-slate-300 pl-1.5">{formatRemainingTime(remainingSeconds)}</time>}
+                  </>}
+                  endAction={active && onEarlyEnd ? (
+                    <Button size="sm" variant="outline" onClick={() => setIsEarlyEndOpen(true)} disabled={earlyEndDisabled}
+                      data-testid="button-end-conversation-persona-strip"
+                      className="h-8 border px-3 text-xs text-slate-600 border-slate-300 hover:bg-slate-50">
+                      {tx("chat.endEarly", "End Early", "조기 종료")}
+                    </Button>
+                  ) : undefined}
+                />
+              </div>
               <div className="flex w-full min-w-0 items-center gap-2 px-1 py-1.5 sm:gap-3" data-testid="live-avatar-control-row">
                 <ConversationModeMenu
                   currentMode="live-avatar"
@@ -236,6 +246,28 @@ export default function TavusConversationLayout({
             viewportOffsetTop={viewportOffsetTop}
             notice={captionNotice}
           />
+
+          <AlertDialog open={isEarlyEndOpen} onOpenChange={setIsEarlyEndOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{tx("chat.endConversationTitle", "End the conversation?", "대화를 종료하시겠습니까?")}</AlertDialogTitle>
+                <AlertDialogDescription>{tx("chat.endConversationDesc", "Ending now closes the live session. You can generate feedback from what was said so far.", "지금 종료하면 라이브 세션이 닫힙니다. 지금까지의 대화로 피드백을 생성할 수 있습니다.")}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between">
+                {onReturnToScenario && (
+                  <Button variant="outline" onClick={() => { setIsEarlyEndOpen(false); onReturnToScenario(); }} data-testid="button-return-to-scenario">
+                    {tx("chat.returnToScenario", "Back to scenario", "시나리오로 돌아가기")}
+                  </Button>
+                )}
+                <div className="flex justify-end gap-2">
+                  <AlertDialogCancel data-testid="button-cancel-end-conversation">{tx("chat.cancel", "Cancel", "취소")}</AlertDialogCancel>
+                  <Button onClick={() => { setIsEarlyEndOpen(false); onEarlyEnd?.(); }} data-testid="button-confirm-end-conversation" className="bg-purple-600 hover:bg-purple-700">
+                    {tx("chat.yesGenerateFeedback", "End and get feedback", "종료하고 피드백 받기")}
+                  </Button>
+                </div>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <LiveAvatarOptionsDialog open={isOptionsOpen} onClose={() => setIsOptionsOpen(false)}>
             <div className="space-y-4">

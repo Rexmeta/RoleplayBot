@@ -9,8 +9,8 @@ export type PersonaSessionStripProps = {
   progressBarClass: string;
   toneClass: string;
   statusLabel: ReactNode;
-  elapsedLabel: string;
-  endAction: ReactNode;
+  elapsedLabel: ReactNode;
+  endAction?: ReactNode;
   extraAction?: ReactNode;
 };
 
@@ -46,7 +46,7 @@ export function PersonaSessionStrip({
           <span className="text-slate-400 font-normal tabular-nums">{elapsedLabel}</span>
         </div>
         {extraAction}
-        <div className="shrink-0">{endAction}</div>
+        {endAction && <div className="shrink-0">{endAction}</div>}
       </div>
       <div className="mt-2 flex items-center gap-2">
         <div className="flex-1 bg-slate-300/50 rounded-full h-1 overflow-hidden">

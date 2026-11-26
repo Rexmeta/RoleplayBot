@@ -196,9 +196,5 @@ export default function ManagedAvatarRoom({ endpoint, statusEndpoint = endpoint,
       {failed ? "라이브 아바타 연결에 실패했습니다." : "라이브 아바타 재생이 종료되었습니다."}
     </div>}
     {showUserSpeech && speech.active && <UserSpeechEffect {...speech} />}
-    <button type="button" className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] right-3 z-[13] rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-xs text-slate-600 shadow-sm backdrop-blur-sm"
-      onClick={() => void clientRef.current?.interrupt().catch(() => errorRef.current?.("끼어들기 요청에 실패했습니다."))}>
-      응답 중단
-    </button>
   </div>;
 }

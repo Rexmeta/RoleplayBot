@@ -80,9 +80,10 @@ export interface ChatWindowProps {
 interface StandardChatWindowProps extends Omit<ChatWindowProps, 'initialInputMode'> {
   initialInputMode?: 'text' | 'realtime-voice';
   onSelectLiveAvatar?: (persona: ScenarioPersona) => void;
+  onReturnToScenario?: () => void;
 }
 
-function StandardChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting, onSelectLiveAvatar }: StandardChatWindowProps) {
+function StandardChatWindow({ scenario, persona, conversationId, onChatComplete, onExit, onPersonaChange, onReady, onConversationEnding, isPersonaMode = false, initialMessages, initialInputMode, earlyConnect, delayGreeting, onSelectLiveAvatar, onReturnToScenario }: StandardChatWindowProps) {
   const [, navigate] = useLocation();
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -1474,7 +1475,13 @@ function StandardChatWindow({ scenario, persona, conversationId, onChatComplete,
               <Button variant="outline" onClick={handleResetConversation} data-testid="button-reset-conversation" className="border-orange-300 text-orange-600 hover:bg-orange-50">
                 <i className="fas fa-redo mr-1"></i>{t('chat.resetConversation')}
               </Button>
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" data-testid="button-return-to-scenario" onClick={async () => {
+                  setShowEndConversationDialog(false);
+                  try { await flushRealtimeMessagesRef.current?.(true); } catch (e) { console.error(e); }
+                  realtimeVoice.disconnect();
+                  (onReturnToScenario ?? onExit)();
+                }}>{t('chat.returnToScenario', { defaultValue: '시나리오로 돌아가기' })}</Button>
                 <AlertDialogCancel data-testid="button-cancel-end-conversation">{t('chat.cancel')}</AlertDialogCancel>
                 <AlertDialogAction onClick={confirmEndConversation} data-testid="button-confirm-end-conversation" className="bg-purple-600 hover:bg-purple-700">{t('chat.yesGenerateFeedback')}</AlertDialogAction>
               </div>
@@ -1633,6 +1640,7 @@ function ConversationChatWindow(props: ChatWindowProps) {
       initialInputMode={standardMode ?? (initialInputMode === 'text' || initialInputMode === 'realtime-voice' ? initialInputMode : undefined)}
       onReady={notifyReady}
       onSelectLiveAvatar={selectLiveAvatar}
+      onReturnToScenario={props.onLiveAvatarExit}
     />
   );
 }

@@ -416,6 +416,16 @@ function TavusChatWindowSession({
     }
   };
 
+  // Ends the live session without opening feedback, then leaves for the scenario detail.
+  const returnToScenario = async () => {
+    exitRequestedRef.current = true;
+    if (session.state === "active" || session.state === "ending") {
+      await end();
+      if (!mountedRef.current || sessionStateRef.current !== "ended") { exitRequestedRef.current = false; return; }
+    }
+    onExit();
+  };
+
   const started = startedRef.current || session.state !== "idle";
   const preparingFeedback = session.state === "ended" && evaluationAvailable &&
     !["unavailable", "empty", "failed"].includes(transcript.transcriptState || "");
@@ -606,6 +616,9 @@ function TavusChatWindowSession({
       elapsedSeconds={elapsedSeconds}
       remainingSeconds={remainingSeconds}
       onExitMode={!started ? onExitMode : undefined}
+      onEarlyEnd={() => void end()}
+      onReturnToScenario={() => void returnToScenario()}
+      earlyEndDisabled={busy}
       requiresAttention={Boolean(apiDisplayError) || session.state === "create_unknown" || session.state === "ended"}
       stage={roomStage}
       transcriptMessages={transcriptMessages}
