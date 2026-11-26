@@ -9,6 +9,10 @@ The Agent API lets you embed AI-powered role-play training sessions into your ow
 Your end-users interact with AI personas across workplace scenarios with real-time emotion
 tracking, per-turn scoring, and a full feedback report at the end of each session.
 
+### Integration guide & SDK
+
+Step-by-step guide (Korean) for games and external services: [연동 가이드](/api/v1/agent/integration-guide). A TypeScript client, a browser embed script (\`/api/v1/agent/sdk/embed.js\`) and a working web game example are described there.
+
 ### Authentication
 
 All endpoints require **Bearer token** authentication using your API key:

@@ -44,6 +44,7 @@ import createHrAnalyticsRouter from "./routes/hrAnalytics";
 import createStoreRouter from "./routes/store";
 import createFewShotExamplesRouter from "./routes/fewShotExamples";
 import createContentImportsRouter from "./routes/contentImports";
+import path from "path";
 import swaggerUi from "swagger-ui-express";
 import agentApiSpec from "./openapi/agentApi";
 
@@ -306,6 +307,13 @@ export async function registerRoutes(app: Express, httpServer: Server): Promise<
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'no-store');
     res.json(dynamicSpec);
+  });
+  // Integration guide (Korean markdown) and browser embed script.
+  app.get('/api/v1/agent/integration-guide', (_req, res) => {
+    res.type('text/markdown; charset=utf-8').sendFile(path.resolve(process.cwd(), 'docs/integrations/agent-api-integration-guide.md'));
+  });
+  app.get('/api/v1/agent/sdk/embed.js', (_req, res) => {
+    res.type('application/javascript; charset=utf-8').sendFile(path.resolve(process.cwd(), 'sdk/agent-api/embed.js'));
   });
   // Swagger UI fetches the spec from the dynamic endpoint above so that
   // the server URL and Authorize button work correctly for all origins.

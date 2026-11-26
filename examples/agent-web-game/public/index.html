@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>길드 마스터와의 협상 (예제)</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:640px;margin:24px auto;padding:0 16px;color:#222}
+#state{background:#f3f4f6;border-radius:8px;padding:8px 12px;font-size:14px}
+#scene{font-size:17px;line-height:1.6;margin:16px 0;min-height:80px}
+button{padding:10px 14px;margin:4px 4px 4px 0;border-radius:8px;border:1px solid #888;background:#fff;cursor:pointer}
+button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+#err{color:#b91c1c}
+</style></head><body>
+<h2>길드 마스터와의 협상</h2>
+<div id="state"></div><div id="scene"></div><div id="choices"></div><p id="err"></p>
+<script src="/embed.js"></script>
+<script>
+// Minimal branching story. State shown here is a mirror of the server's authoritative state.
+var state={reputation:10,gold:40};
+var scenes={
+  start:{text:"캐러밴을 잃은 당신은 길드 마스터를 찾아가 대출 기한 연장을 부탁해야 합니다.",
+    choices:[{label:"길드 마스터와 대화하기",roleplay:true}]},
+  win:{text:"",choices:[{label:"처음으로",go:"start"}]},
+  lose:{text:"",choices:[{label:"처음으로",go:"start"}]},
+  neutral:{text:"",choices:[{label:"다시 시도",go:"start"}]}
+};
+var current="start";
+function render(){
+  document.getElementById("state").textContent="평판 "+state.reputation+" · 골드 "+state.gold;
+  var s=scenes[current];document.getElementById("scene").textContent=s.text;
+  var c=document.getElementById("choices");c.innerHTML="";
+  s.choices.forEach(function(ch){var b=document.createElement("button");b.textContent=ch.label;b.className="primary";
+    b.onclick=function(){ if(ch.roleplay)startRoleplay(b); else{current=ch.go;render()}};c.appendChild(b)});
+}
+function err(m){document.getElementById("err").textContent=m||""}
+function startRoleplay(btn){
+  err();btn.disabled=true;
+  fetch("/api/roleplay/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+    playerId:"demo-player",
+    gameContext:{contextId:"scene-ask-loan",sceneSummary:scenes.start.text,objective:"기한 연장을 설득한다",recentEvents:["캐러밴이 약탈당했다"]}})})
+  .then(ok).then(function(s){
+    var modal=AgentRoleplay.open({playUrl:s.playUrl,sessionId:s.sessionId,
+      onComplete:function(){ modal.close(); waitResult(s.sessionId) },
+      onClose:function(){btn.disabled=false}});
+  }).catch(function(e){err("시작 실패: "+e.message);btn.disabled=false});
+}
+function ok(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.message||j.error);return j})}
+function waitResult(id,tries){
+  tries=tries||0;document.getElementById("scene").textContent="결과를 분석하는 중...";
+  fetch("/api/roleplay/result?sessionId="+encodeURIComponent(id)).then(ok).then(function(r){
+    if(r.status==="completed")return showOutcome(r);
+    if(r.status==="failed")return err("평가 실패: "+(r.error&&r.error.message));
+    if(tries>60)return err("결과 대기 시간 초과");
+    setTimeout(function(){waitResult(id,tries+1)},2000);
+  }).catch(function(e){err(e.message)});
+}
+// The server already applied the result to the authoritative player state (once per session).
+// The browser only renders the returned outcome and state.
+function showOutcome(r){
+  state=r.state;current=r.outcome;
+  var lead={win:"길드 마스터가 기한을 연장해 줍니다. ",lose:"협상은 실패했습니다. ",neutral:"대화가 짧아 결과를 판단하기 어렵습니다. "}[r.outcome];
+  scenes[r.outcome].text=lead+(r.narrativeHook||"");
+  render();
+}
+render();
+</script></body></html>

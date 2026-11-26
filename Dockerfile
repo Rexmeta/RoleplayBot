@@ -48,6 +48,10 @@ COPY --from=builder /app/scenarios ./scenarios
 # 페르소나 표정 이미지 복사 (존재하는 경우)
 COPY --from=builder /app/attached_assets ./attached_assets
 
+# Agent API 연동 가이드·임베드 스크립트 (공개 엔드포인트가 직접 제공)
+COPY --from=builder /app/docs/integrations/agent-api-integration-guide.md ./docs/integrations/agent-api-integration-guide.md
+COPY --from=builder /app/sdk/agent-api/embed.js ./sdk/agent-api/embed.js
+
 # 파일 소유권 변경
 RUN chown -R nodejs:nodejs /app
 
